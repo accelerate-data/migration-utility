@@ -26,7 +26,7 @@ This file is the shared source of truth for the `/generate-tests` command, the
 | Code | Severity | Use when | Status |
 |---|---|---|---|
 | `MANIFEST_NOT_FOUND` | error | `manifest.json` is missing before `/generate-tests` starts | `error` |
-| `SANDBOX_NOT_CONFIGURED` | error | `manifest.json` has no `sandbox.database` | `error` |
+| `SANDBOX_NOT_CONFIGURED` | error | `manifest.json` has no `runtime.sandbox` entry or active sandbox connection value | `error` |
 | `SANDBOX_NOT_RUNNING` | error | sandbox-status check failed | `error` |
 | `CATALOG_FILE_MISSING` | error | required table or view catalog file is missing | `error` |
 | `SCOPING_NOT_COMPLETED` | error | scoping is missing, unresolved, or not analyzed for the target object | `error` |

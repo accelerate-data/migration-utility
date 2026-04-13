@@ -14,9 +14,9 @@ If `CLAUDE_PLUGIN_ROOT` is not set, stop and tell the user to load the plugin wi
 
 ## Step 2: Read sandbox from manifest
 
-Read `manifest.json` and check for `sandbox.database`. If missing, tell the user no sandbox exists and stop.
+Read `manifest.json` and check for `runtime.sandbox`. If missing, tell the user no sandbox exists and stop.
 
-Show the user which database will be dropped (`sandbox.database` from manifest) and ask for confirmation. This is a destructive operation.
+Show the user which sandbox runtime will be dropped (`runtime.sandbox` from manifest) and ask for confirmation. This is a destructive operation.
 
 ## Step 3: Execute
 

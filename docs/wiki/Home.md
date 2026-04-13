@@ -1,6 +1,6 @@
 # Migration Utility
 
-A Claude Code plugin and batch CLI pipeline that migrates Microsoft Fabric Warehouse stored procedures to dbt models. It targets silver and gold transformations; bronze remains out of scope.
+A Claude Code plugin and batch CLI pipeline that migrates warehouse stored procedures to dbt models. It targets silver and gold transformations; bronze remains out of scope.
 
 ## Who uses it
 
@@ -20,7 +20,7 @@ The workflow has two layers:
 |---|---|---|
 | 1 | `/init-ad-migration` | Scaffolds project files, git hooks, and `scripts/worktree.sh` |
 | 2 | `/setup-ddl` | Extracts DDL and builds the local catalog |
-| 3 | `/init-dbt` | Scaffolds the dbt project and generates `sources.yml` |
+| 3 | `/setup-target` | Collects target runtime, scaffolds the dbt project, and generates `sources.yml` |
 | 4 | `/setup-sandbox` | Creates the throwaway database used for proof-backed testing |
 
 ### Per-object migration
@@ -48,7 +48,7 @@ The plugin currently exposes these user-facing commands:
 
 - `/init-ad-migration`
 - `/setup-ddl`
-- `/init-dbt`
+- `/setup-target`
 - `/setup-sandbox`
 - `/scope`
 - `/profile`

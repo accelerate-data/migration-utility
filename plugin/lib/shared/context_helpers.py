@@ -143,7 +143,11 @@ def sandbox_metadata(project_root: Path) -> dict[str, Any] | None:
         manifest = read_manifest(project_root)
     except (ValueError, OSError):
         return None
-    return manifest.get("sandbox")
+    runtime = manifest.get("runtime") or {}
+    sandbox = runtime.get("sandbox")
+    if not isinstance(sandbox, dict):
+        return None
+    return sandbox.get("connection")
 
 
 def load_test_spec(project_root: Path, table_fqn: str) -> dict[str, Any] | None:

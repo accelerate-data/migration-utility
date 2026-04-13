@@ -18,9 +18,10 @@ Generate dbt models for a batch of tables. Launches one sub-agent per table in p
 - For each FQN argument: if `catalog/tables/<fqn>.json` has `"is_source": true`, skip that table and print:
   > `<fqn>` is marked as a dbt source — no migration needed. Use `/add-source-tables` to manage source tables.
 - `dbt_project.yml` must exist at `./dbt/`. If missing, fail all items with `DBT_PROJECT_MISSING`.
-- `dbt/profiles.yml` must exist. If missing, fail all items with `DBT_PROFILE_MISSING` and tell the user to run `/init-dbt`.
-- `dbt debug` must show "Connection test: OK". If it fails, fail all items with `DBT_CONNECTION_FAILED` and tell the user to check credentials — for SQL Server: `MSSQL_HOST`, `MSSQL_PORT`, `MSSQL_DB`, `SA_PASSWORD` env vars; for other adapters: update `profiles.yml` placeholder values.
-- `sandbox.database` must be present in `manifest.json`. If missing, fail all items with `SANDBOX_NOT_CONFIGURED` and tell the user to run `/setup-sandbox`. The sandbox provides the compile-ready source environment for `dbt compile` and `dbt test`.
+- `dbt/profiles.yml` must exist. If missing, fail all items with `DBT_PROFILE_MISSING` and tell the user to run `/setup-target`.
+- `dbt debug` must show "Connection test: OK". If it fails, fail all items with `DBT_CONNECTION_FAILED` and tell the user to check the resolved runtime credentials and endpoint from `manifest.json` and the matching `dbt/profiles.yml` configuration.
+- `runtime.target` must be present in `manifest.json`. If missing, fail all items with `TARGET_NOT_CONFIGURED` and tell the user to run `/setup-target`.
+- `runtime.sandbox` must be present in `manifest.json`. If missing, fail all items with `SANDBOX_NOT_CONFIGURED` and tell the user to run `/setup-sandbox`. The sandbox provides the compile-ready source environment when the workflow needs live source-backed validation.
 - The sandbox must be reachable: run `uv run --project "${CLAUDE_PLUGIN_ROOT}/lib" test-harness sandbox-status`. If the sandbox does not exist or is not accessible, fail all items with `SANDBOX_NOT_CONFIGURED`.
 
 Per-item readiness is checked by the skill via `migrate-util ready` (which enforces that refactor, test generation, and sandbox configuration are complete before model generation can proceed).
@@ -61,7 +62,7 @@ This skip means "reuse existing artifacts for review," not "bypass the quality g
 Run /generating-model for <schema.table>.
 The working directory is <working-directory>.
 Equivalence warnings: proceed and write the model. Record each gap as EQUIVALENCE_GAP warning.
-dbt compile/test failure: attempt up to 3 self-corrections. If still failing, write as-is with DBT_TEST_FAILED warning.
+dbt compile/build failure: attempt up to 3 self-corrections. If still failing, write as-is with DBT_TEST_FAILED warning.
 Write the item result JSON to .migration-runs/<schema.table>.<run_id>.json.
 On failure, write result with status: "error" and error details.
 Return the item result JSON.
@@ -73,7 +74,7 @@ For each item, read `.migration-runs/<item_id>.<run_id>.json` from Step 2. If `s
 
 - If verdict is `approved`: proceed to commit/revert below.
 - If Step 2 was a skip and review returns `error` because the persisted artifacts are missing or stale, invoke `/generating-model <item_id>` once to rebuild the artifacts, then invoke `/reviewing-model <item_id>` again.
-- `revision_requested`: invoke `/generating-model <item_id>` with the reviewer's `feedback_for_model_generator` as additional context (pass it via `ModelGenerationHandoff.revision_feedback`). The model-generator must re-run `dbt test` to confirm unit tests still pass after revisions. Then invoke `/reviewing-model <item_id>` again. Maximum 2 review iterations per item.
+- `revision_requested`: invoke `/generating-model <item_id>` with the reviewer's `feedback_for_model_generator` as additional context (pass it via `ModelGenerationHandoff.revision_feedback`). The model-generator must re-run dbt validation with `dbt build` after revisions. Then invoke `/reviewing-model <item_id>` again. Maximum 2 review iterations per item.
 - On review failure or max iterations reached: approve with warnings and proceed to commit/revert below.
 
 Once the review outcome is final for an item, derive `<model_name>` from item_id.
@@ -151,7 +152,7 @@ For multi-table sub-agents: include the commit/revert instructions in the sub-ag
     },
     "execution": {
       "dbt_compile_passed": true,
-      "dbt_test_passed": true,
+      "dbt_build_passed": true,
       "self_correction_iterations": 0,
       "dbt_errors": []
     },

@@ -13,6 +13,14 @@ const VOLATILE_PATHS = [
   path.join('dbt', 'target'),
 ];
 const FIXTURE_DB_NAME = 'MigrationTest';
+const LEGACY_MANIFEST_KEYS = [
+  'source_database',
+  'source_host',
+  'source_port',
+  'extracted_schemas',
+  'extracted_at',
+  'sandbox',
+];
 
 function sanitizeSegment(value, fallback) {
   const normalized = String(value || '')
@@ -33,16 +41,65 @@ function clearVolatileArtifacts(projectRoot) {
   }
 }
 
-function pinFixtureDatabase(projectRoot) {
+function loadManifest(projectRoot) {
+  const manifestPath = path.join(projectRoot, 'manifest.json');
+  if (!fs.existsSync(manifestPath)) {
+    throw new Error(`manifest.json not found in ${projectRoot}`);
+  }
+  return JSON.parse(fs.readFileSync(manifestPath, 'utf8'));
+}
+
+function validateManifest(manifest, projectRoot) {
+  const legacyKeys = LEGACY_MANIFEST_KEYS.filter((key) => Object.prototype.hasOwnProperty.call(manifest, key));
+  if (legacyKeys.length > 0) {
+    throw new Error(
+      `Fixture manifest at ${projectRoot} uses legacy keys: ${legacyKeys.join(', ')}. ` +
+      'Port the fixture to runtime.* and extraction.* first.',
+    );
+  }
+
+  if (!manifest.runtime || !manifest.runtime.source) {
+    throw new Error(`Fixture manifest at ${projectRoot} is missing runtime.source`);
+  }
+
+  const hasDbtProject = fs.existsSync(path.join(projectRoot, 'dbt', 'profiles.yml'));
+  if (hasDbtProject && !manifest.runtime.target) {
+    throw new Error(
+      `Fixture manifest at ${projectRoot} has dbt/ but is missing runtime.target`,
+    );
+  }
+}
+
+function targetDatabaseFromManifest(manifest) {
+  const target = manifest?.runtime?.target;
+  if (!target) {
+    return FIXTURE_DB_NAME;
+  }
+
+  if (target.technology !== 'sql_server') {
+    throw new Error(
+      `Eval dbt target technology ${target.technology} is not supported by run-workspace-extension`,
+    );
+  }
+
+  const database = target.connection?.database;
+  if (!database) {
+    throw new Error('runtime.target.connection.database is required for dbt eval fixtures');
+  }
+  return database;
+}
+
+function pinFixtureDatabase(projectRoot, manifest) {
   const profilesPath = path.join(projectRoot, 'dbt', 'profiles.yml');
   if (!fs.existsSync(profilesPath)) {
     return;
   }
 
+  const targetDatabase = targetDatabaseFromManifest(manifest);
   const original = fs.readFileSync(profilesPath, 'utf8');
   const pinned = original.replace(
     /database:\s*"\{\{\s*env_var\('MSSQL_DB',\s*'MigrationTest'\)\s*\}\}"/g,
-    `database: "${FIXTURE_DB_NAME}"`,
+    `database: "${targetDatabase}"`,
   );
 
   if (pinned !== original) {
@@ -75,7 +132,9 @@ async function extensionHook(hookName, context) {
   fs.rmSync(runRoot, { force: true, recursive: true });
   fs.cpSync(fixtureRoot, runRoot, { recursive: true });
   clearVolatileArtifacts(runRoot);
-  pinFixtureDatabase(runRoot);
+  const manifest = loadManifest(runRoot);
+  validateManifest(manifest, runRoot);
+  pinFixtureDatabase(runRoot, manifest);
 
   context.test.vars.run_path = relativePosixPath(runRoot);
   return context;

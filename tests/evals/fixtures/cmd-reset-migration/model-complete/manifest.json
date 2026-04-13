@@ -2,6 +2,23 @@
   "schema_version": "1.0",
   "technology": "sql_server",
   "dialect": "tsql",
-  "source_database": "TestDB",
-  "extracted_schemas": ["silver"]
+  "runtime": {
+    "source": {
+      "technology": "sql_server",
+      "dialect": "tsql",
+      "connection": {
+        "database": "TestDB",
+        "host": "localhost",
+        "port": "1433",
+        "user": "sa",
+        "password_env": "SA_PASSWORD",
+        "driver": "ODBC Driver 18 for SQL Server"
+      }
+    }
+  },
+  "extraction": {
+    "schemas": [
+      "silver"
+    ]
+  }
 }

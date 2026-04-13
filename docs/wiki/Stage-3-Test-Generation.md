@@ -4,7 +4,7 @@
 
 ## Prerequisites
 
-- `manifest.json` with `sandbox.database`
+- `manifest.json` with `runtime.sandbox`
 - a running sandbox
 - completed scoping
 - completed profiling

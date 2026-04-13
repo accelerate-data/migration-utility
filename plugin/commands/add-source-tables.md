@@ -10,7 +10,7 @@ argument-hint: "<schema.table> [schema.table ...]"
 
 # Add Source Tables
 
-Mark tables as dbt sources. Source-confirmed tables are excluded from `/status`, all batch pipeline commands, and included in `sources.yml` during `/init-dbt`.
+Mark tables as dbt sources. Source-confirmed tables are excluded from `/status`, all batch pipeline commands, and included in `sources.yml` during `/setup-target`.
 
 Use this command when:
 
@@ -84,7 +84,7 @@ git commit -m "feat: mark <fqns> as dbt sources"
 Tell the user:
 
 ```text
-Source tables will be included in sources.yml on the next /init-dbt run.
+Source tables will be included in sources.yml on the next /setup-target run.
 Run /status to see the updated pipeline view.
 ```
 

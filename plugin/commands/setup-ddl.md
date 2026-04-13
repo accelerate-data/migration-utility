@@ -27,7 +27,7 @@ Run `pwd` and show the resolved path. Ask the user: "Is this the correct project
 
 ## Read manifest
 
-Read `manifest.json`. Determine `technology` — one of `sql_server`, `fabric_warehouse`, or `oracle`.
+Read `manifest.json`. Determine `technology` — one of `sql_server`, `oracle`, `duckdb`, or `snowflake`.
 
 If `ddl/` or `catalog/` already exists in the project root, warn the user:
 
@@ -41,19 +41,19 @@ Use `TaskCreate` and `TaskUpdate` to track the automated phases of this command.
 
 ---
 
-## SQL Server / Fabric Warehouse flow
+## SQL Server flow
 
-Use this branch when `technology` is `sql_server` or `fabric_warehouse`.
+Use this branch when `technology` is `sql_server`.
 
 `<shared-path>` refers to `${CLAUDE_PLUGIN_ROOT}/lib`.
 
 ### Step 1 — Select database
 
-> **Skip this step** if `manifest.json` already has `source_database` set. Show the user:
+> **Skip this step** if `manifest.json` already has `runtime.source` set. Show the user:
 >
 > ```text
-> Previously extracted database: <source_database>
-> Previously extracted schemas:  <extracted_schemas>
+> Previously extracted source runtime: <runtime.source>
+> Previously extracted schemas:  <extraction.schemas>
 > ```
 >
 > Then proceed directly to Step 2.
@@ -131,7 +131,7 @@ Schemas:  <selected-schemas>
 
 Tell the user: "To browse the extracted objects, run `/listing-objects list tables`. To start scoping tables for migration, run `/scope`."
 
-If `dbt/models/staging/sources.yml` already exists, warn: "sources.yml already exists and may be stale after this extraction. Run `/analyzing-table` on new tables, then re-run `/init-dbt` to regenerate."
+If `dbt/models/staging/sources.yml` already exists, warn: "sources.yml already exists and may be stale after this extraction. Run `/analyzing-table` on new tables, then re-run `/setup-target` to regenerate."
 
 ### Step 6 — Stale catalog cleanup
 
@@ -240,7 +240,7 @@ Schemas: <selected-owners>
 
 Tell the user: "To browse the extracted objects, run `/listing-objects list tables`. To start scoping tables for migration, run `/scope`."
 
-If `dbt/models/staging/sources.yml` already exists, warn: "sources.yml already exists and may be stale after this extraction. Run `/analyzing-table` on new tables, then re-run `/init-dbt` to regenerate."
+If `dbt/models/staging/sources.yml` already exists, warn: "sources.yml already exists and may be stale after this extraction. Run `/analyzing-table` on new tables, then re-run `/setup-target` to regenerate."
 
 ### Step 5 — Stale catalog cleanup
 

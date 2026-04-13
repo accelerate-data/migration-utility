@@ -1,7 +1,23 @@
 {
   "technology": "mssql",
   "dialect": "tsql",
-  "sandbox": {
-    "database": "MigrationTest_Sandbox"
+  "runtime": {
+    "source": {
+      "technology": "mssql",
+      "dialect": "tsql",
+      "connection": {}
+    },
+    "sandbox": {
+      "technology": "mssql",
+      "dialect": "tsql",
+      "connection": {
+        "database": "MigrationTest_Sandbox"
+      }
+    }
+  },
+  "extraction": {
+    "schemas": [
+      "silver"
+    ]
   }
 }

@@ -83,8 +83,8 @@ This usually points to dynamic SQL, side effects, or behavior that is hard to is
 
 | Code | Typical meaning | Usually seen from | Fix |
 |---|---|---|---|
-| `DBT_PROJECT_MISSING` | `dbt/` has not been scaffolded | `/generate-model` | Run `/init-dbt` |
-| `DBT_PROFILE_MISSING` | `profiles.yml` is missing | `/generate-model` | Re-run `/init-dbt` or restore the file |
+| `DBT_PROJECT_MISSING` | `dbt/` has not been scaffolded | `/generate-model` | Run `/setup-target` |
+| `DBT_PROFILE_MISSING` | `profiles.yml` is missing | `/generate-model` | Re-run `/setup-target` or restore the file |
 | `DBT_CONNECTION_FAILED` | `dbt debug` failed | `/generate-model` | Fix `profiles.yml` or the target credentials |
 | `DBT_COMPILE_FAILED` | Generated model did not compile | `/generate-model` | Review the generated SQL and rerun the command |
 | `DBT_TEST_FAILED` | Generated model still failed tests after retries | `/generate-model` | Inspect the generated artifact and test output, then rerun |

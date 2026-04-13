@@ -1,6 +1,6 @@
 # Migration Utility
 
-Claude Code plugin + batch CLI pipeline that migrates Microsoft Fabric Warehouse stored procedures to dbt models on Vibedata's platform. Targets silver and gold transformations only (bronze is out of scope).
+Claude Code plugin + batch CLI pipeline that migrates warehouse stored procedures to dbt models on Vibedata's platform. Targets silver and gold transformations only (bronze is out of scope).
 
 **Maintenance rule:** This file contains architecture, conventions, and guidelines — not product details. Do not add counts, feature descriptions, or any fact that can be discovered by reading code. If it will go stale when the code changes, it doesn't belong here — point to the source file instead.
 
@@ -24,7 +24,7 @@ Adapter files must not duplicate canonical policy unless they are adding agent-s
 | MCP server (Oracle) | SQLcl `-mcp` (stdio, local only) |
 | Runtime | GitHub Actions (headless execution) |
 
-**Source scope:** Fabric Warehouse (T-SQL stored procedures via ADF pipelines). Lakehouse/Spark is post-MVP.
+**Source scope:** SQL-based warehouse stored procedures. Non-SQL runtimes are post-MVP.
 
 **Agent startup context:** Read `repo-map.json` before starting any non-trivial task — it has structure, entrypoints, modules, and commands.
 

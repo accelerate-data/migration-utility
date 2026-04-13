@@ -1,9 +1,48 @@
 {
   "technology": "oracle",
   "dialect": "oracle",
-  "database": "FREEPDB1",
-  "extracted_at": "2026-04-06T00:00:00Z",
-  "sandbox": {
-    "database": "FREEPDB1"
+  "runtime": {
+    "source": {
+      "technology": "oracle",
+      "dialect": "oracle",
+      "connection": {
+        "service": "FREEPDB1",
+        "host": "localhost",
+        "port": "1521",
+        "user": "sh",
+        "password_env": "ORACLE_PWD"
+      }
+    },
+    "sandbox": {
+      "technology": "oracle",
+      "dialect": "oracle",
+      "connection": {
+        "service": "FREEPDB1",
+        "host": "localhost",
+        "port": "1521",
+        "user": "sys",
+        "password_env": "ORACLE_PWD"
+      }
+    },
+    "target": {
+      "technology": "oracle",
+      "dialect": "oracle",
+      "connection": {
+        "service": "FREEPDB1",
+        "host": "localhost",
+        "port": "1521",
+        "user": "sh",
+        "password_env": "ORACLE_PWD"
+      },
+      "schemas": {
+        "source": "bronze"
+      }
+    }
+  },
+  "extraction": {
+    "schemas": [
+      "sh"
+    ],
+    "extracted_at": "2026-04-06T00:00:00Z"
   }
 }

@@ -26,15 +26,23 @@ _TESTS_DIR = Path(__file__).parent
 _FIXTURES = _TESTS_DIR / "fixtures" / "dry_run"
 
 
-def _make_project(*, include_sandbox: bool = True) -> tuple[tempfile.TemporaryDirectory, Path]:
+def _make_project(
+    *,
+    include_sandbox: bool = True,
+    include_target: bool = True,
+) -> tuple[tempfile.TemporaryDirectory, Path]:
     """Copy dry_run fixtures to a temp dir and git-init it."""
     tmp = tempfile.TemporaryDirectory()
     dst = Path(tmp.name) / "project"
     shutil.copytree(_FIXTURES, dst)
-    if not include_sandbox:
+    if not include_sandbox or not include_target:
         manifest_path = dst / "manifest.json"
         manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
-        del manifest["sandbox"]
+        runtime = manifest.setdefault("runtime", {})
+        if not include_sandbox:
+            runtime.pop("sandbox", None)
+        if not include_target:
+            runtime.pop("target", None)
         manifest_path.write_text(json.dumps(manifest), encoding="utf-8")
     subprocess.run(["git", "init"], cwd=dst, capture_output=True, check=True)
     subprocess.run(
@@ -54,9 +62,17 @@ def _make_bare_project() -> tuple[tempfile.TemporaryDirectory, Path]:
         "schema_version": "1.0",
         "technology": "sql_server",
         "dialect": "tsql",
-        "source_database": "TestDB",
-        "extracted_schemas": ["silver"],
-        "extracted_at": "2026-04-01T00:00:00Z",
+        "runtime": {
+            "source": {
+                "technology": "sql_server",
+                "dialect": "tsql",
+                "connection": {"database": "TestDB"},
+            }
+        },
+        "extraction": {
+            "schemas": ["silver"],
+            "extracted_at": "2026-04-01T00:00:00Z",
+        },
         "init_handoff": {
             "timestamp": "2026-04-01T00:00:00+00:00",
             "env_vars": {"MSSQL_HOST": True, "MSSQL_PORT": True, "MSSQL_DB": True, "SA_PASSWORD": True},
@@ -65,6 +81,9 @@ def _make_bare_project() -> tuple[tempfile.TemporaryDirectory, Path]:
     }
     (dst / "manifest.json").write_text(json.dumps(manifest), encoding="utf-8")
     (dst / "catalog" / "tables").mkdir(parents=True)
+    (dst / "dbt").mkdir(parents=True)
+    (dst / "dbt" / "dbt_project.yml").write_text("name: bare\n", encoding="utf-8")
+    (dst / "dbt" / "profiles.yml").write_text("bare:\n  target: dev\n", encoding="utf-8")
     # Table catalog without scoping or profile
     table_cat = {
         "schema": "silver",
@@ -277,7 +296,19 @@ def test_ready_generate_no_refactor() -> None:
 
 
 def test_ready_generate_no_sandbox() -> None:
-    """Generate not ready when sandbox.database is missing from manifest."""
+    """Generate not ready when runtime.target is missing from manifest."""
+    tmp, root = _make_project(include_target=False)
+    with tmp:
+        result = dry_run.run_ready(root, "generate", object_fqn="silver.DimCustomer")
+        assert isinstance(result, DryRunOutput)
+        assert result.ready is False
+        assert result.project is not None
+        assert result.project.reason == "target_not_configured"
+        assert result.project.code == "TARGET_NOT_CONFIGURED"
+
+
+def test_ready_generate_no_sandbox_runtime() -> None:
+    """Generate not ready when runtime.sandbox is missing from manifest."""
     tmp, root = _make_project(include_sandbox=False)
     with tmp:
         result = dry_run.run_ready(root, "generate", object_fqn="silver.DimCustomer")
@@ -286,6 +317,32 @@ def test_ready_generate_no_sandbox() -> None:
         assert result.project is not None
         assert result.project.reason == "sandbox_not_configured"
         assert result.project.code == "SANDBOX_NOT_CONFIGURED"
+
+
+def test_ready_generate_missing_dbt_project() -> None:
+    """Generate not ready when dbt_project.yml is missing."""
+    tmp, root = _make_project()
+    with tmp:
+        (root / "dbt" / "dbt_project.yml").unlink()
+        result = dry_run.run_ready(root, "generate", object_fqn="silver.DimCustomer")
+        assert isinstance(result, DryRunOutput)
+        assert result.ready is False
+        assert result.project is not None
+        assert result.project.reason == "dbt_project_missing"
+        assert result.project.code == "DBT_PROJECT_MISSING"
+
+
+def test_ready_generate_missing_dbt_profile() -> None:
+    """Generate not ready when profiles.yml is missing."""
+    tmp, root = _make_project()
+    with tmp:
+        (root / "dbt" / "profiles.yml").unlink(missing_ok=True)
+        result = dry_run.run_ready(root, "generate", object_fqn="silver.DimCustomer")
+        assert isinstance(result, DryRunOutput)
+        assert result.ready is False
+        assert result.project is not None
+        assert result.project.reason == "dbt_profile_missing"
+        assert result.project.code == "DBT_PROFILE_MISSING"
 
 
 def test_ready_generate_requires_test_gen() -> None:
@@ -413,11 +470,23 @@ def test_ready_setup_ddl_without_object_reports_project_only() -> None:
 
 def test_ready_generate_object_failure_preserves_project_success() -> None:
     """Object overlay should fail independently after project readiness passes."""
-    tmp, root = _make_project(include_sandbox=False)
+    tmp, root = _make_project(include_sandbox=False, include_target=False)
     with tmp:
         manifest = json.loads((root / "manifest.json").read_text(encoding="utf-8"))
-        manifest["sandbox"] = {"database": "__test_abc123"}
+        manifest.setdefault("runtime", {})["target"] = {
+            "technology": "sql_server",
+            "dialect": "tsql",
+            "connection": {"database": "TargetDB"},
+        }
+        manifest.setdefault("runtime", {})["sandbox"] = {
+            "technology": "sql_server",
+            "dialect": "tsql",
+            "connection": {"database": "__test_abc123"},
+        }
         (root / "manifest.json").write_text(json.dumps(manifest), encoding="utf-8")
+        (root / "dbt").mkdir(exist_ok=True)
+        (root / "dbt" / "dbt_project.yml").write_text("name: test\n", encoding="utf-8")
+        (root / "dbt" / "profiles.yml").write_text("test:\n  target: dev\n", encoding="utf-8")
         proc_path = root / "catalog" / "procedures" / "dbo.usp_load_dimcustomer.json"
         proc = json.loads(proc_path.read_text(encoding="utf-8"))
         del proc["refactor"]

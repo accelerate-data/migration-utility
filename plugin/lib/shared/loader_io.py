@@ -28,6 +28,13 @@ from shared.loader_parse import (
 )
 from shared.env_config import resolve_catalog_dir, resolve_ddl_dir
 from shared.name_resolver import normalize
+from shared.runtime_config import (
+    get_primary_dialect,
+    get_runtime_role,
+    get_sandbox_name,
+    set_runtime_role,
+)
+from shared.runtime_config_models import RuntimeRole
 
 logger = logging.getLogger(__name__)
 
@@ -59,7 +66,7 @@ def read_manifest(project_root: Path) -> dict[str, Any]:
                 m = json.load(f)
         except json.JSONDecodeError as exc:
             raise ValueError(f"manifest.json in {project_root} is not valid JSON: {exc}") from exc
-        m.setdefault("dialect", "tsql")
+        m.setdefault("dialect", get_primary_dialect(m))
         return m
     return {"dialect": "tsql"}
 
@@ -76,7 +83,28 @@ def write_manifest_sandbox(project_root: Path, database: str) -> None:
     """Persist sandbox database name into manifest.json."""
     manifest_file = _require_manifest_file(project_root)
     manifest = read_manifest(project_root)
-    manifest["sandbox"] = {"database": database}
+    sandbox_role = get_runtime_role(manifest, "sandbox")
+    if sandbox_role is None:
+        raise ValueError("manifest.json is missing runtime.sandbox")
+
+    connection = sandbox_role.connection.model_copy(deep=True)
+    if sandbox_role.technology == "oracle":
+        connection.schema_name = database
+    elif sandbox_role.technology == "duckdb":
+        connection.path = database
+    else:
+        connection.database = database
+
+    manifest = set_runtime_role(
+        manifest,
+        "sandbox",
+        RuntimeRole(
+            technology=sandbox_role.technology,
+            dialect=sandbox_role.dialect,
+            connection=connection,
+            schemas=sandbox_role.schemas,
+        ),
+    )
     manifest_file.write_text(
         json.dumps(manifest, indent=2, ensure_ascii=False) + "\n",
         encoding="utf-8",
@@ -91,7 +119,7 @@ def clear_manifest_sandbox(project_root: Path) -> None:
     """Remove the sandbox key from manifest.json."""
     manifest_file = _require_manifest_file(project_root)
     manifest = read_manifest(project_root)
-    manifest.pop("sandbox", None)
+    manifest = set_runtime_role(manifest, "sandbox", None)
     manifest_file.write_text(
         json.dumps(manifest, indent=2, ensure_ascii=False) + "\n",
         encoding="utf-8",

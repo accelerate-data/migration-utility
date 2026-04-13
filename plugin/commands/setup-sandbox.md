@@ -1,12 +1,12 @@
 ---
 name: setup-sandbox
-description: Creates a throwaway sandbox database by cloning schema from the source SQL Server. Checks prerequisites and calls the test-harness CLI. Persists sandbox info to manifest.json.
+description: Creates a throwaway sandbox execution environment from the configured source runtime. Checks prerequisites and calls the test-harness CLI. Persists sandbox info to manifest.json.
 user-invocable: true
 ---
 
 # Set Up Sandbox
 
-Create a throwaway sandbox database by cloning schema from the source database. The sandbox is used by the test generator to execute stored procedures and capture ground truth output. The database name is auto-generated (`__test_<random_hex>`).
+Create a throwaway sandbox execution environment from the configured source runtime. The sandbox is used by the test generator to execute stored procedures and capture ground truth output. The environment name is auto-generated (`__test_<random_hex>`) unless the backend requires a different identifier shape.
 
 ## Progress Tracking
 
@@ -20,13 +20,13 @@ If `CLAUDE_PLUGIN_ROOT` is not set, stop and tell the user to load the plugin wi
 
 Run all checks silently — do not change anything yet.
 
-1. Check `manifest.json` exists in the current working directory. Read it to confirm `technology` and `source_database` are present. If `technology` is not `sql_server` or `fabric_warehouse`, stop and tell the user: "Sandbox setup currently supports SQL Server only. Oracle sandbox is not yet available."
-2. Check that `extracted_schemas` in the manifest is a non-empty array.
+1. Check `manifest.json` exists in the current working directory. Read it to confirm `runtime.source` is configured. Default the sandbox technology to the source technology, but let the user choose a different supported sandbox technology if they want one.
+2. Check that `extraction.schemas` in the manifest is a non-empty array.
 3. Check FreeTDS is installed: `brew list --formula freetds 2>/dev/null`. If missing, tell the user to run `brew install freetds` (or run `/init-ad-migration` which auto-installs it) and stop.
-4. Check whether each MSSQL environment variable is set (non-empty): `MSSQL_HOST`, `MSSQL_PORT`, `MSSQL_DB`, `SA_PASSWORD`. Do not print their values.
+4. Inspect `runtime.sandbox.connection` in `manifest.json` and note which env-bound secrets it requires, such as `password_env`. Check that every referenced env var is set (non-empty). Do not print secret values.
 5. Verify the test-harness CLI is available: `uv run --project "${CLAUDE_PLUGIN_ROOT}/lib" test-harness --help`
-6. Check `dbt/profiles.yml` exists. This is **required** — without it, `/generate-tests` and `/generate-model` will fail on `dbt compile`/`dbt test`. If missing, stop and tell the user: "No `dbt/profiles.yml` found. Run `/init-dbt` to scaffold the dbt project and select a target platform before setting up the sandbox." If present, read the adapter `type:` and compare against `technology` in `manifest.json` — `sql_server` expects `sqlserver`, `fabric_warehouse` expects `fabric`, `fabric_lakehouse` expects `fabric` or `spark`, `snowflake` expects `snowflake`. Warn on mismatch but don't block.
-7. Verify dbt can connect: `cd dbt && dbt debug`. Check the output shows "Connection test: OK". If it fails, stop and tell the user to check credentials — for SQL Server this means `MSSQL_HOST`, `MSSQL_PORT`, `MSSQL_DB`, `SA_PASSWORD` env vars; for other adapters, update placeholder values in `profiles.yml`.
+6. Check `dbt/profiles.yml` exists. This is **required** — without it, `/generate-tests` and `/generate-model` will fail on `dbt compile`/`dbt test`. If missing, stop and tell the user: "No `dbt/profiles.yml` found. Run `/setup-target` to scaffold the dbt project and select a target platform before setting up the sandbox." If present, read the adapter `type:` and compare against `runtime.target.technology` in `manifest.json`. Warn on mismatch but don't block.
+7. Verify dbt can connect: `cd dbt && dbt debug`. Check the output shows "Connection test: OK". If it fails, stop and tell the user to check the env vars named by the configured runtime roles and any target-specific values in `profiles.yml`.
 
 ## Step 3: Present plan
 
@@ -36,18 +36,17 @@ Show the user what was found:
 Sandbox setup:
   manifest.json:     ✓ found  /  ✗ not found
   technology:        sql_server (or whatever value)
-  source_database:   AdventureWorksDW (or whatever value)
-  extracted_schemas: [dbo, silver, bronze]
+  source runtime:    runtime.source present
+  extraction.schemas: [dbo, silver, bronze]
   freetds:           ✓ installed  /  ✗ not found
   test-harness CLI:  ✓ available  /  ✗ not found
-  dbt profile:       ✓ sqlserver (matches manifest)  /  ⚠ duckdb (mismatch)  /  ✗ not found (run /init-dbt)
+  dbt profile:       ✓ sqlserver (matches target runtime)  /  ⚠ duckdb (mismatch)  /  ✗ not found (run /setup-target)
   dbt connection:    ✓ OK  /  ✗ failed (check credentials)
 
-  SQL Server credentials:
-  MSSQL_HOST:   ✓ set  /  — not set
-  MSSQL_PORT:   ✓ set  /  — not set
-  MSSQL_DB:     ✓ set  /  — not set
-  SA_PASSWORD:  ✓ set  /  — not set
+  Env-bound runtime secrets:
+  SA_PASSWORD:              ✓ set  /  — not set
+  ORACLE_SANDBOX_PASSWORD:  ✓ set  /  — not set
+  (list only the vars actually referenced by the configured runtime roles)
 ```
 
 If any required item is missing, explain what needs to be fixed and stop. Do not proceed without all prerequisites met.

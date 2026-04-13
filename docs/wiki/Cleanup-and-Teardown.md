@@ -12,7 +12,7 @@ Run `/teardown-sandbox` after test generation is complete for all tables in the 
 
 ### How it works
 
-1. Reads `manifest.json` to find the `sandbox.database` field
+1. Reads `manifest.json` to find the `runtime.sandbox` field
 2. Shows the user which database will be dropped and asks for confirmation (this is a destructive operation)
 3. Runs `test-harness sandbox-down` to drop the database
 4. Clears the `sandbox` section from `manifest.json`

@@ -1,6 +1,15 @@
 # Eval Fixtures
 
-DDL project extracted from the MigrationTest Docker database. Source of truth: `scripts/sql/create-migration-test-db.sql` with background and scenario mapping in `scripts/sql/README.md`.
+Eval fixtures use the canonical `manifest.json` runtime contract:
+
+- `runtime.source`
+- `runtime.target` when the fixture includes dbt validation
+- `runtime.sandbox` when the fixture exercises sandbox-backed execution
+- `extraction.schemas`
+
+Stale flat manifest fields are not supported in the eval harness.
+
+Most SQL Server-backed fixtures still originate from the `MigrationTest` fixture database. Source-of-truth background and materialization entrypoints live under `scripts/sql/`.
 
 ## Extraction
 

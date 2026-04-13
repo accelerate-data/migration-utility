@@ -2,7 +2,7 @@
 
 ## Purpose
 
-Extracts DDL and catalog metadata from a live SQL Server (or Fabric Warehouse) and writes local artifact files that downstream skills consume. Produces `manifest.json`, per-object DDL files in `ddl/`, and per-object catalog JSON files in `catalog/`. This is the first command in the pipeline and must complete before any discovery, scoping, or profiling work.
+Extracts DDL and catalog metadata from a live source system and writes local artifact files that downstream skills consume. Produces `manifest.json`, per-object DDL files in `ddl/`, and per-object catalog JSON files in `catalog/`. This is the first command in the pipeline and must complete before any discovery, scoping, or profiling work.
 
 ## Invocation
 
@@ -69,7 +69,7 @@ Enriched catalog fields (`scoping`, `profile`, `refactor`) written by earlier sk
   | `MSSQL_DB` | Default database (use `master` if no specific default) | `master` |
   | `SA_PASSWORD` | SQL login password | _(from env)_ |
 
-- **Project root** -- the skill confirms `pwd` with the user before proceeding. If `manifest.json` already exists, the skill reads `source_database` and `extracted_schemas` from it and skips database selection.
+- **Project root** -- the skill confirms `pwd` with the user before proceeding. If `manifest.json` already exists, the skill reads `runtime.source` and `extraction.schemas` from it and skips database selection.
 
 ## Pipeline
 
@@ -168,21 +168,21 @@ This skill reads from a live SQL Server via the `mssql` MCP tool. No local catal
 | Field | Type | Required | Description |
 |---|---|---|---|
 | `schema_version` | string | yes | Always `"1.0"` |
-| `technology` | string | yes | Source technology. Enum: `sql_server`, `fabric_warehouse`, `fabric_lakehouse`, `snowflake` |
-| `dialect` | string | yes | sqlglot dialect. Enum: `tsql`, `spark`, `snowflake` |
-| `source_database` | string | yes | Name of the source database |
-| `extracted_schemas` | string[] | yes | List of schemas included in the extraction |
+| `technology` | string | yes | Source technology. Enum: `sql_server`, `oracle`, `duckdb`, `snowflake` |
+| `dialect` | string | yes | sqlglot dialect. Enum: `tsql`, `oracle`, `duckdb`, `snowflake` |
+| `runtime.source` | object | yes | Source runtime endpoint and connection information |
+| `extraction.schemas` | string[] | yes | List of schemas included in the extraction |
 | `extracted_at` | string | yes | ISO 8601 timestamp of extraction |
 | `init_handoff` | object | no | Validated prerequisite state (`env_vars`, `tools`, `timestamp`) written by `/init-ad-migration`. Required by all stage guards via `check_init_prerequisites` |
-| `sandbox` | object | no | Sandbox metadata (`database`) -- added later by the test harness |
+| `sandbox` | object | no | Sandbox runtime metadata -- added later by the test harness |
 
 Technology-to-dialect mapping:
 
 | Technology | Dialect | Delimiter |
 |---|---|---|
 | `sql_server` | `tsql` | `GO` |
-| `fabric_warehouse` | `tsql` | `GO` |
-| `fabric_lakehouse` | `spark` | `;` |
+| `oracle` | `oracle` | `/` |
+| `duckdb` | `duckdb` | `;` |
 | `snowflake` | `snowflake` | `;` |
 
 ### `ddl/` directory
@@ -246,8 +246,14 @@ The 12 catalog signal queries produce these staging files in `.staging/`:
   "schema_version": "1.0",
   "technology": "sql_server",
   "dialect": "tsql",
-  "source_database": "AdventureWorksDW",
-  "extracted_schemas": ["dbo", "silver", "gold"],
+  "runtime": {
+    "source": {
+      "technology": "sql_server",
+      "dialect": "tsql",
+      "connection": {"database": "AdventureWorksDW"}
+    }
+  },
+  "extraction": {"schemas": ["dbo", "silver", "gold"]},
   "extracted_at": "2025-03-15T14:30:00Z"
 }
 ```

@@ -63,6 +63,7 @@ from shared.sandbox.base import (
     validate_fixtures as _validate_fixtures_base,
     validate_readonly_sql as _validate_readonly_sql_base,
 )
+from shared.runtime_config import get_runtime_role
 
 logger = logging.getLogger(__name__)
 
@@ -192,26 +193,68 @@ class OracleSandbox(SandboxBackend):
 
     @classmethod
     def from_env(cls, manifest: dict[str, Any]) -> OracleSandbox:
-        """Create an instance from ``ORACLE_*`` env vars and manifest config.
+        """Create an instance from strict runtime roles plus process secrets.
 
-        Raises ``ValueError`` if required configuration is missing.
+        The current Oracle sandbox implementation clones one source schema into
+        one sandbox schema using a single admin connection, so source and
+        sandbox must share the same host, port, and service.
         """
-        host = os.environ.get("ORACLE_HOST", "localhost")
-        port = os.environ.get("ORACLE_PORT", "1521")
-        service = os.environ.get("ORACLE_SERVICE", "FREEPDB1")
-        admin_user = os.environ.get("ORACLE_ADMIN_USER", "sys")
-        password = os.environ.get("ORACLE_PWD", "")
-        source_schema = manifest.get(
-            "source_database", os.environ.get("ORACLE_SCHEMA", ""),
-        )
+        source_role = get_runtime_role(manifest, "source")
+        sandbox_role = get_runtime_role(manifest, "sandbox")
 
-        missing = []
-        if not password:
-            missing.append("ORACLE_PWD")
-        if not source_schema:
-            missing.append("ORACLE_SCHEMA (or source_database in manifest)")
+        missing: list[str] = []
+        if source_role is None:
+            missing.append("runtime.source")
+        if sandbox_role is None:
+            missing.append("runtime.sandbox")
         if missing:
-            raise ValueError(f"Required environment variables not set: {missing}")
+            raise ValueError(f"manifest.json is missing required runtime roles: {missing}")
+
+        if source_role.technology != "oracle":
+            raise ValueError("runtime.source.technology must be oracle for Oracle sandbox")
+        if sandbox_role.technology != "oracle":
+            raise ValueError("runtime.sandbox.technology must be oracle for Oracle sandbox")
+
+        if (source_role.connection.host or "") != (sandbox_role.connection.host or ""):
+            raise ValueError(
+                "Oracle sandbox cloning currently requires runtime.source.connection.host "
+                "and runtime.sandbox.connection.host to match"
+            )
+        if (source_role.connection.port or "1521") != (sandbox_role.connection.port or "1521"):
+            raise ValueError(
+                "Oracle sandbox cloning currently requires runtime.source.connection.port "
+                "and runtime.sandbox.connection.port to match"
+            )
+        if (source_role.connection.service or "") != (sandbox_role.connection.service or ""):
+            raise ValueError(
+                "Oracle sandbox cloning currently requires runtime.source.connection.service "
+                "and runtime.sandbox.connection.service to match"
+            )
+
+        host = sandbox_role.connection.host or ""
+        port = sandbox_role.connection.port or "1521"
+        service = sandbox_role.connection.service or ""
+        admin_user = sandbox_role.connection.user or ""
+        password_env = sandbox_role.connection.password_env
+        password = os.environ.get(password_env or "", "")
+        source_schema = source_role.connection.schema_name or ""
+
+        if not host:
+            missing.append("runtime.sandbox.connection.host")
+        if not sandbox_role.connection.port:
+            missing.append("runtime.sandbox.connection.port")
+        if not service:
+            missing.append("runtime.sandbox.connection.service")
+        if not admin_user:
+            missing.append("runtime.sandbox.connection.user")
+        if not password_env:
+            missing.append("runtime.sandbox.connection.password_env")
+        if not password:
+            missing.append(f"environment variable referenced by runtime.sandbox.connection.password_env ({password_env})")
+        if not source_schema:
+            missing.append("runtime.source.connection.schema")
+        if missing:
+            raise ValueError(f"Required sandbox configuration is missing: {missing}")
 
         return cls(
             host=host,

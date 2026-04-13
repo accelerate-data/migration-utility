@@ -17,7 +17,7 @@ Generate test scenarios, review for coverage, then bulk-execute approved scenari
 - `manifest.json` must exist. If missing, fail all items with `MANIFEST_NOT_FOUND`.
 - For each FQN argument: if `catalog/tables/<fqn>.json` has `"is_source": true`, skip that table and print:
   > `<fqn>` is marked as a dbt source — no migration needed. Use `/add-source-tables` to manage source tables.
-- `manifest.json` must have `sandbox.database`. If missing, fail all items with `SANDBOX_NOT_CONFIGURED` and tell user to run `/setup-sandbox`.
+- `manifest.json` must have `runtime.sandbox`. If missing, fail all items with `SANDBOX_NOT_CONFIGURED` and tell user to run `/setup-sandbox`.
 - Check sandbox exists via `uv run --project "${CLAUDE_PLUGIN_ROOT}/lib" test-harness sandbox-status`. If not found, fail all items with `SANDBOX_NOT_RUNNING` and tell user to check the sandbox with `/setup-sandbox` (it may have been torn down or the database dropped).
 
 Per-item readiness is checked by the skill via `migrate-util ready`.

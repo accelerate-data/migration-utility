@@ -11,6 +11,6 @@ Harness overrides:
 - Wherever the command references `${CLAUDE_PLUGIN_ROOT}/lib`, use `plugin/lib` instead.
 - Pass `--project-root {{run_path}}` to every CLI command that accepts `--project-root`.
 - Write run artifacts to `{{run_path}}/.migration-runs/` using the command's normal item-result and summary formats.
-- If dbt compile or dbt test is unavailable in the eval environment, skip those steps and record the command result accordingly instead of stopping for missing tooling.
+- If dbt compile or dbt build is unavailable in the eval environment, skip those steps and record the command result accordingly instead of stopping for missing tooling.
 
 If one table fails, continue processing the remaining tables and then write the summary.
