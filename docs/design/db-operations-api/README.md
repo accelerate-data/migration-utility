@@ -188,7 +188,9 @@ Implementations should exist for:
 
 Rules:
 
-- each technology materializes whatever schema, data, procedures, and support objects it needs under the `MigrationTest` fixture contract
+- the configured database or service is only the container; the fixture identity is the `MigrationTest` schema inside that container
+- each technology materializes the canonical fixture objects inside that one schema
+- fixture objects do not use tier-specific schemas; tier semantics live in object names
 - mutable runtime databases are generated on demand
 - mutable database files are not committed
 - fixture secrets come from env vars named in the manifest runtime roles; the manifest never stores secret values
