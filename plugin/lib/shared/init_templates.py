@@ -18,9 +18,9 @@ def _claude_md_sql_server() -> str:
 
 ## Domain
 
-Migrating a data warehouse to **Vibedata Managed Fabric Lakehouse**. Source system: **Microsoft SQL Server** (T-SQL stored procedures).
+Migrating a data warehouse to **Vibedata Managed Warehouse Platform**. Source system: **Microsoft SQL Server** (T-SQL stored procedures).
 
-Migration target: silver and gold dbt transformations on the Fabric Lakehouse endpoint. Bronze ingestion layers, ADF pipelines, and Power BI are out of scope.
+Migration target: silver and gold dbt transformations on the managed warehouse platform. Bronze ingestion layers, ADF pipelines, and Power BI are out of scope.
 
 ## Stack
 
@@ -28,10 +28,10 @@ Migration target: silver and gold dbt transformations on the Fabric Lakehouse en
 |---|---|---|
 | Source DDL access | DDL file MCP (`ddl_mcp`) | Pre-extracted `.sql` files; no live DB required |
 | Live source DB access | `mssql` MCP via genai-toolbox | Requires `toolbox` binary on PATH |
-| Transformation target | **dbt** (dbt-fabric adapter) | SQL models on Lakehouse endpoint |
-| Storage | **Delta tables** on OneLake | Managed by Fabric Lakehouse |
+| Transformation target | **dbt** | SQL models on the configured target runtime |
+| Storage | Managed warehouse tables | Managed by the target platform |
 | Orchestration | dbt build pipeline | |
-| Platform | **Microsoft Fabric** on Azure | |
+| Platform | Vibedata managed warehouse platform | |
 
 ## Directory Layout
 
@@ -101,7 +101,7 @@ def _readme_md_sql_server() -> str:
     return """\
 # Migration Project
 
-Data warehouse migration from Microsoft SQL Server to Vibedata Managed Fabric Lakehouse using dbt.
+Data warehouse migration from Microsoft SQL Server to Vibedata Managed Warehouse Platform using dbt.
 
 ## Prerequisites
 
@@ -242,9 +242,9 @@ def _claude_md_oracle() -> str:
 
 ## Domain
 
-Migrating a data warehouse to **Vibedata Managed Fabric Lakehouse**. Source system: **Oracle Database** (PL/SQL stored procedures).
+Migrating a data warehouse to **Vibedata Managed Warehouse Platform**. Source system: **Oracle Database** (PL/SQL stored procedures).
 
-Migration target: silver and gold dbt transformations on the Fabric Lakehouse endpoint. Bronze ingestion layers and ETL pipelines are out of scope.
+Migration target: silver and gold dbt transformations on the managed warehouse platform. Bronze ingestion layers and ETL pipelines are out of scope.
 
 ## Stack
 
@@ -252,10 +252,10 @@ Migration target: silver and gold dbt transformations on the Fabric Lakehouse en
 |---|---|---|
 | Source DDL access | DDL file MCP (`ddl_mcp`) | Pre-extracted `.sql` files; no live DB required |
 | Live source DB access | Oracle MCP via SQLcl | Requires `sql` (SQLcl) binary and Java 11+ on PATH |
-| Transformation target | **dbt** (dbt-fabric adapter) | SQL models on Lakehouse endpoint |
-| Storage | **Delta tables** on OneLake | Managed by Fabric Lakehouse |
+| Transformation target | **dbt** | SQL models on the configured target runtime |
+| Storage | Managed warehouse tables | Managed by the target platform |
 | Orchestration | dbt build pipeline | |
-| Platform | **Microsoft Fabric** on Azure | |
+| Platform | Vibedata managed warehouse platform | |
 
 ## Directory Layout
 
@@ -333,7 +333,7 @@ def _readme_md_oracle() -> str:
     return """\
 # Migration Project
 
-Data warehouse migration from Oracle Database to Vibedata Managed Fabric Lakehouse using dbt.
+Data warehouse migration from Oracle Database to Vibedata Managed Warehouse Platform using dbt.
 
 ## Prerequisites
 

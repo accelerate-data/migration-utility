@@ -4,7 +4,7 @@ Domain terms used across the migration utility wiki.
 
 ## Project structure
 
-- **manifest** -- `manifest.json` in the project root. Contains source extraction metadata: technology (e.g. `sql_server`, `fabric_warehouse`), dialect, database name, schemas, and sandbox configuration. Created by `/setup-ddl`.
+- **manifest** -- `manifest.json` in the project root. Contains runtime role configuration, extraction metadata, and sandbox configuration. Created and updated by the setup commands.
 
 - **catalog** -- the `catalog/` directory tree containing per-object JSON files organized by type (`tables/`, `procedures/`, `views/`, `functions/`). This is the shared state across all pipeline stages. Every stage reads from and writes to catalog files.
 

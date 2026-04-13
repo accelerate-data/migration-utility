@@ -60,19 +60,28 @@ class OracleOperations(DatabaseOperations):
         )
 
     def ensure_source_schema(self, schema_name: str) -> None:
-        current_schema = self.role.connection.schema_name or self.role.connection.user
-        if schema_name.upper() != (current_schema or "").upper():
-            raise ValueError(
-                "Oracle target setup currently requires runtime.target.schemas.source to match "
-                "runtime.target.connection.schema or runtime.target.connection.user"
+        conn = self._connect()
+        try:
+            cursor = conn.cursor()
+            cursor.execute(
+                "SELECT COUNT(*) FROM all_users WHERE username = :1",
+                [schema_name.upper()],
             )
+            if cursor.fetchone()[0] == 0:
+                raise ValueError(
+                    f"Oracle schema '{schema_name}' does not exist. "
+                    "Create the schema/user before running /setup-target."
+                )
+        finally:
+            conn.close()
 
     def list_source_tables(self, schema_name: str) -> set[str]:
         conn = self._connect()
         try:
             cursor = conn.cursor()
             cursor.execute(
-                "SELECT table_name FROM user_tables ORDER BY table_name"
+                "SELECT table_name FROM all_tables WHERE owner = :1 ORDER BY table_name",
+                [schema_name.upper()],
             )
             return {row[0].lower() for row in cursor.fetchall()}
         finally:
@@ -89,7 +98,7 @@ class OracleOperations(DatabaseOperations):
             f'"{column.name}" {self._map_type(column.source_type)} {"NULL" if column.nullable else "NOT NULL"}'
             for column in columns
         )
-        ddl = f'CREATE TABLE "{table_name}" ({rendered})'
+        ddl = f'CREATE TABLE "{schema_name}"."{table_name}" ({rendered})'
         conn = self._connect()
         try:
             cursor = conn.cursor()

@@ -1,6 +1,6 @@
 # Migration Utility
 
-A Claude Code plugin and batch CLI pipeline that migrates Microsoft Fabric Warehouse stored procedures to dbt models. It targets silver and gold transformations; bronze remains out of scope.
+A Claude Code plugin and batch CLI pipeline that migrates warehouse stored procedures to dbt models. It targets silver and gold transformations; bronze remains out of scope.
 
 ## Who uses it
 

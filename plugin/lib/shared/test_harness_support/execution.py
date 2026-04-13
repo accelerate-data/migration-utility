@@ -68,6 +68,14 @@ def run_execute_spec(
                 exec_result = exec_result.model_copy(
                     update={"scenario_name": test_entry["name"]},
                 )
+        except NotImplementedError as exc:
+            exec_result = TestHarnessExecuteOutput(
+                scenario_name=test_entry.get("name", "unknown"),
+                status="error",
+                ground_truth_rows=[],
+                row_count=0,
+                errors=[ErrorEntry(code="EXECUTE_UNSUPPORTED", message=str(exc))],
+            )
         except (ValueError, KeyError) as exc:
             exec_result = TestHarnessExecuteOutput(
                 scenario_name=test_entry.get("name", "unknown"),

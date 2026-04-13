@@ -46,7 +46,7 @@ def test_materialize_migration_test_uses_adapter_script_and_env(
     assert captured["capture_output"] is True
     assert captured["text"] is True
     assert captured["check"] is False
-    assert captured["env"]["DUCKDB_PATH"] == ".runtime/duckdb/source.duckdb"
+    assert captured["env"]["DUCKDB_PATH"] == str(tmp_path / ".runtime" / "duckdb" / "source.duckdb")
     assert captured["env"]["EXTRA_FLAG"] == "1"
 
 

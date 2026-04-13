@@ -27,7 +27,7 @@ class RuntimeConnection(BaseModel):
 class RuntimeSchemas(BaseModel):
     """Named schema roles for a runtime target."""
 
-    model_config = ConfigDict(extra="allow")
+    model_config = ConfigDict(extra="forbid")
 
     source: str | None = None
     marts: str | None = None

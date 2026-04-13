@@ -24,12 +24,18 @@ class DatabaseOperations(ABC):
 
     fixture_script_relpath: str
 
-    def __init__(self, role: RuntimeRole) -> None:
+    def __init__(self, role: RuntimeRole, project_root: Path | None = None) -> None:
         self.role = role
+        self.project_root = project_root
 
     @classmethod
-    def from_role(cls, role: RuntimeRole) -> "DatabaseOperations":
-        return cls(role)
+    def from_role(
+        cls,
+        role: RuntimeRole,
+        *,
+        project_root: Path | None = None,
+    ) -> "DatabaseOperations":
+        return cls(role, project_root=project_root)
 
     def fixture_script_path(self, repo_root: Path) -> Path:
         return repo_root / self.fixture_script_relpath

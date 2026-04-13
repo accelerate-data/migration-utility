@@ -247,7 +247,10 @@ def apply_target_source_tables(project_root: Path) -> TargetApplyResult:
     """Ensure confirmed source tables exist on the configured target schema."""
     target_role = _require_target_role(project_root)
     target_schema = get_target_source_schema(project_root)
-    adapter = get_dbops(target_role.technology).from_role(target_role)
+    adapter = get_dbops(target_role.technology).from_role(
+        target_role,
+        project_root=project_root,
+    )
     desired_specs = _load_source_table_specs(project_root)
 
     adapter.ensure_source_schema(target_schema)

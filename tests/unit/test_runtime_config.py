@@ -83,6 +83,11 @@ def test_runtime_roles_are_independent() -> None:
     assert get_runtime_role(manifest, "target").schemas.source == "bronze"
 
 
+def test_runtime_schemas_reject_unknown_keys() -> None:
+    with pytest.raises(Exception):
+        RuntimeSchemas.model_validate({"source": "bronze", "soruce": "typo"})
+
+
 def test_set_extraction_writes_extraction_section() -> None:
     updated = set_extraction({}, ["bronze", "silver"], "2026-04-13T00:00:00Z")
 
@@ -119,6 +124,21 @@ def test_primary_helpers_prefer_source_role() -> None:
     }
 
     assert get_primary_technology(manifest) == "oracle"
+    assert get_primary_dialect(manifest) == "oracle"
+
+
+def test_primary_dialect_uses_technology_mapping_when_top_level_dialect_missing() -> None:
+    manifest = {
+        "runtime": {
+            "target": {
+                "technology": "oracle",
+                "dialect": "oracle",
+                "connection": {"service": "TARGETPDB"},
+            }
+        },
+        "technology": "oracle",
+    }
+
     assert get_primary_dialect(manifest) == "oracle"
 
 

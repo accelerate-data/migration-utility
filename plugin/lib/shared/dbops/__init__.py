@@ -9,7 +9,6 @@ _REGISTRY = {
     "duckdb": DuckDbOperations,
     "oracle": OracleOperations,
     "sql_server": SqlServerOperations,
-    "fabric_warehouse": SqlServerOperations,
 }
 
 

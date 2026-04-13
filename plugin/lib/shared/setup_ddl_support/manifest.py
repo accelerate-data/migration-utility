@@ -99,7 +99,7 @@ def read_manifest_or_empty(project_root: Path) -> dict[str, Any]:
 
 
 def get_connection_identity(technology: str, database: str) -> dict[str, Any]:
-    if technology in ("sql_server", "fabric_warehouse"):
+    if technology == "sql_server":
         role = RuntimeRole(
             technology=technology,
             dialect=dialect_for_technology(technology),
@@ -147,7 +147,6 @@ def identity_changed(existing_manifest: dict[str, Any], current_identity: dict[s
         return False
     identity_fields_by_tech = {
         "sql_server": {"host", "port", "database"},
-        "fabric_warehouse": {"host", "port", "database"},
         "oracle": {"dsn", "host", "port", "service", "schema"},
         "duckdb": {"path"},
     }

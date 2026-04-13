@@ -95,9 +95,9 @@ def run_list_databases(project_root: Path) -> dict[str, Any]:
 
 def run_list_schemas(project_root: Path, database: str | None) -> dict[str, Any]:
     technology = require_technology(project_root)
-    if technology in ("sql_server", "fabric_warehouse"):
+    if technology == "sql_server":
         if not database:
-            raise ValueError("--database is required for SQL Server / Fabric Warehouse")
+            raise ValueError("--database is required for SQL Server")
         conn = sql_server_connect(database)
         try:
             cursor = conn.cursor()
@@ -140,7 +140,7 @@ def run_list_schemas(project_root: Path, database: str | None) -> dict[str, Any]
 
 
 def run_db_extraction(technology: str, staging_dir: Path, db_name: str, schemas: list[str]) -> None:
-    if technology in ("sql_server", "fabric_warehouse"):
+    if technology == "sql_server":
         from shared.sqlserver_extract import run_sqlserver_extraction
 
         run_sqlserver_extraction(staging_dir, db_name, schemas)
@@ -182,7 +182,7 @@ def run_extract(project_root: Path, database: str | None, schemas: list[str]) ->
     technology = require_technology(project_root)
     if not schemas:
         raise ValueError("--schemas is required and must be non-empty")
-    if technology in ("sql_server", "fabric_warehouse") and not database:
+    if technology == "sql_server" and not database:
         raise ValueError(f"--database is required for technology '{technology}'")
     dialect = TECH_DIALECT.get(technology, "tsql")
     db_name = database or ""

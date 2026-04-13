@@ -56,10 +56,6 @@ class TestBackendRegistry:
         cls = get_backend("sql_server")
         assert cls is SqlServerSandbox
 
-    def test_fabric_warehouse_returns_sql_server(self) -> None:
-        cls = get_backend("fabric_warehouse")
-        assert cls is SqlServerSandbox
-
     def test_oracle_returns_oracle_sandbox(self) -> None:
         cls = get_backend("oracle")
         assert cls is OracleSandbox
@@ -1118,6 +1114,28 @@ class TestCLIManifestRouting:
         with pytest.raises(Exit):
             _load_manifest(tmp_path)
 
+    def test_load_manifest_accepts_runtime_only_technology(self, tmp_path: Path) -> None:
+        from shared.test_harness import _load_manifest
+
+        (tmp_path / "manifest.json").write_text(
+            json.dumps(
+                {
+                    "schema_version": "1.0",
+                    "runtime": {
+                        "sandbox": {
+                            "technology": "duckdb",
+                            "dialect": "duckdb",
+                            "connection": {"path": ".runtime/duckdb/sandbox.duckdb"},
+                        }
+                    },
+                }
+            ),
+            encoding="utf-8",
+        )
+
+        manifest = _load_manifest(tmp_path)
+        assert manifest["runtime"]["sandbox"]["technology"] == "duckdb"
+
     def test_create_backend_prefers_runtime_sandbox_technology(self) -> None:
         from shared.test_harness_support.manifest import _create_backend
 
@@ -1296,11 +1314,11 @@ class TestResolveSandboxDb:
     def test_manifest_read_error_uses_strict_loader(self, tmp_path: Path, capsys: pytest.CaptureFixture[str]) -> None:
         from click.exceptions import Exit
 
-        from shared import test_harness
+        from shared.test_harness_support import manifest as manifest_helpers
 
-        with patch.object(test_harness, "read_manifest", side_effect=PermissionError("permission denied")):
+        with patch.object(manifest_helpers, "read_manifest", side_effect=PermissionError("permission denied")):
             with pytest.raises(Exit) as exc_info:
-                test_harness._resolve_sandbox_db(tmp_path)
+                manifest_helpers._resolve_sandbox_db(tmp_path)
 
         assert exc_info.value.exit_code == 2
         output = json.loads(capsys.readouterr().out)
@@ -2037,12 +2055,30 @@ class TestDuckDbSandbox:
 
         assert result.status == "ok"
         assert sandbox_path.exists()
+        assert result.tables_cloned == ["bronze.product"]
         conn = duckdb.connect(str(sandbox_path))
         try:
             rows = conn.execute("select * from bronze.product").fetchall()
         finally:
             conn.close()
         assert rows == []
+
+    def test_execute_scenario_is_explicitly_unsupported(self, tmp_path: Path) -> None:
+        source_path = tmp_path / "source.duckdb"
+        sandbox_path = tmp_path / "sandbox.duckdb"
+        source_path.write_bytes(b"")
+        backend = DuckDbSandbox(str(source_path), str(sandbox_path))
+
+        with pytest.raises(NotImplementedError, match="does not support procedure-based execute_scenario"):
+            backend.execute_scenario(
+                str(sandbox_path),
+                {
+                    "name": "scenario",
+                    "procedure": "[silver].[usp_load_target]",
+                    "target_table": "[silver].[Target]",
+                    "given": [],
+                },
+            )
 
     def test_execute_select_rolls_back_fixtures(self, tmp_path: Path) -> None:
         import duckdb
@@ -2586,13 +2622,14 @@ class TestCompareSqlExitCodes:
 
     def test_manifest_permission_error_uses_json_error_path(self, tmp_path: Path) -> None:
         from shared import test_harness
+        from shared.test_harness_support import manifest as manifest_helpers
         from typer.testing import CliRunner
 
         runner = CliRunner()
 
         with (
             patch.object(test_harness, "resolve_project_root", return_value=tmp_path),
-            patch.object(test_harness, "read_manifest", side_effect=PermissionError("permission denied")),
+            patch.object(manifest_helpers, "read_manifest", side_effect=PermissionError("permission denied")),
         ):
             result = runner.invoke(
                 test_harness.app,

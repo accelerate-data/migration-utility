@@ -27,7 +27,7 @@ Run `pwd` and show the resolved path. Ask the user: "Is this the correct project
 
 ## Read manifest
 
-Read `manifest.json`. Determine `technology` — one of `sql_server`, `fabric_warehouse`, or `oracle`.
+Read `manifest.json`. Determine `technology` — one of `sql_server`, `oracle`, `duckdb`, or `snowflake`.
 
 If `ddl/` or `catalog/` already exists in the project root, warn the user:
 
@@ -41,9 +41,9 @@ Use `TaskCreate` and `TaskUpdate` to track the automated phases of this command.
 
 ---
 
-## SQL Server / Fabric Warehouse flow
+## SQL Server flow
 
-Use this branch when `technology` is `sql_server` or `fabric_warehouse`.
+Use this branch when `technology` is `sql_server`.
 
 `<shared-path>` refers to `${CLAUDE_PLUGIN_ROOT}/lib`.
 

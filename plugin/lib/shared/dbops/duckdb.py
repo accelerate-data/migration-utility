@@ -26,7 +26,10 @@ class DuckDbOperations(DatabaseOperations):
     fixture_script_relpath = "scripts/sql/duckdb/materialize-migration-test.sh"
 
     def environment_name(self) -> str:
-        return self.role.connection.path or ".runtime/duckdb/migrationtest.duckdb"
+        path = Path(self.role.connection.path or ".runtime/duckdb/migrationtest.duckdb")
+        if not path.is_absolute() and self.project_root is not None:
+            path = self.project_root / path
+        return str(path)
 
     def materialize_migration_test_env(self) -> dict[str, str]:
         return {"DUCKDB_PATH": self.environment_name()}

@@ -176,11 +176,22 @@ class DuckDbSandbox(SandboxBackend):
             )
 
         shutil.copy2(source_path, sandbox_path)
+        with self._connect(str(sandbox_path)) as conn:
+            placeholders = ", ".join("?" for _ in schemas)
+            rows = conn.execute(
+                (
+                    "select table_schema, table_name "
+                    "from information_schema.tables "
+                    f"where table_schema in ({placeholders}) and table_type = 'BASE TABLE' "
+                    "order by table_schema, table_name"
+                ),
+                schemas,
+            ).fetchall()
         logger.info("event=duckdb_sandbox_up sandbox=%s source=%s", sandbox_path, source_path)
         return SandboxUpOutput(
             sandbox_database=str(sandbox_path),
             status="ok",
-            tables_cloned=[f"{schema}.*" for schema in schemas],
+            tables_cloned=[f"{schema}.{table}" for schema, table in rows],
             views_cloned=[],
             procedures_cloned=[],
             errors=[],
@@ -232,18 +243,9 @@ class DuckDbSandbox(SandboxBackend):
         sandbox_db: str,
         scenario: dict[str, Any],
     ) -> TestHarnessExecuteOutput:
-        scenario_name = scenario.get("name", "unnamed")
-        return TestHarnessExecuteOutput(
-            scenario_name=scenario_name,
-            status="error",
-            ground_truth_rows=[],
-            row_count=0,
-            errors=[
-                ErrorEntry(
-                    code="DUCKDB_PROCEDURE_EXEC_UNSUPPORTED",
-                    message="DuckDB sandbox does not support procedure-based execute_scenario flows.",
-                )
-            ],
+        raise NotImplementedError(
+            "DuckDB sandbox does not support procedure-based execute_scenario flows. "
+            "Use execute_select-based scenarios or a backend with stored procedure execution support."
         )
 
     def execute_select(

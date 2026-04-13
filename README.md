@@ -1,6 +1,6 @@
 # Migration Utility
 
-A Claude Code plugin that migrates Microsoft Fabric Warehouse stored procedures to dbt models. Targets silver and gold transformations from T-SQL; Lakehouse/Spark is out of scope.
+A Claude Code plugin that migrates warehouse stored procedures to dbt models. Targets silver and gold transformations from SQL-based sources; non-SQL runtimes are out of scope.
 
 See `AGENTS.md` for architecture, conventions, and agent guidance.
 

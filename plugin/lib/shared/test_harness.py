@@ -5,59 +5,27 @@ from __future__ import annotations
 import json
 import logging
 from pathlib import Path
-from typing import Any, Optional
+from typing import Optional
 
 import typer
 from shared.cli_utils import emit
 from shared.env_config import resolve_project_root
 from shared.loader import CatalogFileMissingError, CatalogLoadError
-from shared.loader_io import clear_manifest_sandbox, read_manifest, write_manifest_sandbox
-from shared.runtime_config import get_extracted_schemas, get_sandbox_name
+from shared.loader_io import clear_manifest_sandbox, write_manifest_sandbox
+from shared.runtime_config import get_extracted_schemas
 from shared.test_harness_support.catalog_write import run_write_test_gen
 from shared.test_harness_support.execution import run_compare_sql, run_execute_spec
 from shared.test_harness_support.manifest import (
     _create_backend,
     _error_exit,
+    _load_manifest,
+    _resolve_sandbox_db,
     _validate_test_spec,
 )
 from shared.test_harness_support.review import run_validate_review
 
 logger = logging.getLogger(__name__)
 app = typer.Typer(name="test-harness", no_args_is_help=True, add_completion=False, pretty_exceptions_enable=False)
-
-
-def _load_manifest(project_root: Path) -> dict[str, Any]:
-    """Load manifest.json via the module-level loader for patchable CLI tests."""
-    try:
-        manifest = read_manifest(project_root)
-    except ValueError as exc:
-        _error_exit("MANIFEST_INVALID", str(exc), exc)
-    except OSError as exc:
-        _error_exit(
-            "MANIFEST_READ_ERROR",
-            f"Cannot read manifest.json: {exc}",
-            exc,
-            exit_code=2,
-        )
-
-    if "technology" not in manifest:
-        _error_exit(
-            "MISSING_TECHNOLOGY",
-            f"manifest.json is missing required 'technology' key at {project_root}",
-        )
-    return manifest
-
-
-def _resolve_sandbox_db(project_root: Path) -> tuple[str, dict[str, Any]]:
-    """Read runtime.sandbox from manifest or fail with SANDBOX_NOT_CONFIGURED."""
-    manifest = _load_manifest(project_root)
-    sandbox_name = get_sandbox_name(manifest)
-    if not sandbox_name:
-        _error_exit(
-            "SANDBOX_NOT_CONFIGURED",
-            "No sandbox configured in manifest.json. Run /setup-sandbox first.",
-        )
-    return sandbox_name, manifest
 
 
 @app.command()
@@ -160,6 +128,8 @@ def execute(
 
     try:
         result = backend.execute_scenario(sandbox_db=sandbox_db, scenario=scenario_data)
+    except NotImplementedError as exc:
+        _error_exit("EXECUTE_UNSUPPORTED", str(exc), exc)
     except (ValueError, KeyError) as exc:
         _error_exit("EXECUTE_INVALID_INPUT", str(exc), exc)
     emit(result)

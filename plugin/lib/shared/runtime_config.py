@@ -15,8 +15,6 @@ from shared.runtime_config_models import (
 
 TECH_DIALECT = {
     "sql_server": "tsql",
-    "fabric_warehouse": "tsql",
-    "fabric_lakehouse": "spark",
     "snowflake": "snowflake",
     "oracle": "oracle",
     "duckdb": "duckdb",
@@ -62,10 +60,11 @@ def get_extracted_schemas(manifest: dict[str, Any]) -> list[str]:
 
 
 def get_primary_technology(manifest: dict[str, Any]) -> str | None:
-    """Return the source technology when configured."""
-    source = get_runtime_role(manifest, "source")
-    if source is not None:
-        return source.technology
+    """Return the first configured runtime technology, preferring source."""
+    for role_name in ("source", "target", "sandbox"):
+        role = get_runtime_role(manifest, role_name)
+        if role is not None:
+            return role.technology
     model = get_manifest_model(manifest)
     technology = model.technology
     return technology if technology in KNOWN_TECHNOLOGIES else None
@@ -77,7 +76,12 @@ def get_primary_dialect(manifest: dict[str, Any]) -> str:
     if source is not None:
         return source.dialect
     model = get_manifest_model(manifest)
-    return model.dialect or "tsql"
+    if model.dialect:
+        return model.dialect
+    technology = get_primary_technology(manifest)
+    if technology is not None:
+        return dialect_for_technology(technology)
+    return "tsql"
 
 
 def get_sandbox_name(manifest: dict[str, Any]) -> str | None:

@@ -16,7 +16,7 @@ Before `/setup-target` can proceed, extracted tables need to be in one of these 
 
 ## Target selection
 
-The command prompts for the target adapter. Current options include Fabric Lakehouse, Spark, Snowflake, SQL Server, and DuckDB.
+The command prompts for the target adapter. Current options include SQL Server, Oracle, DuckDB, and Snowflake.
 
 ## What it writes
 

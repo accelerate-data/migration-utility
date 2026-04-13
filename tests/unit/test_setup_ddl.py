@@ -350,18 +350,6 @@ class TestWriteManifest:
         assert manifest["extraction"]["schemas"] == ["bronze", "silver"]
         assert "extracted_at" in manifest["extraction"]
 
-    def test_fabric_warehouse_dialect(self, tmp_path):
-        result = _run_cli([
-            "write-manifest",
-            "--project-root", str(tmp_path),
-            "--technology", "fabric_warehouse",
-            "--database", "TestDB",
-            "--schemas", "dbo",
-        ])
-        assert result.returncode == 0
-        manifest = json.loads((tmp_path / "manifest.json").read_text())
-        assert manifest["dialect"] == "tsql"
-
     def test_oracle_dialect(self, tmp_path):
         result = _run_cli([
             "write-manifest",

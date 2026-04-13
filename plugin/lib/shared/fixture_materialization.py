@@ -23,7 +23,7 @@ def materialize_migration_test(
     orchestration of invoking that script with a fully resolved runtime role.
     """
 
-    adapter = get_dbops(role.technology).from_role(role)
+    adapter = get_dbops(role.technology).from_role(role, project_root=repo_root)
     script_path = adapter.fixture_script_path(repo_root)
     if not script_path.exists():
         raise FileNotFoundError(f"MigrationTest fixture script not found: {script_path}")
