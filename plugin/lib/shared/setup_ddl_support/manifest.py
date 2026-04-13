@@ -108,6 +108,7 @@ def get_connection_identity(technology: str, database: str) -> dict[str, Any]:
                 port=os.environ.get("MSSQL_PORT", "") or None,
                 database=database or None,
                 user=os.environ.get("MSSQL_USER", "sa") or None,
+                password_env="SA_PASSWORD",
                 driver=os.environ.get("MSSQL_DRIVER", "FreeTDS") or None,
             ),
         )

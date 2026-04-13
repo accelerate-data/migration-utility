@@ -25,7 +25,7 @@ Run all checks silently — do not change anything yet.
 3. Check FreeTDS is installed: `brew list --formula freetds 2>/dev/null`. If missing, tell the user to run `brew install freetds` (or run `/init-ad-migration` which auto-installs it) and stop.
 4. Inspect `runtime.sandbox.connection` in `manifest.json` and note which env-bound secrets it requires, such as `password_env`. Check that every referenced env var is set (non-empty). Do not print secret values.
 5. Verify the test-harness CLI is available: `uv run --project "${CLAUDE_PLUGIN_ROOT}/lib" test-harness --help`
-6. Check `dbt/profiles.yml` exists. This is **required** — without it, `/generate-tests` and `/generate-model` will fail on target-side dbt validation. If missing, stop and tell the user: "No `dbt/profiles.yml` found. Run `/setup-target` to scaffold the dbt project and select a target platform before setting up the sandbox." If present, read the adapter `type:` and compare against `runtime.target.technology` in `manifest.json`. Warn on mismatch but don't block.
+6. Check `dbt/profiles.yml` exists. This is **required** — without it, `/generate-tests` and `/generate-model` will fail on dbt validation. If missing, stop and tell the user: "No `dbt/profiles.yml` found. Run `/setup-target` to scaffold the dbt project and select a target platform before setting up the sandbox." If present, read the adapter `type:` and compare against `runtime.target.technology` in `manifest.json`. Warn on mismatch but don't block.
 7. Verify dbt can connect: `cd dbt && dbt debug`. Check the output shows "Connection test: OK". If it fails, stop and tell the user to check the env vars named by the configured runtime roles and any target-specific values in `profiles.yml`.
 
 ## Step 3: Present plan

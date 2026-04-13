@@ -19,11 +19,9 @@ Cross-reference index of common pipeline failures and the user-facing command th
 
 Live SQL Server extraction requires `toolbox` on `PATH`.
 
-**Source runtime environment variables missing**
+**MSSQL bootstrap environment variables missing**
 
-`/setup-ddl` needs the source-side environment variables for the configured source technology.
-
-For SQL Server sources that usually means:
+`/setup-ddl` needs these before it can persist `runtime.source`:
 
 - `MSSQL_HOST`
 - `MSSQL_PORT`

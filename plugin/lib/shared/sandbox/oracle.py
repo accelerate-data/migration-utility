@@ -183,6 +183,12 @@ class OracleSandbox(SandboxBackend):
         password: str,
         admin_user: str = "sys",
         source_schema: str = "",
+        *,
+        source_host: str | None = None,
+        source_port: str | None = None,
+        source_service: str | None = None,
+        source_user: str | None = None,
+        source_password: str | None = None,
     ) -> None:
         self.host = host
         self.port = port
@@ -190,15 +196,15 @@ class OracleSandbox(SandboxBackend):
         self.password = password
         self.admin_user = admin_user
         self.source_schema = source_schema
+        self.source_host = source_host or host
+        self.source_port = source_port or port
+        self.source_service = source_service or service
+        self.source_user = source_user or admin_user
+        self.source_password = source_password or password
 
     @classmethod
     def from_env(cls, manifest: dict[str, Any]) -> OracleSandbox:
-        """Create an instance from strict runtime roles plus process secrets.
-
-        The current Oracle sandbox implementation clones one source schema into
-        one sandbox schema using a single admin connection, so source and
-        sandbox must share the same host, port, and service.
-        """
+        """Create an instance from strict runtime roles plus process secrets."""
         source_role = get_runtime_role(manifest, "source")
         sandbox_role = get_runtime_role(manifest, "sandbox")
 
@@ -215,28 +221,18 @@ class OracleSandbox(SandboxBackend):
         if sandbox_role.technology != "oracle":
             raise ValueError("runtime.sandbox.technology must be oracle for Oracle sandbox")
 
-        if (source_role.connection.host or "") != (sandbox_role.connection.host or ""):
-            raise ValueError(
-                "Oracle sandbox cloning currently requires runtime.source.connection.host "
-                "and runtime.sandbox.connection.host to match"
-            )
-        if (source_role.connection.port or "1521") != (sandbox_role.connection.port or "1521"):
-            raise ValueError(
-                "Oracle sandbox cloning currently requires runtime.source.connection.port "
-                "and runtime.sandbox.connection.port to match"
-            )
-        if (source_role.connection.service or "") != (sandbox_role.connection.service or ""):
-            raise ValueError(
-                "Oracle sandbox cloning currently requires runtime.source.connection.service "
-                "and runtime.sandbox.connection.service to match"
-            )
-
         host = sandbox_role.connection.host or ""
         port = sandbox_role.connection.port or "1521"
         service = sandbox_role.connection.service or ""
         admin_user = sandbox_role.connection.user or ""
         password_env = sandbox_role.connection.password_env
         password = os.environ.get(password_env or "", "")
+        source_host = source_role.connection.host or ""
+        source_port = source_role.connection.port or "1521"
+        source_service = source_role.connection.service or ""
+        source_user = source_role.connection.user or ""
+        source_password_env = source_role.connection.password_env
+        source_password = os.environ.get(source_password_env or "", "")
         source_schema = source_role.connection.schema_name or ""
 
         if not host:
@@ -251,6 +247,21 @@ class OracleSandbox(SandboxBackend):
             missing.append("runtime.sandbox.connection.password_env")
         if not password:
             missing.append(f"environment variable referenced by runtime.sandbox.connection.password_env ({password_env})")
+        if not source_host:
+            missing.append("runtime.source.connection.host")
+        if not source_role.connection.port:
+            missing.append("runtime.source.connection.port")
+        if not source_service:
+            missing.append("runtime.source.connection.service")
+        if not source_user:
+            missing.append("runtime.source.connection.user")
+        if not source_password_env:
+            missing.append("runtime.source.connection.password_env")
+        if not source_password:
+            missing.append(
+                "environment variable referenced by runtime.source.connection.password_env "
+                f"({source_password_env})"
+            )
         if not source_schema:
             missing.append("runtime.source.connection.schema")
         if missing:
@@ -263,6 +274,11 @@ class OracleSandbox(SandboxBackend):
             password=password,
             admin_user=admin_user,
             source_schema=source_schema,
+            source_host=source_host,
+            source_port=source_port,
+            source_service=source_service,
+            source_user=source_user,
+            source_password=source_password,
         )
 
     @contextmanager
@@ -293,6 +309,19 @@ class OracleSandbox(SandboxBackend):
         finally:
             conn.close()
 
+    @contextmanager
+    def _connect_source(self) -> Generator[oracledb.Connection, None, None]:
+        dsn = f"{self.source_host}:{self.source_port}/{self.source_service}"
+        conn = _import_oracledb().connect(
+            user=self.source_user,
+            password=self.source_password,
+            dsn=dsn,
+        )
+        try:
+            yield conn
+        finally:
+            conn.close()
+
     def _create_sandbox_schema(self, cursor: Any, sandbox_schema: str) -> None:
         """Create sandbox user, dropping any prior instance first.
 
@@ -316,34 +345,87 @@ class OracleSandbox(SandboxBackend):
         cursor.execute(f'GRANT UNLIMITED TABLESPACE TO "{sandbox_schema}"')
         logger.info("event=oracle_sandbox_user_created sandbox=%s", sandbox_schema)
 
+    def _load_object_columns(
+        self,
+        source_cursor: Any,
+        source_schema: str,
+        object_name: str,
+    ) -> list[dict[str, Any]]:
+        source_cursor.execute(
+            "SELECT COLUMN_NAME, DATA_TYPE, DATA_LENGTH, DATA_PRECISION, DATA_SCALE, NULLABLE "
+            "FROM ALL_TAB_COLUMNS "
+            "WHERE OWNER = UPPER(:1) AND TABLE_NAME = UPPER(:2) "
+            "ORDER BY COLUMN_ID",
+            [source_schema, object_name],
+        )
+        return [
+            {
+                "name": row[0],
+                "data_type": row[1],
+                "data_length": row[2],
+                "data_precision": row[3],
+                "data_scale": row[4],
+                "nullable": row[5] == "Y",
+            }
+            for row in source_cursor.fetchall()
+        ]
+
+    @staticmethod
+    def _render_column_type(column: dict[str, Any]) -> str:
+        data_type = str(column["data_type"]).upper()
+        data_length = column.get("data_length")
+        data_precision = column.get("data_precision")
+        data_scale = column.get("data_scale")
+
+        if data_type in {"VARCHAR2", "NVARCHAR2", "CHAR", "NCHAR", "RAW"} and data_length:
+            return f"{data_type}({int(data_length)})"
+        if data_type == "NUMBER" and data_precision is not None:
+            if data_scale is not None:
+                return f"NUMBER({int(data_precision)},{int(data_scale)})"
+            return f"NUMBER({int(data_precision)})"
+        return data_type
+
+    def _create_empty_table(
+        self,
+        sandbox_cursor: Any,
+        sandbox_schema: str,
+        object_name: str,
+        columns: list[dict[str, Any]],
+    ) -> None:
+        rendered = [
+            (
+                f'"{column["name"]}" {self._render_column_type(column)} '
+                f'{"NULL" if column["nullable"] else "NOT NULL"}'
+            )
+            for column in columns
+        ]
+        sandbox_cursor.execute(
+            f'CREATE TABLE "{sandbox_schema}"."{object_name}" ({", ".join(rendered)})'
+        )
+
     def _clone_tables(
         self,
-        cursor: Any,
+        source_cursor: Any,
+        sandbox_cursor: Any,
         sandbox_schema: str,
         source_schema: str,
     ) -> tuple[list[str], list[dict[str, str]]]:
-        """Clone table structures from source to sandbox via CTAS.
-
-        Creates non-partitioned copies without FK, PK, or CHECK constraints.
-        Partitioned source tables become regular heap tables.
-        """
+        """Clone table structures from source to sandbox via explicit DDL."""
         cloned: list[str] = []
         errors: list[dict[str, str]] = []
 
-        cursor.execute(
+        source_cursor.execute(
             "SELECT TABLE_NAME FROM ALL_TABLES "
             "WHERE OWNER = UPPER(:1) AND NESTED = 'NO' AND SECONDARY = 'N' "
             "ORDER BY TABLE_NAME",
             [source_schema],
         )
-        table_names = [row[0] for row in cursor.fetchall()]
+        table_names = [row[0] for row in source_cursor.fetchall()]
 
         for table_name in table_names:
             try:
-                cursor.execute(
-                    f'CREATE TABLE "{sandbox_schema}"."{table_name}" '
-                    f'AS SELECT * FROM "{source_schema}"."{table_name}" WHERE 1=0'
-                )
+                columns = self._load_object_columns(source_cursor, source_schema, table_name)
+                self._create_empty_table(sandbox_cursor, sandbox_schema, table_name, columns)
                 cloned.append(f"{source_schema}.{table_name}")
             except _import_oracledb().DatabaseError as exc:
                 errors.append({
@@ -359,7 +441,8 @@ class OracleSandbox(SandboxBackend):
 
     def _clone_views(
         self,
-        cursor: Any,
+        source_cursor: Any,
+        sandbox_cursor: Any,
         sandbox_schema: str,
         source_schema: str,
     ) -> tuple[list[str], list[dict[str, str]]]:
@@ -367,12 +450,12 @@ class OracleSandbox(SandboxBackend):
         cloned: list[str] = []
         errors: list[dict[str, str]] = []
 
-        cursor.execute(
+        source_cursor.execute(
             "SELECT VIEW_NAME, TEXT FROM ALL_VIEWS "
             "WHERE OWNER = UPPER(:1) ORDER BY VIEW_NAME",
             [source_schema],
         )
-        views = cursor.fetchall()
+        views = source_cursor.fetchall()
 
         for view_name, view_text in views:
             _validate_oracle_identifier(view_name)
@@ -381,7 +464,7 @@ class OracleSandbox(SandboxBackend):
                 f"{view_text}"
             )
             try:
-                cursor.execute(ddl)
+                sandbox_cursor.execute(ddl)
                 cloned.append(f"{source_schema}.{view_name}")
             except _import_oracledb().DatabaseError as exc:
                 errors.append({
@@ -397,7 +480,8 @@ class OracleSandbox(SandboxBackend):
 
     def _clone_procedures(
         self,
-        cursor: Any,
+        source_cursor: Any,
+        sandbox_cursor: Any,
         sandbox_schema: str,
         source_schema: str,
     ) -> tuple[list[str], list[dict[str, str]]]:
@@ -411,21 +495,21 @@ class OracleSandbox(SandboxBackend):
         cloned: list[str] = []
         errors: list[dict[str, str]] = []
 
-        cursor.execute(
+        source_cursor.execute(
             "SELECT DISTINCT NAME FROM ALL_SOURCE "
             "WHERE OWNER = UPPER(:1) AND TYPE = 'PROCEDURE' ORDER BY NAME",
             [source_schema],
         )
-        proc_names = [row[0] for row in cursor.fetchall()]
+        proc_names = [row[0] for row in source_cursor.fetchall()]
 
         for proc_name in proc_names:
-            cursor.execute(
+            source_cursor.execute(
                 "SELECT TEXT FROM ALL_SOURCE "
                 "WHERE OWNER = UPPER(:1) AND TYPE = 'PROCEDURE' AND NAME = :2 "
                 "ORDER BY LINE",
                 [source_schema, proc_name],
             )
-            lines = [row[0] for row in cursor.fetchall()]
+            lines = [row[0] for row in source_cursor.fetchall()]
             if not lines:
                 errors.append({
                     "code": "PROC_DEFINITION_EMPTY",
@@ -444,7 +528,7 @@ class OracleSandbox(SandboxBackend):
             ddl = f"CREATE OR REPLACE {ddl.lstrip()}"
 
             try:
-                cursor.execute(ddl)
+                sandbox_cursor.execute(ddl)
                 cloned.append(f"{source_schema}.{proc_name}")
             except _import_oracledb().DatabaseError as exc:
                 errors.append({
@@ -480,20 +564,25 @@ class OracleSandbox(SandboxBackend):
         procedures_cloned: list[str] = []
 
         try:
-            with self._connect() as conn:
-                cursor = conn.cursor()
-                self._create_sandbox_schema(cursor, sandbox_schema)
+            with self._connect() as sandbox_conn, self._connect_source() as source_conn:
+                sandbox_cursor = sandbox_conn.cursor()
+                source_cursor = source_conn.cursor()
+                self._create_sandbox_schema(sandbox_cursor, sandbox_schema)
 
-                t_cloned, t_errors = self._clone_tables(cursor, sandbox_schema, source_schema)
+                t_cloned, t_errors = self._clone_tables(
+                    source_cursor, sandbox_cursor, sandbox_schema, source_schema,
+                )
                 tables_cloned.extend(t_cloned)
                 errors.extend(ErrorEntry(**e) for e in t_errors)
 
-                v_cloned, v_errors = self._clone_views(cursor, sandbox_schema, source_schema)
+                v_cloned, v_errors = self._clone_views(
+                    source_cursor, sandbox_cursor, sandbox_schema, source_schema,
+                )
                 views_cloned.extend(v_cloned)
                 errors.extend(ErrorEntry(**e) for e in v_errors)
 
                 p_cloned, p_errors = self._clone_procedures(
-                    cursor, sandbox_schema, source_schema,
+                    source_cursor, sandbox_cursor, sandbox_schema, source_schema,
                 )
                 procedures_cloned.extend(p_cloned)
                 errors.extend(ErrorEntry(**e) for e in p_errors)
@@ -662,29 +751,28 @@ class OracleSandbox(SandboxBackend):
         lookup and ``sandbox_db`` for the sandbox DDL.
         """
         materialized: list[str] = []
-        with self._connect() as conn:
-            cursor = conn.cursor()
+        with self._connect_source() as source_conn, self._connect() as sandbox_conn:
+            source_cursor = source_conn.cursor()
+            sandbox_cursor = sandbox_conn.cursor()
             for fixture in given:
                 view_name = fixture["table"]
                 _validate_oracle_identifier(view_name)
-                cursor.execute(
+                source_cursor.execute(
                     "SELECT 1 FROM ALL_VIEWS "
                     "WHERE OWNER = UPPER(:1) AND VIEW_NAME = UPPER(:2)",
                     [self.source_schema, view_name],
                 )
-                if cursor.fetchone() is None:
+                if source_cursor.fetchone() is None:
                     continue  # base table — already cloned by _clone_tables
                 try:
-                    cursor.execute(f'DROP TABLE "{sandbox_db}"."{view_name}"')
+                    sandbox_cursor.execute(f'DROP TABLE "{sandbox_db}"."{view_name}"')
                 except _import_oracledb().DatabaseError as exc:
                     logger.debug(
                         "event=oracle_view_drop_skipped sandbox=%s view=%s error=%s",
                         sandbox_db, view_name, exc,
                     )
-                cursor.execute(
-                    f'CREATE TABLE "{sandbox_db}"."{view_name}" '
-                    f'AS SELECT * FROM "{self.source_schema}"."{view_name}" WHERE 1=0'
-                )
+                columns = self._load_object_columns(source_cursor, self.source_schema, view_name)
+                self._create_empty_table(sandbox_cursor, sandbox_db, view_name, columns)
                 materialized.append(view_name)
                 logger.info(
                     "event=oracle_view_materialized sandbox=%s view=%s",

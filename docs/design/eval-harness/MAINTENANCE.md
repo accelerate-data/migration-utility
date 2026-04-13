@@ -92,7 +92,7 @@ docker ps | grep sql-test
 
 export MSSQL_HOST=localhost
 export MSSQL_PORT=1433
-export MSSQL_DB=MigrationTest
+export MSSQL_DB=MigrationTest  # bootstrap source extraction only
 export SA_PASSWORD=<your-password>
 
 ./scripts/sql/sql_server/materialize-migration-test.sh

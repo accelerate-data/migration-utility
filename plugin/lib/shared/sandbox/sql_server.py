@@ -239,6 +239,13 @@ class SqlServerSandbox(SandboxBackend):
         password: str,
         user: str = "sa",
         driver: str = "ODBC Driver 18 for SQL Server",
+        *,
+        source_host: str | None = None,
+        source_port: str | None = None,
+        source_database: str | None = None,
+        source_user: str | None = None,
+        source_password: str | None = None,
+        source_driver: str | None = None,
     ) -> None:
         self.host = host
         self.port = port
@@ -246,14 +253,16 @@ class SqlServerSandbox(SandboxBackend):
         self.password = password
         self.user = user
         self.driver = driver
+        self.source_host = source_host or host
+        self.source_port = source_port or port
+        self.source_database = source_database or database
+        self.source_user = source_user or user
+        self.source_password = source_password or password
+        self.source_driver = source_driver or driver
 
     @classmethod
     def from_env(cls, manifest: dict[str, Any]) -> SqlServerSandbox:
-        """Create an instance from strict runtime roles plus process secrets.
-
-        The SQL Server sandbox backend currently clones by three-part naming,
-        so source and sandbox must be on the same host/port.
-        """
+        """Create an instance from strict runtime roles plus process secrets."""
         source_role = get_runtime_role(manifest, "source")
         sandbox_role = get_runtime_role(manifest, "sandbox")
 
@@ -270,48 +279,68 @@ class SqlServerSandbox(SandboxBackend):
         if sandbox_role.technology != "sql_server":
             raise ValueError("runtime.sandbox.technology must be sql_server for SQL Server sandbox")
 
-        if (source_role.connection.host or "") != (sandbox_role.connection.host or ""):
-            raise ValueError(
-                "SQL Server sandbox cloning currently requires runtime.source.connection.host "
-                "and runtime.sandbox.connection.host to match"
-            )
-        if (source_role.connection.port or "1433") != (sandbox_role.connection.port or "1433"):
-            raise ValueError(
-                "SQL Server sandbox cloning currently requires runtime.source.connection.port "
-                "and runtime.sandbox.connection.port to match"
-            )
+        sandbox_host = sandbox_role.connection.host or ""
+        sandbox_port = sandbox_role.connection.port or "1433"
+        sandbox_user = sandbox_role.connection.user or ""
+        sandbox_driver = sandbox_role.connection.driver or "FreeTDS"
+        sandbox_password_env = sandbox_role.connection.password_env
+        sandbox_password = os.environ.get(sandbox_password_env or "", "")
 
-        host = sandbox_role.connection.host or ""
-        port = sandbox_role.connection.port or "1433"
-        database = source_role.connection.database or ""
-        user = sandbox_role.connection.user or ""
-        driver = sandbox_role.connection.driver or "FreeTDS"
-        password_env = sandbox_role.connection.password_env
-        password = os.environ.get(password_env or "", "")
+        source_host = source_role.connection.host or ""
+        source_port = source_role.connection.port or "1433"
+        source_database = source_role.connection.database or ""
+        source_user = source_role.connection.user or "sa"
+        source_driver = source_role.connection.driver or "FreeTDS"
+        source_password_env = source_role.connection.password_env
+        source_password = os.environ.get(source_password_env or "", "")
 
-        if not host:
+        if not sandbox_host:
             missing.append("runtime.sandbox.connection.host")
         if not sandbox_role.connection.port:
             missing.append("runtime.sandbox.connection.port")
-        if not user:
+        if not sandbox_user:
             missing.append("runtime.sandbox.connection.user")
-        if not password_env:
+        if not sandbox_password_env:
             missing.append("runtime.sandbox.connection.password_env")
-        if not password:
-            missing.append(f"environment variable referenced by runtime.sandbox.connection.password_env ({password_env})")
-        if not database:
+        if not sandbox_password:
+            missing.append(
+                "environment variable referenced by runtime.sandbox.connection.password_env "
+                f"({sandbox_password_env})"
+            )
+        if not source_host:
+            missing.append("runtime.source.connection.host")
+        if not source_role.connection.port:
+            missing.append("runtime.source.connection.port")
+        if not source_database:
             missing.append("runtime.source.connection.database")
+        if not source_password_env:
+            missing.append("runtime.source.connection.password_env")
+        if not source_password:
+            missing.append(
+                "environment variable referenced by runtime.source.connection.password_env "
+                f"({source_password_env})"
+            )
         if missing:
             raise ValueError(f"Required sandbox configuration is missing: {missing}")
 
         return cls(
-            host=host, port=port, database=database, password=password,
-            user=user, driver=driver,
+            host=sandbox_host,
+            port=sandbox_port,
+            database=source_database,
+            password=sandbox_password,
+            user=sandbox_user,
+            driver=sandbox_driver,
+            source_host=source_host,
+            source_port=source_port,
+            source_database=source_database,
+            source_user=source_user,
+            source_password=source_password,
+            source_driver=source_driver,
         )
 
     @contextmanager
     def _connect(self, *, database: str | None = None) -> Generator[pyodbc.Connection, None, None]:
-        db = database or self.database
+        db = database or "master"
         conn_str = (
             f"DRIVER={{{self.driver}}};"
             f"SERVER={self.host},{self.port};"
@@ -329,6 +358,26 @@ class SqlServerSandbox(SandboxBackend):
                     "Install FreeTDS: brew install freetds"
                 ) from exc
             raise
+        try:
+            yield conn
+        finally:
+            conn.close()
+
+    @contextmanager
+    def _connect_source(
+        self, *, database: str | None = None,
+    ) -> Generator[pyodbc.Connection, None, None]:
+        db = database or self.source_database
+        conn = _import_pyodbc().connect(
+            (
+                f"DRIVER={{{self.source_driver}}};"
+                f"SERVER={self.source_host},{self.source_port};"
+                f"DATABASE={db};"
+                f"UID={self.source_user};PWD={self.source_password};"
+                "TrustServerCertificate=yes;"
+            ),
+            autocommit=True,
+        )
         try:
             yield conn
         finally:
@@ -372,6 +421,72 @@ class SqlServerSandbox(SandboxBackend):
                 })
         return errors
 
+    def _load_object_columns(
+        self,
+        source_cursor: pyodbc.Cursor,
+        schema_name: str,
+        object_name: str,
+    ) -> list[dict[str, Any]]:
+        identity_columns = _get_identity_columns(source_cursor, f"[{schema_name}].[{object_name}]")
+        source_cursor.execute(
+            "SELECT COLUMN_NAME, DATA_TYPE, CHARACTER_MAXIMUM_LENGTH, "
+            "NUMERIC_PRECISION, NUMERIC_SCALE, DATETIME_PRECISION, IS_NULLABLE "
+            "FROM INFORMATION_SCHEMA.COLUMNS "
+            "WHERE TABLE_SCHEMA = ? AND TABLE_NAME = ? "
+            "ORDER BY ORDINAL_POSITION",
+            schema_name,
+            object_name,
+        )
+        return [
+            {
+                "name": row[0],
+                "data_type": row[1],
+                "char_len": row[2],
+                "precision": row[3],
+                "scale": row[4],
+                "datetime_precision": row[5],
+                "nullable": row[6] == "YES",
+                "identity": row[0] in identity_columns,
+            }
+            for row in source_cursor.fetchall()
+        ]
+
+    @staticmethod
+    def _render_column_type(column: dict[str, Any]) -> str:
+        data_type = str(column["data_type"]).lower()
+        char_len = column.get("char_len")
+        precision = column.get("precision")
+        scale = column.get("scale")
+        datetime_precision = column.get("datetime_precision")
+
+        if data_type in {"varchar", "nvarchar", "char", "nchar", "binary", "varbinary"}:
+            if char_len in (-1, None):
+                return f"{data_type}(MAX)"
+            return f"{data_type}({int(char_len)})"
+        if data_type in {"decimal", "numeric"} and precision is not None:
+            return f"{data_type}({int(precision)},{int(scale or 0)})"
+        if data_type in {"datetime2", "datetimeoffset", "time"} and datetime_precision is not None:
+            return f"{data_type}({int(datetime_precision)})"
+        return data_type
+
+    def _create_empty_table(
+        self,
+        sandbox_cursor: pyodbc.Cursor,
+        schema_name: str,
+        object_name: str,
+        columns: list[dict[str, Any]],
+    ) -> None:
+        rendered = []
+        for column in columns:
+            line = f"[{column['name']}] {self._render_column_type(column)}"
+            if column["identity"]:
+                line += " IDENTITY(1,1)"
+            line += " NULL" if column["nullable"] else " NOT NULL"
+            rendered.append(line)
+        sandbox_cursor.execute(
+            f"CREATE TABLE [{schema_name}].[{object_name}] ({', '.join(rendered)})"
+        )
+
     def _clone_tables(
         self,
         source_cursor: pyodbc.Cursor,
@@ -395,10 +510,8 @@ class SqlServerSandbox(SandboxBackend):
             _validate_identifier(table_name)
             fqn = f"[{schema_name}].[{table_name}]"
             try:
-                sandbox_cursor.execute(
-                    f"SELECT TOP 0 * INTO {fqn} "
-                    f"FROM [{self.database}].{fqn}"
-                )
+                columns = self._load_object_columns(source_cursor, schema_name, table_name)
+                self._create_empty_table(sandbox_cursor, schema_name, table_name, columns)
                 cloned.append(f"{schema_name}.{table_name}")
             except _import_pyodbc().Error as exc:
                 errors.append({
@@ -495,12 +608,12 @@ class SqlServerSandbox(SandboxBackend):
         self,
         schemas: list[str],
     ) -> SandboxUpOutput:
-        _validate_identifier(self.database)
+        _validate_identifier(self.source_database)
         sandbox_db = _generate_sandbox_db_name()
 
         logger.info(
             "event=sandbox_up sandbox_db=%s source=%s schemas=%s",
-            sandbox_db, self.database, schemas,
+            sandbox_db, self.source_database, schemas,
         )
 
         self._create_sandbox_db(sandbox_db)
@@ -512,7 +625,7 @@ class SqlServerSandbox(SandboxBackend):
 
         try:
             with self._connect(database=sandbox_db) as sandbox_conn, \
-                 self._connect(database=self.database) as source_conn:
+                 self._connect_source(database=self.source_database) as source_conn:
                 sandbox_cursor = sandbox_conn.cursor()
                 source_cursor = source_conn.cursor()
 
@@ -751,7 +864,7 @@ class SqlServerSandbox(SandboxBackend):
         subsequent scenarios find the table already present.
         """
         materialized: list[str] = []
-        with self._connect() as src_conn, self._connect(database=sandbox_db) as sb_conn:
+        with self._connect_source(database=self.source_database) as src_conn, self._connect(database=sandbox_db) as sb_conn:
             src_cur = src_conn.cursor()
             sb_cur = sb_conn.cursor()
             for fixture in given:
@@ -779,9 +892,8 @@ class SqlServerSandbox(SandboxBackend):
                     sb_cur.execute(f"DROP VIEW IF EXISTS {fqn}")
                 except _import_pyodbc().Error:
                     pass  # sandbox_up may not have cloned the view
-                sb_cur.execute(
-                    f"SELECT TOP 0 * INTO {fqn} FROM [{self.database}].{fqn}"
-                )
+                columns = self._load_object_columns(src_cur, schema_name, obj_name)
+                self._create_empty_table(sb_cur, schema_name, obj_name, columns)
                 materialized.append(f"{schema_name}.{obj_name}")
                 logger.info(
                     "event=view_materialized sandbox_db=%s fqn=%s",

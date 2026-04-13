@@ -98,7 +98,7 @@ function pinFixtureDatabase(projectRoot, manifest) {
   const targetDatabase = targetDatabaseFromManifest(manifest);
   const original = fs.readFileSync(profilesPath, 'utf8');
   const pinned = original.replace(
-    /database:\s*"\{\{\s*env_var\('MSSQL_DB',\s*'MigrationTest'\)\s*\}\}"/g,
+    /^(\s*database:\s*).+$/m,
     `database: "${targetDatabase}"`,
   );
 

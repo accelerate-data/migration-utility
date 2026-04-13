@@ -136,7 +136,12 @@ class TestFromEnv:
                 "source": {
                     "technology": "sql_server",
                     "dialect": "tsql",
-                    "connection": {"host": "localhost", "port": "1433", "database": "manifestDB"},
+                    "connection": {
+                        "host": "localhost",
+                        "port": "1433",
+                        "database": "manifestDB",
+                        "password_env": "SQL_SOURCE_PASSWORD",
+                    },
                 },
                 "sandbox": {
                     "technology": "sql_server",
@@ -145,8 +150,9 @@ class TestFromEnv:
                 },
             }
         }
-        with pytest.raises(ValueError, match="runtime.sandbox.connection.password_env"):
-            SqlServerSandbox.from_env(manifest)
+        with patch.dict(os.environ, {"SQL_SOURCE_PASSWORD": "source-pass"}, clear=True):
+            with pytest.raises(ValueError, match="runtime.sandbox.connection.password_env"):
+                SqlServerSandbox.from_env(manifest)
 
     def test_from_env_requires_explicit_source_database(self) -> None:
         manifest = {
@@ -154,7 +160,11 @@ class TestFromEnv:
                 "source": {
                     "technology": "sql_server",
                     "dialect": "tsql",
-                    "connection": {"host": "localhost", "port": "1433"},
+                    "connection": {
+                        "host": "localhost",
+                        "port": "1433",
+                        "password_env": "SQL_SOURCE_PASSWORD",
+                    },
                 },
                 "sandbox": {
                     "technology": "sql_server",
@@ -168,17 +178,23 @@ class TestFromEnv:
                 },
             }
         }
-        with patch.dict(os.environ, {"SQL_SANDBOX_PASSWORD": "pass"}, clear=True):
+        with patch.dict(os.environ, {"SQL_SOURCE_PASSWORD": "source-pass", "SQL_SANDBOX_PASSWORD": "pass"}, clear=True):
             with pytest.raises(ValueError, match="runtime.source.connection.database"):
                 SqlServerSandbox.from_env(manifest)
 
-    def test_from_env_requires_matching_source_and_sandbox_host(self) -> None:
+    def test_from_env_allows_distinct_source_and_sandbox_hosts(self) -> None:
         manifest = {
             "runtime": {
                 "source": {
                     "technology": "sql_server",
                     "dialect": "tsql",
-                    "connection": {"host": "source-host", "port": "1433", "database": "manifestDB"},
+                    "connection": {
+                        "host": "source-host",
+                        "port": "1433",
+                        "database": "manifestDB",
+                        "user": "source_user",
+                        "password_env": "SQL_SOURCE_PASSWORD",
+                    },
                 },
                 "sandbox": {
                     "technology": "sql_server",
@@ -192,9 +208,14 @@ class TestFromEnv:
                 },
             }
         }
-        with patch.dict(os.environ, {"SQL_SANDBOX_PASSWORD": "pass"}, clear=True):
-            with pytest.raises(ValueError, match="runtime.source.connection.host"):
-                SqlServerSandbox.from_env(manifest)
+        with patch.dict(
+            os.environ,
+            {"SQL_SOURCE_PASSWORD": "source-pass", "SQL_SANDBOX_PASSWORD": "pass"},
+            clear=True,
+        ):
+            backend = SqlServerSandbox.from_env(manifest)
+        assert backend.source_host == "source-host"
+        assert backend.host == "sandbox-host"
 
     def test_from_env_uses_explicit_runtime_roles(self) -> None:
         manifest = {
@@ -206,6 +227,8 @@ class TestFromEnv:
                         "host": "localhost",
                         "port": "1433",
                         "database": "manifestDB",
+                        "user": "source_user",
+                        "password_env": "SQL_SOURCE_PASSWORD",
                     },
                 },
                 "sandbox": {
@@ -221,11 +244,16 @@ class TestFromEnv:
                 },
             }
         }
-        with patch.dict(os.environ, {"SQL_SANDBOX_PASSWORD": "pass"}, clear=True):
+        with patch.dict(
+            os.environ,
+            {"SQL_SOURCE_PASSWORD": "source-pass", "SQL_SANDBOX_PASSWORD": "pass"},
+            clear=True,
+        ):
             backend = SqlServerSandbox.from_env(manifest)
         assert backend.database == "manifestDB"
         assert backend.user == "admin"
         assert backend.driver == "FreeTDS"
+        assert backend.source_user == "source_user"
 
     def test_connect_cant_open_lib_raises_runtime_error(self) -> None:
         backend = SqlServerSandbox(
@@ -296,6 +324,10 @@ class TestSqlServerSandboxUp:
         source_cursor = MagicMock()
         source_cursor.fetchall.side_effect = [
             [("dbo", "Product"), ("silver", "DimProduct")],
+            [],
+            [("ProductID", "int", None, 10, 0, None, "NO")],
+            [],
+            [("DimProductID", "int", None, 10, 0, None, "NO")],
             [("silver", "vw_customer")],
             [("dbo", "usp_load", "CREATE PROCEDURE dbo.usp_load AS BEGIN SELECT 1 END")],
         ]
@@ -304,13 +336,16 @@ class TestSqlServerSandboxUp:
         sandbox_cursor = MagicMock()
         default_cursor = MagicMock()
 
-        fake_connect = _mock_connect_factory(
+        admin_connect = _mock_connect_factory(
             source_cursor=source_cursor,
             sandbox_cursor=sandbox_cursor,
             default_cursor=default_cursor,
         )
+        source_connect = _mock_connect_factory(source_cursor=source_cursor)
 
-        with patch.object(backend, "_connect", side_effect=fake_connect):
+        with patch.object(backend, "_connect", side_effect=admin_connect), patch.object(
+            backend, "_connect_source", side_effect=source_connect
+        ):
             result = backend.sandbox_up(
                 schemas=["dbo", "silver"],
             )
@@ -426,6 +461,7 @@ class TestSqlServerExecuteScenario:
         )
 
         fake_connect = _mock_connect_factory(sandbox_cursor=sandbox_cursor)
+        source_connect = _mock_connect_factory(source_cursor=MagicMock(), sandbox_cursor=sandbox_cursor)
 
         scenario = {
             "name": "test_remote_exec",
@@ -434,7 +470,9 @@ class TestSqlServerExecuteScenario:
             "given": [],
         }
 
-        with patch.object(backend, "_connect", side_effect=fake_connect):
+        with patch.object(backend, "_connect", side_effect=fake_connect), patch.object(
+            backend, "_connect_source", side_effect=source_connect
+        ):
             result = backend.execute_scenario(sandbox_db="__test_abc123", scenario=scenario)
 
         assert result.status == "error"
@@ -456,6 +494,7 @@ class TestSqlServerExecuteScenario:
         )
 
         fake_connect = _mock_connect_factory(sandbox_cursor=sandbox_cursor)
+        source_connect = _mock_connect_factory(source_cursor=MagicMock(), sandbox_cursor=sandbox_cursor)
 
         scenario = {
             "name": "test_insert_new_product",
@@ -469,7 +508,9 @@ class TestSqlServerExecuteScenario:
             ],
         }
 
-        with patch.object(backend, "_connect", side_effect=fake_connect):
+        with patch.object(backend, "_connect", side_effect=fake_connect), patch.object(
+            backend, "_connect_source", side_effect=source_connect
+        ):
             result = backend.execute_scenario(sandbox_db="__test_abc123", scenario=scenario)
 
         assert result.status == "ok"
@@ -509,6 +550,7 @@ class TestIdentityInsert:
         sandbox_cursor.description = [("SalesOrderID",), ("Name",), ("Amount",)]
 
         fake_connect = _mock_connect_factory(sandbox_cursor=sandbox_cursor)
+        source_connect = _mock_connect_factory(source_cursor=MagicMock(), sandbox_cursor=sandbox_cursor)
 
         scenario = {
             "name": "test_identity",
@@ -522,7 +564,9 @@ class TestIdentityInsert:
             ],
         }
 
-        with patch.object(backend, "_connect", side_effect=fake_connect):
+        with patch.object(backend, "_connect", side_effect=fake_connect), patch.object(
+            backend, "_connect_source", side_effect=source_connect
+        ):
             result = backend.execute_scenario(sandbox_db="__test_abc123", scenario=scenario)
 
         assert result.status == "ok"
@@ -549,6 +593,8 @@ class TestIdentityInsert:
         sandbox_cursor.description = [("id",), ("name",)]
 
         fake_connect = _mock_connect_factory(sandbox_cursor=sandbox_cursor)
+        source_connect = _mock_connect_factory(source_cursor=MagicMock(), sandbox_cursor=sandbox_cursor)
+        source_connect = _mock_connect_factory(source_cursor=MagicMock(), sandbox_cursor=sandbox_cursor)
 
         scenario = {
             "name": "test_no_identity",
@@ -562,7 +608,9 @@ class TestIdentityInsert:
             ],
         }
 
-        with patch.object(backend, "_connect", side_effect=fake_connect):
+        with patch.object(backend, "_connect", side_effect=fake_connect), patch.object(
+            backend, "_connect_source", side_effect=source_connect
+        ):
             result = backend.execute_scenario(sandbox_db="__test_abc123", scenario=scenario)
 
         assert result.status == "ok"
@@ -602,6 +650,7 @@ class TestNotNullDefaultsQuery:
         sandbox_cursor.description = [("id",), ("value",)]
 
         fake_connect = _mock_connect_factory(sandbox_cursor=sandbox_cursor)
+        source_connect = _mock_connect_factory(source_cursor=MagicMock(), sandbox_cursor=sandbox_cursor)
 
         scenario = {
             "name": "test_multi_table",
@@ -619,7 +668,9 @@ class TestNotNullDefaultsQuery:
             ],
         }
 
-        with patch.object(backend, "_connect", side_effect=fake_connect):
+        with patch.object(backend, "_connect", side_effect=fake_connect), patch.object(
+            backend, "_connect_source", side_effect=source_connect
+        ):
             result = backend.execute_scenario(sandbox_db="__test_abc123", scenario=scenario)
 
         assert result.status == "ok"
@@ -655,6 +706,7 @@ class TestFkConstraintDisabling:
         sandbox_cursor.description = [("id",), ("name",)]
 
         fake_connect = _mock_connect_factory(sandbox_cursor=sandbox_cursor)
+        source_connect = _mock_connect_factory(source_cursor=MagicMock(), sandbox_cursor=sandbox_cursor)
 
         scenario = {
             "name": "test_fk_disable",
@@ -668,7 +720,9 @@ class TestFkConstraintDisabling:
             ],
         }
 
-        with patch.object(backend, "_connect", side_effect=fake_connect):
+        with patch.object(backend, "_connect", side_effect=fake_connect), patch.object(
+            backend, "_connect_source", side_effect=source_connect
+        ):
             result = backend.execute_scenario(sandbox_db="__test_abc123", scenario=scenario)
 
         assert result.status == "ok"
@@ -705,6 +759,7 @@ class TestFkConstraintDisabling:
         sandbox_cursor.description = [("id",), ("name",)]
 
         fake_connect = _mock_connect_factory(sandbox_cursor=sandbox_cursor)
+        source_connect = _mock_connect_factory(source_cursor=MagicMock(), sandbox_cursor=sandbox_cursor)
 
         scenario = {
             "name": "test_empty",
@@ -715,7 +770,9 @@ class TestFkConstraintDisabling:
             ],
         }
 
-        with patch.object(backend, "_connect", side_effect=fake_connect):
+        with patch.object(backend, "_connect", side_effect=fake_connect), patch.object(
+            backend, "_connect_source", side_effect=source_connect
+        ):
             result = backend.execute_scenario(sandbox_db="__test_abc123", scenario=scenario)
 
         assert result.status == "ok"
@@ -746,6 +803,7 @@ class TestTriggerDisabling:
         sandbox_cursor.description = [("id",), ("name",)]
 
         fake_connect = _mock_connect_factory(sandbox_cursor=sandbox_cursor)
+        source_connect = _mock_connect_factory(source_cursor=MagicMock(), sandbox_cursor=sandbox_cursor)
 
         scenario = {
             "name": "test_triggers",
@@ -759,7 +817,9 @@ class TestTriggerDisabling:
             ],
         }
 
-        with patch.object(backend, "_connect", side_effect=fake_connect):
+        with patch.object(backend, "_connect", side_effect=fake_connect), patch.object(
+            backend, "_connect_source", side_effect=source_connect
+        ):
             result = backend.execute_scenario(sandbox_db="__test_abc123", scenario=scenario)
 
         assert result.status == "ok"
@@ -786,6 +846,7 @@ class TestTriggerDisabling:
         sandbox_cursor.description = [("id",), ("name",)]
 
         fake_connect = _mock_connect_factory(sandbox_cursor=sandbox_cursor)
+        source_connect = _mock_connect_factory(source_cursor=MagicMock(), sandbox_cursor=sandbox_cursor)
 
         scenario = {
             "name": "test_order",
@@ -796,7 +857,9 @@ class TestTriggerDisabling:
             ],
         }
 
-        with patch.object(backend, "_connect", side_effect=fake_connect):
+        with patch.object(backend, "_connect", side_effect=fake_connect), patch.object(
+            backend, "_connect_source", side_effect=source_connect
+        ):
             result = backend.execute_scenario(sandbox_db="__test_abc123", scenario=scenario)
 
         assert result.status == "ok"
@@ -1899,6 +1962,7 @@ class TestOracleSandboxName:
 class TestOracleSandboxFromEnv:
     def test_raises_when_oracle_pwd_missing(self, monkeypatch: pytest.MonkeyPatch) -> None:
         monkeypatch.delenv("ORACLE_SANDBOX_PASSWORD", raising=False)
+        monkeypatch.setenv("ORACLE_SOURCE_PASSWORD", "source-secret")
         with pytest.raises(ValueError, match="runtime.sandbox.connection.password_env"):
             OracleSandbox.from_env(
                 {
@@ -1910,7 +1974,9 @@ class TestOracleSandboxFromEnv:
                                 "host": "localhost",
                                 "port": "1521",
                                 "service": "FREEPDB1",
+                                "user": "sh",
                                 "schema": "SH",
+                                "password_env": "ORACLE_SOURCE_PASSWORD",
                             },
                         },
                         "sandbox": {
@@ -1928,6 +1994,7 @@ class TestOracleSandboxFromEnv:
             )
 
     def test_raises_when_source_schema_missing(self, monkeypatch: pytest.MonkeyPatch) -> None:
+        monkeypatch.setenv("ORACLE_SOURCE_PASSWORD", "source-secret")
         monkeypatch.setenv("ORACLE_SANDBOX_PASSWORD", "secret")
         with pytest.raises(ValueError, match="runtime.source.connection.schema"):
             OracleSandbox.from_env(
@@ -1940,6 +2007,8 @@ class TestOracleSandboxFromEnv:
                                 "host": "localhost",
                                 "port": "1521",
                                 "service": "FREEPDB1",
+                                "user": "sh",
+                                "password_env": "ORACLE_SOURCE_PASSWORD",
                             },
                         },
                         "sandbox": {
@@ -1958,6 +2027,7 @@ class TestOracleSandboxFromEnv:
             )
 
     def test_uses_explicit_runtime_roles(self, monkeypatch: pytest.MonkeyPatch) -> None:
+        monkeypatch.setenv("ORACLE_SOURCE_PASSWORD", "source-secret")
         monkeypatch.setenv("ORACLE_SANDBOX_PASSWORD", "secret")
         backend = OracleSandbox.from_env(
             {
@@ -1965,13 +2035,15 @@ class TestOracleSandboxFromEnv:
                     "source": {
                         "technology": "oracle",
                         "dialect": "oracle",
-                        "connection": {
-                            "host": "localhost",
-                            "port": "1521",
-                            "service": "FREEPDB1",
-                            "schema": "SH",
+                            "connection": {
+                                "host": "localhost",
+                                "port": "1521",
+                                "service": "FREEPDB1",
+                                "user": "sh",
+                                "schema": "SH",
+                                "password_env": "ORACLE_SOURCE_PASSWORD",
+                            },
                         },
-                    },
                     "sandbox": {
                         "technology": "oracle",
                         "dialect": "oracle",
@@ -1989,37 +2061,42 @@ class TestOracleSandboxFromEnv:
         assert backend.source_schema == "SH"
         assert backend.service == "FREEPDB1"
         assert backend.admin_user == "sys"
+        assert backend.source_user == "sh"
 
-    def test_rejects_mismatched_service(self, monkeypatch: pytest.MonkeyPatch) -> None:
+    def test_allows_distinct_source_and_sandbox_services(self, monkeypatch: pytest.MonkeyPatch) -> None:
+        monkeypatch.setenv("ORACLE_SOURCE_PASSWORD", "source-secret")
         monkeypatch.setenv("ORACLE_SANDBOX_PASSWORD", "secret")
-        with pytest.raises(ValueError, match="runtime.source.connection.service"):
-            OracleSandbox.from_env(
-                {
-                    "runtime": {
-                        "source": {
-                            "technology": "oracle",
-                            "dialect": "oracle",
-                            "connection": {
-                                "host": "localhost",
-                                "port": "1521",
-                                "service": "SRCPDB",
-                                "schema": "SH",
-                            },
+        backend = OracleSandbox.from_env(
+            {
+                "runtime": {
+                    "source": {
+                        "technology": "oracle",
+                        "dialect": "oracle",
+                        "connection": {
+                            "host": "localhost",
+                            "port": "1521",
+                            "service": "SRCPDB",
+                            "user": "sh",
+                            "schema": "SH",
+                            "password_env": "ORACLE_SOURCE_PASSWORD",
                         },
-                        "sandbox": {
-                            "technology": "oracle",
-                            "dialect": "oracle",
-                            "connection": {
-                                "host": "localhost",
-                                "port": "1521",
-                                "service": "SANDBOXPDB",
-                                "user": "sys",
-                                "password_env": "ORACLE_SANDBOX_PASSWORD",
-                            },
+                    },
+                    "sandbox": {
+                        "technology": "oracle",
+                        "dialect": "oracle",
+                        "connection": {
+                            "host": "localhost",
+                            "port": "1521",
+                            "service": "SANDBOXPDB",
+                            "user": "sys",
+                            "password_env": "ORACLE_SANDBOX_PASSWORD",
                         },
-                    }
+                    },
                 }
-            )
+            }
+        )
+        assert backend.source_service == "SRCPDB"
+        assert backend.service == "SANDBOXPDB"
 
 
 # ── DuckDbSandbox ────────────────────────────────────────────────────────────
@@ -2144,23 +2221,27 @@ class TestEnsureViewTablesSqlServer:
         backend = _make_backend()
         source_cursor = MagicMock()
         source_cursor.fetchone.return_value = (1,)  # object IS a view
+        source_cursor.fetchall.side_effect = [
+            [],
+            [("id", "int", None, 10, 0, None, "NO")],
+        ]
 
         sandbox_cursor = MagicMock()
 
-        fake_connect = _mock_connect_factory(
-            default_cursor=source_cursor,
-            sandbox_cursor=sandbox_cursor,
-        )
+        sandbox_connect = _mock_connect_factory(sandbox_cursor=sandbox_cursor)
+        source_connect = _mock_connect_factory(source_cursor=source_cursor)
 
         given = [{"table": "[silver].[vw_product]", "rows": []}]
 
-        with patch.object(backend, "_connect", side_effect=fake_connect):
+        with patch.object(backend, "_connect", side_effect=sandbox_connect), patch.object(
+            backend, "_connect_source", side_effect=source_connect
+        ):
             materialized = backend._ensure_view_tables("__test_abc123", given)
 
         assert materialized == ["silver.vw_product"]
         calls = [str(c) for c in sandbox_cursor.execute.call_args_list]
-        ctas_calls = [c for c in calls if "SELECT TOP 0" in c]
-        assert len(ctas_calls) == 1
+        create_calls = [c for c in calls if "CREATE TABLE [silver].[vw_product] ([id] int NOT NULL)" in c]
+        assert len(create_calls) == 1
 
     def test_base_table_skipped(self) -> None:
         """A base table (not a view) is not CTASed — it is already cloned by _clone_tables."""
@@ -2177,7 +2258,9 @@ class TestEnsureViewTablesSqlServer:
 
         given = [{"table": "[bronze].[Currency]", "rows": []}]
 
-        with patch.object(backend, "_connect", side_effect=fake_connect):
+        with patch.object(backend, "_connect", side_effect=fake_connect), patch.object(
+            backend, "_connect_source", side_effect=fake_connect
+        ):
             materialized = backend._ensure_view_tables("__test_abc123", given)
 
         assert materialized == []
@@ -2189,28 +2272,32 @@ class TestEnsureViewTablesSqlServer:
         backend = _make_backend()
         source_cursor = MagicMock()
         source_cursor.fetchone.return_value = (1,)  # IS a view
+        source_cursor.fetchall.side_effect = [
+            [],
+            [("id", "int", None, 10, 0, None, "NO")],
+        ]
 
         sandbox_cursor = MagicMock()
         sandbox_cursor.execute.side_effect = [
             pyodbc.Error,  # DROP TABLE IF EXISTS raises
             None,          # DROP VIEW IF EXISTS succeeds
-            None,          # SELECT TOP 0 * INTO succeeds
+            None,          # CREATE TABLE succeeds
         ]
 
-        fake_connect = _mock_connect_factory(
-            default_cursor=source_cursor,
-            sandbox_cursor=sandbox_cursor,
-        )
+        sandbox_connect = _mock_connect_factory(sandbox_cursor=sandbox_cursor)
+        source_connect = _mock_connect_factory(source_cursor=source_cursor)
 
         given = [{"table": "[silver].[vw_stale]", "rows": []}]
 
-        with patch.object(backend, "_connect", side_effect=fake_connect):
+        with patch.object(backend, "_connect", side_effect=sandbox_connect), patch.object(
+            backend, "_connect_source", side_effect=source_connect
+        ):
             materialized = backend._ensure_view_tables("__test_abc123", given)
 
         assert materialized == ["silver.vw_stale"]
         calls = [str(c) for c in sandbox_cursor.execute.call_args_list]
-        ctas_calls = [c for c in calls if "SELECT TOP 0" in c]
-        assert len(ctas_calls) == 1
+        create_calls = [c for c in calls if "CREATE TABLE [silver].[vw_stale] ([id] int NOT NULL)" in c]
+        assert len(create_calls) == 1
 
 
 # ── _ensure_view_tables (Oracle) ──────────────────────────────────────────────
@@ -2243,7 +2330,9 @@ class TestEnsureViewTablesOracle:
 
         given = [{"table": "VW_PRODUCT", "rows": []}]
 
-        with patch.object(backend, "_connect", side_effect=_fake_connect):
+        with patch.object(backend, "_connect", side_effect=_fake_connect), patch.object(
+            backend, "_connect_source", side_effect=_fake_connect
+        ):
             materialized = backend._ensure_view_tables("__test_abc123", given)
 
         assert materialized == ["VW_PRODUCT"]
@@ -2265,7 +2354,9 @@ class TestEnsureViewTablesOracle:
 
         given = [{"table": "CHANNELS", "rows": []}]
 
-        with patch.object(backend, "_connect", side_effect=_fake_connect):
+        with patch.object(backend, "_connect", side_effect=_fake_connect), patch.object(
+            backend, "_connect_source", side_effect=_fake_connect
+        ):
             materialized = backend._ensure_view_tables("__test_abc123", given)
 
         assert materialized == []
@@ -2278,29 +2369,40 @@ class TestEnsureViewTablesOracle:
         import oracledb
 
         backend = self._make_oracle_backend()
-        cursor = MagicMock()
-        cursor.fetchone.return_value = (1,)  # IS a view
-        cursor.execute.side_effect = [
-            None,                     # SELECT 1 FROM ALL_VIEWS (view check)
+        source_cursor = MagicMock()
+        source_cursor.fetchone.return_value = (1,)  # IS a view
+        source_cursor.fetchall.side_effect = [
+            [("ID", "NUMBER", None, 10, 0, None, "N")],
+        ]
+        sandbox_cursor = MagicMock()
+        sandbox_cursor.execute.side_effect = [
             oracledb.DatabaseError,   # DROP TABLE raises
-            None,                     # CREATE TABLE AS SELECT
+            None,                     # CREATE TABLE succeeds
         ]
 
         @contextmanager
-        def _fake_connect(**kwargs):
+        def _fake_source_connect(**kwargs):
             conn = MagicMock()
-            conn.cursor.return_value = cursor
+            conn.cursor.return_value = source_cursor
+            yield conn
+
+        @contextmanager
+        def _fake_sandbox_connect(**kwargs):
+            conn = MagicMock()
+            conn.cursor.return_value = sandbox_cursor
             yield conn
 
         given = [{"table": "VW_STALE", "rows": []}]
 
-        with patch.object(backend, "_connect", side_effect=_fake_connect):
+        with patch.object(backend, "_connect", side_effect=_fake_sandbox_connect), patch.object(
+            backend, "_connect_source", side_effect=_fake_source_connect
+        ):
             materialized = backend._ensure_view_tables("__test_abc123", given)
 
         assert materialized == ["VW_STALE"]
-        calls = [str(c) for c in cursor.execute.call_args_list]
-        ctas_calls = [c for c in calls if "CREATE TABLE" in c]
-        assert len(ctas_calls) == 1
+        calls = [str(c) for c in sandbox_cursor.execute.call_args_list]
+        create_calls = [c for c in calls if 'CREATE TABLE "__test_abc123"."VW_STALE" ("ID" NUMBER(10,0) NOT NULL)' in c]
+        assert len(create_calls) == 1
 
 
 # ── execute_select ─────────────────────────────────────────────────────────

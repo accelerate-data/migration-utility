@@ -33,7 +33,7 @@ Local execution is supported on macOS and Linux. Windows is not supported for th
 
 ## Environment Variables
 
-The variables required depend on your source technology. The `/init-ad-migration` command scaffolds a `.envrc` with only the variables for the selected source.
+The variables required depend on your source technology. The `/init-ad-migration` command scaffolds a `.envrc` with only the variables for the selected source. These bootstrap the first live connection; the canonical runtime contract is then persisted in `manifest.json` under `runtime.source`, `runtime.target`, and `runtime.sandbox`.
 
 ### SQL Server
 

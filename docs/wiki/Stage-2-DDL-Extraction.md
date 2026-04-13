@@ -26,7 +26,7 @@ For SQL Server-style sources, `/setup-ddl` runs an interactive extraction flow:
 - `MSSQL_DB`
 - `SA_PASSWORD`
 
-These need to be available before the Claude session starts so the MCP server can read them. They are source-side prerequisites, not a catch-all runtime contract for target or sandbox execution.
+These are bootstrap inputs for the initial source connection. Once `/setup-ddl` completes, the active source endpoint is persisted in `manifest.json` as `runtime.source`.
 
 ## Oracle flow
 

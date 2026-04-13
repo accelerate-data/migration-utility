@@ -16,7 +16,7 @@ from pathlib import Path
 import oracledb
 import pytest
 
-from tests.helpers import ORACLE_MIGRATION_SCHEMA, REPO_ROOT
+from tests.helpers import ORACLE_MIGRATION_SCHEMA, ORACLE_MIGRATION_SCHEMA_PASSWORD, REPO_ROOT
 from shared.fixture_materialization import materialize_migration_test
 from shared.sandbox.oracle import OracleSandbox
 from shared.runtime_config_models import RuntimeConnection, RuntimeRole
@@ -49,18 +49,21 @@ def _have_oracle_env() -> bool:
 
 def _make_backend() -> OracleSandbox:
     _materialize_oracle_fixture()
+    os.environ.setdefault("ORACLE_SCHEMA_PASSWORD", ORACLE_MIGRATION_SCHEMA_PASSWORD)
     manifest = {
         "runtime": {
-            "source": {
-                "technology": "oracle",
-                "dialect": "oracle",
-                "connection": {
-                    "host": os.environ.get("ORACLE_HOST", "localhost"),
-                    "port": os.environ.get("ORACLE_PORT", "1521"),
-                    "service": os.environ.get("ORACLE_SERVICE", "FREEPDB1"),
-                    "schema": os.environ.get("ORACLE_SCHEMA", ORACLE_MIGRATION_SCHEMA),
+                "source": {
+                    "technology": "oracle",
+                    "dialect": "oracle",
+                    "connection": {
+                        "host": os.environ.get("ORACLE_HOST", "localhost"),
+                        "port": os.environ.get("ORACLE_PORT", "1521"),
+                        "service": os.environ.get("ORACLE_SERVICE", "FREEPDB1"),
+                        "user": os.environ.get("ORACLE_SOURCE_USER", ORACLE_MIGRATION_SCHEMA),
+                        "schema": os.environ.get("ORACLE_SCHEMA", ORACLE_MIGRATION_SCHEMA),
+                        "password_env": os.environ.get("ORACLE_SOURCE_PASSWORD_ENV", "ORACLE_SCHEMA_PASSWORD"),
+                    },
                 },
-            },
             "sandbox": {
                 "technology": "oracle",
                 "dialect": "oracle",

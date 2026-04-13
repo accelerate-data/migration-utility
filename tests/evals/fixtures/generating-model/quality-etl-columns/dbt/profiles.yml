@@ -6,7 +6,7 @@ migration_test:
       driver: "ODBC Driver 18 for SQL Server"
       server: "{{ env_var('MSSQL_HOST', 'localhost') }}"
       port: "{{ env_var('MSSQL_PORT', '1433') | int }}"
-      database: "{{ env_var('MSSQL_DB', 'MigrationTest') }}"
+      database: "MigrationTest"
       user: sa
       password: "{{ env_var('SA_PASSWORD') }}"
       schema: dbo

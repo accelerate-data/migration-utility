@@ -60,7 +60,7 @@ Enriched catalog fields (`scoping`, `profile`, `refactor`) written by earlier sk
 ## Prerequisites
 
 - **`toolbox` binary on PATH** -- the `mssql` MCP server requires genai-toolbox. Run `toolbox --version` to verify. Install from `https://github.com/googleapis/genai-toolbox/releases` if missing.
-- **Environment variables set** -- the SQL Server source flow reads these at startup:
+- **Bootstrap environment variables set** -- the `mssql` MCP server reads these before `runtime.source` exists in `manifest.json`:
 
   | Variable | Description | Example |
   |---|---|---|
@@ -316,7 +316,7 @@ The 12 catalog signal queries produce these staging files in `.staging/`:
 | Error | Cause | Fix |
 |---|---|---|
 | `toolbox: command not found` | genai-toolbox not installed | Install from `https://github.com/googleapis/genai-toolbox/releases` and add to PATH |
-| `MSSQL_HOST is not set` | Missing source-side environment variable | Set `MSSQL_HOST`, `MSSQL_PORT`, `MSSQL_DB`, and `SA_PASSWORD` in `.env` or shell before extraction |
+| `MSSQL_HOST is not set` | Missing bootstrap environment variable before source extraction | Set `MSSQL_HOST`, `MSSQL_PORT`, `MSSQL_DB`, and `SA_PASSWORD` in `.env` or shell, then rerun `/setup-ddl` so `runtime.source` is written to `manifest.json` |
 | `USE` statement not carrying across calls | Each MCP call is a discrete connection | Prepend `USE [<database>];` to every SQL block -- this is handled automatically by the skill |
 | Change tracking query fails | Feature not enabled on server | Graceful degradation -- the query uses TRY/CATCH and saves an error marker instead of failing |
 | Sensitivity classifications query fails | Feature not available (e.g., SQL Server edition) | Graceful degradation -- same TRY/CATCH pattern |
