@@ -69,3 +69,7 @@ class DatabaseOperations(ABC):
         if not env_var_name:
             return None
         return os.environ.get(env_var_name)
+
+    def _base_type_token(self, source_type: str) -> str:
+        """Return the leading SQL type token without precision/length suffixes."""
+        return source_type.upper().strip().split("(", 1)[0].strip()

@@ -66,14 +66,18 @@ class SqlServerOperations(DatabaseOperations):
         )
 
     def ensure_source_schema(self, schema_name: str) -> None:
-        with self._connect() as conn:
+        conn = self._connect()
+        try:
             cursor = conn.cursor()
             cursor.execute("SELECT 1 FROM sys.schemas WHERE name = ?", schema_name)
             if cursor.fetchone() is None:
                 cursor.execute(f"CREATE SCHEMA [{schema_name}]")
+        finally:
+            conn.close()
 
     def list_source_tables(self, schema_name: str) -> set[str]:
-        with self._connect() as conn:
+        conn = self._connect()
+        try:
             cursor = conn.cursor()
             cursor.execute(
                 "SELECT TABLE_NAME FROM INFORMATION_SCHEMA.TABLES "
@@ -81,6 +85,8 @@ class SqlServerOperations(DatabaseOperations):
                 schema_name,
             )
             return {row[0].lower() for row in cursor.fetchall()}
+        finally:
+            conn.close()
 
     def create_source_table(
         self,
@@ -93,9 +99,12 @@ class SqlServerOperations(DatabaseOperations):
             for column in columns
         )
         ddl = f"CREATE TABLE [{schema_name}].[{table_name}] ({rendered})"
-        with self._connect() as conn:
+        conn = self._connect()
+        try:
             cursor = conn.cursor()
             cursor.execute(ddl)
+        finally:
+            conn.close()
 
     def _map_type(self, source_type: str) -> str:
         normalized = source_type.upper().strip()

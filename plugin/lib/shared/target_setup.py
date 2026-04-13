@@ -5,13 +5,14 @@ from __future__ import annotations
 import json
 from dataclasses import dataclass
 from pathlib import Path
-from typing import Any
 
 from shared.dbops import ColumnSpec, get_dbops
 from shared.generate_sources import generate_sources, write_sources_yml
 from shared.output_models.generate_sources import GenerateSourcesOutput
+from shared.output_models.target_setup import SetupTargetOutput
 from shared.runtime_config import get_runtime_role
 from shared.runtime_config_models import RuntimeRole
+from shared.setup_ddl_support.manifest import read_manifest_strict
 
 
 @dataclass(frozen=True)
@@ -38,18 +39,8 @@ class TargetApplyResult:
     existing_tables: list[str]
 
 
-def read_manifest(project_root: Path) -> dict:
-    manifest_path = project_root / "manifest.json"
-    if not manifest_path.exists():
-        raise ValueError("manifest.json not found. Run /setup-ddl first.")
-    try:
-        return json.loads(manifest_path.read_text(encoding="utf-8"))
-    except (json.JSONDecodeError, OSError) as exc:
-        raise ValueError(f"manifest.json is not valid JSON: {exc}") from exc
-
-
 def _require_target_role(project_root: Path) -> RuntimeRole:
-    manifest = read_manifest(project_root)
+    manifest = read_manifest_strict(project_root)
     target_role = get_runtime_role(manifest, "target")
     if target_role is None:
         raise ValueError("manifest.json is missing runtime.target. Run /setup-target first.")
@@ -69,11 +60,14 @@ def _dbt_profile_name(project_root: Path) -> str:
 
 
 def _dbt_adapter_type(technology: str) -> str:
-    return {
+    adapters = {
         "sql_server": "sqlserver",
         "oracle": "oracle",
         "duckdb": "duckdb",
-    }[technology]
+    }
+    if technology not in adapters:
+        raise ValueError(f"Unknown technology: {technology}")
+    return adapters[technology]
 
 
 def _render_profiles_yml(profile_name: str, target_role: RuntimeRole, target_source_schema: str) -> str:
@@ -273,16 +267,16 @@ def apply_target_source_tables(project_root: Path) -> TargetApplyResult:
     )
 
 
-def run_setup_target(project_root: Path) -> dict[str, Any]:
+def run_setup_target(project_root: Path) -> SetupTargetOutput:
     """Execute the reusable target-setup orchestration for tests and callers."""
     files = scaffold_target_project(project_root)
     sources = write_target_sources_yml(project_root)
     applied = apply_target_source_tables(project_root)
-    return {
-        "files": files,
-        "sources_path": sources.path,
-        "target_source_schema": applied.physical_schema,
-        "created_tables": applied.created_tables,
-        "existing_tables": applied.existing_tables,
-        "desired_tables": applied.desired_tables,
-    }
+    return SetupTargetOutput(
+        files=files,
+        sources_path=sources.path,
+        target_source_schema=applied.physical_schema,
+        created_tables=applied.created_tables,
+        existing_tables=applied.existing_tables,
+        desired_tables=applied.desired_tables,
+    )

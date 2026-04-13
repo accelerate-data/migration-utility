@@ -128,6 +128,13 @@ def _split_identifier_parts(identifier: str) -> list[str]:
     return parts
 
 
+def _quote_identifier(identifier: str) -> str:
+    parts = _split_identifier_parts(identifier)
+    if not parts:
+        raise ValueError(f"Unsafe SQL identifier: {identifier!r}")
+    return ".".join(f"[{part}]" for part in parts)
+
+
 _TYPE_DEFAULTS: dict[str, Any] = {
     "int": 0, "bigint": 0, "smallint": 0, "tinyint": 0,
     "bit": 0, "float": 0.0, "real": 0.0,
@@ -769,9 +776,10 @@ class SqlServerSandbox(SandboxBackend):
         fk_disabled_tables: list[str] = []
         for fixture in fixtures:
             table = fixture["table"]
+            quoted_table = _quote_identifier(table)
             if fixture.get("rows"):
                 cursor.execute(
-                    f"ALTER TABLE {table} NOCHECK CONSTRAINT ALL"
+                    f"ALTER TABLE {quoted_table} NOCHECK CONSTRAINT ALL"
                 )
                 fk_disabled_tables.append(table)
         if fk_disabled_tables:
@@ -782,6 +790,7 @@ class SqlServerSandbox(SandboxBackend):
 
         for fixture in fixtures:
             table = fixture["table"]
+            quoted_table = _quote_identifier(table)
             rows = fixture.get("rows", [])
             if not rows:
                 continue
@@ -814,7 +823,7 @@ class SqlServerSandbox(SandboxBackend):
 
             if needs_identity_insert:
                 cursor.execute(
-                    f"SET IDENTITY_INSERT {table} ON"
+                    f"SET IDENTITY_INSERT {quoted_table} ON"
                 )
                 logger.info(
                     "event=identity_insert_enabled sandbox_db=%s "
@@ -826,7 +835,7 @@ class SqlServerSandbox(SandboxBackend):
 
             col_list = ", ".join(f"[{c}]" for c in columns)
             placeholders = ", ".join("?" for _ in columns)
-            insert_sql = f"INSERT INTO {table} ({col_list}) VALUES ({placeholders})"
+            insert_sql = f"INSERT INTO {quoted_table} ({col_list}) VALUES ({placeholders})"
             value_lists = [
                 [row.get(c, fill_cols.get(c)) for c in columns]
                 for row in rows
@@ -835,7 +844,7 @@ class SqlServerSandbox(SandboxBackend):
 
             if needs_identity_insert:
                 cursor.execute(
-                    f"SET IDENTITY_INSERT {table} OFF"
+                    f"SET IDENTITY_INSERT {quoted_table} OFF"
                 )
 
         # Re-enable FK constraints so subsequent operations

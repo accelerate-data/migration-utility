@@ -41,6 +41,7 @@ _MODEL_MODULES = {
     "StatusSummary": "dry_run",
     "SyncExcludedWarningsOutput": "dry_run",
     "GenerateSourcesOutput": "generate_sources",
+    "SetupTargetOutput": "target_setup",
     "ScaffoldHooksOutput": "init",
     "ScaffoldProjectOutput": "init",
     "MigrateContextOutput": "migrate",

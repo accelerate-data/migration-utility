@@ -296,14 +296,14 @@ class OracleSandbox(SandboxBackend):
             dsn=dsn,
             mode=mode,
         )
-        # Set ISO date/timestamp formats so string literals like "1998-01-01"
-        # bind correctly to DATE/TIMESTAMP columns in fixtures and queries.
-        with conn.cursor() as cur:
-            cur.execute("ALTER SESSION SET NLS_DATE_FORMAT = 'YYYY-MM-DD'")
-            cur.execute(
-                "ALTER SESSION SET NLS_TIMESTAMP_FORMAT = 'YYYY-MM-DD HH24:MI:SS'"
-            )
         try:
+            # Set ISO date/timestamp formats so string literals like "1998-01-01"
+            # bind correctly to DATE/TIMESTAMP columns in fixtures and queries.
+            with conn.cursor() as cur:
+                cur.execute("ALTER SESSION SET NLS_DATE_FORMAT = 'YYYY-MM-DD'")
+                cur.execute(
+                    "ALTER SESSION SET NLS_TIMESTAMP_FORMAT = 'YYYY-MM-DD HH24:MI:SS'"
+                )
             yield conn
         finally:
             conn.close()
@@ -519,7 +519,7 @@ class OracleSandbox(SandboxBackend):
             full_source = "".join(lines)
             ddl = re.sub(
                 rf"\bPROCEDURE\s+{re.escape(proc_name)}\b",
-                f'PROCEDURE "{sandbox_schema}".{proc_name}',
+                f'PROCEDURE "{sandbox_schema}"."{proc_name}"',
                 full_source,
                 count=1,
                 flags=re.IGNORECASE,
@@ -826,7 +826,7 @@ class OracleSandbox(SandboxBackend):
                 try:
                     self._seed_fixtures(cursor, sandbox_db, given)
                     cursor.execute(
-                        f'BEGIN "{sandbox_db}".{procedure}; END;'
+                        f'BEGIN "{sandbox_db}"."{procedure}"; END;'
                     )
                     cursor.execute(
                         f'SELECT * FROM "{sandbox_db}".{target_table}'

@@ -17,6 +17,7 @@ import pytest
 from typer.testing import CliRunner
 
 from shared import dry_run
+from shared import dry_run_core
 from shared import generate_sources as gen_src
 from shared.output_models.dry_run import DryRunOutput
 
@@ -525,6 +526,25 @@ def test_status_all_objects() -> None:
         # Check that silver.dimcustomer is in the list
         fqns = [obj.fqn for obj in result.objects]
         assert "silver.dimcustomer" in fqns
+
+
+def test_status_all_objects_skips_summary_count_for_missing_status_shape(monkeypatch: pytest.MonkeyPatch) -> None:
+    """Bulk status should not crash if a single-object probe returns StatusOutput."""
+    tmp, root = _make_project()
+    original = dry_run_core._single_object_status
+
+    def _fake_single_object_status(*args, **kwargs):
+        norm_fqn = args[1]
+        if norm_fqn == "silver.dimcustomer":
+            return dry_run_core.StatusOutput(fqn=norm_fqn, type=None, stages=None)
+        return original(*args, **kwargs)
+
+    with tmp:
+        monkeypatch.setattr(dry_run_core, "_single_object_status", _fake_single_object_status)
+        result = dry_run.run_status(root)
+
+    assert result.summary is not None
+    assert result.summary.total > 0
 
 
 def test_status_view_object() -> None:

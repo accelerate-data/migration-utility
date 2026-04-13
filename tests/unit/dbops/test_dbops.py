@@ -136,3 +136,57 @@ def test_dbops_fixture_script_paths_are_repo_relative() -> None:
 def test_get_dbops_rejects_unknown_technology() -> None:
     with pytest.raises(ValueError, match="Unsupported DB operations technology"):
         get_dbops("postgres")
+
+
+def test_sql_server_dbops_closes_connection_after_schema_lookup(monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.setenv("SA_PASSWORD", "secret")
+    role = RuntimeRole(
+        technology="sql_server",
+        dialect="tsql",
+        connection=RuntimeConnection(
+            host="localhost",
+            port="1433",
+            database="MigrationTest",
+            password_env="SA_PASSWORD",
+        ),
+    )
+    adapter = get_dbops("sql_server").from_role(role)
+    cursor = MagicMock()
+    cursor.fetchone.return_value = (1,)
+    conn = MagicMock()
+    conn.__enter__.return_value = conn
+    conn.cursor.return_value = cursor
+    adapter._connect = MagicMock(return_value=conn)  # type: ignore[attr-defined]
+
+    adapter.ensure_source_schema("bronze")
+
+    conn.close.assert_called_once()
+
+
+def test_duckdb_map_type_does_not_treat_point_as_integer() -> None:
+    role = RuntimeRole(
+        technology="duckdb",
+        dialect="duckdb",
+        connection=RuntimeConnection(path="target.duckdb"),
+    )
+    adapter = get_dbops("duckdb").from_role(role)
+
+    assert adapter._map_type("POINT") == "VARCHAR"  # type: ignore[attr-defined]
+
+
+def test_oracle_map_type_does_not_treat_point_as_integer(monkeypatch: pytest.MonkeyPatch) -> None:
+    role = RuntimeRole(
+        technology="oracle",
+        dialect="oracle",
+        connection=RuntimeConnection(
+            host="localhost",
+            port="1521",
+            service="TARGETPDB",
+            user="system",
+            password_env="ORACLE_PWD",
+        ),
+    )
+    monkeypatch.setenv("ORACLE_PWD", "secret")
+    adapter = get_dbops("oracle").from_role(role)
+
+    assert adapter._map_type("POINT") == "VARCHAR2(4000)"  # type: ignore[attr-defined]

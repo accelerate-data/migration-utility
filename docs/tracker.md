@@ -11,6 +11,47 @@ This tracker is the working checklist for addressing the code review findings fr
 
 ## Tasks
 
+- [x] Task 8: Address 2026-04-13 Claude review findings
+  Scope:
+  - Fix confirmed connection-lifecycle, status-shape, type-mapping, identifier-quoting, and target-setup contract issues from the latest review.
+  - Add targeted regression tests for each confirmed bug before implementation.
+  Files:
+  - `docs/tracker.md`
+  - `plugin/lib/shared/dbops/sql_server.py`
+  - `plugin/lib/shared/dbops/duckdb.py`
+  - `plugin/lib/shared/dbops/oracle.py`
+  - `plugin/lib/shared/dry_run_core.py`
+  - `plugin/lib/shared/sandbox/oracle.py`
+  - `plugin/lib/shared/sandbox/sql_server.py`
+  - `plugin/lib/shared/target_setup.py`
+  - `plugin/lib/shared/setup_ddl_support/manifest.py`
+  - `tests/unit/dbops/test_dbops.py`
+  - `tests/unit/dry_run/test_dry_run.py`
+  - `tests/unit/target_setup/test_target_setup.py`
+  - `tests/unit/test_harness/test_test_harness.py`
+  Notes:
+  - Review item 11 (`compare_two_sql` parse-error path skips rollback) is disputed and not being implemented because Python still runs the surrounding `finally` on `return`.
+  Findings addressed:
+  - Oracle sandbox `_connect` now closes connections even if NLS session setup fails.
+  - SQL Server dbops methods now explicitly close connections after schema/table operations.
+  - Bulk dry-run status now guards against non-`ObjectStatus` returns from `_single_object_status`.
+  - DuckDB and Oracle dbops type mapping now classify the base SQL type token instead of matching arbitrary substrings.
+  - SQL Server sandbox fixture DDL now bracket-quotes validated table identifiers for `ALTER TABLE`, `SET IDENTITY_INSERT`, and `INSERT INTO`.
+  - Oracle sandbox procedure cloning and execution now quote procedure names.
+  - `target_setup` now reuses strict manifest loading, rejects unknown technologies with `ValueError`, and returns a typed `SetupTargetOutput`.
+  Verification:
+  - `cd plugin/lib && uv run pytest ../../tests/unit/dbops/test_dbops.py`
+  - `cd plugin/lib && uv run pytest ../../tests/unit/dry_run/test_dry_run.py`
+  - `cd plugin/lib && uv run pytest ../../tests/unit/target_setup/test_target_setup.py`
+  - `cd plugin/lib && uv run pytest ../../tests/unit/test_harness/test_test_harness.py`
+  - `markdownlint docs/tracker.md`
+  Results:
+  - `dbops`: 11 passed
+  - `dry_run`: 68 passed
+  - `target_setup`: 10 passed
+  - `test_harness`: 133 passed
+  - `docs/tracker.md`: markdownlint passed
+
 - [x] Task 7: Address follow-up review feedback from Claude
   Findings addressed:
   - Restore DDL MCP caching with safe invalidation.

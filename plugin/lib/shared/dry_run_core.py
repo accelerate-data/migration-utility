@@ -382,6 +382,9 @@ def run_status(project_root: Path, fqn: str | None = None) -> StatusOutput | Obj
             else:
                 obj_status = _single_object_status(project_root, norm_fqn)
 
+            if not isinstance(obj_status, ObjectStatus):
+                continue
+
             objects.append(obj_status)
             for stage_name, status_val in obj_status.stages.model_dump().items():
                 label = status_val if status_val else "pending"

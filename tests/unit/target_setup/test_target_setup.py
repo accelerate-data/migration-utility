@@ -5,6 +5,8 @@ from __future__ import annotations
 import json
 from pathlib import Path
 
+import pytest
+
 from shared.target_setup import (
     apply_target_source_tables,
     generate_target_sources,
@@ -231,6 +233,29 @@ def test_run_setup_target_applies_delta_after_new_source_added(tmp_path: Path) -
     _seed_catalog_table(project_root, "Orders")
     second = run_setup_target(project_root)
 
-    assert first["created_tables"] == ["bronze.Customer"]
-    assert second["created_tables"] == ["bronze.Orders"]
-    assert "bronze.Customer" in second["existing_tables"]
+    assert first.created_tables == ["bronze.Customer"]
+    assert second.created_tables == ["bronze.Orders"]
+    assert "bronze.Customer" in second.existing_tables
+
+
+def test_scaffold_target_project_rejects_unknown_technology(tmp_path: Path) -> None:
+    project_root = tmp_path / "project"
+    project_root.mkdir()
+    _write_manifest(
+        project_root,
+        {
+            "schema_version": "1.0",
+            "technology": "sql_server",
+            "dialect": "tsql",
+            "runtime": {
+                "target": {
+                    "technology": "postgres",
+                    "dialect": "postgres",
+                    "connection": {"database": "TargetDB"},
+                }
+            },
+        },
+    )
+
+    with pytest.raises(ValueError, match="Unknown technology: postgres"):
+        scaffold_target_project(project_root)

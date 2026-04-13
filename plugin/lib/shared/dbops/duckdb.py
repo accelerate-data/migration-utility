@@ -74,19 +74,19 @@ class DuckDbOperations(DatabaseOperations):
             conn.close()
 
     def _map_type(self, source_type: str) -> str:
-        normalized = source_type.upper().strip()
-        if any(token in normalized for token in ("INT", "BIGINT", "SMALLINT", "TINYINT")):
+        normalized = self._base_type_token(source_type)
+        if normalized in {"INT", "INTEGER", "BIGINT", "SMALLINT", "TINYINT"}:
             return "BIGINT"
-        if any(token in normalized for token in ("DECIMAL", "NUMERIC", "MONEY")):
+        if normalized in {"DECIMAL", "NUMERIC", "MONEY"}:
             return "DECIMAL(38, 10)"
-        if any(token in normalized for token in ("FLOAT", "DOUBLE", "REAL")):
+        if normalized in {"FLOAT", "DOUBLE", "REAL"}:
             return "DOUBLE"
-        if "DATE" in normalized and "TIME" not in normalized:
+        if normalized == "DATE":
             return "DATE"
-        if "TIME" in normalized or "TIMESTAMP" in normalized or "DATETIME" in normalized:
+        if normalized in {"TIME", "TIMESTAMP", "DATETIME"}:
             return "TIMESTAMP"
-        if "BOOL" in normalized or normalized == "BIT":
+        if normalized in {"BOOL", "BOOLEAN", "BIT"}:
             return "BOOLEAN"
-        if "BINARY" in normalized or "BLOB" in normalized or "RAW" in normalized:
+        if normalized in {"BINARY", "VARBINARY", "BLOB", "RAW"}:
             return "BLOB"
         return "VARCHAR"

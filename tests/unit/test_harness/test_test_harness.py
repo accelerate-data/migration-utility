@@ -576,6 +576,48 @@ class TestIdentityInsert:
         assert len(identity_on) == 1, f"Expected 1 IDENTITY_INSERT ON, got {identity_on}"
         assert len(identity_off) == 1, f"Expected 1 IDENTITY_INSERT OFF, got {identity_off}"
 
+    def test_fixture_table_names_are_bracket_quoted_in_ddl(self) -> None:
+        backend = _make_backend()
+        sandbox_cursor = MagicMock()
+        sandbox_cursor.fetchone.return_value = (
+            "CREATE PROCEDURE [dbo].[usp_load] AS BEGIN SELECT 1 END",
+        )
+        sandbox_cursor.fetchall.side_effect = [
+            [("[bronze].[Order Detail]",)],
+            [],
+            [("OrderID",)],
+            [(1, "result")],
+        ]
+        sandbox_cursor.description = [("id",), ("value",)]
+
+        fake_connect = _mock_connect_factory(sandbox_cursor=sandbox_cursor)
+        source_connect = _mock_connect_factory(source_cursor=MagicMock(), sandbox_cursor=sandbox_cursor)
+
+        scenario = {
+            "name": "test_quoted_fixture_table",
+            "target_table": "[silver].[FactSales]",
+            "procedure": "[dbo].[usp_load]",
+            "given": [
+                {
+                    "table": "bronze.Order Detail",
+                    "rows": [{"OrderID": 1}],
+                }
+            ],
+        }
+
+        with patch.object(backend, "_connect", side_effect=fake_connect), patch.object(
+            backend, "_connect_source", side_effect=source_connect
+        ):
+            result = backend.execute_scenario(sandbox_db="__test_abc123", scenario=scenario)
+
+        assert result.status == "ok"
+        execute_calls = [call.args[0] for call in sandbox_cursor.execute.call_args_list]
+        executemany_calls = [call.args[0] for call in sandbox_cursor.executemany.call_args_list]
+        assert "ALTER TABLE [bronze].[Order Detail] NOCHECK CONSTRAINT ALL" in execute_calls
+        assert "SET IDENTITY_INSERT [bronze].[Order Detail] ON" in execute_calls
+        assert any(sql.startswith("INSERT INTO [bronze].[Order Detail] ") for sql in executemany_calls)
+        assert "SET IDENTITY_INSERT [bronze].[Order Detail] OFF" in execute_calls
+
     def test_no_identity_insert_when_no_identity_columns(self) -> None:
         backend = _make_backend()
         sandbox_cursor = MagicMock()
@@ -2401,6 +2443,27 @@ class TestEnsureViewTablesOracle:
         create_calls = [c for c in calls if 'CREATE TABLE "__test_abc123"."VW_STALE" ("ID" NUMBER(10,0) NOT NULL)' in c]
         assert len(create_calls) == 1
 
+    def test_clone_procedures_quotes_procedure_name(self) -> None:
+        backend = self._make_oracle_backend()
+        source_cursor = MagicMock()
+        source_cursor.fetchall.side_effect = [
+            [("Proc$Load",)],
+            [("PROCEDURE Proc$Load AS\n",), ("BEGIN NULL; END Proc$Load;",)],
+        ]
+        sandbox_cursor = MagicMock()
+
+        cloned, errors = backend._clone_procedures(
+            source_cursor,
+            sandbox_cursor,
+            "__test_abc123",
+            "SH",
+        )
+
+        assert cloned == ["SH.Proc$Load"]
+        assert errors == []
+        ddl = sandbox_cursor.execute.call_args.args[0]
+        assert 'PROCEDURE "__test_abc123"."Proc$Load"' in ddl
+
 
 # ── execute_select ─────────────────────────────────────────────────────────
 
@@ -2517,6 +2580,63 @@ class TestExecuteSelectOracle:
         assert result.row_count == 2
         assert len(result.ground_truth_rows) == 2
         conn.rollback.assert_called_once()
+
+
+class TestOracleConnectionLifecycle:
+    def test_connect_closes_connection_when_session_setup_fails(self) -> None:
+        backend = OracleSandbox(
+            host="localhost", port="1521", service="FREEPDB1",
+            password="pw", admin_user="sys", source_schema="SH",
+        )
+        conn = MagicMock()
+        cursor = MagicMock()
+        cursor.execute.side_effect = RuntimeError("nls failed")
+        conn.cursor.return_value.__enter__.return_value = cursor
+
+        with patch("shared.sandbox.oracle._import_oracledb") as import_mock:
+            import_mock.return_value.AUTH_MODE_SYSDBA = object()
+            import_mock.return_value.AUTH_MODE_DEFAULT = object()
+            import_mock.return_value.connect.return_value = conn
+
+            with pytest.raises(RuntimeError, match="nls failed"):
+                with backend._connect():
+                    pass
+
+        conn.close.assert_called_once()
+
+
+class TestExecuteScenarioOracle:
+    def test_execute_scenario_quotes_procedure_name(self) -> None:
+        backend = OracleSandbox(
+            host="localhost", port="1521", service="FREEPDB1",
+            password="pw", admin_user="sys", source_schema="SH",
+        )
+        cursor = MagicMock()
+        cursor.description = [("ID",)]
+        cursor.fetchall.return_value = [(1,)]
+        conn = MagicMock()
+        conn.cursor.return_value = cursor
+
+        @contextmanager
+        def _fake_connect():
+            yield conn
+
+        with patch.object(backend, "_connect", side_effect=_fake_connect), \
+             patch.object(backend, "_ensure_view_tables", return_value=[]), \
+             patch.object(backend, "_seed_fixtures"):
+            result = backend.execute_scenario(
+                sandbox_db="__test_abc123",
+                scenario={
+                    "name": "quoted_proc",
+                    "procedure": "Proc$Load",
+                    "target_table": "CHANNELS",
+                    "given": [],
+                },
+            )
+
+        assert result.status == "ok"
+        execute_calls = [call.args[0] for call in cursor.execute.call_args_list]
+        assert 'BEGIN "__test_abc123"."Proc$Load"; END;' in execute_calls
 
 
 class TestCompareTwoSqlOracle:
