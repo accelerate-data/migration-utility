@@ -57,6 +57,10 @@ To run the plugin locally:
 claude --plugin-dir .
 ```
 
+This assumes the local MCP prerequisites are already installed and on `PATH`:
+`toolbox` for the SQL Server MCP server and `sql` (SQLcl) for the Oracle MCP
+server. See `docs/wiki/Installation-and-Prerequisites.md`.
+
 ---
 
 ## Repository Structure

@@ -191,7 +191,7 @@ cd lib && uv run pytest ../tests/unit/worktree_script/test_worktree_script.py ..
 
 Expected: PASS
 
-- [ ] **Step 9: Commit the green root-layout slice**
+- [x] **Step 9: Commit the green root-layout slice**
 
 ```bash
 git add .claude-plugin .mcp.json .gitignore .envrc commands skills lib mcp scripts/worktree.sh tests/unit/worktree_script/test_worktree_script.py tests/unit/repo_structure/test_root_plugin_layout.py
@@ -297,7 +297,7 @@ rg -n "plugin/(\\.claude-plugin|commands|skills|lib|mcp)" .github AGENTS.md READ
 
 Expected: no matches that refer to current source-tree layout; any remaining hits must be intentionally historical text and should be removed if not required.
 
-- [ ] **Step 7: Commit the path rewrite sweep**
+- [x] **Step 7: Commit the path rewrite sweep**
 
 ```bash
 git add AGENTS.md README.md repo-map.json .github/workflows/ci.yml docs tests commands skills
@@ -312,7 +312,7 @@ git commit -m "docs: rewrite plugin paths for root layout"
 - Modify: `AGENTS.md`
 - Modify: `repo-map.json`
 
-- [ ] **Step 1: Recreate clean virtual environments in the canonical root locations**
+- [x] **Step 1: Recreate clean virtual environments in the canonical root locations**
 
 Run:
 
@@ -324,19 +324,19 @@ cd ../mcp/ddl && uv sync
 
 Expected: `lib/.venv` and `mcp/ddl/.venv` are recreated with valid interpreter paths under the root layout.
 
-- [ ] **Step 2: Run the shared-library test suite from the new root layout**
+- [x] **Step 2: Run the shared-library test suite from the new root layout**
 
 Run: `cd lib && uv run pytest`
 
 Expected: PASS
 
-- [ ] **Step 3: Run the DDL MCP test suite from the new root layout**
+- [x] **Step 3: Run the DDL MCP test suite from the new root layout**
 
 Run: `cd mcp/ddl && uv run pytest`
 
 Expected: PASS
 
-- [ ] **Step 4: Run a root plugin smoke check**
+- [x] **Step 4: Run a root plugin smoke check**
 
 Run:
 
@@ -346,7 +346,7 @@ claude --plugin-dir . --print "Reply with the loaded plugin names only."
 
 Expected: the local plugin loads from the repository root without requiring `plugin/`.
 
-- [ ] **Step 5: Re-run the stale-path audit and confirm the repo is clean**
+- [x] **Step 5: Re-run the stale-path audit and confirm the repo is clean**
 
 Run:
 
@@ -357,7 +357,7 @@ rg -n "plugin/(\\.claude-plugin|commands|skills|lib|mcp)" .github AGENTS.md READ
 
 Expected: only intentional modified files appear in `git status`, and the grep command returns no current-layout matches.
 
-- [ ] **Step 6: Commit the verified cleanup**
+- [x] **Step 6: Commit the verified cleanup**
 
 ```bash
 git add .gitignore README.md AGENTS.md repo-map.json
@@ -377,8 +377,8 @@ git commit -m "chore: verify root plugin layout cleanup"
 
 - [x] Tasks 1 and 2 are functionally complete and green.
 - [x] Task 3 reference rewrites are complete and the stale nested-path audit is clean.
-- [ ] First checkpoint commit is still pending.
-- [ ] Task 4 full verification and the first checkpoint commit are still pending.
+- [x] First checkpoint commit created for the root-layout migration slice.
+- [x] Task 4 final verification and cleanup commit created.
 
 ## Self-Review
 
