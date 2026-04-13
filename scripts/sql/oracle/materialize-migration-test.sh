@@ -166,15 +166,6 @@ finally:
 PY
 }
 
-if python - <<'PY' >/dev/null 2>&1; then
-import importlib.util
-import sys
-sys.exit(0 if importlib.util.find_spec("oracledb") else 1)
-PY
-  run_python_materialization
-  exit 0
-fi
-
 ORACLE_CLI="${SQLCL_BIN:-}"
 if [[ -z "${ORACLE_CLI}" ]] && command -v sql >/dev/null 2>&1; then
   ORACLE_CLI="$(command -v sql)"
@@ -188,12 +179,24 @@ if [[ -n "${ORACLE_CLI}" ]]; then
   if [[ "${ORACLE_USER,,}" == "sys" ]]; then
     CONNECT_DIRECTIVE="${CONNECT_DIRECTIVE} AS SYSDBA"
   fi
-  "${ORACLE_CLI}" -S /nolog <<SQL
+  if "${ORACLE_CLI}" -S /nolog <<SQL
 ${CONNECT_DIRECTIVE}
 @${TMP_BOOTSTRAP_SQL}
 @${TMP_SQL}
 EXIT
 SQL
+  then
+    exit 0
+  fi
+  echo "Oracle CLI materialization failed; retrying with python oracledb fallback" >&2
+fi
+
+if python - <<'PY' >/dev/null 2>&1; then
+import importlib.util
+import sys
+sys.exit(0 if importlib.util.find_spec("oracledb") else 1)
+PY
+  run_python_materialization
   exit 0
 fi
 
