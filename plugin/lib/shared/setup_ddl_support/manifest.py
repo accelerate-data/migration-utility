@@ -128,15 +128,6 @@ def get_connection_identity(technology: str, database: str) -> dict[str, Any]:
             ),
         )
         return role.model_dump(mode="json", by_alias=True, exclude_none=True)
-    if technology == "duckdb":
-        role = RuntimeRole(
-            technology=technology,
-            dialect=dialect_for_technology(technology),
-            connection=RuntimeConnection(
-                path=database or os.environ.get("DUCKDB_PATH", "") or None,
-            ),
-        )
-        return role.model_dump(mode="json", by_alias=True, exclude_none=True)
     return {}
 
 
@@ -149,7 +140,6 @@ def identity_changed(existing_manifest: dict[str, Any], current_identity: dict[s
     identity_fields_by_tech = {
         "sql_server": {"host", "port", "database"},
         "oracle": {"dsn", "host", "port", "service", "schema"},
-        "duckdb": {"path"},
     }
     identity_fields = identity_fields_by_tech.get(
         existing_source.technology,

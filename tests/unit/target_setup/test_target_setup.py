@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import json
 from pathlib import Path
+from unittest.mock import MagicMock, patch
 
 import pytest
 
@@ -47,35 +48,6 @@ def _seed_catalog_table(
         ),
         encoding="utf-8",
     )
-
-
-def _make_duckdb_project(tmp_path: Path) -> Path:
-    project_root = tmp_path / "project"
-    (project_root / "catalog" / "tables").mkdir(parents=True)
-    _write_manifest(
-        project_root,
-        {
-            "schema_version": "1.0",
-            "technology": "duckdb",
-            "dialect": "duckdb",
-            "runtime": {
-                "source": {
-                    "technology": "duckdb",
-                    "dialect": "duckdb",
-                    "connection": {"path": str(project_root / ".runtime" / "source.duckdb")},
-                },
-                "target": {
-                    "technology": "duckdb",
-                    "dialect": "duckdb",
-                    "connection": {"path": str(project_root / ".runtime" / "target.duckdb")},
-                    "schemas": {"source": "bronze"},
-                },
-            },
-        },
-    )
-    _seed_catalog_table(project_root, "Customer")
-    return project_root
-
 
 def _make_sql_server_project(tmp_path: Path) -> Path:
     project_root = tmp_path / "project"
@@ -156,7 +128,8 @@ def test_get_target_source_schema_defaults_to_bronze(tmp_path: Path) -> None:
 
 
 def test_generate_target_sources_uses_target_schema_override(tmp_path: Path) -> None:
-    project_root = _make_duckdb_project(tmp_path)
+    project_root = _make_sql_server_project(tmp_path)
+    _seed_catalog_table(project_root, "Customer")
     result = generate_target_sources(project_root)
     assert result.sources is not None
     assert result.sources["sources"][0]["name"] == "silver"
@@ -164,7 +137,8 @@ def test_generate_target_sources_uses_target_schema_override(tmp_path: Path) -> 
 
 
 def test_write_target_sources_yml_writes_remapped_schema(tmp_path: Path) -> None:
-    project_root = _make_duckdb_project(tmp_path)
+    project_root = _make_sql_server_project(tmp_path)
+    _seed_catalog_table(project_root, "Customer")
     result = write_target_sources_yml(project_root)
     assert result.path is not None
     contents = Path(result.path).read_text(encoding="utf-8")
@@ -173,12 +147,12 @@ def test_write_target_sources_yml_writes_remapped_schema(tmp_path: Path) -> None
 
 
 def test_scaffold_target_project_writes_dbt_files(tmp_path: Path) -> None:
-    project_root = _make_duckdb_project(tmp_path)
+    project_root = _make_sql_server_project(tmp_path)
     updated = scaffold_target_project(project_root)
     assert "dbt/dbt_project.yml" in updated
     assert "dbt/profiles.yml" in updated
     profiles = (project_root / "dbt" / "profiles.yml").read_text(encoding="utf-8")
-    assert 'type: duckdb' in profiles
+    assert 'type: sqlserver' in profiles
     assert 'schema: "bronze"' in profiles
 
 
@@ -200,38 +174,63 @@ def test_scaffold_target_project_writes_oracle_profile(tmp_path: Path) -> None:
     assert 'service: "TARGETPDB"' in profiles
 
 
-def test_apply_target_source_tables_creates_missing_duckdb_tables(tmp_path: Path) -> None:
-    import duckdb
+def test_apply_target_source_tables_creates_missing_tables_via_adapter(tmp_path: Path) -> None:
+    project_root = _make_sql_server_project(tmp_path)
+    _seed_catalog_table(project_root, "Customer")
+    adapter = MagicMock()
+    adapter.list_source_tables.return_value = set()
 
-    project_root = _make_duckdb_project(tmp_path)
-    result = apply_target_source_tables(project_root)
+    with patch("shared.target_setup.get_dbops") as mock_get_dbops:
+        mock_get_dbops.return_value.from_role.return_value = adapter
+        result = apply_target_source_tables(project_root)
+
+    adapter.ensure_source_schema.assert_called_once_with("bronze")
+    adapter.create_source_table.assert_called_once()
     assert result.created_tables == ["bronze.Customer"]
     assert result.existing_tables == []
 
-    conn = duckdb.connect(str(project_root / ".runtime" / "target.duckdb"))
-    try:
-        rows = conn.execute(
-            "select table_name from information_schema.tables where table_schema = 'bronze'"
-        ).fetchall()
-    finally:
-        conn.close()
-    assert rows == [("Customer",)]
-
 
 def test_apply_target_source_tables_is_idempotent(tmp_path: Path) -> None:
-    project_root = _make_duckdb_project(tmp_path)
-    first = apply_target_source_tables(project_root)
-    second = apply_target_source_tables(project_root)
-    assert first.created_tables == ["bronze.Customer"]
-    assert second.created_tables == []
-    assert second.existing_tables == ["bronze.Customer"]
+    project_root = _make_sql_server_project(tmp_path)
+    _seed_catalog_table(project_root, "Customer")
+    adapter = MagicMock()
+    adapter.list_source_tables.return_value = {"customer"}
+
+    with patch("shared.target_setup.get_dbops") as mock_get_dbops:
+        mock_get_dbops.return_value.from_role.return_value = adapter
+        result = apply_target_source_tables(project_root)
+
+    adapter.create_source_table.assert_not_called()
+    assert result.created_tables == []
+    assert result.existing_tables == ["bronze.Customer"]
 
 
 def test_run_setup_target_applies_delta_after_new_source_added(tmp_path: Path) -> None:
-    project_root = _make_duckdb_project(tmp_path)
-    first = run_setup_target(project_root)
-    _seed_catalog_table(project_root, "Orders")
-    second = run_setup_target(project_root)
+    project_root = _make_sql_server_project(tmp_path)
+
+    first_apply = MagicMock(
+        physical_schema="bronze",
+        desired_tables=["bronze.Customer"],
+        created_tables=["bronze.Customer"],
+        existing_tables=[],
+    )
+    second_apply = MagicMock(
+        physical_schema="bronze",
+        desired_tables=["bronze.Customer", "bronze.Orders"],
+        created_tables=["bronze.Orders"],
+        existing_tables=["bronze.Customer"],
+    )
+
+    with (
+        patch("shared.target_setup.scaffold_target_project", return_value=["dbt/dbt_project.yml"]),
+        patch(
+            "shared.target_setup.write_target_sources_yml",
+            return_value=MagicMock(path=str(project_root / "dbt" / "models" / "staging" / "sources.yml")),
+        ),
+        patch("shared.target_setup.apply_target_source_tables", side_effect=[first_apply, second_apply]),
+    ):
+        first = run_setup_target(project_root)
+        second = run_setup_target(project_root)
 
     assert first.created_tables == ["bronze.Customer"]
     assert second.created_tables == ["bronze.Orders"]

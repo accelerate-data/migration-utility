@@ -90,8 +90,6 @@ def write_manifest_sandbox(project_root: Path, database: str) -> None:
     connection = sandbox_role.connection.model_copy(deep=True)
     if sandbox_role.technology == "oracle":
         connection.schema_name = database
-    elif sandbox_role.technology == "duckdb":
-        connection.path = database
     else:
         connection.database = database
 

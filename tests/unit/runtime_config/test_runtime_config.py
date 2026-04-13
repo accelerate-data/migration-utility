@@ -23,8 +23,8 @@ from shared.runtime_config_models import (
 )
 
 
-def test_dialect_for_technology_includes_duckdb() -> None:
-    assert dialect_for_technology("duckdb") == "duckdb"
+def test_dialect_for_technology_includes_sql_server() -> None:
+    assert dialect_for_technology("sql_server") == "tsql"
 
 
 def test_dialect_for_technology_rejects_unknown() -> None:
@@ -62,9 +62,9 @@ def test_runtime_roles_are_independent() -> None:
         manifest,
         "target",
         RuntimeRole(
-            technology="duckdb",
-            dialect="duckdb",
-            connection=RuntimeConnection(path=".runtime/duckdb/target.duckdb"),
+            technology="sql_server",
+            dialect="tsql",
+            connection=RuntimeConnection(database="TargetDB"),
             schemas=RuntimeSchemas(source="bronze", marts="silver"),
         ),
     )
@@ -79,7 +79,7 @@ def test_runtime_roles_are_independent() -> None:
     )
 
     assert get_runtime_role(manifest, "source").technology == "oracle"
-    assert get_runtime_role(manifest, "target").technology == "duckdb"
+    assert get_runtime_role(manifest, "target").technology == "sql_server"
     assert get_runtime_role(manifest, "sandbox").technology == "sql_server"
     assert get_runtime_role(manifest, "target").schemas.source == "bronze"
 
@@ -102,13 +102,13 @@ def test_get_sandbox_name_prefers_connection_values() -> None:
         {},
         "sandbox",
         RuntimeRole(
-            technology="duckdb",
-            dialect="duckdb",
-            connection=RuntimeConnection(path=".runtime/duckdb/sandbox.duckdb"),
+            technology="oracle",
+            dialect="oracle",
+            connection=RuntimeConnection(service="SANDBOXPDB"),
         ),
     )
 
-    assert get_sandbox_name(manifest) == ".runtime/duckdb/sandbox.duckdb"
+    assert get_sandbox_name(manifest) == "SANDBOXPDB"
 
 
 def test_primary_helpers_prefer_source_role() -> None:
@@ -153,9 +153,9 @@ def test_manifest_model_allows_runtime_and_extraction() -> None:
                 "connection": {"service": "SRCPDB", "schema": "bronze"},
             },
             "target": {
-                "technology": "duckdb",
-                "dialect": "duckdb",
-                "connection": {"path": ".runtime/duckdb/target.duckdb"},
+                "technology": "sql_server",
+                "dialect": "tsql",
+                "connection": {"database": "TargetDB"},
                 "schemas": {"source": "bronze"},
             },
         },
@@ -166,4 +166,4 @@ def test_manifest_model_allows_runtime_and_extraction() -> None:
 
     assert model.runtime is not None
     assert model.runtime.target is not None
-    assert model.runtime.target.connection.path == ".runtime/duckdb/target.duckdb"
+    assert model.runtime.target.connection.database == "TargetDB"

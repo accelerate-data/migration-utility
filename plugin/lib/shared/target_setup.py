@@ -63,7 +63,6 @@ def _dbt_adapter_type(technology: str) -> str:
     adapters = {
         "sql_server": "sqlserver",
         "oracle": "oracle",
-        "duckdb": "duckdb",
     }
     if technology not in adapters:
         raise ValueError(f"Unknown technology: {technology}")
@@ -120,18 +119,6 @@ def _render_profiles_yml(profile_name: str, target_role: RuntimeRole, target_sou
             f"      user: \"{user}\"\n"
             f"      password: \"{{{{ env_var('{password_env}') }}}}\"\n"
             f"      schema: \"{schema}\"\n"
-            "      threads: 4\n"
-        )
-    if technology == "duckdb":
-        path = connection.path or ".runtime/duckdb/target.duckdb"
-        return (
-            f"{profile_name}:\n"
-            "  target: dev\n"
-            "  outputs:\n"
-            "    dev:\n"
-            f"      type: {adapter_type}\n"
-            f"      path: \"{path}\"\n"
-            f"      schema: \"{target_source_schema}\"\n"
             "      threads: 4\n"
         )
     raise ValueError(f"Unsupported target technology: {technology}")

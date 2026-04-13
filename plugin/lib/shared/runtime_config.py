@@ -15,9 +15,7 @@ from shared.runtime_config_models import (
 
 TECH_DIALECT = {
     "sql_server": "tsql",
-    "snowflake": "snowflake",
     "oracle": "oracle",
-    "duckdb": "duckdb",
 }
 
 KNOWN_TECHNOLOGIES = frozenset(TECH_DIALECT)
