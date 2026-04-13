@@ -27,7 +27,7 @@ Run `pwd` and show the resolved path. Ask the user: "Is this the correct project
 
 ## Read manifest
 
-Read `manifest.json`. Determine `technology` — one of `sql_server`, `oracle`, `duckdb`, or `snowflake`.
+Read `manifest.json`. Determine `technology` — one of `sql_server` or `oracle`.
 
 If `ddl/` or `catalog/` already exists in the project root, warn the user:
 

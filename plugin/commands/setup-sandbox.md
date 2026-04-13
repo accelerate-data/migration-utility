@@ -40,7 +40,7 @@ Sandbox setup:
   extraction.schemas: [dbo, silver, bronze]
   freetds:           ✓ installed  /  ✗ not found
   test-harness CLI:  ✓ available  /  ✗ not found
-  dbt profile:       ✓ sqlserver (matches target runtime)  /  ⚠ duckdb (mismatch)  /  ✗ not found (run /setup-target)
+  dbt profile:       ✓ sqlserver (matches target runtime)  /  ⚠ oracle (mismatch)  /  ✗ not found (run /setup-target)
   dbt connection:    ✓ OK  /  ✗ failed (check credentials)
 
   Env-bound runtime secrets:

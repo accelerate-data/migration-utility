@@ -11,6 +11,32 @@ This tracker is the working checklist for addressing the code review findings fr
 
 ## Tasks
 
+- [~] Task 9: Remove DuckDB support from the product surface
+  Scope:
+  - Delete DuckDB runtime support so SQL Server and Oracle are the only supported technologies.
+  - Remove DuckDB-specific adapters, sandbox logic, fixture scripts, tests, and metadata references.
+  Files:
+  - `docs/tracker.md`
+  - `repo-map.json`
+  - `plugin/lib/shared/runtime_config.py`
+  - `plugin/lib/shared/setup_ddl.py`
+  - `plugin/lib/shared/setup_ddl_support/manifest.py`
+  - `plugin/lib/shared/target_setup.py`
+  - `plugin/lib/shared/loader_io.py`
+  - `plugin/lib/shared/dbops/__init__.py`
+  - `plugin/lib/shared/sandbox/__init__.py`
+  - `plugin/lib/pyproject.toml`
+  - `plugin/lib/uv.lock`
+  - `plugin/mcp/ddl/uv.lock`
+  - `tests/unit/runtime_config/test_runtime_config.py`
+  - `tests/unit/target_setup/test_target_setup.py`
+  - `tests/unit/dbops/test_dbops.py`
+  - `tests/unit/fixture_materialization/test_fixture_materialization.py`
+  - `tests/unit/test_harness/test_test_harness.py`
+  Notes:
+  - Work is being done as a clean break. No unsupported DuckDB mode is left behind.
+  - Historical tracker entries below may still mention DuckDB because they record already-completed review work from earlier passes.
+
 - [x] Task 8: Address 2026-04-13 Claude review findings
   Scope:
   - Fix confirmed connection-lifecycle, status-shape, type-mapping, identifier-quoting, and target-setup contract issues from the latest review.

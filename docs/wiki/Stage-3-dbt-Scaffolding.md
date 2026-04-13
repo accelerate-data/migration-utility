@@ -16,7 +16,7 @@ Before `/setup-target` can proceed, extracted tables need to be in one of these 
 
 ## Target selection
 
-The command prompts for the target adapter. Current options include SQL Server, Oracle, DuckDB, and Snowflake.
+The command prompts for the target adapter. Current options include SQL Server and Oracle.
 
 ## What it writes
 
