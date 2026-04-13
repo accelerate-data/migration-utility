@@ -8,7 +8,11 @@ import pytest
 from shared.fixture_materialization import materialize_migration_test
 from shared.runtime_config_models import RuntimeConnection, RuntimeRole
 
-from tests.helpers import REPO_ROOT
+from tests.helpers import (
+    REPO_ROOT,
+    SQL_SERVER_FIXTURE_DATABASE,
+    SQL_SERVER_FIXTURE_SCHEMA,
+)
 
 ORACLE_MIGRATION_SCHEMA = os.environ.get("ORACLE_SCHEMA", "MIGRATIONTEST").upper()
 ORACLE_MIGRATION_SCHEMA_PASSWORD = os.environ.get(
@@ -18,7 +22,8 @@ ORACLE_MIGRATION_SCHEMA_PASSWORD = os.environ.get(
 
 _ORACLE_MIGRATION_TEST_READY = False
 _SQL_SERVER_MIGRATION_TEST_READY = False
-SQL_SERVER_MIGRATION_DATABASE = "MigrationTest"
+SQL_SERVER_MIGRATION_DATABASE = SQL_SERVER_FIXTURE_DATABASE
+SQL_SERVER_MIGRATION_SCHEMA = SQL_SERVER_FIXTURE_SCHEMA
 
 
 def find_oracle_cli() -> str | None:
@@ -56,6 +61,7 @@ def build_sql_server_source_role() -> RuntimeRole:
             host=os.environ.get("MSSQL_HOST", "localhost"),
             port=os.environ.get("MSSQL_PORT", "1433"),
             database=SQL_SERVER_MIGRATION_DATABASE,
+            schema=SQL_SERVER_MIGRATION_SCHEMA,
             user=os.environ.get("MSSQL_USER", "sa"),
             driver=os.environ.get("MSSQL_DRIVER", "ODBC Driver 18 for SQL Server"),
             password_env="SA_PASSWORD",
@@ -73,6 +79,7 @@ def build_sql_server_sandbox_manifest() -> dict[str, object]:
                     "host": os.environ.get("MSSQL_HOST", "localhost"),
                     "port": os.environ.get("MSSQL_PORT", "1433"),
                     "database": SQL_SERVER_MIGRATION_DATABASE,
+                    "schema": SQL_SERVER_MIGRATION_SCHEMA,
                     "user": os.environ.get("MSSQL_USER", "sa"),
                     "driver": os.environ.get("MSSQL_DRIVER", "ODBC Driver 18 for SQL Server"),
                     "password_env": "SA_PASSWORD",

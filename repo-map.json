@@ -152,7 +152,7 @@
     "test_migration_python_integration_oracle_module": "cd lib && uv run pytest ../tests/integration/oracle/<module>",
     "init_check_freetds": "cd lib && uv run init check-freetds [--register-missing]",
     "test_mcp_ddl": "cd mcp/ddl && uv run pytest",
-    "test_mcp_ddl_oracle": "cd mcp/ddl && uv run pytest ../../../tests/integration/oracle/ddl_mcp",
+    "test_mcp_ddl_oracle": "cd mcp/ddl && uv run pytest ../../tests/integration/oracle/ddl_mcp",
     "test_harness_help": "cd lib && uv run test-harness --help",
     "test_harness_execute_spec": "cd lib && uv run test-harness execute-spec --spec <path>",
     "migrate_util_status": "cd lib && uv run migrate-util status [<fqn>]",

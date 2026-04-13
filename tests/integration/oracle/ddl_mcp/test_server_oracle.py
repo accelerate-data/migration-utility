@@ -8,6 +8,11 @@ from pathlib import Path
 
 import pytest
 
+pytest.importorskip(
+    "mcp.types",
+    reason="mcp.types not available — skipping Oracle DDL MCP integration tests outside the mcp/ddl environment",
+)
+
 _DDL_MCP_DIR = Path(__file__).resolve().parents[4] / "mcp" / "ddl"
 if str(_DDL_MCP_DIR) not in sys.path:
     sys.path.insert(0, str(_DDL_MCP_DIR))
