@@ -1,5 +1,5 @@
 {
-  "generated_at": "2026-04-12T00:00:00Z",
+  "generated_at": "2026-04-13T00:00:00Z",
   "repo_root": "migration-utility",
   "primary_languages": ["TypeScript", "Python", "Markdown"],
   "package_managers": [
@@ -31,11 +31,11 @@
   "test_frameworks": [
     {
       "name": "pytest (shared)",
-      "scope": "Python DDL analysis tests in tests/unit/. Run via: cd plugin/lib && uv run pytest"
+      "scope": "Shared Python tests. Default unit run: cd plugin/lib && uv run pytest. Technology-backed integration runs use explicit paths under tests/integration/<technology>/<module>/."
     },
     {
       "name": "pytest (ddl-mcp)",
-      "scope": "MCP DDL server tests in plugin/mcp/ddl/tests/. Run via: cd plugin/mcp/ddl && uv run pytest"
+      "scope": "DDL MCP tests. Default unit run: cd plugin/mcp/ddl && uv run pytest. Oracle live coverage runs by explicit path under plugin/mcp/ddl/tests/integration/oracle/."
     },
     {
       "name": "promptfoo",
@@ -97,7 +97,11 @@
     },
     "tests_migration": {
       "path": "tests/unit/",
-      "description": "Python pytest suite: test_discover.py, test_loader_parse.py, test_block_segmenter.py, test_catalog.py, test_catalog_enrich.py, test_catalog_diff.py, test_catalog_diff_integration.py, test_ddl_hash.py, test_extract_refs.py, test_setup_ddl.py, test_init.py, test_migrate.py, test_profile.py, test_refactor.py, test_env_config.py, test_context_helpers.py (collect_source_tables with views, load_object_columns transparent table/view lookup), test_test_harness.py, test_test_harness_integration.py, test_test_harness_oracle_integration.py, test_dry_run.py (includes tests for migrate-util status/ready subcommands and exclude writer/reader scenarios), test_batch_plan.py (dep graph traversal, topological batching, pipeline status, blocking_deps boundary logic, cycle detection, catalog diagnostics, excluded object filtering, is_source exclusion, source_pending classification), test_generate_sources.py (is_source filtering, unconfirmed list, resolved table exclusion, strict mode, sources.yml content, write-source, target schema remapping), test_target_setup.py (target source-schema resolution and target-mapped sources.yml writes), test_dbops.py (DB-ops adapter registry and per-technology materialize env mapping), test_sync_excluded_warnings.py (EXCLUDED_DEP warning write/clear logic), test_compare_sql_integration.py, test_diagnostics.py, test_diagnostics_sqlserver.py, test_diagnostics_oracle.py. Fixtures: ddl/, ddl_unparseable/, discover/flat/ (with catalog/ subdirectory containing tables/, procedures/, views/ — view catalog stubs used by test_discover.py view show/scoping tests), discover/unparseable/, catalog/ (table and procedure JSON fixtures), migrate/ (DDL, catalog with procedures/tables/views, dbt project fixture, manifest.json), profile/ (DDL, catalog with procedures/tables/views, manifest.json — views/ contains vw_simple, vw_multi, mv_monthly fixtures for view profiling tests), test_harness/ (manifest.json for sandbox tests), dry_run/ (manifest, catalog, procedures, test-specs, dbt project with compiled artifacts), sql/ (Docker SQL Server setup scripts), fixtures/setup_ddl/oracle/ (ALL_OBJECTS fixture for SH/HR list-schemas tests plus full SH extraction fixtures: all_tab_columns.json, all_constraints_pk_uk.json, all_constraints_fk.json, identity_columns.json, object_types.json, dependencies_proc/view/func.json, proc_params.json, definitions.json, all_views.json — used by TestExtractOracleUnit), fixtures/batch_plan/ (8-object multi-dep fixture: 6 tables + 2 views across all pipeline phases including proc→proc→table chains and proc→view chains; dbt staging model for silver.dimcustomer)."
+      "description": "Shared-library unit pytest suite organized by module under tests/unit/<module>/. Shared fixtures that support multiple modules remain under tests/unit/fixtures/. Shared pytest plumbing lives in tests/conftest.py."
+    },
+    "tests_migration_integration": {
+      "path": "tests/integration/",
+      "description": "Shared-library integration pytest suite organized by backend and module under tests/integration/<technology>/<module>/. Current backends: sql_server/, oracle/, duckdb/."
     },
     "tests_evals": {
       "path": "tests/evals/",
@@ -105,7 +109,7 @@
     },
     "tests_ddl_mcp": {
       "path": "plugin/mcp/ddl/tests/",
-      "description": "Python pytest suite for the DDL MCP server. test_server.py tests all MCP tool handlers. fixtures/oracle/ contains Oracle SH-schema DDL fixtures (tables, procedures, views, manifest.json) for dialect-aware column type tests and live integration tests (@pytest.mark.oracle)."
+      "description": "DDL MCP pytest suite. Unit coverage lives under plugin/mcp/ddl/tests/unit/. Oracle live coverage lives under plugin/mcp/ddl/tests/integration/oracle/. Shared test fixtures remain under plugin/mcp/ddl/tests/fixtures/."
     },
     "scripts": {
       "path": "scripts/",
@@ -128,9 +132,10 @@
     "plugin/": "Unified Claude Code plugin with commands, skills, lib, and MCP servers",
     "plugin/lib/": "Python DDL analysis library (uv project, sqlglot-based)",
     "plugin/lib/shared/schemas/": "JSON Schema files for catalog, agent I/O, discover CLI output, and shared definitions",
-    "tests/unit/": "Python pytest tests for shared library (discover, catalog, catalog_enrich, diagnostics, extract_refs, migrate/write/render flows, dependency resolution, dry-run/batch-plan behavior, integration). diagnostics_helpers.py: shared helpers for diagnostic tests. Dialect-specific diagnostic tests: test_diagnostics_sqlserver.py, test_diagnostics_oracle.py",
+    "tests/unit/": "Shared-library unit pytest suite organized by module under tests/unit/<module>/.",
+    "tests/integration/": "Shared-library integration pytest suite organized by backend and module under tests/integration/<technology>/<module>/.",
     "tests/evals/": "Promptfoo eval harness for skill and command testing (skill packages include listing-objects, profiling-table, generating-model, generating-tests, reviewing-tests, reviewing-model, analyzing-table, analyzing-table-readiness; command packages include cmd-scope, cmd-profile, cmd-generate-model, cmd-generate-tests, cmd-refactor, cmd-status, cmd-reset-migration, cmd-commit-push-pr)",
-    "plugin/mcp/ddl/tests/": "Python pytest tests for the DDL MCP server. fixtures/oracle/ holds Oracle SH-schema DDL fixtures and manifest.",
+    "plugin/mcp/ddl/tests/": "DDL MCP pytest suite split into tests/unit/ and tests/integration/oracle/. fixtures/oracle/ holds Oracle SH-schema DDL fixtures and manifest.",
     "test-fixtures/": "Cross-dialect Kimball DW fixture: schema DDL, baseline seed data, and delta scenarios for SQL Server, Oracle, PostgreSQL",
     "docs/design/": "Durable agent-facing design notes only; keep criteria are documented in docs/design/README.md",
     ".claude/rules/": "Shared agent rules such as coding-conventions, git-workflow, logging-policy, and codex-execution-policy",
@@ -138,10 +143,16 @@
   },
   "commands": {
     "test_migration_python": "cd plugin/lib && uv run pytest",
-    "test_migration_python_integration": "cd plugin/lib && uv run pytest -m integration",
-    "test_migration_python_oracle": "cd plugin/lib && uv run pytest -m oracle",
+    "test_migration_python_module": "cd plugin/lib && uv run pytest ../../tests/unit/<module>",
+    "test_migration_python_integration_sql_server": "cd plugin/lib && uv run pytest ../../tests/integration/sql_server",
+    "test_migration_python_integration_sql_server_module": "cd plugin/lib && uv run pytest ../../tests/integration/sql_server/<module>",
+    "test_migration_python_integration_oracle": "cd plugin/lib && uv run pytest ../../tests/integration/oracle",
+    "test_migration_python_integration_oracle_module": "cd plugin/lib && uv run pytest ../../tests/integration/oracle/<module>",
+    "test_migration_python_integration_duckdb": "cd plugin/lib && uv run pytest ../../tests/integration/duckdb",
+    "test_migration_python_integration_duckdb_module": "cd plugin/lib && uv run pytest ../../tests/integration/duckdb/<module>",
     "init_check_freetds": "cd plugin/lib && uv run init check-freetds [--register-missing]",
     "test_mcp_ddl": "cd plugin/mcp/ddl && uv run pytest",
+    "test_mcp_ddl_oracle": "cd plugin/mcp/ddl && uv run pytest tests/integration/oracle",
     "test_harness_help": "cd plugin/lib && uv run test-harness --help",
     "test_harness_execute_spec": "cd plugin/lib && uv run test-harness execute-spec --spec <path>",
 "migrate_util_status": "cd plugin/lib && uv run migrate-util status [<fqn>]",
@@ -199,7 +210,7 @@
     "ddl_filenames": "The loader auto-detects object types from CREATE statements — .sql filenames are not significant. Any directory of .sql files works.",
     "catalog_mandatory": "discover.py requires catalog/ files from setup-ddl. Errors if catalog is missing. No AST fallback.",
     "parse_errors": "sqlglot parse failures are hard errors (DdlParseError). The loader does not silently skip unparseable DDL.",
-    "python_tests": "Two pytest suites: (1) shared lib — cd plugin/lib && uv run pytest; SQL Server integration: uv run pytest -m integration; Oracle integration: uv run pytest -m oracle. (2) DDL MCP server — cd plugin/mcp/ddl && uv run pytest.",
+    "python_tests": "Two pytest suites: (1) shared lib — default unit run: cd plugin/lib && uv run pytest; path-scoped runs: ../../tests/unit/<module> and ../../tests/integration/<technology>/<module>. (2) DDL MCP server — default unit run: cd plugin/mcp/ddl && uv run pytest; Oracle live run: uv run pytest tests/integration/oracle.",
     "mssql_env_vars": "Live SQL Server access requires MSSQL_HOST, MSSQL_PORT, MSSQL_DB, SA_PASSWORD exported before launching claude.",
     "update_repo_map": "Refresh this file whenever any entry here becomes stale, especially after architecture, entrypoint, command, module, package, test/eval layout, or documentation-index changes."
   }
