@@ -30,8 +30,6 @@ def find_oracle_cli() -> str | None:
         if resolved:
             return resolved
     return None
-
-
 def build_sql_server_connection_string(
     *,
     database: str = SQL_SERVER_MIGRATION_DATABASE,
@@ -169,7 +167,10 @@ def sql_server_is_available(pyodbc_module: Any) -> bool:
         return False
     try:
         conn = pyodbc_module.connect(
-            build_sql_server_connection_string(login_timeout=1),
+            build_sql_server_connection_string(
+                database=os.environ.get("MSSQL_ADMIN_DATABASE", "master"),
+                login_timeout=1,
+            ),
             autocommit=True,
         )
         conn.close()
