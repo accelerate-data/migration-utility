@@ -83,20 +83,14 @@ def write_manifest_sandbox(project_root: Path, database: str) -> None:
     """Persist sandbox database name into manifest.json."""
     manifest_file = _require_manifest_file(project_root)
     manifest = read_manifest(project_root)
-    source_role = get_runtime_role(manifest, "source")
-    if source_role is None:
-        technology = manifest.get("technology")
-        if not technology:
-            raise ValueError("manifest.json is missing required source technology")
-        source_role = RuntimeRole(
-            technology=technology,
-            dialect=get_primary_dialect(manifest),
-        )
+    sandbox_role = get_runtime_role(manifest, "sandbox")
+    if sandbox_role is None:
+        raise ValueError("manifest.json is missing runtime.sandbox")
 
-    connection = source_role.connection.model_copy(deep=True)
-    if source_role.technology == "oracle":
+    connection = sandbox_role.connection.model_copy(deep=True)
+    if sandbox_role.technology == "oracle":
         connection.schema_name = database
-    elif source_role.technology == "duckdb":
+    elif sandbox_role.technology == "duckdb":
         connection.path = database
     else:
         connection.database = database
@@ -105,10 +99,10 @@ def write_manifest_sandbox(project_root: Path, database: str) -> None:
         manifest,
         "sandbox",
         RuntimeRole(
-            technology=source_role.technology,
-            dialect=source_role.dialect,
+            technology=sandbox_role.technology,
+            dialect=sandbox_role.dialect,
             connection=connection,
-            schemas=source_role.schemas,
+            schemas=sandbox_role.schemas,
         ),
     )
     manifest_file.write_text(

@@ -5,7 +5,7 @@ sources. Tables with ``resolved`` status are procedure targets that will
 become dbt models (referenced via ``ref()``). Tables with
 ``scoping.status == "no_writer_found"`` but no ``is_source`` flag appear in
 the ``unconfirmed`` list — they need user confirmation via ``/add-source-tables``
-or the ``/init-dbt`` confirmation flow before they are included.
+or the ``/setup-target`` confirmation flow before they are included.
 
 Exit codes:
     0  success

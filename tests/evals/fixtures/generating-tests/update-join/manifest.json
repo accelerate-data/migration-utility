@@ -6,7 +6,12 @@
       "technology": "sql_server",
       "dialect": "tsql",
       "connection": {
-        "database": "MigrationTest"
+        "database": "MigrationTest",
+        "host": "localhost",
+        "port": "1433",
+        "user": "sa",
+        "password_env": "SA_PASSWORD",
+        "driver": "ODBC Driver 18 for SQL Server"
       }
     }
   },

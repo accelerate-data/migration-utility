@@ -18,6 +18,7 @@ Rules:
 - no role inherits credentials from another role
 - no role assumes another role's technology
 - defaults in setup flows are only UX defaults, not persisted derivation rules
+- consumers fail loudly when required runtime roles are missing instead of silently upgrading old manifest shapes
 
 Each role stores:
 
@@ -123,6 +124,9 @@ Core operations:
 - `drop_environment(role)`
 - `schema_exists(role, schema_name)`
 - `ensure_schema(role, schema_name)`
+- `ensure_source_schema(role, schema_name)`
+- `list_source_tables(role, schema_name)`
+- `create_source_table(role, table_name, columns)`
 - `materialize_fixture(role, fixture_spec)`
 - `seed_fixtures(role, fixtures)`
 - `execute_procedure(role, scenario)`
@@ -169,6 +173,12 @@ Implementations should exist for:
 
 - consumes target validation runtime services
 
+`migrate-util ready`
+
+- checks only readiness, never performs setup
+- reports missing runtime roles and dbt scaffold files
+- recommends `/setup-target` or `/setup-sandbox` when required runtime inputs are absent
+
 ## MigrationTest Fixture
 
 `MigrationTest` is the canonical integration fixture name across supported technologies.
@@ -178,6 +188,7 @@ Rules:
 - each technology materializes whatever schema, data, procedures, and support objects it needs under the `MigrationTest` fixture contract
 - mutable runtime databases are generated on demand
 - mutable database files are not committed
+- fixture secrets come from env vars named in the manifest runtime roles; the manifest never stores secret values
 
 Repo entrypoints:
 

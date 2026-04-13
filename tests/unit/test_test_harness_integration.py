@@ -15,9 +15,13 @@ import pytest
 
 pyodbc = pytest.importorskip("pyodbc", reason="pyodbc not installed — skipping integration tests")
 
+from shared.fixture_materialization import materialize_migration_test
 from shared.sandbox.sql_server import SqlServerSandbox
+from shared.runtime_config_models import RuntimeConnection, RuntimeRole
 
 pytestmark = pytest.mark.integration
+
+_FIXTURE_READY = False
 
 
 def _have_mssql_env() -> bool:
@@ -42,14 +46,54 @@ def _have_mssql_env() -> bool:
 
 
 def _make_backend() -> SqlServerSandbox:
-    return SqlServerSandbox(
-        host=os.environ.get("MSSQL_HOST", "localhost"),
-        port=os.environ.get("MSSQL_PORT", "1433"),
-        database=os.environ.get("MSSQL_DB", "MigrationTest"),
-        password=os.environ.get("SA_PASSWORD", ""),
-        user=os.environ.get("MSSQL_USER", "sa"),
-        driver=os.environ.get("MSSQL_DRIVER", "ODBC Driver 18 for SQL Server"),
-    )
+    global _FIXTURE_READY
+    if not _FIXTURE_READY:
+        repo_root = Path(__file__).resolve().parents[2]
+        role = RuntimeRole(
+            technology="sql_server",
+            dialect="tsql",
+            connection=RuntimeConnection(
+                host=os.environ.get("MSSQL_HOST", "localhost"),
+                port=os.environ.get("MSSQL_PORT", "1433"),
+                database=os.environ.get("MSSQL_DB", "MigrationTest"),
+                user=os.environ.get("MSSQL_USER", "sa"),
+                driver=os.environ.get("MSSQL_DRIVER", "ODBC Driver 18 for SQL Server"),
+                password_env="SA_PASSWORD",
+            ),
+        )
+        materialize_result = materialize_migration_test(role, repo_root)
+        if materialize_result.returncode != 0:
+            raise RuntimeError(
+                "SQL Server MigrationTest materialization failed:\n"
+                f"stdout:\n{materialize_result.stdout}\n"
+                f"stderr:\n{materialize_result.stderr}"
+            )
+        _FIXTURE_READY = True
+    manifest = {
+        "runtime": {
+            "source": {
+                "technology": "sql_server",
+                "dialect": "tsql",
+                "connection": {
+                    "host": os.environ.get("MSSQL_HOST", "localhost"),
+                    "port": os.environ.get("MSSQL_PORT", "1433"),
+                    "database": os.environ.get("MSSQL_DB", "MigrationTest"),
+                },
+            },
+            "sandbox": {
+                "technology": "sql_server",
+                "dialect": "tsql",
+                "connection": {
+                    "host": os.environ.get("MSSQL_HOST", "localhost"),
+                    "port": os.environ.get("MSSQL_PORT", "1433"),
+                    "user": os.environ.get("MSSQL_USER", "sa"),
+                    "driver": os.environ.get("MSSQL_DRIVER", "ODBC Driver 18 for SQL Server"),
+                    "password_env": "SA_PASSWORD",
+                },
+            },
+        }
+    }
+    return SqlServerSandbox.from_env(manifest)
 
 
 skip_no_mssql = pytest.mark.skipif(

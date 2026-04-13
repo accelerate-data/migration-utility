@@ -5,7 +5,7 @@ Creates a throwaway database (`__test_<random_hex>`) by cloning schema and proce
 ## Prerequisites
 
 - `manifest.json` with `runtime.source`
-- `extracted_schemas` must be a non-empty array in the manifest
+- `extraction.schemas` must be a non-empty array in the manifest
 - All four MSSQL environment variables set
 - `test-harness` CLI available
 - A dbt project must exist (`dbt_project.yml`) and `dbt debug` must pass

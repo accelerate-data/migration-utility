@@ -53,7 +53,7 @@ Use this branch when `technology` is `sql_server` or `fabric_warehouse`.
 >
 > ```text
 > Previously extracted source runtime: <runtime.source>
-> Previously extracted schemas:  <extracted_schemas>
+> Previously extracted schemas:  <extraction.schemas>
 > ```
 >
 > Then proceed directly to Step 2.

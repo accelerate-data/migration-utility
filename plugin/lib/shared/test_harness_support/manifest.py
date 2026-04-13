@@ -11,7 +11,7 @@ from pydantic import ValidationError
 
 from shared.loader_io import read_manifest
 from shared.output_models import TestSpec
-from shared.runtime_config import get_primary_technology, get_sandbox_name
+from shared.runtime_config import get_primary_technology, get_runtime_role, get_sandbox_name
 from shared.sandbox import get_backend
 from shared.sandbox.base import SandboxBackend
 
@@ -64,9 +64,13 @@ def _load_manifest(project_root: Path) -> dict[str, Any]:
 
 def _create_backend(manifest: dict[str, Any]) -> SandboxBackend:
     """Instantiate the sandbox backend for the manifest's technology."""
-    technology = get_primary_technology(manifest)
-    if technology is None:
-        _error_exit("MISSING_TECHNOLOGY", "manifest.json has no configured source technology")
+    sandbox_role = get_runtime_role(manifest, "sandbox")
+    if sandbox_role is None:
+        _error_exit(
+            "SANDBOX_RUNTIME_NOT_CONFIGURED",
+            "manifest.json is missing runtime.sandbox. Run /setup-sandbox first.",
+        )
+    technology = sandbox_role.technology
     backend_cls = get_backend(technology)
 
     try:

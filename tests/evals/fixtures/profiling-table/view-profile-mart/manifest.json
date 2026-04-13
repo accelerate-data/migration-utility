@@ -1,9 +1,36 @@
 {
   "technology": "sql_server",
   "dialect": "tsql",
-  "database": "MigrationTest",
-  "extracted_at": "2026-04-08T00:00:00Z",
-  "sandbox": {
-    "database": "MigrationTest"
+  "runtime": {
+    "source": {
+      "technology": "sql_server",
+      "dialect": "tsql",
+      "connection": {
+        "database": "MigrationTest",
+        "host": "localhost",
+        "port": "1433",
+        "user": "sa",
+        "password_env": "SA_PASSWORD",
+        "driver": "ODBC Driver 18 for SQL Server"
+      }
+    },
+    "sandbox": {
+      "technology": "sql_server",
+      "dialect": "tsql",
+      "connection": {
+        "database": "MigrationTest",
+        "host": "localhost",
+        "port": "1433",
+        "user": "sa",
+        "password_env": "SA_PASSWORD",
+        "driver": "ODBC Driver 18 for SQL Server"
+      }
+    }
+  },
+  "extraction": {
+    "schemas": [
+      "silver"
+    ],
+    "extracted_at": "2026-04-08T00:00:00Z"
   }
 }

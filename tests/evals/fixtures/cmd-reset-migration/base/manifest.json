@@ -7,11 +7,18 @@
       "technology": "sql_server",
       "dialect": "tsql",
       "connection": {
-        "database": "TestDB"
+        "database": "TestDB",
+        "host": "localhost",
+        "port": "1433",
+        "user": "sa",
+        "password_env": "SA_PASSWORD",
+        "driver": "ODBC Driver 18 for SQL Server"
       }
     }
   },
   "extraction": {
-    "schemas": ["silver"]
+    "schemas": [
+      "silver"
+    ]
   }
 }

@@ -23,6 +23,7 @@ from shared.sandbox.oracle import (
     _validate_oracle_identifier,
     _validate_oracle_sandbox_name,
 )
+from shared.sandbox.duckdb import DuckDbSandbox
 from shared.sandbox.base import serialize_rows as _serialize_rows
 from shared.output_models.sandbox import (
     ErrorEntry,
@@ -62,6 +63,10 @@ class TestBackendRegistry:
     def test_oracle_returns_oracle_sandbox(self) -> None:
         cls = get_backend("oracle")
         assert cls is OracleSandbox
+
+    def test_duckdb_returns_duckdb_sandbox(self) -> None:
+        cls = get_backend("duckdb")
+        assert cls is DuckDbSandbox
 
     def test_unknown_technology_raises(self) -> None:
         with pytest.raises(ValueError, match="Unsupported technology"):
@@ -125,54 +130,105 @@ class TestIdentifierValidation:
 
 
 class TestFromEnv:
-    def test_from_env_missing_host_raises(self) -> None:
-        env = {"SA_PASSWORD": "pass", "MSSQL_DB": "db"}
-        with patch.dict(os.environ, env, clear=True):
-            with pytest.raises(ValueError, match="MSSQL_HOST"):
-                SqlServerSandbox.from_env({})
+    def test_from_env_missing_runtime_roles_raises(self) -> None:
+        with pytest.raises(ValueError, match="runtime.source"):
+            SqlServerSandbox.from_env({})
 
-    def test_from_env_missing_password_raises(self) -> None:
-        env = {"MSSQL_HOST": "localhost", "MSSQL_DB": "db"}
-        with patch.dict(os.environ, env, clear=True):
-            with pytest.raises(ValueError, match="SA_PASSWORD"):
-                SqlServerSandbox.from_env({})
-
-    def test_from_env_missing_database_raises(self) -> None:
-        env = {"MSSQL_HOST": "localhost", "SA_PASSWORD": "pass"}
-        with patch.dict(os.environ, env, clear=True):
-            with pytest.raises(ValueError, match="MSSQL_DB"):
-                SqlServerSandbox.from_env({})
-
-    def test_from_env_prefers_manifest_source_database(self) -> None:
-        env = {"MSSQL_HOST": "localhost", "SA_PASSWORD": "pass", "MSSQL_DB": "envDB"}
-        with patch.dict(os.environ, env, clear=True):
-            backend = SqlServerSandbox.from_env(
-                {
-                    "runtime": {
-                        "source": {
-                            "technology": "sql_server",
-                            "dialect": "tsql",
-                            "connection": {"database": "manifestDB"},
-                        }
-                    }
-                }
-            )
-        assert backend.database == "manifestDB"
-
-    def test_from_env_reads_user_and_driver(self) -> None:
-        env = {
-            "MSSQL_HOST": "localhost", "SA_PASSWORD": "pass", "MSSQL_DB": "db",
-            "MSSQL_USER": "admin", "MSSQL_DRIVER": "FreeTDS",
+    def test_from_env_requires_explicit_password_env(self) -> None:
+        manifest = {
+            "runtime": {
+                "source": {
+                    "technology": "sql_server",
+                    "dialect": "tsql",
+                    "connection": {"host": "localhost", "port": "1433", "database": "manifestDB"},
+                },
+                "sandbox": {
+                    "technology": "sql_server",
+                    "dialect": "tsql",
+                    "connection": {"host": "localhost", "port": "1433", "user": "sa"},
+                },
+            }
         }
-        with patch.dict(os.environ, env, clear=True):
-            backend = SqlServerSandbox.from_env({})
-        assert backend.user == "admin"
-        assert backend.driver == "FreeTDS"
+        with pytest.raises(ValueError, match="runtime.sandbox.connection.password_env"):
+            SqlServerSandbox.from_env(manifest)
 
-    def test_from_env_default_driver_is_freetds(self) -> None:
-        env = {"MSSQL_HOST": "localhost", "SA_PASSWORD": "pass", "MSSQL_DB": "db"}
-        with patch.dict(os.environ, env, clear=True):
-            backend = SqlServerSandbox.from_env({})
+    def test_from_env_requires_explicit_source_database(self) -> None:
+        manifest = {
+            "runtime": {
+                "source": {
+                    "technology": "sql_server",
+                    "dialect": "tsql",
+                    "connection": {"host": "localhost", "port": "1433"},
+                },
+                "sandbox": {
+                    "technology": "sql_server",
+                    "dialect": "tsql",
+                    "connection": {
+                        "host": "localhost",
+                        "port": "1433",
+                        "user": "admin",
+                        "password_env": "SQL_SANDBOX_PASSWORD",
+                    },
+                },
+            }
+        }
+        with patch.dict(os.environ, {"SQL_SANDBOX_PASSWORD": "pass"}, clear=True):
+            with pytest.raises(ValueError, match="runtime.source.connection.database"):
+                SqlServerSandbox.from_env(manifest)
+
+    def test_from_env_requires_matching_source_and_sandbox_host(self) -> None:
+        manifest = {
+            "runtime": {
+                "source": {
+                    "technology": "sql_server",
+                    "dialect": "tsql",
+                    "connection": {"host": "source-host", "port": "1433", "database": "manifestDB"},
+                },
+                "sandbox": {
+                    "technology": "sql_server",
+                    "dialect": "tsql",
+                    "connection": {
+                        "host": "sandbox-host",
+                        "port": "1433",
+                        "user": "admin",
+                        "password_env": "SQL_SANDBOX_PASSWORD",
+                    },
+                },
+            }
+        }
+        with patch.dict(os.environ, {"SQL_SANDBOX_PASSWORD": "pass"}, clear=True):
+            with pytest.raises(ValueError, match="runtime.source.connection.host"):
+                SqlServerSandbox.from_env(manifest)
+
+    def test_from_env_uses_explicit_runtime_roles(self) -> None:
+        manifest = {
+            "runtime": {
+                "source": {
+                    "technology": "sql_server",
+                    "dialect": "tsql",
+                    "connection": {
+                        "host": "localhost",
+                        "port": "1433",
+                        "database": "manifestDB",
+                    },
+                },
+                "sandbox": {
+                    "technology": "sql_server",
+                    "dialect": "tsql",
+                    "connection": {
+                        "host": "localhost",
+                        "port": "1433",
+                        "user": "admin",
+                        "driver": "FreeTDS",
+                        "password_env": "SQL_SANDBOX_PASSWORD",
+                    },
+                },
+            }
+        }
+        with patch.dict(os.environ, {"SQL_SANDBOX_PASSWORD": "pass"}, clear=True):
+            backend = SqlServerSandbox.from_env(manifest)
+        assert backend.database == "manifestDB"
+        assert backend.user == "admin"
         assert backend.driver == "FreeTDS"
 
     def test_connect_cant_open_lib_raises_runtime_error(self) -> None:
@@ -1062,6 +1118,40 @@ class TestCLIManifestRouting:
         with pytest.raises(Exit):
             _load_manifest(tmp_path)
 
+    def test_create_backend_prefers_runtime_sandbox_technology(self) -> None:
+        from shared.test_harness_support.manifest import _create_backend
+
+        backend_cls = MagicMock()
+        backend_cls.from_env.return_value = DuckDbSandbox(
+            source_path=".runtime/duckdb/source.duckdb",
+            sandbox_path=".runtime/duckdb/sandbox.duckdb",
+        )
+        with patch("shared.test_harness_support.manifest.get_backend", return_value=backend_cls) as mock_get_backend:
+            backend = _create_backend(
+                {
+                    "schema_version": "1.0",
+                    "technology": "sql_server",
+                    "dialect": "tsql",
+                    "runtime": {
+                        "source": {
+                            "technology": "sql_server",
+                            "dialect": "tsql",
+                            "connection": {"database": "MigrationTest"},
+                        },
+                        "sandbox": {
+                            "technology": "duckdb",
+                            "dialect": "duckdb",
+                            "connection": {
+                                "path": ".runtime/duckdb/sandbox.duckdb",
+                            },
+                        },
+                    },
+                }
+            )
+
+        mock_get_backend.assert_called_once_with("duckdb")
+        assert isinstance(backend, DuckDbSandbox)
+
 
 # ── Manifest sandbox persistence ──────────────────────────────────────────────
 
@@ -1089,6 +1179,58 @@ class TestWriteManifestSandbox:
 
         manifest = read_manifest(tmp_path)
         assert manifest["runtime"]["sandbox"]["connection"]["database"] == "__test_new_run"
+
+    def test_missing_runtime_sandbox_raises(self, tmp_path: Path) -> None:
+        (tmp_path / "manifest.json").write_text(
+            json.dumps(
+                {
+                    "schema_version": "1.0",
+                    "technology": "sql_server",
+                    "dialect": "tsql",
+                    "runtime": {
+                        "source": {
+                            "technology": "sql_server",
+                            "dialect": "tsql",
+                            "connection": {"database": "TestDB"},
+                        }
+                    },
+                }
+            ),
+            encoding="utf-8",
+        )
+
+        with pytest.raises(ValueError, match="runtime.sandbox"):
+            write_manifest_sandbox(tmp_path, "__test_run_123")
+
+    def test_preserves_existing_duckdb_sandbox_role(self, tmp_path: Path) -> None:
+        (tmp_path / "manifest.json").write_text(
+            json.dumps(
+                {
+                    "schema_version": "1.0",
+                    "technology": "duckdb",
+                    "dialect": "duckdb",
+                    "runtime": {
+                        "source": {
+                            "technology": "duckdb",
+                            "dialect": "duckdb",
+                            "connection": {"path": ".runtime/duckdb/source.duckdb"},
+                        },
+                        "sandbox": {
+                            "technology": "duckdb",
+                            "dialect": "duckdb",
+                            "connection": {"path": ".runtime/duckdb/template.duckdb"},
+                        },
+                    },
+                }
+            ),
+            encoding="utf-8",
+        )
+
+        write_manifest_sandbox(tmp_path, ".runtime/duckdb/sandbox.duckdb")
+
+        manifest = read_manifest(tmp_path)
+        assert manifest["runtime"]["sandbox"]["technology"] == "duckdb"
+        assert manifest["runtime"]["sandbox"]["connection"]["path"] == ".runtime/duckdb/sandbox.duckdb"
 
 
 class TestClearManifestSandbox:
@@ -1126,7 +1268,27 @@ class TestResolveSandboxDb:
 
         from shared.test_harness import _resolve_sandbox_db
 
-        _write_fixture_manifest(tmp_path)
+        (tmp_path / "manifest.json").write_text(
+            json.dumps(
+                {
+                    "schema_version": "1.0",
+                    "technology": "sql_server",
+                    "dialect": "tsql",
+                    "runtime": {
+                        "source": {
+                            "technology": "sql_server",
+                            "dialect": "tsql",
+                            "connection": {"database": "TestDB"},
+                        }
+                    },
+                    "extraction": {
+                        "schemas": ["dbo", "silver"],
+                        "extracted_at": "2026-03-31T00:00:00Z",
+                    },
+                }
+            ),
+            encoding="utf-8",
+        )
 
         with pytest.raises(Exit):
             _resolve_sandbox_db(tmp_path)
@@ -1218,7 +1380,7 @@ class TestCLISandboxUpPersists:
 
         assert result.exit_code == 1
         manifest = json.loads((tmp_path / "manifest.json").read_text())
-        assert "sandbox" not in manifest.get("runtime", {})
+        assert manifest["runtime"]["sandbox"]["connection"]["database"] == "__test_template"
 
 
 class TestCLISandboxDownClears:
@@ -1306,7 +1468,27 @@ class TestCLIStatusFallback:
 
         from shared.test_harness import app
 
-        _write_fixture_manifest(tmp_path)
+        (tmp_path / "manifest.json").write_text(
+            json.dumps(
+                {
+                    "schema_version": "1.0",
+                    "technology": "sql_server",
+                    "dialect": "tsql",
+                    "runtime": {
+                        "source": {
+                            "technology": "sql_server",
+                            "dialect": "tsql",
+                            "connection": {"database": "TestDB"},
+                        }
+                    },
+                    "extraction": {
+                        "schemas": ["dbo", "silver"],
+                        "extracted_at": "2026-03-31T00:00:00Z",
+                    },
+                }
+            ),
+            encoding="utf-8",
+        )
         runner = CliRunner()
 
         with (
@@ -1698,53 +1880,221 @@ class TestOracleSandboxName:
 
 class TestOracleSandboxFromEnv:
     def test_raises_when_oracle_pwd_missing(self, monkeypatch: pytest.MonkeyPatch) -> None:
-        monkeypatch.delenv("ORACLE_PWD", raising=False)
-        monkeypatch.setenv("ORACLE_SCHEMA", "SH")
-        with pytest.raises(ValueError, match="ORACLE_PWD"):
+        monkeypatch.delenv("ORACLE_SANDBOX_PASSWORD", raising=False)
+        with pytest.raises(ValueError, match="runtime.sandbox.connection.password_env"):
             OracleSandbox.from_env(
-                {"runtime": {"source": {"technology": "oracle", "dialect": "oracle", "connection": {}}}}
+                {
+                    "runtime": {
+                        "source": {
+                            "technology": "oracle",
+                            "dialect": "oracle",
+                            "connection": {
+                                "host": "localhost",
+                                "port": "1521",
+                                "service": "FREEPDB1",
+                                "schema": "SH",
+                            },
+                        },
+                        "sandbox": {
+                            "technology": "oracle",
+                            "dialect": "oracle",
+                            "connection": {
+                                "host": "localhost",
+                                "port": "1521",
+                                "service": "FREEPDB1",
+                                "user": "sys",
+                            },
+                        },
+                    }
+                }
             )
 
     def test_raises_when_source_schema_missing(self, monkeypatch: pytest.MonkeyPatch) -> None:
-        monkeypatch.setenv("ORACLE_PWD", "secret")
-        monkeypatch.delenv("ORACLE_SCHEMA", raising=False)
-        with pytest.raises(ValueError, match="ORACLE_SCHEMA"):
-            OracleSandbox.from_env({})
+        monkeypatch.setenv("ORACLE_SANDBOX_PASSWORD", "secret")
+        with pytest.raises(ValueError, match="runtime.source.connection.schema"):
+            OracleSandbox.from_env(
+                {
+                    "runtime": {
+                        "source": {
+                            "technology": "oracle",
+                            "dialect": "oracle",
+                            "connection": {
+                                "host": "localhost",
+                                "port": "1521",
+                                "service": "FREEPDB1",
+                            },
+                        },
+                        "sandbox": {
+                            "technology": "oracle",
+                            "dialect": "oracle",
+                            "connection": {
+                                "host": "localhost",
+                                "port": "1521",
+                                "service": "FREEPDB1",
+                                "user": "sys",
+                                "password_env": "ORACLE_SANDBOX_PASSWORD",
+                            },
+                        },
+                    }
+                }
+            )
 
-    def test_uses_manifest_source_database(self, monkeypatch: pytest.MonkeyPatch) -> None:
-        monkeypatch.setenv("ORACLE_PWD", "secret")
-        monkeypatch.delenv("ORACLE_SCHEMA", raising=False)
+    def test_uses_explicit_runtime_roles(self, monkeypatch: pytest.MonkeyPatch) -> None:
+        monkeypatch.setenv("ORACLE_SANDBOX_PASSWORD", "secret")
         backend = OracleSandbox.from_env(
             {
                 "runtime": {
                     "source": {
                         "technology": "oracle",
                         "dialect": "oracle",
-                        "connection": {"schema": "SH"},
-                    }
+                        "connection": {
+                            "host": "localhost",
+                            "port": "1521",
+                            "service": "FREEPDB1",
+                            "schema": "SH",
+                        },
+                    },
+                    "sandbox": {
+                        "technology": "oracle",
+                        "dialect": "oracle",
+                        "connection": {
+                            "host": "localhost",
+                            "port": "1521",
+                            "service": "FREEPDB1",
+                            "user": "sys",
+                            "password_env": "ORACLE_SANDBOX_PASSWORD",
+                        },
+                    },
                 }
             }
         )
         assert backend.source_schema == "SH"
-
-    def test_falls_back_to_oracle_schema_env(self, monkeypatch: pytest.MonkeyPatch) -> None:
-        monkeypatch.setenv("ORACLE_PWD", "secret")
-        monkeypatch.setenv("ORACLE_SCHEMA", "HR")
-        backend = OracleSandbox.from_env({})
-        assert backend.source_schema == "HR"
-
-    def test_defaults(self, monkeypatch: pytest.MonkeyPatch) -> None:
-        monkeypatch.setenv("ORACLE_PWD", "secret")
-        monkeypatch.setenv("ORACLE_SCHEMA", "SH")
-        monkeypatch.delenv("ORACLE_HOST", raising=False)
-        monkeypatch.delenv("ORACLE_PORT", raising=False)
-        monkeypatch.delenv("ORACLE_SERVICE", raising=False)
-        monkeypatch.delenv("ORACLE_ADMIN_USER", raising=False)
-        backend = OracleSandbox.from_env({})
-        assert backend.host == "localhost"
-        assert backend.port == "1521"
         assert backend.service == "FREEPDB1"
         assert backend.admin_user == "sys"
+
+    def test_rejects_mismatched_service(self, monkeypatch: pytest.MonkeyPatch) -> None:
+        monkeypatch.setenv("ORACLE_SANDBOX_PASSWORD", "secret")
+        with pytest.raises(ValueError, match="runtime.source.connection.service"):
+            OracleSandbox.from_env(
+                {
+                    "runtime": {
+                        "source": {
+                            "technology": "oracle",
+                            "dialect": "oracle",
+                            "connection": {
+                                "host": "localhost",
+                                "port": "1521",
+                                "service": "SRCPDB",
+                                "schema": "SH",
+                            },
+                        },
+                        "sandbox": {
+                            "technology": "oracle",
+                            "dialect": "oracle",
+                            "connection": {
+                                "host": "localhost",
+                                "port": "1521",
+                                "service": "SANDBOXPDB",
+                                "user": "sys",
+                                "password_env": "ORACLE_SANDBOX_PASSWORD",
+                            },
+                        },
+                    }
+                }
+            )
+
+
+# ── DuckDbSandbox ────────────────────────────────────────────────────────────
+
+
+class TestDuckDbSandbox:
+    def test_from_env_requires_runtime_roles(self) -> None:
+        with pytest.raises(ValueError, match="runtime.source.connection.path"):
+            DuckDbSandbox.from_env(
+                {
+                    "runtime": {
+                        "sandbox": {
+                            "technology": "duckdb",
+                            "dialect": "duckdb",
+                            "connection": {"path": ".runtime/duckdb/sandbox.duckdb"},
+                        }
+                    }
+                }
+            )
+
+    def test_sandbox_up_copies_source_file(self, tmp_path: Path) -> None:
+        import duckdb
+
+        source_path = tmp_path / "source.duckdb"
+        sandbox_path = tmp_path / "sandbox.duckdb"
+        conn = duckdb.connect(str(source_path))
+        conn.execute("create schema bronze")
+        conn.execute("create table bronze.product(id integer, name varchar)")
+        conn.close()
+
+        backend = DuckDbSandbox(str(source_path), str(sandbox_path))
+        result = backend.sandbox_up(["bronze"])
+
+        assert result.status == "ok"
+        assert sandbox_path.exists()
+        conn = duckdb.connect(str(sandbox_path))
+        try:
+            rows = conn.execute("select * from bronze.product").fetchall()
+        finally:
+            conn.close()
+        assert rows == []
+
+    def test_execute_select_rolls_back_fixtures(self, tmp_path: Path) -> None:
+        import duckdb
+
+        source_path = tmp_path / "source.duckdb"
+        sandbox_path = tmp_path / "sandbox.duckdb"
+        conn = duckdb.connect(str(source_path))
+        conn.execute("create schema bronze")
+        conn.execute("create table bronze.product(id integer, name varchar)")
+        conn.close()
+        shutil.copy2(source_path, sandbox_path)
+
+        backend = DuckDbSandbox(str(source_path), str(sandbox_path))
+        result = backend.execute_select(
+            str(sandbox_path),
+            'select id, name from bronze.product order by id',
+            [{"table": "[bronze].[product]", "rows": [{"id": 1, "name": "Widget"}]}],
+        )
+
+        assert result.status == "ok"
+        assert result.ground_truth_rows == [{"id": 1, "name": "Widget"}]
+
+        conn = duckdb.connect(str(sandbox_path))
+        try:
+            rows = conn.execute("select count(*) from bronze.product").fetchone()
+        finally:
+            conn.close()
+        assert rows == (0,)
+
+    def test_compare_two_sql_reports_equivalence(self, tmp_path: Path) -> None:
+        import duckdb
+
+        source_path = tmp_path / "source.duckdb"
+        sandbox_path = tmp_path / "sandbox.duckdb"
+        conn = duckdb.connect(str(source_path))
+        conn.execute("create schema bronze")
+        conn.execute("create table bronze.product(id integer, name varchar)")
+        conn.close()
+        shutil.copy2(source_path, sandbox_path)
+
+        backend = DuckDbSandbox(str(source_path), str(sandbox_path))
+        result = backend.compare_two_sql(
+            str(sandbox_path),
+            "select id, name from bronze.product",
+            "select id, name from bronze.product",
+            [{"table": "[bronze].[product]", "rows": [{"id": 1, "name": "Widget"}]}],
+        )
+
+        assert result["status"] == "ok"
+        assert result["equivalent"] is True
+        assert result["a_count"] == 1
+        assert result["b_count"] == 1
 
 
 # ── _ensure_view_tables (SQL Server) ─────────────────────────────────────────

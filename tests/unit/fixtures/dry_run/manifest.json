@@ -7,26 +7,46 @@
       "technology": "sql_server",
       "dialect": "tsql",
       "connection": {
-        "database": "TestDB"
+        "database": "TestDB",
+        "host": "localhost",
+        "port": "1433",
+        "user": "sa",
+        "password_env": "SA_PASSWORD",
+        "driver": "ODBC Driver 18 for SQL Server"
       }
     },
     "target": {
       "technology": "sql_server",
       "dialect": "tsql",
       "connection": {
-        "database": "TargetDB"
+        "database": "TargetDB",
+        "host": "localhost",
+        "port": "1433",
+        "user": "sa",
+        "password_env": "SA_PASSWORD",
+        "driver": "ODBC Driver 18 for SQL Server"
+      },
+      "schemas": {
+        "source": "bronze"
       }
     },
     "sandbox": {
       "technology": "sql_server",
       "dialect": "tsql",
       "connection": {
-        "database": "__test_abc123"
+        "database": "__test_abc123",
+        "host": "localhost",
+        "port": "1433",
+        "user": "sa",
+        "password_env": "SA_PASSWORD",
+        "driver": "ODBC Driver 18 for SQL Server"
       }
     }
   },
   "extraction": {
-    "schemas": ["silver"],
+    "schemas": [
+      "silver"
+    ],
     "extracted_at": "2026-04-01T00:00:00Z"
   },
   "init_handoff": {

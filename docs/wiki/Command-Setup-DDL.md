@@ -171,7 +171,7 @@ This skill reads from a live SQL Server via the `mssql` MCP tool. No local catal
 | `technology` | string | yes | Source technology. Enum: `sql_server`, `fabric_warehouse`, `fabric_lakehouse`, `snowflake` |
 | `dialect` | string | yes | sqlglot dialect. Enum: `tsql`, `spark`, `snowflake` |
 | `runtime.source` | object | yes | Source runtime endpoint and connection information |
-| `extracted_schemas` | string[] | yes | List of schemas included in the extraction |
+| `extraction.schemas` | string[] | yes | List of schemas included in the extraction |
 | `extracted_at` | string | yes | ISO 8601 timestamp of extraction |
 | `init_handoff` | object | no | Validated prerequisite state (`env_vars`, `tools`, `timestamp`) written by `/init-ad-migration`. Required by all stage guards via `check_init_prerequisites` |
 | `sandbox` | object | no | Sandbox metadata (`database`) -- added later by the test harness |
@@ -253,7 +253,7 @@ The 12 catalog signal queries produce these staging files in `.staging/`:
       "connection": {"database": "AdventureWorksDW"}
     }
   },
-  "extracted_schemas": ["dbo", "silver", "gold"],
+  "extraction": {"schemas": ["dbo", "silver", "gold"]},
   "extracted_at": "2025-03-15T14:30:00Z"
 }
 ```

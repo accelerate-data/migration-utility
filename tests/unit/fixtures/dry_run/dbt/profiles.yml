@@ -1,0 +1,7 @@
+dry_run_fixture:
+  target: dev
+  outputs:
+    dev:
+      type: duckdb
+      path: ".runtime/duckdb/target.duckdb"
+      schema: bronze

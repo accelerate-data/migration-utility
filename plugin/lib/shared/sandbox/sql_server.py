@@ -249,31 +249,60 @@ class SqlServerSandbox(SandboxBackend):
 
     @classmethod
     def from_env(cls, manifest: dict[str, Any]) -> SqlServerSandbox:
-        """Create an instance from MSSQL_* env vars and manifest config.
+        """Create an instance from strict runtime roles plus process secrets.
 
-        Raises ValueError if required configuration is missing.
+        The SQL Server sandbox backend currently clones by three-part naming,
+        so source and sandbox must be on the same host/port.
         """
         source_role = get_runtime_role(manifest, "source")
-        host = os.environ.get("MSSQL_HOST", "")
-        port = os.environ.get("MSSQL_PORT", "1433")
-        database = (
-            source_role.connection.database
-            if source_role is not None and source_role.connection.database
-            else os.environ.get("MSSQL_DB", "")
-        )
-        password = os.environ.get("SA_PASSWORD", "")
-        user = os.environ.get("MSSQL_USER", "sa")
-        driver = os.environ.get("MSSQL_DRIVER", "FreeTDS")
+        sandbox_role = get_runtime_role(manifest, "sandbox")
 
-        missing = []
-        if not host:
-            missing.append("MSSQL_HOST")
-        if not password:
-            missing.append("SA_PASSWORD")
-        if not database:
-            missing.append("MSSQL_DB or runtime.source.connection.database")
+        missing: list[str] = []
+        if source_role is None:
+            missing.append("runtime.source")
+        if sandbox_role is None:
+            missing.append("runtime.sandbox")
         if missing:
-            raise ValueError(f"Required environment variables not set: {missing}")
+            raise ValueError(f"manifest.json is missing required runtime roles: {missing}")
+
+        if source_role.technology != "sql_server":
+            raise ValueError("runtime.source.technology must be sql_server for SQL Server sandbox")
+        if sandbox_role.technology != "sql_server":
+            raise ValueError("runtime.sandbox.technology must be sql_server for SQL Server sandbox")
+
+        if (source_role.connection.host or "") != (sandbox_role.connection.host or ""):
+            raise ValueError(
+                "SQL Server sandbox cloning currently requires runtime.source.connection.host "
+                "and runtime.sandbox.connection.host to match"
+            )
+        if (source_role.connection.port or "1433") != (sandbox_role.connection.port or "1433"):
+            raise ValueError(
+                "SQL Server sandbox cloning currently requires runtime.source.connection.port "
+                "and runtime.sandbox.connection.port to match"
+            )
+
+        host = sandbox_role.connection.host or ""
+        port = sandbox_role.connection.port or "1433"
+        database = source_role.connection.database or ""
+        user = sandbox_role.connection.user or ""
+        driver = sandbox_role.connection.driver or "FreeTDS"
+        password_env = sandbox_role.connection.password_env
+        password = os.environ.get(password_env or "", "")
+
+        if not host:
+            missing.append("runtime.sandbox.connection.host")
+        if not sandbox_role.connection.port:
+            missing.append("runtime.sandbox.connection.port")
+        if not user:
+            missing.append("runtime.sandbox.connection.user")
+        if not password_env:
+            missing.append("runtime.sandbox.connection.password_env")
+        if not password:
+            missing.append(f"environment variable referenced by runtime.sandbox.connection.password_env ({password_env})")
+        if not database:
+            missing.append("runtime.source.connection.database")
+        if missing:
+            raise ValueError(f"Required sandbox configuration is missing: {missing}")
 
         return cls(
             host=host, port=port, database=database, password=password,

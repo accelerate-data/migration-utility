@@ -1,10 +1,34 @@
 {
-  "project_name": "refactoring-sql-view-active-customers",
-  "source": {
-    "technology": "sqlserver",
-    "dialect": "tsql"
+  "technology": "sql_server",
+  "dialect": "tsql",
+  "runtime": {
+    "source": {
+      "technology": "sql_server",
+      "dialect": "tsql",
+      "connection": {
+        "host": "localhost",
+        "port": "1433",
+        "user": "sa",
+        "password_env": "SA_PASSWORD",
+        "driver": "ODBC Driver 18 for SQL Server"
+      }
+    },
+    "sandbox": {
+      "technology": "sql_server",
+      "dialect": "tsql",
+      "connection": {
+        "database": "MigrationTest",
+        "host": "localhost",
+        "port": "1433",
+        "user": "sa",
+        "password_env": "SA_PASSWORD",
+        "driver": "ODBC Driver 18 for SQL Server"
+      }
+    }
   },
-  "sandbox": {
-    "database": "MigrationTest"
+  "extraction": {
+    "schemas": [
+      "silver"
+    ]
   }
 }

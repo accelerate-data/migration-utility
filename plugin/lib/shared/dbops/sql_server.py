@@ -2,7 +2,24 @@
 
 from __future__ import annotations
 
-from shared.dbops.base import DatabaseOperations
+from typing import Any
+
+from shared.dbops.base import ColumnSpec, DatabaseOperations
+
+_pyodbc = None
+
+
+def _import_pyodbc():
+    global _pyodbc
+    if _pyodbc is None:
+        try:
+            import pyodbc
+        except ImportError as exc:
+            raise ImportError(
+                "pyodbc is required for SQL Server DB operations. Install it with: uv pip install pyodbc"
+            ) from exc
+        _pyodbc = pyodbc
+    return _pyodbc
 
 
 class SqlServerOperations(DatabaseOperations):
@@ -21,7 +38,67 @@ class SqlServerOperations(DatabaseOperations):
             env["MSSQL_USER"] = self.role.connection.user
         if self.role.connection.driver:
             env["MSSQL_DRIVER"] = self.role.connection.driver
-        password = self._read_secret(self.role.connection.password_env) or self._read_secret("SA_PASSWORD")
+        password = self._read_secret(self.role.connection.password_env)
         if password:
             env["SA_PASSWORD"] = password
         return env
+
+    def _connect(self):
+        host = self.role.connection.host or "localhost"
+        port = self.role.connection.port or "1433"
+        database = self.role.connection.database or self.environment_name()
+        user = self.role.connection.user or "sa"
+        driver = self.role.connection.driver or "ODBC Driver 18 for SQL Server"
+        password = self._read_secret(self.role.connection.password_env)
+        if not password:
+            raise ValueError(
+                "runtime.target.connection.password_env must reference a set environment variable for SQL Server target setup"
+            )
+        return _import_pyodbc().connect(
+            (
+                f"DRIVER={{{driver}}};"
+                f"SERVER={host},{port};"
+                f"DATABASE={database};"
+                f"UID={user};PWD={password};"
+                "TrustServerCertificate=yes;"
+            ),
+            autocommit=True,
+        )
+
+    def ensure_source_schema(self, schema_name: str) -> None:
+        with self._connect() as conn:
+            cursor = conn.cursor()
+            cursor.execute("SELECT 1 FROM sys.schemas WHERE name = ?", schema_name)
+            if cursor.fetchone() is None:
+                cursor.execute(f"CREATE SCHEMA [{schema_name}]")
+
+    def list_source_tables(self, schema_name: str) -> set[str]:
+        with self._connect() as conn:
+            cursor = conn.cursor()
+            cursor.execute(
+                "SELECT TABLE_NAME FROM INFORMATION_SCHEMA.TABLES "
+                "WHERE TABLE_TYPE = 'BASE TABLE' AND TABLE_SCHEMA = ?",
+                schema_name,
+            )
+            return {row[0].lower() for row in cursor.fetchall()}
+
+    def create_source_table(
+        self,
+        schema_name: str,
+        table_name: str,
+        columns: list[ColumnSpec],
+    ) -> None:
+        rendered = ", ".join(
+            f"[{column.name}] {self._map_type(column.source_type)} {'NULL' if column.nullable else 'NOT NULL'}"
+            for column in columns
+        )
+        ddl = f"CREATE TABLE [{schema_name}].[{table_name}] ({rendered})"
+        with self._connect() as conn:
+            cursor = conn.cursor()
+            cursor.execute(ddl)
+
+    def _map_type(self, source_type: str) -> str:
+        normalized = source_type.upper().strip()
+        if normalized:
+            return normalized
+        return "NVARCHAR(MAX)"

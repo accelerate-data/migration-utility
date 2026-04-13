@@ -2,7 +2,22 @@
 
 from __future__ import annotations
 
-from shared.dbops.base import DatabaseOperations
+from shared.dbops.base import ColumnSpec, DatabaseOperations
+
+_oracledb = None
+
+
+def _import_oracledb():
+    global _oracledb
+    if _oracledb is None:
+        try:
+            import oracledb
+        except ImportError as exc:
+            raise ImportError(
+                "oracledb is required for Oracle DB operations. Install it with: uv pip install oracledb"
+            ) from exc
+        _oracledb = oracledb
+    return _oracledb
 
 
 class OracleOperations(DatabaseOperations):
@@ -21,7 +36,80 @@ class OracleOperations(DatabaseOperations):
             env["ORACLE_USER"] = self.role.connection.user
         if self.role.connection.schema_name:
             env["ORACLE_SCHEMA"] = self.role.connection.schema_name
-        password = self._read_secret(self.role.connection.password_env) or self._read_secret("ORACLE_PWD")
+        password = self._read_secret(self.role.connection.password_env)
         if password:
             env["ORACLE_PWD"] = password
         return env
+
+    def _connect(self):
+        host = self.role.connection.host or "localhost"
+        port = self.role.connection.port or "1521"
+        service = self.role.connection.service or self.environment_name()
+        user = self.role.connection.user
+        password = self._read_secret(self.role.connection.password_env)
+        if not user:
+            raise ValueError("runtime.target.connection.user is required for Oracle target setup")
+        if not password:
+            raise ValueError(
+                "runtime.target.connection.password_env must reference a set environment variable for Oracle target setup"
+            )
+        return _import_oracledb().connect(
+            user=user,
+            password=password,
+            dsn=f"{host}:{port}/{service}",
+        )
+
+    def ensure_source_schema(self, schema_name: str) -> None:
+        current_schema = self.role.connection.schema_name or self.role.connection.user
+        if schema_name.upper() != (current_schema or "").upper():
+            raise ValueError(
+                "Oracle target setup currently requires runtime.target.schemas.source to match "
+                "runtime.target.connection.schema or runtime.target.connection.user"
+            )
+
+    def list_source_tables(self, schema_name: str) -> set[str]:
+        conn = self._connect()
+        try:
+            cursor = conn.cursor()
+            cursor.execute(
+                "SELECT table_name FROM user_tables ORDER BY table_name"
+            )
+            return {row[0].lower() for row in cursor.fetchall()}
+        finally:
+            conn.close()
+
+    def create_source_table(
+        self,
+        schema_name: str,
+        table_name: str,
+        columns: list[ColumnSpec],
+    ) -> None:
+        self.ensure_source_schema(schema_name)
+        rendered = ", ".join(
+            f'"{column.name}" {self._map_type(column.source_type)} {"NULL" if column.nullable else "NOT NULL"}'
+            for column in columns
+        )
+        ddl = f'CREATE TABLE "{table_name}" ({rendered})'
+        conn = self._connect()
+        try:
+            cursor = conn.cursor()
+            cursor.execute(ddl)
+            conn.commit()
+        finally:
+            conn.close()
+
+    def _map_type(self, source_type: str) -> str:
+        normalized = source_type.upper().strip()
+        if any(token in normalized for token in ("INT", "BIGINT", "SMALLINT", "TINYINT")):
+            return "NUMBER(19)"
+        if any(token in normalized for token in ("DECIMAL", "NUMERIC", "MONEY")):
+            return "NUMBER(38,10)"
+        if any(token in normalized for token in ("FLOAT", "DOUBLE", "REAL")):
+            return "BINARY_DOUBLE"
+        if "DATE" in normalized and "TIME" not in normalized:
+            return "DATE"
+        if "TIME" in normalized or "TIMESTAMP" in normalized or "DATETIME" in normalized:
+            return "TIMESTAMP"
+        if "BINARY" in normalized or "BLOB" in normalized or "RAW" in normalized:
+            return "BLOB"
+        return "VARCHAR2(4000)"

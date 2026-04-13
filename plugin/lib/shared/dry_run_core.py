@@ -113,6 +113,12 @@ def _project_stage_ready(project_root: Path, stage: str) -> ReadinessDetail:
     if stage == "generate":
         if not _runtime_role_exists(manifest, "target"):
             return _detail(False, "target_not_configured", "TARGET_NOT_CONFIGURED")
+        if not _runtime_role_exists(manifest, "sandbox"):
+            return _detail(False, "sandbox_not_configured", "SANDBOX_NOT_CONFIGURED")
+        if not (project_root / "dbt" / "dbt_project.yml").exists():
+            return _detail(False, "dbt_project_missing", "DBT_PROJECT_MISSING")
+        if not (project_root / "dbt" / "profiles.yml").exists():
+            return _detail(False, "dbt_profile_missing", "DBT_PROFILE_MISSING")
         return _detail(True, "ok")
 
     return _detail(False, "invalid_stage")

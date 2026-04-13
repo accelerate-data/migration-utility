@@ -1,34 +1,44 @@
-"""Integration tests for OracleSandbox — requires local Oracle Docker with SH schema.
+"""Integration tests for OracleSandbox — requires local Oracle Docker.
 
 Run with: cd plugin/lib && uv run pytest -m oracle -v
 
 Requires:
 - Docker Oracle container running (see docs/reference/setup-docker/README.md)
 - ORACLE_PWD env var set (SYS password)
-- SH schema loaded with CHANNEL_SALES_SUMMARY table and SUMMARIZE_CHANNEL_SALES
-  procedure (scripts/sql/oracle/synthetic_sales_procedure.sql)
+- the Oracle materialize-migration-test script can connect to the container
 """
 
 from __future__ import annotations
 
 import os
+from pathlib import Path
 
 import oracledb
 import pytest
 
+from shared.fixture_materialization import materialize_migration_test
 from shared.sandbox.oracle import OracleSandbox
+from shared.runtime_config_models import RuntimeConnection, RuntimeRole
 
 pytestmark = pytest.mark.oracle
+
+_FIXTURE_READY = False
 
 
 def _have_oracle_env() -> bool:
     if not os.environ.get("ORACLE_PWD"):
         return False
     try:
+        mode = (
+            oracledb.AUTH_MODE_SYSDBA
+            if os.environ.get("ORACLE_ADMIN_USER", "sys").lower() == "sys"
+            else oracledb.AUTH_MODE_DEFAULT
+        )
         conn = oracledb.connect(
             user=os.environ.get("ORACLE_ADMIN_USER", "sys"),
             password=os.environ["ORACLE_PWD"],
             dsn=f"{os.environ.get('ORACLE_HOST', 'localhost')}:{os.environ.get('ORACLE_PORT', '1521')}/{os.environ.get('ORACLE_SERVICE', 'FREEPDB1')}",
+            mode=mode,
         )
         conn.close()
         return True
@@ -37,14 +47,60 @@ def _have_oracle_env() -> bool:
 
 
 def _make_backend() -> OracleSandbox:
-    return OracleSandbox(
-        host=os.environ.get("ORACLE_HOST", "localhost"),
-        port=os.environ.get("ORACLE_PORT", "1521"),
-        service=os.environ.get("ORACLE_SERVICE", "FREEPDB1"),
-        password=os.environ.get("ORACLE_PWD", ""),
-        admin_user=os.environ.get("ORACLE_ADMIN_USER", "sys"),
-        source_schema="SH",
+    _materialize_oracle_fixture()
+    manifest = {
+        "runtime": {
+            "source": {
+                "technology": "oracle",
+                "dialect": "oracle",
+                "connection": {
+                    "host": os.environ.get("ORACLE_HOST", "localhost"),
+                    "port": os.environ.get("ORACLE_PORT", "1521"),
+                    "service": os.environ.get("ORACLE_SERVICE", "FREEPDB1"),
+                    "schema": os.environ.get("ORACLE_SCHEMA", "SH"),
+                },
+            },
+            "sandbox": {
+                "technology": "oracle",
+                "dialect": "oracle",
+                "connection": {
+                    "host": os.environ.get("ORACLE_HOST", "localhost"),
+                    "port": os.environ.get("ORACLE_PORT", "1521"),
+                    "service": os.environ.get("ORACLE_SERVICE", "FREEPDB1"),
+                    "user": os.environ.get("ORACLE_ADMIN_USER", "sys"),
+                    "password_env": "ORACLE_PWD",
+                },
+            },
+        }
+    }
+    return OracleSandbox.from_env(manifest)
+
+
+def _materialize_oracle_fixture() -> None:
+    global _FIXTURE_READY
+    if _FIXTURE_READY:
+        return
+    repo_root = Path(__file__).resolve().parents[2]
+    role = RuntimeRole(
+        technology="oracle",
+        dialect="oracle",
+        connection=RuntimeConnection(
+            host=os.environ.get("ORACLE_HOST", "localhost"),
+            port=os.environ.get("ORACLE_PORT", "1521"),
+            service=os.environ.get("ORACLE_SERVICE", "FREEPDB1"),
+            user=os.environ.get("ORACLE_ADMIN_USER", "sys"),
+            schema=os.environ.get("ORACLE_SCHEMA", "SH"),
+            password_env="ORACLE_PWD",
+        ),
     )
+    result = materialize_migration_test(role, repo_root)
+    if result.returncode != 0:
+        raise RuntimeError(
+            "Oracle MigrationTest materialization failed:\n"
+            f"stdout:\n{result.stdout}\n"
+            f"stderr:\n{result.stderr}"
+        )
+    _FIXTURE_READY = True
 
 
 skip_no_oracle = pytest.mark.skipif(

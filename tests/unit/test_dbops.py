@@ -20,6 +20,7 @@ def test_sql_server_dbops_materialize_env(monkeypatch: pytest.MonkeyPatch) -> No
             host="localhost",
             port="1433",
             database="MigrationTest",
+            password_env="SA_PASSWORD",
         ),
     )
     adapter = get_dbops("sql_server").from_role(role)
@@ -38,6 +39,7 @@ def test_oracle_dbops_materialize_env(monkeypatch: pytest.MonkeyPatch) -> None:
             port="1521",
             service="SANDBOXPDB",
             schema="BRONZE",
+            password_env="ORACLE_PWD",
         ),
     )
     adapter = get_dbops("oracle").from_role(role)

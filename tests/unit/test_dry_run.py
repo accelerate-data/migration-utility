@@ -81,6 +81,9 @@ def _make_bare_project() -> tuple[tempfile.TemporaryDirectory, Path]:
     }
     (dst / "manifest.json").write_text(json.dumps(manifest), encoding="utf-8")
     (dst / "catalog" / "tables").mkdir(parents=True)
+    (dst / "dbt").mkdir(parents=True)
+    (dst / "dbt" / "dbt_project.yml").write_text("name: bare\n", encoding="utf-8")
+    (dst / "dbt" / "profiles.yml").write_text("bare:\n  target: dev\n", encoding="utf-8")
     # Table catalog without scoping or profile
     table_cat = {
         "schema": "silver",
@@ -304,6 +307,44 @@ def test_ready_generate_no_sandbox() -> None:
         assert result.project.code == "TARGET_NOT_CONFIGURED"
 
 
+def test_ready_generate_no_sandbox_runtime() -> None:
+    """Generate not ready when runtime.sandbox is missing from manifest."""
+    tmp, root = _make_project(include_sandbox=False)
+    with tmp:
+        result = dry_run.run_ready(root, "generate", object_fqn="silver.DimCustomer")
+        assert isinstance(result, DryRunOutput)
+        assert result.ready is False
+        assert result.project is not None
+        assert result.project.reason == "sandbox_not_configured"
+        assert result.project.code == "SANDBOX_NOT_CONFIGURED"
+
+
+def test_ready_generate_missing_dbt_project() -> None:
+    """Generate not ready when dbt_project.yml is missing."""
+    tmp, root = _make_project()
+    with tmp:
+        (root / "dbt" / "dbt_project.yml").unlink()
+        result = dry_run.run_ready(root, "generate", object_fqn="silver.DimCustomer")
+        assert isinstance(result, DryRunOutput)
+        assert result.ready is False
+        assert result.project is not None
+        assert result.project.reason == "dbt_project_missing"
+        assert result.project.code == "DBT_PROJECT_MISSING"
+
+
+def test_ready_generate_missing_dbt_profile() -> None:
+    """Generate not ready when profiles.yml is missing."""
+    tmp, root = _make_project()
+    with tmp:
+        (root / "dbt" / "profiles.yml").unlink(missing_ok=True)
+        result = dry_run.run_ready(root, "generate", object_fqn="silver.DimCustomer")
+        assert isinstance(result, DryRunOutput)
+        assert result.ready is False
+        assert result.project is not None
+        assert result.project.reason == "dbt_profile_missing"
+        assert result.project.code == "DBT_PROFILE_MISSING"
+
+
 def test_ready_generate_requires_test_gen() -> None:
     """Generate not ready when test_gen.status is absent."""
     tmp, root = _make_project()
@@ -437,7 +478,15 @@ def test_ready_generate_object_failure_preserves_project_success() -> None:
             "dialect": "tsql",
             "connection": {"database": "TargetDB"},
         }
+        manifest.setdefault("runtime", {})["sandbox"] = {
+            "technology": "sql_server",
+            "dialect": "tsql",
+            "connection": {"database": "__test_abc123"},
+        }
         (root / "manifest.json").write_text(json.dumps(manifest), encoding="utf-8")
+        (root / "dbt").mkdir(exist_ok=True)
+        (root / "dbt" / "dbt_project.yml").write_text("name: test\n", encoding="utf-8")
+        (root / "dbt" / "profiles.yml").write_text("test:\n  target: dev\n", encoding="utf-8")
         proc_path = root / "catalog" / "procedures" / "dbo.usp_load_dimcustomer.json"
         proc = json.loads(proc_path.read_text(encoding="utf-8"))
         del proc["refactor"]
