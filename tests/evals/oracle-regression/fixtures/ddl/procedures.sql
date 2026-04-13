@@ -1,7 +1,7 @@
 -- Oracle SH schema synthetic procedure for oracle-regression eval fixtures.
 -- Source: scripts/sql/oracle/synthetic_sales_procedure.sql
 --
--- Patterns covered (mapped from docs/design/tsql-parse-classification/README.md):
+-- Patterns covered by the Oracle regression fixture conventions:
 --   Pattern  1 — INSERT...SELECT (INSERT INTO ... WITH ... SELECT)
 --   Pattern  7 — MERGE INTO       (upsert via MERGE)
 --   Pattern  9 — WITH clause      (CTE to aggregate)

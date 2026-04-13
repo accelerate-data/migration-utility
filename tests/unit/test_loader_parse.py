@@ -1,8 +1,4 @@
-"""Unit tests for loader_parse.py — classify_statement and parse_body_statements.
-
-Per-pattern coverage for docs/design/coverage-matrix/scoping.md.
-Pattern numbers correspond to docs/design/coverage-matrix/statement-inventory.md.
-"""
+"""Unit tests for loader_parse.py — classify_statement and parse_body_statements."""
 
 from __future__ import annotations
 

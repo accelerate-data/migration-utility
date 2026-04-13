@@ -34,8 +34,7 @@ defaultTest:
 
 tests:
   # This package is the GREEN layer for the skill: it proves application behavior
-  # with the skill present. RED baseline evidence and REFACTOR loophole checks are
-  # documented in docs/design/eval-harness/generating-tests-skill-tdd.md.
+  # with the skill present.
 
   # ── merge — DimProduct MERGE WHEN MATCHED / NOT MATCHED ─────────────────────
   - description: "merge — DimProduct MERGE matched and not-matched branches"

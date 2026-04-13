@@ -2,7 +2,7 @@
 -- Adds a summary table and a PL/SQL procedure to the SH schema.
 -- Used as the execution target in OracleSandbox integration tests.
 --
--- Patterns covered (mapped from docs/design/tsql-parse-classification/README.md):
+-- Patterns covered by the Oracle sandbox fixture conventions:
 --   Pattern  1 — INSERT...SELECT (INSERT INTO ... WITH ... SELECT)
 --   Pattern  7 — MERGE INTO       (upsert via MERGE)
 --   Pattern  9 — WITH clause      (CTE to aggregate)

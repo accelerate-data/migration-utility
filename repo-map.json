@@ -101,7 +101,7 @@
     },
     "tests_evals": {
       "path": "tests/evals/",
-      "description": "Promptfoo eval harness for skill and command testing against MigrationTest schema. Per-scenario fixtures under fixtures/<package>/<scenario-slug>/ — each scenario has its own isolated fixture directory. Skill packages: listing-objects, profiling-table, generating-model, generating-tests, reviewing-tests, reviewing-model, analyzing-table, analyzing-table-readiness, refactoring-sql, view-pipeline. Command packages: cmd-scope, cmd-profile, cmd-generate-model, cmd-generate-tests, cmd-status, cmd-refactor, cmd-reset-migration, cmd-commit-push-pr. Live DB packages: oracle-live (extract+scope+profile against Docker Oracle), mssql-live (extract+scope+profile against Docker SQL Server). Regression packages: oracle-regression (per-command pipeline coverage against SH schema fixtures). Assertions use JS helpers under tests/evals/assertions/, including schema-helpers.js for shared path and term handling. No top-level config — npm run eval chains all package evals. See docs/design/eval-harness/README.md."
+      "description": "Promptfoo eval harness for skill and command testing against MigrationTest schema. Per-scenario fixtures live under fixtures/<package>/<scenario-slug>/; runnable configs live in packages/ plus the oracle-regression/, oracle-live/, and mssql-live/ package roots. Assertions live under tests/evals/assertions/, including schema-helpers.js for shared path and term handling. No top-level Promptfoo config — npm run eval chains the package configs."
     },
     "tests_ddl_mcp": {
       "path": "plugin/mcp/ddl/tests/",
@@ -117,7 +117,7 @@
     },
     "docs": {
       "path": "docs/",
-      "description": "Documentation. Use docs/design/README.md as the index for design topics. reference/ contains operator and contributor docs."
+      "description": "Documentation. docs/design/README.md defines the keep criteria for durable agent-facing design notes. docs/reference/ contains operator and contributor docs."
     },
     "test_fixtures": {
       "path": "test-fixtures/",
@@ -132,7 +132,7 @@
     "tests/evals/": "Promptfoo eval harness for skill and command testing (skill packages include listing-objects, profiling-table, generating-model, generating-tests, reviewing-tests, reviewing-model, analyzing-table, analyzing-table-readiness; command packages include cmd-scope, cmd-profile, cmd-generate-model, cmd-generate-tests, cmd-refactor, cmd-status, cmd-reset-migration, cmd-commit-push-pr)",
     "plugin/mcp/ddl/tests/": "Python pytest tests for the DDL MCP server. fixtures/oracle/ holds Oracle SH-schema DDL fixtures and manifest.",
     "test-fixtures/": "Cross-dialect Kimball DW fixture: schema DDL, baseline seed data, and delta scenarios for SQL Server, Oracle, PostgreSQL",
-    "docs/design/": "Architecture decision records and design specs",
+    "docs/design/": "Durable agent-facing design notes only; keep criteria are documented in docs/design/README.md",
     ".claude/rules/": "Shared agent rules such as coding-conventions, git-workflow, logging-policy, and codex-execution-policy",
     ".claude/skills/": "Workflow playbooks for repo-local Claude Code skills"
   },
