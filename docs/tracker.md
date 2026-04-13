@@ -11,7 +11,7 @@ This tracker is the working checklist for addressing the code review findings fr
 
 ## Tasks
 
-- [~] Task 9: Remove DuckDB support from the product surface
+- [x] Task 9: Remove DuckDB support from the product surface
   Scope:
   - Delete DuckDB runtime support so SQL Server and Oracle are the only supported technologies.
   - Remove DuckDB-specific adapters, sandbox logic, fixture scripts, tests, and metadata references.
@@ -36,6 +36,22 @@ This tracker is the working checklist for addressing the code review findings fr
   Notes:
   - Work is being done as a clean break. No unsupported DuckDB mode is left behind.
   - Historical tracker entries below may still mention DuckDB because they record already-completed review work from earlier passes.
+  Findings addressed:
+  - Runtime technology validation now accepts only SQL Server and Oracle.
+  - Runtime dialect validation now rejects stale DuckDB dialect values and mismatched technology/dialect pairs.
+  - DuckDB dbops and sandbox backends were deleted from the production registry.
+  - Target setup and manifest helpers no longer branch on DuckDB paths or dbt adapter types.
+  - Manifest write commands now scrub stale DuckDB runtime roles before persisting refreshed SQL Server or Oracle config.
+  - DuckDB fixture scripts, integration tests, and command/wiki/repo-map references were removed.
+  - Shared and DDL MCP lockfiles no longer retain the `duckdb` dependency.
+  Verification:
+  - `cd plugin/lib && uv run pytest ../../tests/unit/runtime_config/test_runtime_config.py ../../tests/unit/setup_ddl/test_setup_ddl.py ../../tests/unit/catalog_enrich/test_catalog_enrich.py ../../tests/unit/diagnostics/test_diagnostics.py ../../tests/unit/target_setup/test_target_setup.py ../../tests/unit/dbops/test_dbops.py ../../tests/unit/fixture_materialization/test_fixture_materialization.py ../../tests/unit/test_harness/test_test_harness.py ../../tests/unit/dry_run/test_dry_run.py ../../tests/unit/loader_io/test_loader_io.py`
+  - `cd plugin/lib && uv run pytest ../../tests/integration/sql_server/test_harness/test_test_harness_sql_server.py ../../tests/integration/oracle/test_harness/test_test_harness_oracle.py`
+  - `markdownlint docs/tracker.md`
+  Results:
+  - `shared unit suite`: 400 passed
+  - `shared integration harness suite`: 33 passed
+  - `docs/tracker.md`: markdownlint passed
 
 - [x] Task 8: Address 2026-04-13 Claude review findings
   Scope:

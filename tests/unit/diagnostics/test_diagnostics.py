@@ -7,6 +7,8 @@ import tempfile
 from pathlib import Path
 
 import pytest
+from tests.helpers import git_init
+import typer
 
 from shared.diagnostics import (
     _REGISTRY,
@@ -17,6 +19,7 @@ from shared.diagnostics import (
     _build_ddl_lookup,
     _build_known_fqns,
     _CheckSpec,
+    main,
     diagnostic,
     run_diagnostics,
 )
@@ -44,6 +47,17 @@ from diagnostics_helpers import (
     diag_write_catalog as _write_catalog,
     diag_write_ddl as _write_ddl,
 )
+
+
+def test_cli_unsupported_manifest_without_dialect_errors(tmp_path: Path) -> None:
+    git_init(tmp_path)
+    (tmp_path / "manifest.json").write_text(
+        json.dumps({"technology": "duckdb", "dialect": "duckdb"}),
+        encoding="utf-8",
+    )
+
+    with pytest.raises(ValueError, match="Unsupported: \\['duckdb'\\]"):
+        main(project_root=tmp_path, dialect=None)
 
 
 # ── Registry infrastructure ─────────────────────────────────────────────────

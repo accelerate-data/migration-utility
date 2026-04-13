@@ -6,6 +6,8 @@ import pytest
 from pydantic import ValidationError
 
 from shared.runtime_config import (
+    configured_technologies,
+    configured_dialects,
     dialect_for_technology,
     get_extracted_schemas,
     get_manifest_model,
@@ -13,8 +15,11 @@ from shared.runtime_config import (
     get_primary_technology,
     get_runtime_role,
     get_sandbox_name,
+    sanitize_manifest,
     set_extraction,
     set_runtime_role,
+    validate_supported_dialects,
+    validate_supported_technologies,
 )
 from shared.runtime_config_models import (
     RuntimeConnection,
@@ -128,6 +133,78 @@ def test_primary_helpers_prefer_source_role() -> None:
     assert get_primary_dialect(manifest) == "oracle"
 
 
+def test_primary_technology_rejects_unsupported_runtime_role() -> None:
+    manifest = {
+        "runtime": {
+            "source": {
+                "technology": "duckdb",
+                "dialect": "duckdb",
+                "connection": {"path": ".runtime/source.duckdb"},
+            }
+        }
+    }
+
+    assert get_primary_technology(manifest) is None
+
+
+def test_configured_technologies_includes_all_runtime_roles() -> None:
+    manifest = {
+        "technology": "sql_server",
+        "runtime": {
+            "source": {"technology": "sql_server", "dialect": "tsql", "connection": {"database": "SourceDB"}},
+            "target": {"technology": "oracle", "dialect": "oracle", "connection": {"service": "TARGETPDB"}},
+        },
+    }
+
+    assert configured_technologies(manifest) == ["sql_server", "sql_server", "oracle"]
+
+
+def test_validate_supported_technologies_rejects_mixed_manifest() -> None:
+    manifest = {
+        "runtime": {
+            "source": {"technology": "sql_server", "dialect": "tsql", "connection": {"database": "SourceDB"}},
+            "target": {"technology": "duckdb", "dialect": "duckdb", "connection": {"path": ".runtime/target.duckdb"}},
+        }
+    }
+
+    with pytest.raises(ValueError, match="Unsupported: \\['duckdb'\\]"):
+        validate_supported_technologies(manifest)
+
+
+def test_configured_dialects_includes_top_level_and_runtime_roles() -> None:
+    manifest = {
+        "dialect": "tsql",
+        "runtime": {
+            "source": {"technology": "sql_server", "dialect": "tsql", "connection": {"database": "SourceDB"}},
+            "target": {"technology": "oracle", "dialect": "oracle", "connection": {"service": "TARGETPDB"}},
+        },
+    }
+
+    assert configured_dialects(manifest) == ["tsql", "tsql", "oracle"]
+
+
+def test_validate_supported_dialects_rejects_unsupported_top_level_dialect() -> None:
+    manifest = {"technology": "sql_server", "dialect": "duckdb"}
+
+    with pytest.raises(ValueError, match="supported runtime dialect"):
+        validate_supported_dialects(manifest)
+
+
+def test_validate_supported_dialects_rejects_mismatched_runtime_dialect() -> None:
+    manifest = {
+        "runtime": {
+            "source": {
+                "technology": "sql_server",
+                "dialect": "oracle",
+                "connection": {"database": "SourceDB"},
+            }
+        }
+    }
+
+    with pytest.raises(ValueError, match="runtime.source technology and dialect"):
+        validate_supported_dialects(manifest)
+
+
 def test_primary_dialect_uses_technology_mapping_when_top_level_dialect_missing() -> None:
     manifest = {
         "runtime": {
@@ -141,6 +218,37 @@ def test_primary_dialect_uses_technology_mapping_when_top_level_dialect_missing(
     }
 
     assert get_primary_dialect(manifest) == "oracle"
+
+
+def test_set_runtime_role_scrubs_unsupported_existing_runtime_roles() -> None:
+    manifest = {
+        "runtime": {
+            "target": {
+                "technology": "duckdb",
+                "dialect": "duckdb",
+                "connection": {"path": ".runtime/target.duckdb"},
+            }
+        }
+    }
+
+    updated = set_runtime_role(
+        manifest,
+        "source",
+        RuntimeRole(
+            technology="sql_server",
+            dialect="tsql",
+            connection=RuntimeConnection(database="SourceDB"),
+        ),
+    )
+
+    assert "target" not in updated["runtime"]
+    assert updated["runtime"]["source"]["dialect"] == "tsql"
+
+
+def test_sanitize_manifest_drops_unsupported_top_level_fields() -> None:
+    manifest = {"technology": "duckdb", "dialect": "duckdb"}
+
+    assert sanitize_manifest(manifest) == {}
 
 
 def test_manifest_model_allows_runtime_and_extraction() -> None:

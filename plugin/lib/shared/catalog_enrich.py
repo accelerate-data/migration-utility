@@ -37,6 +37,11 @@ from shared.loader import (
 from shared.env_config import resolve_catalog_dir, resolve_project_root
 from shared.name_resolver import fqn_parts, normalize
 from shared.output_models.catalog_enrich import CatalogEnrichOutput
+from shared.runtime_config import (
+    get_primary_dialect,
+    get_primary_technology,
+    validate_supported_technologies,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -345,7 +350,21 @@ def main(
                 param_hint="--dialect",
             )
         manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
-        dialect = manifest["dialect"]
+        try:
+            validate_supported_technologies(manifest)
+        except ValueError as exc:
+            raise typer.BadParameter(str(exc), param_hint="--dialect") from exc
+        technology = get_primary_technology(manifest)
+        if technology is not None:
+            dialect = get_primary_dialect(manifest)
+        else:
+            dialect = manifest.get("dialect")
+            if dialect not in {"tsql", "oracle"}:
+                raise typer.BadParameter(
+                    "manifest.json does not define a supported dialect. "
+                    "Pass --dialect explicitly or configure sql_server/oracle runtime metadata.",
+                    param_hint="--dialect",
+                )
     result = enrich_catalog(project_root, dialect)
     json.dump(result.model_dump(mode="json", exclude_none=True), sys.stdout, indent=2)
     print(file=sys.stdout)  # trailing newline

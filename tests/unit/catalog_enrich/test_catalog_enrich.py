@@ -713,3 +713,16 @@ def test_cli_missing_manifest_without_dialect_errors(tmp_path: Path) -> None:
     assert result.returncode != 0
     combined = result.stdout + result.stderr
     assert "manifest.json" in combined
+
+
+def test_cli_unsupported_manifest_without_dialect_errors(tmp_path: Path) -> None:
+    """Unsupported manifest technology must fail instead of defaulting to its dialect."""
+    _git_init(tmp_path)
+    (tmp_path / "manifest.json").write_text(
+        json.dumps({"technology": "duckdb", "dialect": "duckdb"}),
+        encoding="utf-8",
+    )
+    result = _run_enrich_cli(tmp_path)
+    assert result.returncode != 0
+    combined = result.stdout + result.stderr
+    assert "unsupported: ['duckdb']" in combined.lower()

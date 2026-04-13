@@ -33,6 +33,7 @@ from shared.runtime_config import (
     get_runtime_role,
     get_sandbox_name,
     set_runtime_role,
+    validate_supported_technologies,
 )
 from shared.runtime_config_models import RuntimeRole
 
@@ -66,7 +67,8 @@ def read_manifest(project_root: Path) -> dict[str, Any]:
                 m = json.load(f)
         except json.JSONDecodeError as exc:
             raise ValueError(f"manifest.json in {project_root} is not valid JSON: {exc}") from exc
-        m.setdefault("dialect", get_primary_dialect(m))
+        validate_supported_technologies(m)
+        m["dialect"] = get_primary_dialect(m)
         return m
     return {"dialect": "tsql"}
 
@@ -90,8 +92,10 @@ def write_manifest_sandbox(project_root: Path, database: str) -> None:
     connection = sandbox_role.connection.model_copy(deep=True)
     if sandbox_role.technology == "oracle":
         connection.schema_name = database
-    else:
+    elif sandbox_role.technology == "sql_server":
         connection.database = database
+    else:
+        raise ValueError(f"Unsupported sandbox technology: {sandbox_role.technology}")
 
     manifest = set_runtime_role(
         manifest,

@@ -358,11 +358,30 @@ def main(
     """Run catalog diagnostics and write results to catalog JSON files."""
     from shared.env_config import resolve_project_root
     from shared.loader_io import read_manifest
+    from shared.runtime_config import (
+        get_primary_dialect,
+        get_primary_technology,
+        validate_supported_technologies,
+    )
 
     root = resolve_project_root(project_root)
     if dialect is None:
         manifest = read_manifest(root)
-        dialect = {"SQL Server": "tsql", "Oracle": "oracle"}.get(manifest.get("technology", ""), "tsql")
+        try:
+            validate_supported_technologies(manifest)
+        except ValueError as exc:
+            raise typer.BadParameter(str(exc), param_hint="--dialect") from exc
+        technology = get_primary_technology(manifest)
+        if technology is not None:
+            dialect = get_primary_dialect(manifest)
+        else:
+            dialect = manifest.get("dialect")
+            if dialect not in {"tsql", "oracle"}:
+                raise typer.BadParameter(
+                    "manifest.json does not define a supported dialect. "
+                    "Pass --dialect explicitly or configure sql_server/oracle runtime metadata.",
+                    param_hint="--dialect",
+                )
 
     result = run_diagnostics(root, dialect=dialect)
     typer.echo(json.dumps(result))

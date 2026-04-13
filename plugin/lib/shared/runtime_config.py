@@ -19,6 +19,74 @@ TECH_DIALECT = {
 }
 
 KNOWN_TECHNOLOGIES = frozenset(TECH_DIALECT)
+SUPPORTED_DIALECTS = frozenset(TECH_DIALECT.values())
+
+
+def configured_technologies(manifest: dict[str, Any]) -> list[str]:
+    """Return all explicitly configured manifest technologies."""
+    configured: list[str] = []
+    top_level = manifest.get("technology")
+    if isinstance(top_level, str) and top_level:
+        configured.append(top_level)
+    for role_name in ("source", "target", "sandbox"):
+        role = get_runtime_role(manifest, role_name)
+        if role is not None and role.technology:
+            configured.append(role.technology)
+    return configured
+
+
+def validate_supported_technologies(manifest: dict[str, Any]) -> None:
+    """Raise when manifest config includes unsupported technologies."""
+    unsupported = sorted({value for value in configured_technologies(manifest) if value not in KNOWN_TECHNOLOGIES})
+    if unsupported:
+        raise ValueError(
+            "manifest.json does not define a supported runtime technology. "
+            f"Unsupported: {unsupported}. Supported: {sorted(KNOWN_TECHNOLOGIES)}."
+        )
+
+
+def configured_dialects(manifest: dict[str, Any]) -> list[str]:
+    """Return all explicitly configured manifest dialects."""
+    configured: list[str] = []
+    top_level = manifest.get("dialect")
+    if isinstance(top_level, str) and top_level:
+        configured.append(top_level)
+    for role_name in ("source", "target", "sandbox"):
+        role = get_runtime_role(manifest, role_name)
+        if role is not None and role.dialect:
+            configured.append(role.dialect)
+    return configured
+
+
+def validate_supported_dialects(manifest: dict[str, Any]) -> None:
+    """Raise when manifest config includes unsupported or mismatched dialects."""
+    unsupported = sorted({value for value in configured_dialects(manifest) if value not in SUPPORTED_DIALECTS})
+    if unsupported:
+        raise ValueError(
+            "manifest.json does not define a supported runtime dialect. "
+            f"Unsupported: {unsupported}. Supported: {sorted(SUPPORTED_DIALECTS)}."
+        )
+
+    model = get_manifest_model(manifest)
+    if model.technology and model.dialect and model.technology in KNOWN_TECHNOLOGIES:
+        expected = dialect_for_technology(model.technology)
+        if model.dialect != expected:
+            raise ValueError(
+                "manifest.json has mismatched top-level technology and dialect. "
+                f"Expected {expected!r} for technology {model.technology!r}, got {model.dialect!r}."
+            )
+
+    runtime = model.runtime or RuntimeSection()
+    for role_name in ("source", "target", "sandbox"):
+        role = getattr(runtime, role_name, None)
+        if role is None or role.technology not in KNOWN_TECHNOLOGIES:
+            continue
+        expected = dialect_for_technology(role.technology)
+        if role.dialect != expected:
+            raise ValueError(
+                f"manifest.json has mismatched runtime.{role_name} technology and dialect. "
+                f"Expected {expected!r} for technology {role.technology!r}, got {role.dialect!r}."
+            )
 
 
 def dialect_for_technology(technology: str) -> str:
@@ -62,7 +130,8 @@ def get_primary_technology(manifest: dict[str, Any]) -> str | None:
     for role_name in ("source", "target", "sandbox"):
         role = get_runtime_role(manifest, role_name)
         if role is not None:
-            return role.technology
+            technology = role.technology
+            return technology if technology in KNOWN_TECHNOLOGIES else None
     model = get_manifest_model(manifest)
     technology = model.technology
     return technology if technology in KNOWN_TECHNOLOGIES else None
@@ -70,6 +139,8 @@ def get_primary_technology(manifest: dict[str, Any]) -> str | None:
 
 def get_primary_dialect(manifest: dict[str, Any]) -> str:
     """Return the source dialect or a top-level fallback."""
+    validate_supported_technologies(manifest)
+    validate_supported_dialects(manifest)
     source = get_runtime_role(manifest, "source")
     if source is not None:
         return source.dialect
@@ -107,7 +178,7 @@ def set_runtime_role(
     role: RuntimeRole | None,
 ) -> dict[str, Any]:
     """Set or clear a runtime role and return a validated manifest dict."""
-    updated = deepcopy(manifest)
+    updated = sanitize_manifest(manifest)
     runtime = dict(updated.get("runtime") or {})
     if role is None:
         runtime.pop(role_name, None)
@@ -129,6 +200,39 @@ def set_runtime_role(
         by_alias=True,
         exclude_none=True,
     )
+
+
+def sanitize_manifest(manifest: dict[str, Any]) -> dict[str, Any]:
+    """Drop unsupported runtime metadata and canonicalize supported dialects."""
+    updated = deepcopy(manifest)
+
+    runtime = updated.get("runtime")
+    if isinstance(runtime, dict):
+        cleaned_runtime: dict[str, Any] = {}
+        for role_name in ("source", "target", "sandbox"):
+            role = runtime.get(role_name)
+            if not isinstance(role, dict):
+                continue
+            technology = role.get("technology")
+            if technology not in KNOWN_TECHNOLOGIES:
+                continue
+            cleaned_role = deepcopy(role)
+            cleaned_role["dialect"] = dialect_for_technology(technology)
+            cleaned_runtime[role_name] = cleaned_role
+        if cleaned_runtime:
+            updated["runtime"] = cleaned_runtime
+        else:
+            updated.pop("runtime", None)
+
+    technology = updated.get("technology")
+    if technology in KNOWN_TECHNOLOGIES:
+        updated["dialect"] = dialect_for_technology(technology)
+    else:
+        updated.pop("technology", None)
+        if updated.get("dialect") not in SUPPORTED_DIALECTS:
+            updated.pop("dialect", None)
+
+    return updated
 
 
 def set_extraction(
