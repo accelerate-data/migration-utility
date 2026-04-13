@@ -17,13 +17,12 @@
   "warnings": [
     {
       "code": "dynamic_sql_untestable",
-      "message": "Write logic is embedded in sp_executesql called with a NVARCHAR variable (@sql), not a literal string. The INSERT SQL is not statically visible to the scoping agent, so fixture-based testing cannot reproduce this branch. Additionally, the recovered SQL references a cross-database table (MigrationTest.bronze.Currency) which is outside sandbox scope.",
+      "message": "Write logic is embedded in sp_executesql called with a NVARCHAR variable (@sql), not a literal string. The INSERT SQL is not statically visible to the scoping agent, so fixture-based testing cannot reproduce this branch.",
       "item_id": "silver.dimcurrency",
       "severity": "warning",
       "details": {
         "routing_reason": "dynamic_sql_variable",
-        "recovered_sql": "INSERT INTO silver.DimCurrency (CurrencyAlternateKey, CurrencyName) SELECT CurrencyCode, CurrencyName FROM MigrationTest.bronze.Currency",
-        "cross_database_reference": "MigrationTest.bronze.Currency"
+        "recovered_sql": "INSERT INTO silver.DimCurrency (CurrencyAlternateKey, CurrencyName) SELECT CurrencyCode, CurrencyName FROM MigrationTest.bronze_currency"
       }
     }
   ],

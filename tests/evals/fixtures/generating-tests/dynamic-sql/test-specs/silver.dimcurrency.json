@@ -15,7 +15,7 @@
     {
       "id": "insert_via_executesql_happy_path",
       "statement_index": 1,
-      "description": "INSERT SELECT via sp_executesql executes the dynamic SQL string, loading currency data from MigrationTest.bronze.Currency into silver.DimCurrency",
+      "description": "INSERT SELECT via sp_executesql executes the dynamic SQL string, loading currency data from MigrationTest.bronze_currency into silver.DimCurrency",
       "scenarios": [
         "test_insert_currencies_from_bronze_source"
       ]
@@ -23,7 +23,7 @@
     {
       "id": "empty_source_produces_no_rows",
       "statement_index": 1,
-      "description": "When source table MigrationTest.bronze.Currency is empty, the INSERT SELECT produces no rows",
+      "description": "When source table MigrationTest.bronze_currency is empty, the INSERT SELECT produces no rows",
       "scenarios": [
         "test_insert_empty_when_source_empty"
       ]
@@ -115,7 +115,7 @@
               "CurrencyName": "British Pound"
             }
           ],
-          "table": "[MigrationTest].[bronze].[Currency]"
+          "table": "[MigrationTest].[bronze_currency]"
         }
       ],
       "expect": {
@@ -146,7 +146,7 @@
       "given": [
         {
           "rows": [],
-          "table": "[MigrationTest].[bronze].[Currency]"
+          "table": "[MigrationTest].[bronze_currency]"
         }
       ],
       "expect": {
@@ -174,7 +174,7 @@
               "CurrencyName": "Australian Dollar"
             }
           ],
-          "table": "[MigrationTest].[bronze].[Currency]"
+          "table": "[MigrationTest].[bronze_currency]"
         }
       ],
       "expect": {
@@ -210,7 +210,7 @@
               "CurrencyName": "Swiss Franc"
             }
           ],
-          "table": "[MigrationTest].[bronze].[Currency]"
+          "table": "[MigrationTest].[bronze_currency]"
         }
       ],
       "expect": {
@@ -236,7 +236,7 @@
               "CurrencyName": "Mexican Peso"
             }
           ],
-          "table": "[MigrationTest].[bronze].[Currency]"
+          "table": "[MigrationTest].[bronze_currency]"
         }
       ],
       "expect": {
@@ -278,7 +278,7 @@
               "CurrencyName": "Taiwan Dollar"
             }
           ],
-          "table": "[MigrationTest].[bronze].[Currency]"
+          "table": "[MigrationTest].[bronze_currency]"
         }
       ],
       "expect": {
@@ -328,7 +328,7 @@
               "CurrencyName": "Norwegian Krone"
             }
           ],
-          "table": "[MigrationTest].[bronze].[Currency]"
+          "table": "[MigrationTest].[bronze_currency]"
         }
       ],
       "expect": {
@@ -353,13 +353,12 @@
   "warnings": [
     {
       "code": "dynamic_sql_variable",
-      "message": "Write logic is embedded in sp_executesql called with a NVARCHAR variable (@sql), so the INSERT SQL is not statically visible to the scoping agent. The recovered SQL semantics and schema mappings are fully documented in test specifications: TRUNCATE + INSERT SELECT from [MigrationTest].[bronze].[Currency] to [silver].[DimCurrency] with column mappings CurrencyCode→CurrencyAlternateKey and CurrencyName→CurrencyName.",
+      "message": "Write logic is embedded in sp_executesql called with a NVARCHAR variable (@sql), so the INSERT SQL is not statically visible to the scoping agent. The recovered SQL semantics and schema mappings are fully documented in test specifications: TRUNCATE + INSERT SELECT from [MigrationTest].[bronze_currency] to [silver].[DimCurrency] with column mappings CurrencyCode→CurrencyAlternateKey and CurrencyName→CurrencyName.",
       "item_id": "silver.dimcurrency",
       "severity": "warning",
       "details": {
         "routing_reason": "dynamic_sql_variable",
-        "recovered_sql": "INSERT INTO silver.DimCurrency (CurrencyAlternateKey, CurrencyName) SELECT CurrencyCode, CurrencyName FROM MigrationTest.bronze.Currency",
-        "cross_database_reference": "MigrationTest.bronze.Currency"
+        "recovered_sql": "INSERT INTO silver.DimCurrency (CurrencyAlternateKey, CurrencyName) SELECT CurrencyCode, CurrencyName FROM MigrationTest.bronze_currency"
       }
     }
   ],

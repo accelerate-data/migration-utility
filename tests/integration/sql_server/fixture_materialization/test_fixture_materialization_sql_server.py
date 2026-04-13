@@ -29,6 +29,26 @@ from tests.integration.runtime_helpers import (
 
 pytestmark = pytest.mark.integration
 
+SQL_SERVER_FIXTURE_BRONZE_PRODUCT = "bronze_product"
+SQL_SERVER_FIXTURE_SILVER_DIMPRODUCT = "silver_dimproduct"
+SQL_SERVER_FIXTURE_SILVER_LOAD_DIMCURRENCY_PROC = "silver_usp_load_dimcurrency"
+SQL_SERVER_FIXTURE_SILVER_LOAD_DIMPRODUCT_PROC = "silver_usp_load_dimproduct"
+SQL_SERVER_FIXTURE_SILVER_PROMOTION_VIEW = "silver_vw_dimpromotion"
+
+REQUIRED_FIXTURE_TABLES = (
+    SQL_SERVER_FIXTURE_BRONZE_CURRENCY,
+    SQL_SERVER_FIXTURE_BRONZE_PRODUCT,
+    SQL_SERVER_FIXTURE_SILVER_CONFIG,
+    SQL_SERVER_FIXTURE_SILVER_DIMCURRENCY,
+    SQL_SERVER_FIXTURE_SILVER_DIMPRODUCT,
+)
+REQUIRED_FIXTURE_PROCEDURES = (
+    SQL_SERVER_FIXTURE_SILVER_LOAD_DIMCURRENCY_PROC,
+    SQL_SERVER_FIXTURE_SILVER_LOAD_DIMPRODUCT_PROC,
+    SQL_SERVER_FIXTURE_SILVER_PATTERN_PROC,
+)
+REQUIRED_FIXTURE_VIEWS = (SQL_SERVER_FIXTURE_SILVER_PROMOTION_VIEW,)
+
 
 def _have_mssql_env() -> bool:
     return sql_server_is_available(pyodbc)
@@ -68,6 +88,26 @@ def _procedure_exists(cursor: pyodbc.Cursor, procedure_name: str) -> bool:
     return cursor.fetchone()[0] == 1
 
 
+def _view_exists(cursor: pyodbc.Cursor, view_name: str) -> bool:
+    cursor.execute(
+        "SELECT COUNT(*) FROM INFORMATION_SCHEMA.VIEWS "
+        "WHERE TABLE_SCHEMA = ? AND TABLE_NAME = ?",
+        (SQL_SERVER_FIXTURE_SCHEMA, view_name),
+    )
+    return cursor.fetchone()[0] == 1
+
+
+def _assert_fixture_contract(cursor: pyodbc.Cursor) -> None:
+    for table_name in REQUIRED_FIXTURE_TABLES:
+        assert _table_exists(cursor, table_name), f"missing required fixture table {table_name}"
+    for procedure_name in REQUIRED_FIXTURE_PROCEDURES:
+        assert _procedure_exists(
+            cursor, procedure_name
+        ), f"missing required fixture procedure {procedure_name}"
+    for view_name in REQUIRED_FIXTURE_VIEWS:
+        assert _view_exists(cursor, view_name), f"missing required fixture view {view_name}"
+
+
 @pytest.mark.skipif(not _have_mssql_env(), reason="SQL Server fixture env not configured")
 def test_materialize_migration_test_sql_server_creates_core_objects() -> None:
     role = _build_sql_server_fixture_role()
@@ -80,16 +120,13 @@ def test_materialize_migration_test_sql_server_creates_core_objects() -> None:
     )
     try:
         cursor = conn.cursor()
-        assert _table_exists(cursor, SQL_SERVER_FIXTURE_BRONZE_CURRENCY)
-        assert _table_exists(cursor, SQL_SERVER_FIXTURE_SILVER_DIMCURRENCY)
-        assert _table_exists(cursor, SQL_SERVER_FIXTURE_SILVER_CONFIG)
-        assert _procedure_exists(cursor, SQL_SERVER_FIXTURE_SILVER_PATTERN_PROC)
+        _assert_fixture_contract(cursor)
     finally:
         conn.close()
 
 
 @pytest.mark.skipif(not _have_mssql_env(), reason="SQL Server fixture env not configured")
-def test_materialize_migration_test_sql_server_is_idempotent() -> None:
+def test_materialize_migration_test_sql_server_repairs_downstream_contract_objects() -> None:
     role = _build_sql_server_fixture_role()
     first = materialize_migration_test(role, REPO_ROOT)
     assert first.returncode == 0, first.stderr
@@ -101,9 +138,17 @@ def test_materialize_migration_test_sql_server_is_idempotent() -> None:
     try:
         cursor = conn.cursor()
         cursor.execute(
-            f"DROP PROCEDURE [{SQL_SERVER_FIXTURE_SCHEMA}].[{SQL_SERVER_FIXTURE_SILVER_PATTERN_PROC}]"
+            f"DROP PROCEDURE [{SQL_SERVER_FIXTURE_SCHEMA}].[{SQL_SERVER_FIXTURE_SILVER_LOAD_DIMPRODUCT_PROC}]"
         )
-        assert not _procedure_exists(cursor, SQL_SERVER_FIXTURE_SILVER_PATTERN_PROC)
+        cursor.execute(
+            f"DROP TABLE [{SQL_SERVER_FIXTURE_SCHEMA}].[{SQL_SERVER_FIXTURE_SILVER_DIMPRODUCT}]"
+        )
+        cursor.execute(
+            f"DROP TABLE [{SQL_SERVER_FIXTURE_SCHEMA}].[{SQL_SERVER_FIXTURE_BRONZE_PRODUCT}]"
+        )
+        assert not _procedure_exists(cursor, SQL_SERVER_FIXTURE_SILVER_LOAD_DIMPRODUCT_PROC)
+        assert not _table_exists(cursor, SQL_SERVER_FIXTURE_SILVER_DIMPRODUCT)
+        assert not _table_exists(cursor, SQL_SERVER_FIXTURE_BRONZE_PRODUCT)
     finally:
         conn.close()
 
@@ -116,6 +161,6 @@ def test_materialize_migration_test_sql_server_is_idempotent() -> None:
     )
     try:
         cursor = conn.cursor()
-        assert _procedure_exists(cursor, SQL_SERVER_FIXTURE_SILVER_PATTERN_PROC)
+        _assert_fixture_contract(cursor)
     finally:
         conn.close()

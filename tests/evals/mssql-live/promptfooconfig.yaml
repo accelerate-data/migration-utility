@@ -34,11 +34,11 @@ tests:
   - description: "mssql live — FactInternetSales: extract → scope → profile"
     prompts: ["cmd-live-pipeline"]
     vars:
-      target_tables: "silver.FactInternetSales"
-      target_table: "silver.factinternetsales"
-      extract_flags: "--database MigrationTest --schemas silver"
+      target_tables: "MigrationTest.silver_factinternetsales"
+      target_table: "MigrationTest.silver_factinternetsales"
+      extract_flags: "--database AdventureWorks2022 --schemas MigrationTest"
       db_env_setup: "export MSSQL_HOST=localhost"
-      expected_item_statuses: '{"silver.FactInternetSales": "resolved"}'
+      expected_item_statuses: '{"MigrationTest.silver_factinternetsales": "resolved"}'
       expected_status: "resolved"
       expected_writer: "usp_stage_factinternetsales"
       expected_output_terms: "resolved"

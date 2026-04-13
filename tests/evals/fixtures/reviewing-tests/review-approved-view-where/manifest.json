@@ -5,13 +5,16 @@
     "source": {
       "technology": "mssql",
       "dialect": "tsql",
-      "connection": {}
+      "connection": {
+        "schema": "MigrationTest"
+      }
     },
     "sandbox": {
       "technology": "mssql",
       "dialect": "tsql",
       "connection": {
-        "database": "MigrationTest_Sandbox"
+        "database": "MigrationTest_Sandbox",
+        "schema": "MigrationTest"
       }
     }
   },

@@ -6,19 +6,23 @@
       "technology": "mssql",
       "dialect": "tsql",
       "connection": {
-        "database": "MigrationTest"
+        "database": "AdventureWorks2022",
+        "schema": "MigrationTest"
       }
     },
     "sandbox": {
       "technology": "mssql",
       "dialect": "tsql",
       "connection": {
-        "database": "MigrationTest"
+        "database": "AdventureWorks2022",
+        "schema": "MigrationTest"
       }
     }
   },
   "extraction": {
-    "schemas": [],
+    "schemas": [
+      "MigrationTest"
+    ],
     "extracted_at": "2026-04-06T00:00:00Z"
   }
 }

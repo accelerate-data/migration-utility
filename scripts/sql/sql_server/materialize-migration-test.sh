@@ -47,44 +47,51 @@ else
   SQLCMD=()
 fi
 
-escaped_schema="${MSSQL_SCHEMA//\'/\'\'}"
-OBJECTS_EXIST_SQL="$(cat <<SQL
-SET NOCOUNT ON;
-DECLARE @schema sysname = N'${escaped_schema}';
-SELECT CASE WHEN
-    EXISTS (
-        SELECT 1
-        FROM sys.tables AS t
-        JOIN sys.schemas AS s ON s.schema_id = t.schema_id
-        WHERE s.name = @schema AND t.name = 'bronze_currency'
-    ) AND EXISTS (
-        SELECT 1
-        FROM sys.tables AS t
-        JOIN sys.schemas AS s ON s.schema_id = t.schema_id
-        WHERE s.name = @schema AND t.name = 'silver_dimcurrency'
-    ) AND EXISTS (
-        SELECT 1
-        FROM sys.tables AS t
-        JOIN sys.schemas AS s ON s.schema_id = t.schema_id
-        WHERE s.name = @schema AND t.name = 'silver_config'
-    ) AND EXISTS (
-        SELECT 1
-        FROM sys.views AS v
-        JOIN sys.schemas AS s ON s.schema_id = v.schema_id
-        WHERE s.name = @schema AND v.name = 'silver_vw_dimpromotion'
-    ) AND EXISTS (
-        SELECT 1
-        FROM sys.procedures AS p
-        JOIN sys.schemas AS s ON s.schema_id = p.schema_id
-        WHERE s.name = @schema AND p.name = 'silver_usp_load_dimcurrency'
-    ) AND EXISTS (
-        SELECT 1
-        FROM sys.procedures AS p
-        JOIN sys.schemas AS s ON s.schema_id = p.schema_id
-        WHERE s.name = @schema AND p.name = 'silver_usp_unionall'
+declare -a REQUIRED_FIXTURE_OBJECTS=(
+  "table:bronze_currency"
+  "table:bronze_product"
+  "table:silver_config"
+  "table:silver_dimcurrency"
+  "table:silver_dimproduct"
+  "view:silver_vw_dimpromotion"
+  "procedure:silver_usp_load_dimcurrency"
+  "procedure:silver_usp_load_dimproduct"
+  "procedure:silver_usp_unionall"
+)
+
+OBJECTS_EXIST_SQL="$(python - <<'PY' "${MSSQL_SCHEMA}" "${REQUIRED_FIXTURE_OBJECTS[@]}"
+import sys
+
+schema_name = sys.argv[1].replace("'", "''")
+object_specs = sys.argv[2:]
+catalogs = {
+    "table": ("sys.tables", "t", "name"),
+    "view": ("sys.views", "v", "name"),
+    "procedure": ("sys.procedures", "p", "name"),
+}
+
+clauses: list[str] = []
+for spec in object_specs:
+    object_kind, object_name = spec.split(":", 1)
+    catalog, alias, name_column = catalogs[object_kind]
+    escaped_name = object_name.replace("'", "''")
+    clauses.append(
+        "EXISTS ("
+        " SELECT 1"
+        f" FROM {catalog} AS {alias}"
+        " JOIN sys.schemas AS s ON s.schema_id = "
+        f"{alias}.schema_id"
+        f" WHERE s.name = N'{schema_name}' AND {alias}.{name_column} = N'{escaped_name}'"
+        ")"
     )
-THEN 1 ELSE 0 END;
-SQL
+
+print("SET NOCOUNT ON;")
+print("SELECT CASE WHEN")
+for index, clause in enumerate(clauses):
+    prefix = "    " if index == 0 else " AND "
+    print(f"{prefix}{clause}")
+print("THEN 1 ELSE 0 END;")
+PY
 )"
 
 echo "materialize-migration-test sql_server db=${MSSQL_DB} schema=${MSSQL_SCHEMA} host=${MSSQL_HOST} port=${MSSQL_PORT}"
@@ -98,7 +105,7 @@ if [[ ${#SQLCMD[@]} -gt 0 ]]; then
   exit 0
 fi
 
-python - <<'PY' "${SQL_INPUT}" "${MSSQL_DB}" "${MSSQL_SCHEMA}"
+python - <<'PY' "${SQL_INPUT}" "${MSSQL_DB}" "${MSSQL_SCHEMA}" "${OBJECTS_EXIST_SQL}"
 import os
 import re
 import sys
@@ -114,6 +121,7 @@ except ImportError as exc:
 sql_path = Path(sys.argv[1])
 database_name = sys.argv[2]
 schema_name = sys.argv[3]
+objects_exist_sql = sys.argv[4]
 
 conn = pyodbc.connect(
     (
@@ -128,47 +136,7 @@ conn = pyodbc.connect(
 
 try:
     cursor = conn.cursor()
-    cursor.execute(
-        "SELECT CASE WHEN "
-        "    EXISTS ("
-        "        SELECT 1 "
-        "        FROM sys.tables AS t "
-        "        JOIN sys.schemas AS s ON s.schema_id = t.schema_id "
-        "        WHERE s.name = ? AND t.name = 'bronze_currency'"
-        "    ) AND EXISTS ("
-        "        SELECT 1 "
-        "        FROM sys.tables AS t "
-        "        JOIN sys.schemas AS s ON s.schema_id = t.schema_id "
-        "        WHERE s.name = ? AND t.name = 'silver_dimcurrency'"
-        "    ) AND EXISTS ("
-        "        SELECT 1 "
-        "        FROM sys.tables AS t "
-        "        JOIN sys.schemas AS s ON s.schema_id = t.schema_id "
-        "        WHERE s.name = ? AND t.name = 'silver_config'"
-        "    ) AND EXISTS ("
-        "        SELECT 1 "
-        "        FROM sys.views AS v "
-        "        JOIN sys.schemas AS s ON s.schema_id = v.schema_id "
-        "        WHERE s.name = ? AND v.name = 'silver_vw_dimpromotion'"
-        "    ) AND EXISTS ("
-        "        SELECT 1 "
-        "        FROM sys.procedures AS p "
-        "        JOIN sys.schemas AS s ON s.schema_id = p.schema_id "
-        "        WHERE s.name = ? AND p.name = 'silver_usp_load_dimcurrency'"
-        "    ) AND EXISTS ("
-        "        SELECT 1 "
-        "        FROM sys.procedures AS p "
-        "        JOIN sys.schemas AS s ON s.schema_id = p.schema_id "
-        "        WHERE s.name = ? AND p.name = 'silver_usp_unionall'"
-        "    ) "
-        "THEN 1 ELSE 0 END",
-        schema_name,
-        schema_name,
-        schema_name,
-        schema_name,
-        schema_name,
-        schema_name,
-    )
+    cursor.execute(objects_exist_sql)
     if cursor.fetchone()[0] == 1:
         print(
             f"MigrationTest fixture already exists in {database_name}.{schema_name}; "
