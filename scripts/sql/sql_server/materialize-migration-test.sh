@@ -48,7 +48,44 @@ else
 fi
 
 escaped_schema="${MSSQL_SCHEMA//\'/\'\'}"
-OBJECTS_EXIST_SQL="SET NOCOUNT ON; DECLARE @schema sysname = N'${escaped_schema}'; SELECT CASE WHEN EXISTS (SELECT 1 FROM INFORMATION_SCHEMA.TABLES WHERE TABLE_SCHEMA = @schema AND TABLE_NAME = 'bronze_currency') AND EXISTS (SELECT 1 FROM INFORMATION_SCHEMA.TABLES WHERE TABLE_SCHEMA = @schema AND TABLE_NAME = 'silver_dimcurrency') THEN 1 ELSE 0 END;"
+OBJECTS_EXIST_SQL="$(cat <<SQL
+SET NOCOUNT ON;
+DECLARE @schema sysname = N'${escaped_schema}';
+SELECT CASE WHEN
+    EXISTS (
+        SELECT 1
+        FROM sys.tables AS t
+        JOIN sys.schemas AS s ON s.schema_id = t.schema_id
+        WHERE s.name = @schema AND t.name = 'bronze_currency'
+    ) AND EXISTS (
+        SELECT 1
+        FROM sys.tables AS t
+        JOIN sys.schemas AS s ON s.schema_id = t.schema_id
+        WHERE s.name = @schema AND t.name = 'silver_dimcurrency'
+    ) AND EXISTS (
+        SELECT 1
+        FROM sys.tables AS t
+        JOIN sys.schemas AS s ON s.schema_id = t.schema_id
+        WHERE s.name = @schema AND t.name = 'silver_config'
+    ) AND EXISTS (
+        SELECT 1
+        FROM sys.views AS v
+        JOIN sys.schemas AS s ON s.schema_id = v.schema_id
+        WHERE s.name = @schema AND v.name = 'silver_vw_dimpromotion'
+    ) AND EXISTS (
+        SELECT 1
+        FROM sys.procedures AS p
+        JOIN sys.schemas AS s ON s.schema_id = p.schema_id
+        WHERE s.name = @schema AND p.name = 'silver_usp_load_dimcurrency'
+    ) AND EXISTS (
+        SELECT 1
+        FROM sys.procedures AS p
+        JOIN sys.schemas AS s ON s.schema_id = p.schema_id
+        WHERE s.name = @schema AND p.name = 'silver_usp_unionall'
+    )
+THEN 1 ELSE 0 END;
+SQL
+)"
 
 echo "materialize-migration-test sql_server db=${MSSQL_DB} schema=${MSSQL_SCHEMA} host=${MSSQL_HOST} port=${MSSQL_PORT}"
 if [[ ${#SQLCMD[@]} -gt 0 ]]; then
@@ -92,13 +129,43 @@ conn = pyodbc.connect(
 try:
     cursor = conn.cursor()
     cursor.execute(
-        "SELECT CASE WHEN EXISTS ("
-        "    SELECT 1 FROM INFORMATION_SCHEMA.TABLES "
-        "    WHERE TABLE_SCHEMA = ? AND TABLE_NAME = 'bronze_currency'"
-        ") AND EXISTS ("
-        "    SELECT 1 FROM INFORMATION_SCHEMA.TABLES "
-        "    WHERE TABLE_SCHEMA = ? AND TABLE_NAME = 'silver_dimcurrency'"
-        ") THEN 1 ELSE 0 END",
+        "SELECT CASE WHEN "
+        "    EXISTS ("
+        "        SELECT 1 "
+        "        FROM sys.tables AS t "
+        "        JOIN sys.schemas AS s ON s.schema_id = t.schema_id "
+        "        WHERE s.name = ? AND t.name = 'bronze_currency'"
+        "    ) AND EXISTS ("
+        "        SELECT 1 "
+        "        FROM sys.tables AS t "
+        "        JOIN sys.schemas AS s ON s.schema_id = t.schema_id "
+        "        WHERE s.name = ? AND t.name = 'silver_dimcurrency'"
+        "    ) AND EXISTS ("
+        "        SELECT 1 "
+        "        FROM sys.tables AS t "
+        "        JOIN sys.schemas AS s ON s.schema_id = t.schema_id "
+        "        WHERE s.name = ? AND t.name = 'silver_config'"
+        "    ) AND EXISTS ("
+        "        SELECT 1 "
+        "        FROM sys.views AS v "
+        "        JOIN sys.schemas AS s ON s.schema_id = v.schema_id "
+        "        WHERE s.name = ? AND v.name = 'silver_vw_dimpromotion'"
+        "    ) AND EXISTS ("
+        "        SELECT 1 "
+        "        FROM sys.procedures AS p "
+        "        JOIN sys.schemas AS s ON s.schema_id = p.schema_id "
+        "        WHERE s.name = ? AND p.name = 'silver_usp_load_dimcurrency'"
+        "    ) AND EXISTS ("
+        "        SELECT 1 "
+        "        FROM sys.procedures AS p "
+        "        JOIN sys.schemas AS s ON s.schema_id = p.schema_id "
+        "        WHERE s.name = ? AND p.name = 'silver_usp_unionall'"
+        "    ) "
+        "THEN 1 ELSE 0 END",
+        schema_name,
+        schema_name,
+        schema_name,
+        schema_name,
         schema_name,
         schema_name,
     )

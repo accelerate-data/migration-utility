@@ -260,14 +260,14 @@ GO
 -- Helper table for pattern-coverage procs
 -- ============================================================
 
-CREATE TABLE [__MSSQL_SCHEMA__].[config] (
+CREATE TABLE [__MSSQL_SCHEMA__].[silver_config] (
     ConfigID    INT IDENTITY(1,1) NOT NULL PRIMARY KEY,
     ConfigKey   NVARCHAR(100)     NOT NULL,
     ConfigValue NVARCHAR(255)     NULL
 );
 GO
 
-INSERT INTO [__MSSQL_SCHEMA__].[config] (ConfigKey, ConfigValue) VALUES
+INSERT INTO [__MSSQL_SCHEMA__].[silver_config] (ConfigKey, ConfigValue) VALUES
     ('full_reload', '1'),
     ('default_category', 'General'),
     ('cleanup_threshold', '1000');
@@ -579,7 +579,7 @@ USE [__MSSQL_DB__];
 GO
 
 -- Pattern 19: UNION ALL
-CREATE OR ALTER PROCEDURE [__MSSQL_SCHEMA__].[usp_unionall]
+CREATE OR ALTER PROCEDURE [__MSSQL_SCHEMA__].[silver_usp_unionall]
 AS
 BEGIN
     SET NOCOUNT ON;
@@ -593,7 +593,7 @@ END;
 GO
 
 -- Pattern 20: UNION (dedup)
-CREATE OR ALTER PROCEDURE [__MSSQL_SCHEMA__].[usp_union]
+CREATE OR ALTER PROCEDURE [__MSSQL_SCHEMA__].[silver_usp_union]
 AS
 BEGIN
     SET NOCOUNT ON;
@@ -607,7 +607,7 @@ END;
 GO
 
 -- Pattern 21: INTERSECT
-CREATE OR ALTER PROCEDURE [__MSSQL_SCHEMA__].[usp_intersect]
+CREATE OR ALTER PROCEDURE [__MSSQL_SCHEMA__].[silver_usp_intersect]
 AS
 BEGIN
     SET NOCOUNT ON;
@@ -619,7 +619,7 @@ END;
 GO
 
 -- Pattern 22: EXCEPT
-CREATE OR ALTER PROCEDURE [__MSSQL_SCHEMA__].[usp_except]
+CREATE OR ALTER PROCEDURE [__MSSQL_SCHEMA__].[silver_usp_except]
 AS
 BEGIN
     SET NOCOUNT ON;
@@ -631,7 +631,7 @@ END;
 GO
 
 -- Pattern 23: UNION ALL in CTE branch
-CREATE OR ALTER PROCEDURE [__MSSQL_SCHEMA__].[usp_unionallincte]
+CREATE OR ALTER PROCEDURE [__MSSQL_SCHEMA__].[silver_usp_unionallincte]
 AS
 BEGIN
     SET NOCOUNT ON;
@@ -646,7 +646,7 @@ END;
 GO
 
 -- Pattern 24: INNER JOIN (explicit keyword)
-CREATE OR ALTER PROCEDURE [__MSSQL_SCHEMA__].[usp_innerjoin]
+CREATE OR ALTER PROCEDURE [__MSSQL_SCHEMA__].[silver_usp_innerjoin]
 AS
 BEGIN
     SET NOCOUNT ON;
@@ -658,11 +658,11 @@ END;
 GO
 
 -- Pattern 25: FULL OUTER JOIN
-CREATE OR ALTER PROCEDURE [__MSSQL_SCHEMA__].[usp_fullouterjoin]
+CREATE OR ALTER PROCEDURE [__MSSQL_SCHEMA__].[silver_usp_fullouterjoin]
 AS
 BEGIN
     SET NOCOUNT ON;
-    INSERT INTO [__MSSQL_SCHEMA__].[config] (ConfigKey, ConfigValue)
+    INSERT INTO [__MSSQL_SCHEMA__].[silver_config] (ConfigKey, ConfigValue)
     SELECT COALESCE(CAST(c.CustomerID AS NVARCHAR(100)), 'no_customer'),
            COALESCE(p.FirstName, 'no_person')
     FROM [__MSSQL_SCHEMA__].[bronze_customer] c
@@ -671,11 +671,11 @@ END;
 GO
 
 -- Pattern 26: CROSS JOIN
-CREATE OR ALTER PROCEDURE [__MSSQL_SCHEMA__].[usp_crossjoin]
+CREATE OR ALTER PROCEDURE [__MSSQL_SCHEMA__].[silver_usp_crossjoin]
 AS
 BEGIN
     SET NOCOUNT ON;
-    INSERT INTO [__MSSQL_SCHEMA__].[config] (ConfigKey, ConfigValue)
+    INSERT INTO [__MSSQL_SCHEMA__].[silver_config] (ConfigKey, ConfigValue)
     SELECT CAST(t.TerritoryID AS NVARCHAR(100)), cur.CurrencyName
     FROM [__MSSQL_SCHEMA__].[bronze_salesterritory] t
     CROSS JOIN [__MSSQL_SCHEMA__].[bronze_currency] cur
@@ -684,7 +684,7 @@ END;
 GO
 
 -- Pattern 27: CROSS APPLY
-CREATE OR ALTER PROCEDURE [__MSSQL_SCHEMA__].[usp_crossapply]
+CREATE OR ALTER PROCEDURE [__MSSQL_SCHEMA__].[silver_usp_crossapply]
 AS
 BEGIN
     SET NOCOUNT ON;
@@ -705,7 +705,7 @@ END;
 GO
 
 -- Pattern 28: OUTER APPLY
-CREATE OR ALTER PROCEDURE [__MSSQL_SCHEMA__].[usp_outerapply]
+CREATE OR ALTER PROCEDURE [__MSSQL_SCHEMA__].[silver_usp_outerapply]
 AS
 BEGIN
     SET NOCOUNT ON;
@@ -725,11 +725,11 @@ END;
 GO
 
 -- Pattern 29: Self-join
-CREATE OR ALTER PROCEDURE [__MSSQL_SCHEMA__].[usp_selfjoin]
+CREATE OR ALTER PROCEDURE [__MSSQL_SCHEMA__].[silver_usp_selfjoin]
 AS
 BEGIN
     SET NOCOUNT ON;
-    INSERT INTO [__MSSQL_SCHEMA__].[config] (ConfigKey, ConfigValue)
+    INSERT INTO [__MSSQL_SCHEMA__].[silver_config] (ConfigKey, ConfigValue)
     SELECT CAST(a.ProductID AS NVARCHAR(100)), b.ProductName
     FROM [__MSSQL_SCHEMA__].[bronze_product] a
     JOIN [__MSSQL_SCHEMA__].[bronze_product] b ON a.ProductSubcategoryID = b.ProductSubcategoryID
@@ -739,7 +739,7 @@ END;
 GO
 
 -- Pattern 30: Derived table in FROM
-CREATE OR ALTER PROCEDURE [__MSSQL_SCHEMA__].[usp_derivedtable]
+CREATE OR ALTER PROCEDURE [__MSSQL_SCHEMA__].[silver_usp_derivedtable]
 AS
 BEGIN
     SET NOCOUNT ON;
@@ -758,7 +758,7 @@ END;
 GO
 
 -- Pattern 31: Scalar subquery in SELECT
-CREATE OR ALTER PROCEDURE [__MSSQL_SCHEMA__].[usp_scalarsubquery]
+CREATE OR ALTER PROCEDURE [__MSSQL_SCHEMA__].[silver_usp_scalarsubquery]
 AS
 BEGIN
     SET NOCOUNT ON;
@@ -772,7 +772,7 @@ END;
 GO
 
 -- Pattern 32: EXISTS subquery
-CREATE OR ALTER PROCEDURE [__MSSQL_SCHEMA__].[usp_existssubquery]
+CREATE OR ALTER PROCEDURE [__MSSQL_SCHEMA__].[silver_usp_existssubquery]
 AS
 BEGIN
     SET NOCOUNT ON;
@@ -787,7 +787,7 @@ END;
 GO
 
 -- Pattern 33: NOT EXISTS subquery
-CREATE OR ALTER PROCEDURE [__MSSQL_SCHEMA__].[usp_notexistssubquery]
+CREATE OR ALTER PROCEDURE [__MSSQL_SCHEMA__].[silver_usp_notexistssubquery]
 AS
 BEGIN
     SET NOCOUNT ON;
@@ -801,7 +801,7 @@ END;
 GO
 
 -- Pattern 34: IN subquery
-CREATE OR ALTER PROCEDURE [__MSSQL_SCHEMA__].[usp_insubquery]
+CREATE OR ALTER PROCEDURE [__MSSQL_SCHEMA__].[silver_usp_insubquery]
 AS
 BEGIN
     SET NOCOUNT ON;
@@ -817,7 +817,7 @@ END;
 GO
 
 -- Pattern 35: NOT IN subquery
-CREATE OR ALTER PROCEDURE [__MSSQL_SCHEMA__].[usp_notinsubquery]
+CREATE OR ALTER PROCEDURE [__MSSQL_SCHEMA__].[silver_usp_notinsubquery]
 AS
 BEGIN
     SET NOCOUNT ON;
@@ -833,7 +833,7 @@ END;
 GO
 
 -- Pattern 36: Recursive CTE
-CREATE OR ALTER PROCEDURE [__MSSQL_SCHEMA__].[usp_recursivecte]
+CREATE OR ALTER PROCEDURE [__MSSQL_SCHEMA__].[silver_usp_recursivecte]
 AS
 BEGIN
     SET NOCOUNT ON;
@@ -847,13 +847,13 @@ BEGIN
         JOIN hierarchy h ON p.ProductSubcategoryID = h.ProductID
         WHERE h.lvl < 3
     )
-    INSERT INTO [__MSSQL_SCHEMA__].[config] (ConfigKey, ConfigValue)
+    INSERT INTO [__MSSQL_SCHEMA__].[silver_config] (ConfigKey, ConfigValue)
     SELECT CAST(ProductID AS NVARCHAR(100)), ProductName FROM hierarchy;
 END;
 GO
 
 -- Pattern 37: UPDATE with CTE prefix
-CREATE OR ALTER PROCEDURE [__MSSQL_SCHEMA__].[usp_updatewithcte]
+CREATE OR ALTER PROCEDURE [__MSSQL_SCHEMA__].[silver_usp_updatewithcte]
 AS
 BEGIN
     SET NOCOUNT ON;
@@ -869,7 +869,7 @@ END;
 GO
 
 -- Pattern 38: DELETE with CTE prefix
-CREATE OR ALTER PROCEDURE [__MSSQL_SCHEMA__].[usp_deletewithcte]
+CREATE OR ALTER PROCEDURE [__MSSQL_SCHEMA__].[silver_usp_deletewithcte]
 AS
 BEGIN
     SET NOCOUNT ON;
@@ -884,7 +884,7 @@ END;
 GO
 
 -- Pattern 39: MERGE with CTE source
-CREATE OR ALTER PROCEDURE [__MSSQL_SCHEMA__].[usp_mergewithcte]
+CREATE OR ALTER PROCEDURE [__MSSQL_SCHEMA__].[silver_usp_mergewithcte]
 AS
 BEGIN
     SET NOCOUNT ON;
@@ -910,11 +910,11 @@ END;
 GO
 
 -- Pattern 40: GROUPING SETS
-CREATE OR ALTER PROCEDURE [__MSSQL_SCHEMA__].[usp_groupingsets]
+CREATE OR ALTER PROCEDURE [__MSSQL_SCHEMA__].[silver_usp_groupingsets]
 AS
 BEGIN
     SET NOCOUNT ON;
-    INSERT INTO [__MSSQL_SCHEMA__].[config] (ConfigKey, ConfigValue)
+    INSERT INTO [__MSSQL_SCHEMA__].[silver_config] (ConfigKey, ConfigValue)
     SELECT COALESCE(Color, 'ALL_COLORS'),
            CAST(COUNT(*) AS NVARCHAR(50))
     FROM [__MSSQL_SCHEMA__].[bronze_product]
@@ -923,11 +923,11 @@ END;
 GO
 
 -- Pattern 41: CUBE
-CREATE OR ALTER PROCEDURE [__MSSQL_SCHEMA__].[usp_cube]
+CREATE OR ALTER PROCEDURE [__MSSQL_SCHEMA__].[silver_usp_cube]
 AS
 BEGIN
     SET NOCOUNT ON;
-    INSERT INTO [__MSSQL_SCHEMA__].[config] (ConfigKey, ConfigValue)
+    INSERT INTO [__MSSQL_SCHEMA__].[silver_config] (ConfigKey, ConfigValue)
     SELECT COALESCE(Color, 'ALL') + '|' + COALESCE(ProductLine, 'ALL'),
            CAST(COUNT(*) AS NVARCHAR(50))
     FROM [__MSSQL_SCHEMA__].[bronze_product]
@@ -936,11 +936,11 @@ END;
 GO
 
 -- Pattern 42: ROLLUP
-CREATE OR ALTER PROCEDURE [__MSSQL_SCHEMA__].[usp_rollup]
+CREATE OR ALTER PROCEDURE [__MSSQL_SCHEMA__].[silver_usp_rollup]
 AS
 BEGIN
     SET NOCOUNT ON;
-    INSERT INTO [__MSSQL_SCHEMA__].[config] (ConfigKey, ConfigValue)
+    INSERT INTO [__MSSQL_SCHEMA__].[silver_config] (ConfigKey, ConfigValue)
     SELECT COALESCE(Color, 'ALL') + '|' + COALESCE(Class, 'ALL'),
            CAST(COUNT(*) AS NVARCHAR(50))
     FROM [__MSSQL_SCHEMA__].[bronze_product]
@@ -949,11 +949,11 @@ END;
 GO
 
 -- Pattern 43: PIVOT
-CREATE OR ALTER PROCEDURE [__MSSQL_SCHEMA__].[usp_pivot]
+CREATE OR ALTER PROCEDURE [__MSSQL_SCHEMA__].[silver_usp_pivot]
 AS
 BEGIN
     SET NOCOUNT ON;
-    INSERT INTO [__MSSQL_SCHEMA__].[config] (ConfigKey, ConfigValue)
+    INSERT INTO [__MSSQL_SCHEMA__].[silver_config] (ConfigKey, ConfigValue)
     SELECT pvt.TerritoryGroup, CAST(pvt.[1] + pvt.[2] + pvt.[3] AS NVARCHAR(50))
     FROM (
         SELECT st.TerritoryGroup, st.TerritoryID,
@@ -965,11 +965,11 @@ END;
 GO
 
 -- Pattern 44: UNPIVOT
-CREATE OR ALTER PROCEDURE [__MSSQL_SCHEMA__].[usp_unpivot]
+CREATE OR ALTER PROCEDURE [__MSSQL_SCHEMA__].[silver_usp_unpivot]
 AS
 BEGIN
     SET NOCOUNT ON;
-    INSERT INTO [__MSSQL_SCHEMA__].[config] (ConfigKey, ConfigValue)
+    INSERT INTO [__MSSQL_SCHEMA__].[silver_config] (ConfigKey, ConfigValue)
     SELECT CAST(unpvt.ProductID AS NVARCHAR(100)), unpvt.AttrValue
     FROM (
         SELECT ProductID,
