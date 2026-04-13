@@ -4,7 +4,7 @@ Tests the full compare_two_sql workflow: seed fixtures, run two SELECTs, symmetr
 Covers DML extraction patterns (INSERT, MERGE, UPDATE, DELETE), identity columns,
 FK constraints, NULL handling, MONEY types, and transaction rollback.
 
-Run with: cd plugin/lib && uv run pytest ../../tests/integration/sql_server/test_harness -v -k compare_sql
+Run with: cd lib && uv run pytest ../tests/integration/sql_server/test_harness -v -k compare_sql
 Requires: MSSQL_HOST, SA_PASSWORD, MSSQL_DB env vars (or Docker 'sql-test' on localhost:1433).
 """
 

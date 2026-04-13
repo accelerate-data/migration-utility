@@ -1,6 +1,6 @@
 # Command Workflow Reference
 
-Exact command flow for `plugin/skills/generating-tests`.
+Exact command flow for `skills/generating-tests`.
 
 ## Guard
 

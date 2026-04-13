@@ -2,6 +2,6 @@ You are running in a DDL project with canonical fixture input at {{fixture_path}
 
 Run /refactoring-sql for table {{target_table}} with writer {{writer}}.
 
-Read the skill at plugin/skills/refactoring-sql/SKILL.md. Wherever it references `${CLAUDE_PLUGIN_ROOT}/lib`, use `plugin/lib` instead. Pass `--project-root {{run_path}}` to all CLI commands. Do not add `--writer` to `refactor context` unless the skill explicitly needs it from catalog absence.
+Read the skill at `${CLAUDE_PLUGIN_ROOT}/skills/refactoring-sql/SKILL.md`. Keep `${CLAUDE_PLUGIN_ROOT}` references as written. Pass `--project-root {{run_path}}` to all CLI commands. Do not add `--writer` to `refactor context` unless the skill explicitly needs it from catalog absence.
 
 No live SQL Server sandbox is available. Skip the `compare-sql` step, write a semantic review JSON file, and persist the refactor with `--no-compare-required`.

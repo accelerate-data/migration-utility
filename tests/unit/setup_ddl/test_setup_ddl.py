@@ -79,7 +79,7 @@ class _FakeSqlConn:
 
 def test_run_extract_fails_loudly_on_manifest_read_error(tmp_path: Path) -> None:
     import sys
-    sys.path.insert(0, str(Path(__file__).resolve().parents[3] / "plugin" / "lib"))
+    sys.path.insert(0, str(Path(__file__).resolve().parents[3] / "lib"))
     from shared import setup_ddl
     from shared.setup_ddl_support import extract as setup_ddl_extract
 
@@ -1399,7 +1399,7 @@ class TestExtractOracleUnit:
     def test_pk_rows_feed_apply_pk_unique(self, tmp_path):
         """Verify PK rows from Oracle fixture are consumed correctly by _apply_pk_unique_rows."""
         import sys
-        sys.path.insert(0, str(Path(__file__).resolve().parents[3] / "plugin" / "lib"))
+        sys.path.insert(0, str(Path(__file__).resolve().parents[3] / "lib"))
         from shared.setup_ddl_support.staging import apply_pk_unique_rows
 
         rows = json.loads((ORACLE_FIXTURE_DIR / "all_constraints_pk_uk.json").read_text())
@@ -1415,7 +1415,7 @@ class TestExtractOracleUnit:
     def test_fk_rows_feed_apply_fk_rows(self, tmp_path):
         """Verify FK rows from Oracle fixture are consumed correctly by _apply_fk_rows."""
         import sys
-        sys.path.insert(0, str(Path(__file__).resolve().parents[3] / "plugin" / "lib"))
+        sys.path.insert(0, str(Path(__file__).resolve().parents[3] / "lib"))
         from shared.setup_ddl_support.staging import apply_fk_rows
 
         rows = json.loads((ORACLE_FIXTURE_DIR / "all_constraints_fk.json").read_text())
@@ -1440,7 +1440,7 @@ class TestExtractOracleUnit:
     def test_extract_view_ddl_reconstructs_from_all_views(self):
         """_extract_view_ddl builds CREATE OR REPLACE VIEW DDL from ALL_VIEWS rows."""
         import sys
-        sys.path.insert(0, str(Path(__file__).resolve().parents[3] / "plugin" / "lib"))
+        sys.path.insert(0, str(Path(__file__).resolve().parents[3] / "lib"))
         from shared.oracle_extract import _extract_view_ddl
         from unittest.mock import MagicMock
 
@@ -1469,7 +1469,7 @@ class TestExtractOracleUnit:
     def test_extract_view_ddl_falls_back_on_empty_text(self):
         """_extract_view_ddl falls back to DBMS_METADATA when ALL_VIEWS.TEXT is empty."""
         import sys
-        sys.path.insert(0, str(Path(__file__).resolve().parents[3] / "plugin" / "lib"))
+        sys.path.insert(0, str(Path(__file__).resolve().parents[3] / "lib"))
         from shared.oracle_extract import _extract_view_ddl
         from unittest.mock import MagicMock, call
 
@@ -1500,7 +1500,7 @@ class TestExtractOracleUnit:
         exactly 32,767 characters as potentially truncated and use DBMS_METADATA instead.
         """
         import sys
-        sys.path.insert(0, str(Path(__file__).resolve().parents[3] / "plugin" / "lib"))
+        sys.path.insert(0, str(Path(__file__).resolve().parents[3] / "lib"))
         from shared.oracle_extract import _extract_view_ddl
         from unittest.mock import MagicMock
 
@@ -1530,7 +1530,7 @@ class TestExtractOracleUnit:
 def test_run_assemble_tables_missing_manifest_raises(tmp_path: Path) -> None:
     """run_assemble_tables propagates ValueError when manifest.json is absent."""
     import sys
-    sys.path.insert(0, str(Path(__file__).resolve().parents[3] / "plugin" / "lib"))
+    sys.path.insert(0, str(Path(__file__).resolve().parents[3] / "lib"))
     from shared.setup_ddl import run_assemble_tables
 
     input_file = tmp_path / "input.json"
@@ -1551,7 +1551,7 @@ class TestConnectionIdentity:
     @staticmethod
     def _import():
         import sys
-        sys.path.insert(0, str(Path(__file__).resolve().parents[3] / "plugin" / "lib"))
+        sys.path.insert(0, str(Path(__file__).resolve().parents[3] / "lib"))
         from shared.setup_ddl_support.catalog_write import mark_all_catalog_stale
         from shared.setup_ddl_support.manifest import (
             get_connection_identity,
@@ -1698,7 +1698,7 @@ class TestConnectionIdentity:
         monkeypatch.setenv("MSSQL_PORT", "1433")
 
         import sys
-        sys.path.insert(0, str(Path(__file__).resolve().parents[3] / "plugin" / "lib"))
+        sys.path.insert(0, str(Path(__file__).resolve().parents[3] / "lib"))
         from shared.setup_ddl_support.catalog_write import mark_all_catalog_stale
         from shared.setup_ddl_support.manifest import get_connection_identity, identity_changed
 
@@ -1736,7 +1736,7 @@ class TestConnectionIdentity:
         monkeypatch.setenv("MSSQL_PORT", "1433")
 
         import sys
-        sys.path.insert(0, str(Path(__file__).resolve().parents[3] / "plugin" / "lib"))
+        sys.path.insert(0, str(Path(__file__).resolve().parents[3] / "lib"))
         from shared.setup_ddl_support.manifest import get_connection_identity, identity_changed
 
         current_identity = get_connection_identity("sql_server", "DB1")

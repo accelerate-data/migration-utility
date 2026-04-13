@@ -5,13 +5,13 @@
   "package_managers": [
     {
       "name": "uv (shared)",
-      "lockfile": "plugin/lib/uv.lock",
-      "manifest": "plugin/lib/pyproject.toml"
+      "lockfile": "lib/uv.lock",
+      "manifest": "lib/pyproject.toml"
     },
     {
       "name": "uv (ddl-mcp)",
-      "lockfile": "plugin/mcp/ddl/uv.lock",
-      "manifest": "plugin/mcp/ddl/pyproject.toml"
+      "lockfile": "mcp/ddl/uv.lock",
+      "manifest": "mcp/ddl/pyproject.toml"
     }
   ],
   "build_systems": [
@@ -31,11 +31,11 @@
   "test_frameworks": [
     {
       "name": "pytest (shared)",
-      "scope": "Shared Python tests. Default unit run: cd plugin/lib && uv run pytest. Technology-backed integration runs use explicit paths under tests/integration/<technology>/<module>/."
+      "scope": "Shared Python tests. Default unit run: cd lib && uv run pytest. Technology-backed integration runs use explicit paths under tests/integration/<technology>/<module>/."
     },
     {
       "name": "pytest (ddl-mcp)",
-      "scope": "DDL MCP tests. Default unit run: cd plugin/mcp/ddl && uv run pytest. Oracle live coverage runs by explicit path under plugin/mcp/ddl/tests/integration/oracle/."
+      "scope": "DDL MCP tests. Default unit run: cd mcp/ddl && uv run pytest. Oracle live coverage runs by explicit path under mcp/ddl/tests/integration/oracle/."
     },
     {
       "name": "promptfoo",
@@ -46,53 +46,53 @@
     {
       "name": "ad-migration plugin",
       "type": "Claude Code plugin",
-      "description": "DDL analysis and migration pipeline. Single unified plugin with commands and skills. Loaded via: claude --plugin-dir plugin/"
+      "description": "DDL analysis and migration pipeline. Single unified plugin with commands and skills. Loaded via: claude --plugin-dir ."
     }
   ],
   "entrypoints": {
-    "ddl_mcp_server": "plugin/mcp/ddl/server.py",
-    "discover_cli": "plugin/lib/shared/discover.py",
-    "catalog_enrich_cli": "plugin/lib/shared/catalog_enrich.py",
-    "diagnostics_cli": "plugin/lib/shared/diagnostics/__init__.py",
-    "migrate_cli": "plugin/lib/shared/migrate.py",
-    "init_cli": "plugin/lib/shared/init.py",
-    "profile_cli": "plugin/lib/shared/profile.py",
-    "test_harness_cli": "plugin/lib/shared/test_harness.py",
-    "migrate_util_cli": "plugin/lib/shared/dry_run.py",
-    "generate_sources_cli": "plugin/lib/shared/generate_sources.py",
-    "refactor_cli": "plugin/lib/shared/refactor.py"
+    "ddl_mcp_server": "mcp/ddl/server.py",
+    "discover_cli": "lib/shared/discover.py",
+    "catalog_enrich_cli": "lib/shared/catalog_enrich.py",
+    "diagnostics_cli": "lib/shared/diagnostics/__init__.py",
+    "migrate_cli": "lib/shared/migrate.py",
+    "init_cli": "lib/shared/init.py",
+    "profile_cli": "lib/shared/profile.py",
+    "test_harness_cli": "lib/shared/test_harness.py",
+    "migrate_util_cli": "lib/shared/dry_run.py",
+    "generate_sources_cli": "lib/shared/generate_sources.py",
+    "refactor_cli": "lib/shared/refactor.py"
   },
   "modules": {
     "plugin_manifest": {
-      "path": "plugin/.claude-plugin/plugin.json",
+      "path": ".claude-plugin/plugin.json",
       "description": "Plugin manifest for the unified ad-migration plugin."
     },
     "sandbox_backends": {
-      "path": "plugin/lib/shared/sandbox/",
+      "path": "lib/shared/sandbox/",
       "description": "Technology-specific sandbox backends for test harness. base.py: abstract SandboxBackend interface. sql_server.py: pyodbc-based SQL Server sandbox lifecycle (schema cloning via SELECT INTO, proc cloning via OBJECT_DEFINITION, scenario execution). oracle.py: oracledb-based Oracle sandbox lifecycle (schema-level via CREATE USER, table cloning via CTAS, proc cloning via ALL_SOURCE, scenario execution with NLS date handling)."
     },
     "shared_python": {
-      "path": "plugin/lib/shared/",
-      "description": "Python library for DDL analysis. Modules: loader.py (DDL parsing facade), loader_data.py (data structures for parsed DDL entries), loader_io.py (DDL file I/O), loader_parse.py (control-flow-aware leaf parsing and reference extraction), block_segmenter.py (T-SQL control-flow block segmentation for IF/ELSE, WHILE, TRY/CATCH, BEGIN/END), tsql_utils.py (shared T-SQL masking helpers for routing scans and segmentation), routing.py (T-SQL routing flag detection — all EXEC/control-flow regex patterns and scan_routing_flags(); extracted from catalog.py to break the catalog↔loader_parse circular import), discover.py (catalog-mandatory discover CLI/barrel for list/show/refs and write-back routing), discover_support/ (browse.py for discover list/show/refs logic split out of discover.py), view_analysis.py (sqlglot-based view SQL element extraction — JOINs, CTEs, aggregations, window functions), catalog_writer.py (schema-validated catalog write-back operations — run_write_statements, run_write_scoping, run_write_view_scoping, run_write_source, run_write_table_slice), init.py (migration project scaffolding — SourceConfig registry, run_scaffold_project, run_scaffold_hooks, and FreeTDS verification CLI), freetds.py (Homebrew FreeTDS installation and unixODBC registration checks/repair for SQL Server init), init_templates.py (per-technology template functions for CLAUDE.md, README, .envrc, repo-map, pre-commit hook), catalog.py (catalog JSON I/O — write_table_catalog, write_proc_catalog, write_view_catalog, write_function_catalog per-type writers; load_*_catalog per-type readers; detect_catalog_bucket/detect_object_type catalog resolution helpers; snapshot_enriched_fields/restore_enriched_fields for re-extract field preservation), catalog_models.py (Pydantic v2 models for all catalog types — TableCatalog, ProcedureCatalog, ViewCatalog, FunctionCatalog — plus per-type scoping/profile sections with strict contracts (TableScopingSection, ViewScopingSection, CandidateWriter, SqlElement, DiagnosticsEntry), ScopingSummary batch rollup, shared refactor/test_gen/generate sections, and reference models), catalog_dmf.py (write_catalog_files orchestration), catalog_diff.py (diff-aware classification of catalog objects — hash comparison and unchanged/changed/new/removed classification), catalog_enrich.py (offline AST enrichment CLI — BFS call graph, SELECT INTO/TRUNCATE detection), ddl_hash.py (deterministic DDL hashing — whitespace-normalized SHA-256 for definitions and canonical JSON for table signals), setup_ddl.py (Typer CLI facade for setup-ddl commands), setup_ddl_core.py (thin compatibility barrel for setup-ddl public entrypoints), setup_ddl_support/ (split setup-ddl internals — manifest.py for technology/manifest/source-identity logic, staging.py for staging JSON normalization, catalog_write.py for diff-aware catalog writes and stale marking, extract.py for live extraction, source discovery, and end-to-end run_extract), sqlserver_extract.py (direct pyodbc extraction for SQL Server — all 13 catalog signal queries, DMF reference queries via Python loop; called by run_extract), oracle_extract.py (direct oracledb extraction for Oracle — DBMS_METADATA DDL, ALL_TAB_COLUMNS, ALL_CONSTRAINTS, ALL_DEPENDENCIES; called by run_extract), migrate.py (migrate CLI/barrel for context, write, write-catalog, and render-unit-tests commands), migrate_support/ (derivation, context assembly, and artifact/render helpers split out of migrate.py), profile.py (profiling context assembly + write-back CLI), refactor.py (refactor CLI/barrel for context and write commands plus compatibility exports), refactor_support/ (diffing.py for symmetric diff helpers, context.py for refactor context assembly, writeback.py for refactor validation and catalog writes split out of refactor.py), refactor_error_codes.md (canonical `/refactor` surfaced-code contract shared by the command and skill), test_harness.py (test-harness CLI/barrel for sandbox lifecycle, compare-sql, write, and validate-review commands), test_harness_support/ (manifest/backend resolution, scenario execution, catalog write, and review validation helpers split out of test_harness.py), dry_run.py (migrate-util CLI facade; subcommands: status, ready, batch-plan, exclude, sync-excluded-warnings), dry_run_core.py (migrate-util readiness, status collation, exclusion mutation, and excluded-dependency warning reconciliation), batch_plan.py (migrate-util batch-plan subcommand — Kahn's topological batch scheduler, catalog enumeration, output assembly; splits tables into source_tables/source_pending/pipeline buckets; output contract: output_models.BatchPlanOutput), deps.py (transitive dependency traversal — collect_deps, _expand_view_refs, _expand_proc_refs, dbt model detection helpers), pipeline_status.py (pipeline stage status and diagnostics — object_pipeline_status, collect_object_diagnostics, _compute_status_and_diagnostics with deduplication), runtime_config.py and runtime_config_models.py (typed manifest/runtime contract for independent source, target, sandbox, and extraction sections), target_setup.py (target-schema resolution plus target-mapped sources.yml orchestration), dbops/ (technology-specific database operation adapters for SQL Server and Oracle plus fixture materialization script resolution), generate_sources.py (generate-sources CLI — reads catalog/tables/, includes only is_source: true tables in sources.yml, supports target source-schema remapping, reports unconfirmed/excluded/incomplete lists; --write writes dbt/models/staging/sources.yml, --strict fails on incomplete scoping), env_config.py (git-repo assertion, project-root/dbt-path/ddl-dir/catalog-dir resolution with env-var overrides), dmf_processing.py (DMF row processing helpers), sql_types.py (SQL type mappings), name_resolver.py (FQN normalization), db_connect.py (public sql_server_connect + oracle_connect connection factories — shared by setup_ddl, sqlserver_extract, oracle_extract), context_helpers.py (shared catalog context loaders: load_table_profile, load_proc_statements, load_proc_body, load_table_columns, collect_source_tables, sandbox_metadata, load_test_spec — used by migrate.py, refactor_support/context.py), cli_utils.py (shared emit function for JSON stdout output — used by all CLI modules), output_models/ (domain-split Pydantic output contract package with compatibility barrel at shared.output_models), diagnostics/ (extensible diagnostic registry with decorator-based check registration, two-pass runner, and cross-dialect checks — __init__.py: registry + runner + CLI, common.py: 11 cross-dialect checks, sqlserver.py: 8 SQL Server dialect-specific checks, oracle.py: Oracle-specific checks (LONG_TRUNCATION, PACKAGE_MEMBER, PIPELINED_FUNCTION); materialized_views bucket supported across known FQNs, object buckets, and reference resolution)."
+      "path": "lib/shared/",
+      "description": "Python library for DDL analysis. Modules: loader.py (DDL parsing facade), loader_data.py (data structures for parsed DDL entries), loader_io.py (DDL file I/O), loader_parse.py (control-flow-aware leaf parsing and reference extraction), block_segmenter.py (T-SQL control-flow block segmentation for IF/ELSE, WHILE, TRY/CATCH, BEGIN/END), tsql_utils.py (shared T-SQL masking helpers for routing scans and segmentation), routing.py (T-SQL routing flag detection — all EXEC/control-flow regex patterns and scan_routing_flags(); extracted from catalog.py to break the catalog↔loader_parse circular import), discover.py (catalog-mandatory discover CLI/barrel for list/show/refs and write-back routing), discover_support/ (browse.py for discover list/show/refs logic split out of discover.py), view_analysis.py (sqlglot-based view SQL element extraction — JOINs, CTEs, aggregations, window functions), catalog_writer.py (schema-validated catalog write-back operations — run_write_statements, run_write_scoping, run_write_view_scoping, run_write_source, run_write_table_slice), init.py (migration project scaffolding — SourceConfig registry, run_scaffold_project, run_scaffold_hooks, and FreeTDS verification CLI), freetds.py (Homebrew FreeTDS installation and unixODBC registration checks/repair for SQL Server init), init_templates.py (per-technology template functions for CLAUDE.md, README, .envrc, repo-map, pre-commit hook), catalog.py (catalog JSON I/O — write_table_catalog, write_proc_catalog, write_view_catalog, write_function_catalog per-type writers; load_*_catalog per-type readers; detect_catalog_bucket/detect_object_type catalog resolution helpers; snapshot_enriched_fields/restore_enriched_fields for re-extract field preservation), catalog_models.py (Pydantic v2 models for all catalog types — TableCatalog, ProcedureCatalog, ViewCatalog, FunctionCatalog — plus per-type scoping/profile sections with strict contracts (TableScopingSection, ViewScopingSection, CandidateWriter, SqlElement, DiagnosticsEntry), ScopingSummary batch rollup, shared refactor/test_gen/generate sections, and reference models), catalog_dmf.py (write_catalog_files orchestration), catalog_diff.py (diff-aware classification of catalog objects — hash comparison and unchanged/changed/new/removed classification), catalog_enrich.py (offline AST enrichment CLI — BFS call graph, SELECT INTO/TRUNCATE detection), ddl_hash.py (deterministic DDL hashing — whitespace-normalized SHA-256 for definitions and canonical JSON for table signals), setup_ddl.py (Typer CLI facade for setup-ddl commands), setup_ddl_core.py (thin compatibility barrel for setup-ddl public entrypoints), setup_ddl_support/ (split setup-ddl internals — manifest.py for technology/manifest/source-identity logic, staging.py for staging JSON normalization, catalog_write.py for diff-aware catalog writes and stale marking, extract.py for live extraction, source discovery, and end-to-end run_extract), sqlserver_extract.py (direct pyodbc extraction for SQL Server — all 13 catalog signal queries, DMF reference queries via Python loop; called by run_extract), oracle_extract.py (direct oracledb extraction for Oracle — DBMS_METADATA DDL, ALL_TAB_COLUMNS, ALL_CONSTRAINTS, ALL_DEPENDENCIES; called by run_extract), migrate.py (migrate CLI/barrel for context, write, write-catalog, and render-unit-tests commands), migrate_support/ (derivation, context assembly, and artifact/render helpers split out of migrate.py), profile.py (profiling context assembly + write-back CLI), refactor.py (refactor CLI/barrel for context and write commands plus compatibility exports), refactor_support/ (diffing.py for symmetric diff helpers, context.py for refactor context assembly, writeback.py for refactor validation and catalog writes split out of refactor.py), refactor_error_codes.md (canonical `/refactor` surfaced-code contract shared by the command and skill), test_harness.py (test-harness CLI/barrel for sandbox lifecycle, compare-sql, write, and validate-review commands), test_harness_support/ (manifest/backend resolution, scenario execution, catalog write, and review validation helpers split out of test_harness.py), dry_run.py (migrate-util CLI facade; subcommands: status, ready, batch-plan, exclude, sync-excluded-warnings), dry_run_core.py (migrate-util readiness, status collation, exclusion mutation, and excluded-dependency warning reconciliation), batch_plan.py (migrate-util batch-plan subcommand — Kahn's topological batch scheduler, catalog enumeration, output assembly; splits tables into source_tables/source_pending/pipeline buckets; output contract: output_models.BatchPlanOutput), deps.py (transitive dependency traversal — collect_deps, _expand_view_refs, _expand_proc_refs, dbt model detection helpers), pipeline_status.py (pipeline stage status and diagnostics — object_pipeline_status, collect_object_diagnostics, _compute_status_and_diagnostics with deduplication), runtime_config.py and runtime_config_models.py (typed manifest/runtime contract for independent source, target, sandbox, and extraction sections), target_setup.py (target-schema resolution plus target-mapped sources.yml orchestration), dbops/ (technology-specific database operation adapters for SQL Server, Oracle, and DuckDB plus fixture materialization script resolution), generate_sources.py (generate-sources CLI — reads catalog/tables/, includes only is_source: true tables in sources.yml, supports target source-schema remapping, reports unconfirmed/excluded/incomplete lists; --write writes dbt/models/staging/sources.yml, --strict fails on incomplete scoping), env_config.py (git-repo assertion, project-root/dbt-path/ddl-dir/catalog-dir resolution with env-var overrides), dmf_processing.py (DMF row processing helpers), sql_types.py (SQL type mappings), name_resolver.py (FQN normalization), db_connect.py (public sql_server_connect + oracle_connect connection factories — shared by setup_ddl, sqlserver_extract, oracle_extract), context_helpers.py (shared catalog context loaders: load_table_profile, load_proc_statements, load_proc_body, load_table_columns, collect_source_tables, sandbox_metadata, load_test_spec — used by migrate.py, refactor_support/context.py), cli_utils.py (shared emit function for JSON stdout output — used by all CLI modules), output_models/ (domain-split Pydantic output contract package with compatibility barrel at shared.output_models), diagnostics/ (extensible diagnostic registry with decorator-based check registration, two-pass runner, and cross-dialect checks — __init__.py: registry + runner + CLI, common.py: 11 cross-dialect checks, sqlserver.py: 8 SQL Server dialect-specific checks, oracle.py: Oracle-specific checks (LONG_TRUNCATION, PACKAGE_MEMBER, PIPELINED_FUNCTION); materialized_views bucket supported across known FQNs, object buckets, and reference resolution)."
     },
     "output_contracts": {
-      "path": "plugin/lib/shared/output_models/",
+      "path": "lib/shared/output_models/",
       "description": "Pydantic v2 models (extra=forbid) for CLI output contracts, split by domain with a compatibility barrel at shared.output_models. Catalog input contracts live in catalog_models.py."
     },
     "ddl_mcp": {
-      "path": "plugin/mcp/ddl/",
+      "path": "mcp/ddl/",
       "description": "MCP server for structured DDL parsing. server.py exposes list_tables, get_table_schema, list_procedures, get_procedure_body, get_dependencies, list_views, get_view_body, list_functions, get_function_body."
     },
     "mssql_mcp": {
-      "path": "plugin/mcp/mssql/",
+      "path": "mcp/mssql/",
       "description": "genai-toolbox config for live SQL Server queries. tools.yaml defines mssql-execute-sql tool."
     },
     "migration_skills": {
-      "path": "plugin/skills/",
+      "path": "skills/",
       "description": "Skill definitions: listing-objects/ (catalog browsing — list objects by type), analyzing-table/ (scoping — auto-detects table vs view; tables: writer discovery, procedure analysis, statement resolution; views: SQL element extraction, call tree, logic summary), generating-model/ (dbt model generation from refactored SQL, staging + mart split), profiling-table/ (profiling — auto-detects table vs view; tables: 6 questions including classification, PK, watermark, FKs, PII; views: stg/mart classification; references/ contains classification guides for fact_accumulating_snapshot and fact_periodic_snapshot disambiguation), generating-tests/ (single-table and view-backed test generation with fixture synthesis, write-through test_harness persistence, and mixed prompt support), reviewing-tests/ (LLM quality gate for test specs and review-result validation across table and view scenarios), test-invariants/ (shared generator-reviewer contract for branch authority, cross-artifact consistency, and narrow repair), reviewing-model/ (dbt model review with structured feedback, stable reference codes, and acknowledgements protocol; references/ contains style guidelines), refactoring-sql/ (CTE restructuring with equivalence audit), git-checkpoints/ (git checkpoint management during long-running agent tasks). _shared/references/dialects/ contains dialect-specific references (tsql/ and oracle/) for statement classification and routine migration patterns; skills read dialect from manifest.json to select the right file."
     },
     "migration_commands": {
-      "path": "plugin/commands/",
+      "path": "commands/",
       "description": "Stage-specific commands: setup-ddl.md (DDL extraction from live source systems with catalog signals, DMF references, and AST enrichment; also enriches view catalogs with sql+columns fields), scope.md (writer discovery), profile.md (migration profiling — routes tables to profiling-table, views/MVs to profiling-view), setup-target.md (target runtime collection, dbt project scaffolding, and target-mapped sources.yml generation), generate-model.md (dbt model generation), status.md (migration status dashboard — calls migrate-util status CLI for collated stage statuses, interprets results with LLM), init-ad-migration.md (prerequisite checker and installer), setup-sandbox.md (create throwaway sandbox execution environment), teardown-sandbox.md (drop sandbox runtime), generate-tests.md (multi-table test generation with review loop), refactor.md (SQL CTE restructuring with equivalence audit), exclude-table.md (mark tables or views as excluded from the migration pipeline — sets excluded: true in catalog file, commits change), add-source-tables.md (mark one or more catalog tables as dbt sources with is_source: true; guards require scope to be complete), cleanup-worktrees.md (remove stale git worktrees), commit.md (stage and commit changes with a generated message), commit-push-pr.md (commit, push, and open a pull request in one step). Each is self-contained with sub-agent orchestration, worktree setup, and result summarization."
     },
     "tests_migration": {
@@ -101,15 +101,15 @@
     },
     "tests_migration_integration": {
       "path": "tests/integration/",
-      "description": "Shared-library integration pytest suite organized by backend and module under tests/integration/<technology>/<module>/. Current backends: sql_server/ and oracle/."
+      "description": "Shared-library integration pytest suite organized by backend and module under tests/integration/<technology>/<module>/."
     },
     "tests_evals": {
       "path": "tests/evals/",
       "description": "Promptfoo eval harness for skill and command testing against MigrationTest schema. Per-scenario fixtures live under fixtures/<package>/<scenario-slug>/; runnable configs live in packages/ plus the oracle-regression/, oracle-live/, and mssql-live/ package roots. Assertions live under tests/evals/assertions/, including schema-helpers.js for shared path and term handling. No top-level Promptfoo config — npm run eval chains the package configs."
     },
     "tests_ddl_mcp": {
-      "path": "plugin/mcp/ddl/tests/",
-      "description": "DDL MCP pytest suite. Unit coverage lives under plugin/mcp/ddl/tests/unit/. Oracle live coverage lives under plugin/mcp/ddl/tests/integration/oracle/. Shared test fixtures remain under plugin/mcp/ddl/tests/fixtures/."
+      "path": "mcp/ddl/tests/",
+      "description": "DDL MCP pytest suite. Unit coverage lives under mcp/ddl/tests/unit/. Oracle live coverage lives under mcp/ddl/tests/integration/oracle/. Shared test fixtures remain under mcp/ddl/tests/fixtures/."
     },
     "scripts": {
       "path": "scripts/",
@@ -129,39 +129,41 @@
     }
   },
   "key_directories": {
-    "plugin/": "Unified Claude Code plugin with commands, skills, lib, and MCP servers",
-    "plugin/lib/": "Python DDL analysis library (uv project, sqlglot-based)",
-    "plugin/lib/shared/schemas/": "JSON Schema files for catalog, agent I/O, discover CLI output, and shared definitions",
+    ".claude-plugin/": "Claude Code plugin manifest at the repository root",
+    "commands/": "Claude Code command specs at the repository root",
+    "skills/": "Claude Code skills at the repository root",
+    "lib/": "Python DDL analysis library (uv project, sqlglot-based)",
+    "lib/shared/schemas/": "JSON Schema files for catalog, agent I/O, discover CLI output, and shared definitions",
     "tests/unit/": "Shared-library unit pytest suite organized by module under tests/unit/<module>/.",
     "tests/integration/": "Shared-library integration pytest suite organized by backend and module under tests/integration/<technology>/<module>/.",
     "tests/evals/": "Promptfoo eval harness for skill and command testing (skill packages include listing-objects, profiling-table, generating-model, generating-tests, reviewing-tests, reviewing-model, analyzing-table, analyzing-table-readiness; command packages include cmd-scope, cmd-profile, cmd-generate-model, cmd-generate-tests, cmd-refactor, cmd-status, cmd-reset-migration, cmd-commit-push-pr)",
-    "plugin/mcp/ddl/tests/": "DDL MCP pytest suite split into tests/unit/ and tests/integration/oracle/. fixtures/oracle/ holds Oracle SH-schema DDL fixtures and manifest.",
+    "mcp/ddl/tests/": "DDL MCP pytest suite split into tests/unit/ and tests/integration/oracle/. fixtures/oracle/ holds Oracle SH-schema DDL fixtures and manifest.",
     "test-fixtures/": "Cross-dialect Kimball DW fixture: schema DDL, baseline seed data, and delta scenarios for SQL Server, Oracle, PostgreSQL",
     "docs/design/": "Durable agent-facing design notes only; keep criteria are documented in docs/design/README.md",
     ".claude/rules/": "Shared agent rules such as coding-conventions, git-workflow, logging-policy, and codex-execution-policy",
     ".claude/skills/": "Workflow playbooks for repo-local Claude Code skills"
   },
   "commands": {
-    "test_migration_python": "cd plugin/lib && uv run pytest",
-    "test_migration_python_module": "cd plugin/lib && uv run pytest ../../tests/unit/<module>",
-    "test_migration_python_integration_sql_server": "cd plugin/lib && uv run pytest ../../tests/integration/sql_server",
-    "test_migration_python_integration_sql_server_module": "cd plugin/lib && uv run pytest ../../tests/integration/sql_server/<module>",
-    "test_migration_python_integration_oracle": "cd plugin/lib && uv run pytest ../../tests/integration/oracle",
-    "test_migration_python_integration_oracle_module": "cd plugin/lib && uv run pytest ../../tests/integration/oracle/<module>",
-    "init_check_freetds": "cd plugin/lib && uv run init check-freetds [--register-missing]",
-    "test_mcp_ddl": "cd plugin/mcp/ddl && uv run pytest",
-    "test_mcp_ddl_oracle": "cd plugin/mcp/ddl && uv run pytest tests/integration/oracle",
-    "test_harness_help": "cd plugin/lib && uv run test-harness --help",
-    "test_harness_execute_spec": "cd plugin/lib && uv run test-harness execute-spec --spec <path>",
-"migrate_util_status": "cd plugin/lib && uv run migrate-util status [<fqn>]",
-"migrate_util_ready": "cd plugin/lib && uv run migrate-util ready <stage> [--object <fqn>]",
-    "migrate_util_exclude": "cd plugin/lib && uv run migrate-util exclude <fqn> [fqn ...]",
-    "migrate_util_reset_migration": "cd plugin/lib && uv run migrate-util reset-migration <scope|profile|test-gen|refactor> <fqn> [fqn ...]",
-    "migrate_util_sync_excluded_warnings": "cd plugin/lib && uv run migrate-util sync-excluded-warnings",
-    "generate_sources": "cd plugin/lib && uv run generate-sources [--write] [--strict] [--project-root <path>]",
-    "refactor_context": "cd plugin/lib && uv run refactor context --table <schema.table>",
-    "refactor_write": "cd plugin/lib && uv run refactor write --table <schema.table> --refactored-sql-file <path> --status ok|partial|error",
-    "compare_sql": "cd plugin/lib && uv run test-harness compare-sql --sql-a-file <extracted.sql> --sql-b-file <refactored.sql> --spec <spec-path>",
+    "test_migration_python": "cd lib && uv run pytest",
+    "test_migration_python_module": "cd lib && uv run pytest ../tests/unit/<module>",
+    "test_migration_python_integration_sql_server": "cd lib && uv run pytest ../tests/integration/sql_server",
+    "test_migration_python_integration_sql_server_module": "cd lib && uv run pytest ../tests/integration/sql_server/<module>",
+    "test_migration_python_integration_oracle": "cd lib && uv run pytest ../tests/integration/oracle",
+    "test_migration_python_integration_oracle_module": "cd lib && uv run pytest ../tests/integration/oracle/<module>",
+    "init_check_freetds": "cd lib && uv run init check-freetds [--register-missing]",
+    "test_mcp_ddl": "cd mcp/ddl && uv run pytest",
+    "test_mcp_ddl_oracle": "cd mcp/ddl && uv run pytest tests/integration/oracle",
+    "test_harness_help": "cd lib && uv run test-harness --help",
+    "test_harness_execute_spec": "cd lib && uv run test-harness execute-spec --spec <path>",
+    "migrate_util_status": "cd lib && uv run migrate-util status [<fqn>]",
+    "migrate_util_ready": "cd lib && uv run migrate-util ready <stage> [--object <fqn>]",
+    "migrate_util_exclude": "cd lib && uv run migrate-util exclude <fqn> [fqn ...]",
+    "migrate_util_reset_migration": "cd lib && uv run migrate-util reset-migration <scope|profile|test-gen|refactor> <fqn> [fqn ...]",
+    "migrate_util_sync_excluded_warnings": "cd lib && uv run migrate-util sync-excluded-warnings",
+    "generate_sources": "cd lib && uv run generate-sources [--write] [--strict] [--project-root <path>]",
+    "refactor_context": "cd lib && uv run refactor context --table <schema.table>",
+    "refactor_write": "cd lib && uv run refactor write --table <schema.table> --refactored-sql-file <path> --status ok|partial|error",
+    "compare_sql": "cd lib && uv run test-harness compare-sql --sql-a-file <extracted.sql> --sql-b-file <refactored.sql> --spec <spec-path>",
     "lint_md": "markdownlint <file>",
     "eval_all": "cd tests/evals && npm run eval",
     "eval_listing_objects": "cd tests/evals && npm run eval:listing-objects",
@@ -204,11 +206,11 @@
   },
   "notes_for_agents": {
     "startup": "Read this file before exploring code. It is the primary startup context for structure, entrypoints, modules, and commands.",
-    "plugin_loading": "Load the ad-migration plugin with: claude --plugin-dir plugin/ CLAUDE_PLUGIN_ROOT points to the plugin root (plugin/).",
+    "plugin_loading": "Load the ad-migration plugin with: claude --plugin-dir . CLAUDE_PLUGIN_ROOT points to the repository root.",
     "ddl_filenames": "The loader auto-detects object types from CREATE statements — .sql filenames are not significant. Any directory of .sql files works.",
     "catalog_mandatory": "discover.py requires catalog/ files from setup-ddl. Errors if catalog is missing. No AST fallback.",
     "parse_errors": "sqlglot parse failures are hard errors (DdlParseError). The loader does not silently skip unparseable DDL.",
-    "python_tests": "Two pytest suites: (1) shared lib — default unit run: cd plugin/lib && uv run pytest; path-scoped runs: ../../tests/unit/<module> and ../../tests/integration/<technology>/<module>. (2) DDL MCP server — default unit run: cd plugin/mcp/ddl && uv run pytest; Oracle live run: uv run pytest tests/integration/oracle.",
+    "python_tests": "Two pytest suites: (1) shared lib — default unit run: cd lib && uv run pytest; path-scoped runs: ../tests/unit/<module> and ../tests/integration/<technology>/<module>. (2) DDL MCP server — default unit run: cd mcp/ddl && uv run pytest; Oracle live run: uv run pytest tests/integration/oracle.",
     "mssql_env_vars": "Live SQL Server access requires MSSQL_HOST, MSSQL_PORT, MSSQL_DB, SA_PASSWORD exported before launching claude.",
     "update_repo_map": "Refresh this file whenever any entry here becomes stale, especially after architecture, entrypoint, command, module, package, test/eval layout, or documentation-index changes."
   }

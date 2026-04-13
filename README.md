@@ -35,7 +35,7 @@ Install these via the Claude Code plugin marketplace before starting work:
 
 ### Environment variables
 
-Fill in `.env` (commented examples are included) — key variables include `SA_PASSWORD` and `ANTHROPIC_API_KEY`. Then:
+Fill in `.env` (commented examples are included). For local SQL Server MCP usage, set `SA_PASSWORD`; `MSSQL_HOST`, `MSSQL_PORT`, and `MSSQL_DB` default from `.mcp.json` and can be overridden in your environment if needed. Then:
 
 ```bash
 direnv allow
@@ -54,8 +54,12 @@ uv sync --project lib
 To run the plugin locally:
 
 ```bash
-claude --plugin-dir plugin/
+claude --plugin-dir .
 ```
+
+This assumes the local MCP prerequisites are already installed and on `PATH`:
+`toolbox` for the SQL Server MCP server and `sql` (SQLcl) for the Oracle MCP
+server. See `docs/wiki/Installation-and-Prerequisites.md`.
 
 ---
 
@@ -89,7 +93,7 @@ Use the single wrapper command to create or attach a worktree and bootstrap it:
 ```
 
 The wrapper creates the worktree under `../worktrees/<branch-name>`, symlinks `.env`, runs
-`direnv allow` when available, installs Python dev dependencies in `plugin/lib`, verifies
+`direnv allow` when available, installs Python dev dependencies in `lib`, verifies
 `pyodbc` and `oracledb`, and installs eval dependencies in `tests/evals`.
 
 If the requested branch is already checked out in another worktree, the script fails with
@@ -99,9 +103,9 @@ deterministically.
 ### Tests
 
 ```bash
-cd plugin/lib && uv run pytest                     # shared library
-cd plugin/mcp/ddl && uv run pytest                 # DDL MCP server
-cd plugin/lib && uv run pytest -m integration      # requires Docker SQL Server
+cd lib && uv run pytest                            # shared library
+cd mcp/ddl && uv run pytest                        # DDL MCP server
+cd lib && uv run pytest -m integration             # requires Docker SQL Server
 ```
 
 ### Lint

@@ -571,7 +571,7 @@ bootstrap_worktree() {
     fi
   fi
 
-  local lib_dir="$worktree_path/plugin/lib"
+  local lib_dir="$worktree_path/lib"
   if [[ -f "$lib_dir/pyproject.toml" ]]; then
     echo "uv: syncing dev dependencies in $lib_dir"
     (
@@ -596,7 +596,7 @@ bootstrap_worktree() {
       "Run 'cd $lib_dir && rm -rf .venv && uv sync --extra dev' to reinstall the integration dependencies, then rerun the worktree command."
     echo "uv: verified worktree Python deps (pyodbc, oracledb)"
   else
-    echo "uv: skipped (no pyproject.toml in plugin/lib)"
+    echo "uv: skipped (no pyproject.toml in lib)"
   fi
 
   local evals_dir="$worktree_path/tests/evals"

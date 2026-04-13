@@ -2,4 +2,4 @@ You are running in a DDL project with canonical fixture input at {{fixture_path}
 
 Run /listing-objects {{request_text}}.
 
-Read the skill at plugin/skills/listing-objects/SKILL.md. Wherever it references `${CLAUDE_PLUGIN_ROOT}/lib`, use `plugin/lib` instead. Pass `--project-root {{run_path}}` to all CLI commands so reads target the writable eval workspace.
+Read the skill at `${CLAUDE_PLUGIN_ROOT}/skills/listing-objects/SKILL.md`. Keep `${CLAUDE_PLUGIN_ROOT}` references as written. Pass `--project-root {{run_path}}` to all CLI commands so reads target the writable eval workspace.

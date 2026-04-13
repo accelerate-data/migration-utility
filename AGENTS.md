@@ -19,7 +19,7 @@ Adapter files must not duplicate canonical policy unless they are adding agent-s
 
 | Layer | Technology |
 |---|---|
-| Agent runtime | Claude Code CLI (`claude --plugin-dir plugin/ --agent <name>`) |
+| Agent runtime | Claude Code CLI (`claude --plugin-dir . --agent <name>`) |
 | MCP server | genai-toolbox (HTTP mode on GH Actions, stdio locally) |
 | MCP server (Oracle) | SQLcl `-mcp` (stdio, local only) |
 | Runtime | GitHub Actions (headless execution) |
@@ -61,17 +61,17 @@ Determine what you changed, then pick the right runner:
 
 | What changed | Tests to run |
 |---|---|
-| Python shared library | `cd plugin/lib && uv run pytest` |
-| Python integration (Docker SQL Server) | `cd plugin/lib && uv run pytest -m integration` |
-| Python integration (Docker Oracle) | `cd plugin/lib && uv run pytest -m oracle` |
-| MCP server | `cd plugin/mcp/ddl && uv run pytest` |
+| Python shared library | `cd lib && uv run pytest` |
+| Python integration (Docker SQL Server) | `cd lib && uv run pytest -m integration` |
+| Python integration (Docker Oracle) | `cd lib && uv run pytest -m oracle` |
+| MCP server | `cd mcp/ddl && uv run pytest` |
 | Unsure | all of the above |
 
 When a change depends on local infrastructure (for example SQL Server-backed ignored tests), document in the PR which commands were run and which were not run.
 
-**Stale venv after a repo move:** If `plugin/mcp/ddl` tests fail with `cannot execute: No such file or directory`, the `.venv` has a stale interpreter path from a prior directory location. Fix: `rm -rf plugin/mcp/ddl/.venv && cd plugin/mcp/ddl && uv sync`.
+**Stale venv after a repo move:** If `mcp/ddl` tests fail with `cannot execute: No such file or directory`, the `.venv` has a stale interpreter path from a prior directory location. Fix: `rm -rf mcp/ddl/.venv && cd mcp/ddl && uv sync`.
 
-**Worktree venv for integration tests:** Worktrees get a fresh `.venv` on first run. For integration tests (pyodbc, oracledb), sync with the `dev` extra: `cd plugin/lib && rm -rf .venv && uv sync --extra dev`.
+**Worktree venv for integration tests:** Worktrees get a fresh `.venv` on first run. For integration tests (pyodbc, oracledb), sync with the `dev` extra: `cd lib && rm -rf .venv && uv sync --extra dev`.
 
 ## Design Docs
 
@@ -117,7 +117,7 @@ Update stale entries in the same commit that introduced the structural change.
 
 ### SQL Server (mssql)
 
-Configured in `.mcp.json` via genai-toolbox. Uses `SA_PASSWORD` from `.env`. Tool: `mcp__mssql__mssql-execute-sql`.
+Configured in `.mcp.json` via genai-toolbox. Defaults `MSSQL_HOST=127.0.0.1`, `MSSQL_PORT=1433`, and `MSSQL_DB=AdventureWorks2022`; provide `SA_PASSWORD` in the environment before starting Claude. Tool: `mcp__mssql__mssql-execute-sql`.
 
 ### Oracle
 

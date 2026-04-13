@@ -31,6 +31,11 @@ Local execution is supported on macOS and Linux. Windows is not supported for th
 | Java 11+ | Oracle source projects | Runtime required by SQLcl |
 | [direnv](https://direnv.net) | Recommended for all projects | Auto-loads `.envrc` credentials when you enter the project directory; keeps secrets out of shell history |
 
+If you want `claude --plugin-dir .` to load every bundled MCP server locally,
+`toolbox` and `sql` must already be on `PATH`. Without them, the plugin manifest
+still validates, but the corresponding `mssql` or `oracle` server will not
+start.
+
 ## Environment Variables
 
 The variables required depend on your source technology. The `/init-ad-migration` command scaffolds a `.envrc` with only the variables for the selected source. These bootstrap the first live connection; the canonical runtime contract is then persisted in `manifest.json` under `runtime.source`, `runtime.target`, and `runtime.sandbox`.
@@ -90,7 +95,7 @@ export ORACLE_PASSWORD=<your-password>
 
 ## Python Dependencies
 
-The shared library depends on pydantic, sqlglot, and typer as its key runtime libraries. All Python dependencies (including transitive ones) are managed by uv and pinned in `plugin/lib/pyproject.toml`. Running `uv sync` in the `plugin/lib` directory installs everything needed.
+The shared library depends on pydantic, sqlglot, and typer as its key runtime libraries. All Python dependencies (including transitive ones) are managed by uv and pinned in `lib/pyproject.toml`. Running `uv sync` in the `lib` directory installs everything needed.
 
 ## Loading the Plugin
 
@@ -104,7 +109,7 @@ Install from the Vibedata marketplace:
 Alternatively, for local development, load the plugin directly:
 
 ```bash
-claude --plugin-dir plugin/
+claude --plugin-dir .
 ```
 
 The `ad-migration` plugin provides all pipeline commands and skills in a single package.

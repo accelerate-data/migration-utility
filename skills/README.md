@@ -5,7 +5,7 @@ Migration pipeline skills for the Claude Code plugin. Each skill is a self-conta
 ## Directory layout
 
 ```text
-plugin/skills/
+skills/
   _shared/references/     Shared reference files used by multiple skills
   <skill-name>/
     SKILL.md              Required — skill definition and instructions

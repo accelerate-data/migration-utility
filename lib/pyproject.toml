@@ -35,4 +35,4 @@ generate-sources = "shared.generate_sources:app"
 refactor = "shared.refactor:app"
 
 [tool.pytest.ini_options]
-testpaths = ["../../tests/unit"]
+testpaths = ["../tests/unit"]

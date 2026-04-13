@@ -4,10 +4,10 @@ Despite the filename (kept for consistency with the issue description), this scr
 reads directly from a live SQL Server with AdventureWorks2022 installed — not from CSVs.
 
 Usage:
-    cd plugin/lib
-    SA_PASSWORD=<password> uv run python ../../test-fixtures/scripts/csv_to_inserts.py \
+    cd lib
+    SA_PASSWORD=<password> uv run python ../test-fixtures/scripts/csv_to_inserts.py \
         --host localhost --port 1433 \
-        --output-dir ../../test-fixtures/data/baseline
+        --output-dir ../test-fixtures/data/baseline
 
 Emits: sqlserver.sql, oracle.sql, postgres.sql in the output directory.
 """

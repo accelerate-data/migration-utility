@@ -1,6 +1,6 @@
 You are running the /commit-push-pr command.
 
-Read the command specification at plugin/commands/commit-push-pr.md.
+Read the command specification at `${CLAUDE_PLUGIN_ROOT}/commands/commit-push-pr.md`.
 
 ## Simulated scenario
 

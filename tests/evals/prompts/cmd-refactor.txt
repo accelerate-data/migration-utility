@@ -2,13 +2,13 @@ You are running an eval harness for `/refactor` in the fixture project at `{{fix
 
 Run `/refactor` for these tables: `{{target_tables}}`.
 
-Read `plugin/commands/refactor.md`, but treat the following harness rules as authoritative overrides for this eval. Do not ask clarifying questions. Do not pause for confirmation. Execute the task directly.
+Read `${CLAUDE_PLUGIN_ROOT}/commands/refactor.md`, but treat the following harness rules as authoritative overrides for this eval. Do not ask clarifying questions. Do not pause for confirmation. Execute the task directly.
 
 Harness overrides:
 - Treat `{{fixture_path}}` as read-only input. Write all generated files to `{{run_path}}`. Do not create or use a worktree.
 - Do not run git commands, `/commit`, `/commit-push-pr`, or `git-checkpoints`.
 - Do not spawn sub-agents for this eval. Process the target tables sequentially in the current conversation.
-- Wherever the command references `${CLAUDE_PLUGIN_ROOT}/lib`, use `plugin/lib` instead.
+- Keep `${CLAUDE_PLUGIN_ROOT}` references as written.
 - Pass `--project-root {{run_path}}` to every CLI command that accepts `--project-root`.
 - Skip sandbox `compare-sql`. Use semantic/logical equivalence review only.
 - Write run artifacts to `{{run_path}}/.migration-runs/` using the command's normal item-result and summary formats.

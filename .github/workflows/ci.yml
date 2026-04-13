@@ -31,10 +31,10 @@ jobs:
           HEAD_SHA="${{ github.event.pull_request.head.sha }}"
 
           STRUCTURAL_DIRS=(
-            "plugin/skills/"
-            "plugin/commands/"
-            "plugin/lib/shared/"
-            "plugin/mcp/ddl/"
+            "skills/"
+            "commands/"
+            "lib/shared/"
+            "mcp/ddl/"
             "tests/unit/"
           )
 

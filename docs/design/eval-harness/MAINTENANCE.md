@@ -18,7 +18,7 @@ Each assertion is a custom JavaScript module that reads persisted artifacts and 
 
 ### Schema Validation
 
-Assertions validate JSON artifacts against schemas in `plugin/lib/shared/schemas/` using AJV Draft 2020-12. The shared `schema-helpers.js` module provides:
+Assertions validate JSON artifacts against schemas in `lib/shared/schemas/` using AJV Draft 2020-12. The shared `schema-helpers.js` module provides:
 
 - `validateSchema(data, schemaFileName)`
 - `validateSection(data, schemaFileName, sectionPath)`
@@ -98,8 +98,8 @@ export SA_PASSWORD=<your-password>
 ./scripts/sql/sql_server/materialize-migration-test.sh
 
 cd <migration-project-root>
-claude --plugin-dir plugin/ -p "/setup-ddl"
-uv run --project plugin/lib catalog-enrich
+claude --plugin-dir . -p "/setup-ddl"
+uv run --project lib catalog-enrich
 cp -r . tests/evals/fixtures/migration-test/
 ```
 
