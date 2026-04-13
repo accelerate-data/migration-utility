@@ -47,70 +47,13 @@ else
   SQLCMD=()
 fi
 
-declare -a REQUIRED_FIXTURE_OBJECTS=(
-  "table:bronze_currency"
-  "table:bronze_product"
-  "table:silver_config"
-  "table:silver_dimcurrency"
-  "table:silver_dimproduct"
-  "table:silver_dimpromotion"
-  "table:silver_factinternetsales"
-  "table:silver_dimsalesterritory"
-  "view:silver_vw_dimpromotion"
-  "view:silver_vdimsalesterritory"
-  "procedure:silver_usp_load_dimcurrency"
-  "procedure:silver_usp_load_dimproduct"
-  "procedure:silver_usp_load_dimpromotion"
-  "procedure:silver_usp_unionall"
-)
-
-OBJECTS_EXIST_SQL="$(python - <<'PY' "${MSSQL_SCHEMA}" "${REQUIRED_FIXTURE_OBJECTS[@]}"
-import sys
-
-schema_name = sys.argv[1].replace("'", "''")
-object_specs = sys.argv[2:]
-catalogs = {
-    "table": ("sys.tables", "t", "name"),
-    "view": ("sys.views", "v", "name"),
-    "procedure": ("sys.procedures", "p", "name"),
-}
-
-clauses: list[str] = []
-for spec in object_specs:
-    object_kind, object_name = spec.split(":", 1)
-    catalog, alias, name_column = catalogs[object_kind]
-    escaped_name = object_name.replace("'", "''")
-    clauses.append(
-        "EXISTS ("
-        " SELECT 1"
-        f" FROM {catalog} AS {alias}"
-        " JOIN sys.schemas AS s ON s.schema_id = "
-        f"{alias}.schema_id"
-        f" WHERE s.name = N'{schema_name}' AND {alias}.{name_column} = N'{escaped_name}'"
-        ")"
-    )
-
-print("SET NOCOUNT ON;")
-print("SELECT CASE WHEN")
-for index, clause in enumerate(clauses):
-    prefix = "    " if index == 0 else " AND "
-    print(f"{prefix}{clause}")
-print("THEN 1 ELSE 0 END;")
-PY
-)"
-
 echo "materialize-migration-test sql_server db=${MSSQL_DB} schema=${MSSQL_SCHEMA} host=${MSSQL_HOST} port=${MSSQL_PORT}"
 if [[ ${#SQLCMD[@]} -gt 0 ]]; then
-  OBJECTS_EXIST="$("${SQLCMD[@]}" -d "${MSSQL_DB}" -h -1 -W -Q "${OBJECTS_EXIST_SQL}" | tr -d '\r' | tail -n 1 | xargs)"
-  if [[ "${OBJECTS_EXIST}" == "1" ]]; then
-    echo "MigrationTest fixture already exists in ${MSSQL_DB}.${MSSQL_SCHEMA}; leaving it in place"
-    exit 0
-  fi
   "${SQLCMD[@]}" -d "${MSSQL_DB}" -i "${SQL_INPUT}"
   exit 0
 fi
 
-python - <<'PY' "${SQL_INPUT}" "${MSSQL_DB}" "${MSSQL_SCHEMA}" "${OBJECTS_EXIST_SQL}"
+python - <<'PY' "${SQL_INPUT}" "${MSSQL_DB}"
 import os
 import re
 import sys
@@ -125,8 +68,6 @@ except ImportError as exc:
 
 sql_path = Path(sys.argv[1])
 database_name = sys.argv[2]
-schema_name = sys.argv[3]
-objects_exist_sql = sys.argv[4]
 
 conn = pyodbc.connect(
     (
@@ -141,14 +82,6 @@ conn = pyodbc.connect(
 
 try:
     cursor = conn.cursor()
-    cursor.execute(objects_exist_sql)
-    if cursor.fetchone()[0] == 1:
-        print(
-            f"MigrationTest fixture already exists in {database_name}.{schema_name}; "
-            "leaving it in place"
-        )
-        raise SystemExit(0)
-
     sql_text = sql_path.read_text(encoding="utf-8")
     batches = re.split(r"(?im)^[ \t]*GO[ \t]*$", sql_text)
     for batch in batches:

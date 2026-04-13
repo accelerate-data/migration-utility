@@ -1,4 +1,4 @@
-"""Integration tests for test harness — requires Docker SQL Server with MigrationTest DB.
+"""Integration tests for test harness against the schema-level MigrationTest contract on SQL Server.
 
 Run with: uv run --project lib pytest -m integration -v
 Requires: MSSQL_HOST, SA_PASSWORD, MSSQL_DB env vars (or Docker 'sql-test' on localhost:1433).

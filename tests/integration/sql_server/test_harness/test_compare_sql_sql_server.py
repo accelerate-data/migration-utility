@@ -1,4 +1,4 @@
-"""Integration tests for compare_two_sql — requires Docker SQL Server with MigrationTest DB.
+"""Integration tests for compare_two_sql against the schema-level MigrationTest contract on SQL Server.
 
 Tests the full compare_two_sql workflow: seed fixtures, run two SELECTs, symmetric diff.
 Covers DML extraction patterns (INSERT, MERGE, UPDATE, DELETE), identity columns,

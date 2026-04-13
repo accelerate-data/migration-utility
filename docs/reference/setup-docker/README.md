@@ -93,7 +93,7 @@ docker exec sql-test /opt/mssql-tools18/bin/sqlcmd \
   -Q "SELECT COUNT(*) FROM dim.dim_customer;"
 ```
 
-`MigrationTest` is not baked as a second SQL Server database. For SQL Server-backed integration and eval flows, materialize the canonical `MigrationTest` schema into the configured database with `scripts/sql/sql_server/materialize-migration-test.sh` or the test helpers that wrap it.
+`sql-test` only provides the pre-baked `KimballFixture` source fixture for parity runs and manual source-fixture checks. It is not the supported source for the schema-level SQL Server `MigrationTest` flow. For SQL Server integration tests, evals, and harness runs, point `MSSQL_DB` at the source database that owns the AdventureWorks objects (default `AdventureWorks2022`) and materialize the canonical `MigrationTest` schema with `scripts/sql/sql_server/materialize-migration-test.sh` or the test helpers that wrap it.
 
 ### Oracle
 
@@ -159,13 +159,13 @@ See [`test-fixtures/parity/README.md`](../../../test-fixtures/parity/README.md) 
 
 ## `.env` Variables for MCP Servers
 
-Add to `.env` if running MCP server connections against the Kimball fixture:
+Add to `.env` for the schema-level SQL Server `MigrationTest` contract used by tests/evals:
 
 ```bash
-# SQL Server source fixture image
+# SQL Server MigrationTest materialization source
 MSSQL_HOST=127.0.0.1
 MSSQL_PORT=1433
-MSSQL_DB=KimballFixture
+MSSQL_DB=AdventureWorks2022
 
 # Oracle
 ORACLE_HOST=localhost
@@ -182,11 +182,13 @@ PG_USER=postgres
 PG_PASSWORD=postgres
 ```
 
+Use `MSSQL_DB=KimballFixture` only when you intentionally want a direct connection to the pre-baked Kimball source-fixture image for parity/manual source-fixture work. That image is not the supported source for the schema-level SQL Server `MigrationTest` flow.
+
 The Oracle Docker image expects `ORACLE_PWD` as its container-internal env var (set via `docker run -e`). The `.env` variables above (`ORACLE_HOST`, `ORACLE_PORT`, `ORACLE_SERVICE`, `ORACLE_USER`, `ORACLE_PASSWORD`) are the canonical names used by plugin commands (`/init-ad-migration`, `/setup-ddl`) for host-side MCP connections.
 
 ## Rebuilding the SQL Server Image
 
-The SQL Server image bundles pre-built MDF/LDF data files so the Kimball source fixture database is available instantly on `docker run`. Rebuild when fixture SQL changes or when upgrading the SQL Server CU version.
+The SQL Server image bundles pre-built MDF/LDF data files so the Kimball source fixture database is available instantly on `docker run`. Rebuild when Kimball fixture SQL changes or when upgrading the SQL Server CU version. This does not rebuild or validate the schema-level SQL Server `MigrationTest` contract.
 
 ### Rebuild locally
 

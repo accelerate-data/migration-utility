@@ -61,13 +61,7 @@ REQUIRED_FIXTURE_VIEWS = (
     SQL_SERVER_FIXTURE_SILVER_TERRITORY_VIEW,
 )
 
-REQUIRED_SENTINEL_OBJECT_SPECS = (
-    "table:silver_dimpromotion",
-    "procedure:silver_usp_load_dimpromotion",
-    "table:silver_factinternetsales",
-    "table:silver_dimsalesterritory",
-    "view:silver_vdimsalesterritory",
-)
+STALE_FIXTURE_TABLE = "stale_contract_probe"
 
 
 def _have_mssql_env() -> bool:
@@ -128,12 +122,12 @@ def _assert_fixture_contract(cursor: pyodbc.Cursor) -> None:
         assert _view_exists(cursor, view_name), f"missing required fixture view {view_name}"
 
 
-def test_materialize_migration_test_sql_server_sentinel_covers_review_contract() -> None:
+def test_materialize_migration_test_sql_server_script_rebuilds_instead_of_short_circuiting() -> None:
     script_path = REPO_ROOT / "scripts" / "sql" / "sql_server" / "materialize-migration-test.sh"
     script_text = script_path.read_text(encoding="utf-8")
 
-    for object_spec in REQUIRED_SENTINEL_OBJECT_SPECS:
-        assert object_spec in script_text, f"missing sentinel object check {object_spec}"
+    assert "OBJECTS_EXIST_SQL" not in script_text
+    assert "leaving it in place" not in script_text
 
 
 @pytest.mark.skipif(not _have_mssql_env(), reason="SQL Server fixture env not configured")
@@ -165,6 +159,7 @@ def test_materialize_migration_test_sql_server_repairs_downstream_contract_objec
     )
     try:
         cursor = conn.cursor()
+        cursor.execute(f"CREATE TABLE [{SQL_SERVER_FIXTURE_SCHEMA}].[{STALE_FIXTURE_TABLE}] (id INT NOT NULL)")
         cursor.execute(
             f"DROP VIEW [{SQL_SERVER_FIXTURE_SCHEMA}].[{SQL_SERVER_FIXTURE_SILVER_TERRITORY_VIEW}]"
         )
@@ -181,6 +176,7 @@ def test_materialize_migration_test_sql_server_repairs_downstream_contract_objec
         assert not _procedure_exists(cursor, SQL_SERVER_FIXTURE_SILVER_LOAD_DIMPROMOTION_PROC)
         assert not _table_exists(cursor, SQL_SERVER_FIXTURE_SILVER_FACTINTERNETSALES)
         assert not _table_exists(cursor, SQL_SERVER_FIXTURE_SILVER_DIMSALESTERRITORY)
+        assert _table_exists(cursor, STALE_FIXTURE_TABLE)
     finally:
         conn.close()
 
@@ -194,5 +190,6 @@ def test_materialize_migration_test_sql_server_repairs_downstream_contract_objec
     try:
         cursor = conn.cursor()
         _assert_fixture_contract(cursor)
+        assert not _table_exists(cursor, STALE_FIXTURE_TABLE)
     finally:
         conn.close()

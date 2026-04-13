@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# Builds and publishes the SQL Server Docker image with pre-baked source data.
+# Builds and publishes the SQL Server Docker image with pre-baked Kimball source data.
 #
 # Usage:
 #   SA_PASSWORD='P@ssw0rd123' ./scripts/publish-sqlserver-image.sh [--push]
@@ -11,10 +11,12 @@
 # 4. Extracts data files and builds the final image via Dockerfile
 # 5. Optionally pushes to GHCR (with --push flag)
 #
-# This image no longer bakes a separate MigrationTest database. The canonical
-# MigrationTest fixture is a schema-level contract materialized on demand by
+# This script is only for the KimballFixture source image used by parity/manual
+# source-fixture workflows. It does not bake, publish, or validate the
+# schema-level MigrationTest contract used by SQL Server integration/eval flows;
+# that contract is materialized on demand by
 # scripts/sql/sql_server/materialize-migration-test.sh inside the configured
-# SQL Server database used for tests.
+# SQL Server database.
 #
 # Prerequisites:
 # - Docker running
@@ -66,6 +68,7 @@ trap cleanup EXIT
 
 # ── Phase 1: Start builder container ────────────────────────────
 echo "Phase 1: Starting builder container from ${MSSQL_BASE}..."
+echo "Note: this publishes the KimballFixture source image only; MigrationTest remains a runtime materialization step."
 docker pull "$MSSQL_BASE"
 docker run --name "$BUILDER_CONTAINER" \
     -e ACCEPT_EULA=Y \

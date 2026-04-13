@@ -23,7 +23,8 @@ if [[ ! -f "${FIXTURE_SQL}" ]]; then
 fi
 
 TMP_SQL="$(mktemp)"
-trap 'rm -f "${TMP_SQL}"' EXIT
+TMP_BOOTSTRAP_SQL="$(mktemp)"
+trap 'rm -f "${TMP_SQL}" "${TMP_BOOTSTRAP_SQL}"' EXIT
 sed "s/__SCHEMA__/${ORACLE_SCHEMA}/g" "${FIXTURE_SQL}" > "${TMP_SQL}"
 
 if [[ "${ORACLE_USER,,}" != "${ORACLE_SCHEMA,,}" ]]; then
@@ -112,9 +113,11 @@ SQL
 )"
 fi
 
+printf '%s\n' "${BOOTSTRAP_SQL}" > "${TMP_BOOTSTRAP_SQL}"
+
 echo "materialize-migration-test oracle service=${ORACLE_SERVICE} host=${ORACLE_HOST} port=${ORACLE_PORT} schema=${ORACLE_SCHEMA}"
 run_python_materialization() {
-python - <<'PY' "${TMP_SQL}"
+python - <<'PY' "${TMP_BOOTSTRAP_SQL}" "${TMP_SQL}"
 import os
 import re
 import sys
@@ -127,7 +130,8 @@ except ImportError as exc:
         "no Oracle CLI (SQLCL/sql or sqlplus) is installed and python package 'oracledb' is unavailable for Oracle materialization"
     ) from exc
 
-sql_path = Path(sys.argv[1])
+bootstrap_path = Path(sys.argv[1])
+fixture_path = Path(sys.argv[2])
 mode = (
     oracledb.AUTH_MODE_SYSDBA
     if os.environ.get("ORACLE_USER", "sys").lower() == "sys"
@@ -142,110 +146,20 @@ conn = oracledb.connect(
 
 try:
     cursor = conn.cursor()
-    schema = os.environ.get("ORACLE_SCHEMA", "MIGRATIONTEST")
-    schema_password = os.environ.get("ORACLE_SCHEMA_PASSWORD", schema.lower())
-    connect_user = os.environ.get("ORACLE_USER", "sys").lower()
-    if connect_user != schema.lower():
-        cursor.execute(
-            """
-            DECLARE
-                v_count NUMBER;
-            BEGIN
-                FOR session_rec IN (
-                    SELECT sid, serial#
-                    FROM v$session
-                    WHERE username = UPPER(:schema_name)
-                ) LOOP
-                    BEGIN
-                        EXECUTE IMMEDIATE
-                            'ALTER SYSTEM KILL SESSION '''
-                            || session_rec.sid
-                            || ','
-                            || session_rec.serial#
-                            || ''' IMMEDIATE';
-                    EXCEPTION
-                        WHEN OTHERS THEN
-                            NULL;
-                    END;
-                END LOOP;
-
-                SELECT COUNT(*) INTO v_count FROM ALL_USERS WHERE USERNAME = UPPER(:schema_name);
-                IF v_count > 0 THEN
-                    EXECUTE IMMEDIATE 'DROP USER "' || :schema_name || '" CASCADE';
-                END IF;
-
-                EXECUTE IMMEDIATE
-                    'CREATE USER "' || :schema_name || '" IDENTIFIED BY "' || :schema_password || '" ACCOUNT UNLOCK';
-                EXECUTE IMMEDIATE 'GRANT CREATE SESSION TO "' || :schema_name || '"';
-                EXECUTE IMMEDIATE 'GRANT CREATE TABLE TO "' || :schema_name || '"';
-                EXECUTE IMMEDIATE 'GRANT CREATE VIEW TO "' || :schema_name || '"';
-                EXECUTE IMMEDIATE 'GRANT CREATE PROCEDURE TO "' || :schema_name || '"';
-                EXECUTE IMMEDIATE 'GRANT UNLIMITED TABLESPACE TO "' || :schema_name || '"';
-            END;
-            """,
-            schema_name=schema,
-            schema_password=schema_password,
+    def execute_script(path: Path) -> None:
+        raw = path.read_text(encoding="utf-8")
+        raw = "\n".join(
+            line for line in raw.splitlines()
+            if not line.lstrip().upper().startswith("WHENEVER ")
         )
-    else:
-        cursor.execute(
-            """
-            BEGIN
-                FOR object_rec IN (
-                    SELECT object_name, object_type
-                    FROM user_objects
-                    WHERE object_type IN (
-                        'VIEW',
-                        'MATERIALIZED VIEW',
-                        'SYNONYM',
-                        'PROCEDURE',
-                        'FUNCTION',
-                        'PACKAGE',
-                        'TABLE',
-                        'SEQUENCE'
-                    )
-                    ORDER BY CASE object_type
-                        WHEN 'VIEW' THEN 1
-                        WHEN 'MATERIALIZED VIEW' THEN 2
-                        WHEN 'SYNONYM' THEN 3
-                        WHEN 'PROCEDURE' THEN 4
-                        WHEN 'FUNCTION' THEN 5
-                        WHEN 'PACKAGE' THEN 6
-                        WHEN 'TABLE' THEN 7
-                        WHEN 'SEQUENCE' THEN 8
-                        ELSE 9
-                    END
-                ) LOOP
-                    BEGIN
-                        IF object_rec.object_type = 'TABLE' THEN
-                            EXECUTE IMMEDIATE
-                                'DROP TABLE "' || object_rec.object_name || '" CASCADE CONSTRAINTS PURGE';
-                        ELSIF object_rec.object_type = 'MATERIALIZED VIEW' THEN
-                            EXECUTE IMMEDIATE
-                                'DROP MATERIALIZED VIEW "' || object_rec.object_name || '"';
-                        ELSE
-                            EXECUTE IMMEDIATE
-                                'DROP ' || object_rec.object_type || ' "' || object_rec.object_name || '"';
-                        END IF;
-                    EXCEPTION
-                        WHEN OTHERS THEN
-                            IF SQLCODE NOT IN (-942, -4043) THEN
-                                RAISE;
-                            END IF;
-                    END;
-                END LOOP;
-            END;
-            """
-        )
-    raw = sql_path.read_text(encoding="utf-8")
-    raw = "\n".join(
-        line for line in raw.splitlines()
-        if not line.lstrip().upper().startswith("WHENEVER ")
-    )
-    chunks = re.split(r"(?m)^[ \t]*/[ \t]*$", raw)
-    for chunk in chunks:
-        statement = chunk.strip()
-        if statement:
-            cursor.execute(statement)
+        chunks = re.split(r"(?m)^[ \t]*/[ \t]*$", raw)
+        for chunk in chunks:
+            statement = chunk.strip()
+            if statement:
+                cursor.execute(statement)
+
+    execute_script(bootstrap_path)
+    execute_script(fixture_path)
     conn.commit()
 finally:
     conn.close()
@@ -276,7 +190,7 @@ if [[ -n "${ORACLE_CLI}" ]]; then
   fi
   "${ORACLE_CLI}" -S /nolog <<SQL
 ${CONNECT_DIRECTIVE}
-${BOOTSTRAP_SQL}
+@${TMP_BOOTSTRAP_SQL}
 @${TMP_SQL}
 EXIT
 SQL
