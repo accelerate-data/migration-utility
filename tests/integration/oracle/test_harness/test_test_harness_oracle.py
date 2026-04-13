@@ -11,99 +11,29 @@ Requires:
 from __future__ import annotations
 
 import os
-from pathlib import Path
-
 import oracledb
 import pytest
 
-from tests.helpers import ORACLE_MIGRATION_SCHEMA, ORACLE_MIGRATION_SCHEMA_PASSWORD, REPO_ROOT
-from shared.fixture_materialization import materialize_migration_test
 from shared.sandbox.oracle import OracleSandbox
-from shared.runtime_config_models import RuntimeConnection, RuntimeRole
+from tests.integration.runtime_helpers import (
+    ORACLE_MIGRATION_SCHEMA,
+    ORACLE_MIGRATION_SCHEMA_PASSWORD,
+    build_oracle_sandbox_manifest,
+    ensure_oracle_migration_test_materialized,
+    oracle_is_available,
+)
 
 pytestmark = pytest.mark.oracle
 
-_FIXTURE_READY = False
-
 
 def _have_oracle_env() -> bool:
-    if not os.environ.get("ORACLE_PWD"):
-        return False
-    try:
-        mode = (
-            oracledb.AUTH_MODE_SYSDBA
-            if os.environ.get("ORACLE_ADMIN_USER", "sys").lower() == "sys"
-            else oracledb.AUTH_MODE_DEFAULT
-        )
-        conn = oracledb.connect(
-            user=os.environ.get("ORACLE_ADMIN_USER", "sys"),
-            password=os.environ["ORACLE_PWD"],
-            dsn=f"{os.environ.get('ORACLE_HOST', 'localhost')}:{os.environ.get('ORACLE_PORT', '1521')}/{os.environ.get('ORACLE_SERVICE', 'FREEPDB1')}",
-            mode=mode,
-        )
-        conn.close()
-        return True
-    except oracledb.Error:
-        return False
+    return oracle_is_available(oracledb)
 
 
 def _make_backend() -> OracleSandbox:
-    _materialize_oracle_fixture()
+    ensure_oracle_migration_test_materialized()
     os.environ.setdefault("ORACLE_SCHEMA_PASSWORD", ORACLE_MIGRATION_SCHEMA_PASSWORD)
-    manifest = {
-        "runtime": {
-                "source": {
-                    "technology": "oracle",
-                    "dialect": "oracle",
-                    "connection": {
-                        "host": os.environ.get("ORACLE_HOST", "localhost"),
-                        "port": os.environ.get("ORACLE_PORT", "1521"),
-                        "service": os.environ.get("ORACLE_SERVICE", "FREEPDB1"),
-                        "user": os.environ.get("ORACLE_SOURCE_USER", ORACLE_MIGRATION_SCHEMA),
-                        "schema": os.environ.get("ORACLE_SCHEMA", ORACLE_MIGRATION_SCHEMA),
-                        "password_env": os.environ.get("ORACLE_SOURCE_PASSWORD_ENV", "ORACLE_SCHEMA_PASSWORD"),
-                    },
-                },
-            "sandbox": {
-                "technology": "oracle",
-                "dialect": "oracle",
-                "connection": {
-                    "host": os.environ.get("ORACLE_HOST", "localhost"),
-                    "port": os.environ.get("ORACLE_PORT", "1521"),
-                    "service": os.environ.get("ORACLE_SERVICE", "FREEPDB1"),
-                    "user": os.environ.get("ORACLE_ADMIN_USER", "sys"),
-                    "password_env": "ORACLE_PWD",
-                },
-            },
-        }
-    }
-    return OracleSandbox.from_env(manifest)
-
-
-def _materialize_oracle_fixture() -> None:
-    global _FIXTURE_READY
-    if _FIXTURE_READY:
-        return
-    role = RuntimeRole(
-        technology="oracle",
-        dialect="oracle",
-        connection=RuntimeConnection(
-            host=os.environ.get("ORACLE_HOST", "localhost"),
-            port=os.environ.get("ORACLE_PORT", "1521"),
-            service=os.environ.get("ORACLE_SERVICE", "FREEPDB1"),
-            user=os.environ.get("ORACLE_ADMIN_USER", "sys"),
-            schema=os.environ.get("ORACLE_SCHEMA", ORACLE_MIGRATION_SCHEMA),
-            password_env="ORACLE_PWD",
-        ),
-    )
-    result = materialize_migration_test(role, REPO_ROOT)
-    if result.returncode != 0:
-        raise RuntimeError(
-            "Oracle MigrationTest materialization failed:\n"
-            f"stdout:\n{result.stdout}\n"
-            f"stderr:\n{result.stderr}"
-        )
-    _FIXTURE_READY = True
+    return OracleSandbox.from_env(build_oracle_sandbox_manifest())
 
 
 skip_no_oracle = pytest.mark.skipif(

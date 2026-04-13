@@ -17,6 +17,7 @@ If information is mainly operational or contributor-facing, put it in `docs/refe
 - [T-SQL Parse Classification](tsql-parse-classification/README.md) — exhaustive pattern list, deterministic (sqlglot) vs Claude-assisted routing
 - [CLI Design](cli-design/README.md) — framework choice, registered commands, I/O contract, exit codes, and testability pattern
 - [DB Operations API](db-operations-api/README.md) — manifest runtime contract, adapter interfaces, orchestration boundaries, and MigrationTest fixture rules
+- [Backend Integration Parity](backend-integration-parity/README.md) — canonical MigrationTest fixture contract and backend/component integration coverage matrix
 - [Eval Harness](eval-harness/README.md) — Promptfoo-based non-interactive testing for agents and skills against the MigrationTest schema
 - [Command Design](command-design/README.md) — plugin command lifecycle, sub-agent spawning, run log structure, and relationship to skills
 - [Coverage Matrix](coverage-matrix/README.md) — statement-by-statement coverage by phase and by test layer

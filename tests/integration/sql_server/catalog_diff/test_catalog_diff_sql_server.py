@@ -11,7 +11,6 @@ Requires: SA_PASSWORD env var (Docker SQL Server with MigrationTest DB).
 from __future__ import annotations
 
 import json
-import os
 import subprocess
 import sys
 import tempfile
@@ -21,43 +20,25 @@ from typing import Any
 import pytest
 
 from tests.helpers import SHARED_LIB_DIR
+from tests.integration.runtime_helpers import (
+    SQL_SERVER_MIGRATION_DATABASE,
+    build_sql_server_connection_string,
+    ensure_sql_server_migration_test_materialized,
+    sql_server_is_available,
+)
 
 pyodbc = pytest.importorskip("pyodbc", reason="pyodbc not installed — skipping integration tests")
 
 pytestmark = pytest.mark.integration
 
+
 def _have_mssql_env() -> bool:
-    if not all(os.environ.get(name) for name in ("MSSQL_HOST", "MSSQL_DB", "SA_PASSWORD")):
-        return False
-    try:
-        conn = pyodbc.connect(
-            f"DRIVER={{ODBC Driver 18 for SQL Server}};"
-            f"SERVER={os.environ.get('MSSQL_HOST', 'localhost')},"
-            f"{os.environ.get('MSSQL_PORT', '1433')};"
-            f"DATABASE={os.environ.get('MSSQL_DB', 'MigrationTest')};"
-            f"UID={os.environ.get('MSSQL_USER', 'sa')};"
-            f"PWD={os.environ.get('SA_PASSWORD', '')};"
-            "TrustServerCertificate=yes;"
-            "LoginTimeout=1;",
-            autocommit=True,
-        )
-        conn.close()
-        return True
-    except pyodbc.Error:
-        return False
+    return sql_server_is_available(pyodbc)
 
 
 def _connect() -> pyodbc.Connection:
-    return pyodbc.connect(
-        f"DRIVER={{ODBC Driver 18 for SQL Server}};"
-        f"SERVER={os.environ.get('MSSQL_HOST', 'localhost')},"
-        f"{os.environ.get('MSSQL_PORT', '1433')};"
-        f"DATABASE={os.environ.get('MSSQL_DB', 'MigrationTest')};"
-        f"UID={os.environ.get('MSSQL_USER', 'sa')};"
-        f"PWD={os.environ.get('SA_PASSWORD', '')};"
-        f"TrustServerCertificate=yes;",
-        autocommit=True,
-    )
+    ensure_sql_server_migration_test_materialized()
+    return pyodbc.connect(build_sql_server_connection_string(), autocommit=True)
 
 
 def _query_rows(conn: pyodbc.Connection, sql: str) -> list[dict[str, Any]]:
@@ -226,7 +207,7 @@ def _run_write_catalog(staging_dir: Path, project_root: Path, database: str) -> 
 
 skip_no_mssql = pytest.mark.skipif(
     not _have_mssql_env(),
-    reason="MSSQL integration DB not reachable (MSSQL_HOST, MSSQL_DB, SA_PASSWORD and a listening server required)",
+    reason="MSSQL integration DB not reachable (MSSQL_HOST, SA_PASSWORD and a listening server required)",
 )
 
 
@@ -249,7 +230,7 @@ class TestDiffAwareReexportIntegration:
     def test_first_run_produces_hashes_from_real_ddl(self) -> None:
         """Verify ddl_hash is written for real OBJECT_DEFINITION() output."""
         conn = _connect()
-        database = os.environ.get("MSSQL_DB", "MigrationTest")
+        database = SQL_SERVER_MIGRATION_DATABASE
         schemas = self._get_schemas(conn)
 
         with tempfile.TemporaryDirectory() as tmp:
@@ -281,7 +262,7 @@ class TestDiffAwareReexportIntegration:
     def test_identical_reextraction_produces_all_unchanged(self) -> None:
         """Extract twice from the same DB state — everything should be unchanged."""
         conn = _connect()
-        database = os.environ.get("MSSQL_DB", "MigrationTest")
+        database = SQL_SERVER_MIGRATION_DATABASE
         schemas = self._get_schemas(conn)
 
         with tempfile.TemporaryDirectory() as tmp:
@@ -326,7 +307,7 @@ class TestDiffAwareReexportIntegration:
     def test_altered_proc_detected_as_changed(self) -> None:
         """Alter a procedure, re-extract, verify it's classified as changed."""
         conn = _connect()
-        database = os.environ.get("MSSQL_DB", "MigrationTest")
+        database = SQL_SERVER_MIGRATION_DATABASE
         schemas = self._get_schemas(conn)
 
         # Find a procedure to alter
@@ -389,7 +370,7 @@ class TestViewCatalogEnrichmentIntegration:
         catalog at catalog/views/<fqn>.json has non-empty sql and columns fields.
         """
         conn = _connect()
-        database = os.environ.get("MSSQL_DB", "MigrationTest")
+        database = SQL_SERVER_MIGRATION_DATABASE
         view_schema = "dbo"
         view_name = "vw_integration_test_view"
         fqn = f"{view_schema}.{view_name}"

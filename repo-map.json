@@ -35,7 +35,7 @@
     },
     {
       "name": "pytest (ddl-mcp)",
-      "scope": "DDL MCP tests. Default unit run: cd plugin/mcp/ddl && uv run pytest. Oracle live coverage runs by explicit path under plugin/mcp/ddl/tests/integration/oracle/."
+      "scope": "DDL MCP tests. Default unit run: cd plugin/mcp/ddl && uv run pytest. Live backend coverage runs against top-level tests/integration/<technology>/ddl_mcp/ paths from the ddl-mcp project env."
     },
     {
       "name": "promptfoo",
@@ -109,7 +109,7 @@
     },
     "tests_ddl_mcp": {
       "path": "plugin/mcp/ddl/tests/",
-      "description": "DDL MCP pytest suite. Unit coverage lives under plugin/mcp/ddl/tests/unit/. Oracle live coverage lives under plugin/mcp/ddl/tests/integration/oracle/. Shared test fixtures remain under plugin/mcp/ddl/tests/fixtures/."
+      "description": "DDL MCP pytest suite. Unit coverage lives under plugin/mcp/ddl/tests/unit/. Live backend coverage lives under top-level tests/integration/<technology>/ddl_mcp/ and runs from the ddl-mcp project env."
     },
     "scripts": {
       "path": "scripts/",
@@ -135,7 +135,7 @@
     "tests/unit/": "Shared-library unit pytest suite organized by module under tests/unit/<module>/.",
     "tests/integration/": "Shared-library integration pytest suite organized by backend and module under tests/integration/<technology>/<module>/.",
     "tests/evals/": "Promptfoo eval harness for skill and command testing (skill packages include listing-objects, profiling-table, generating-model, generating-tests, reviewing-tests, reviewing-model, analyzing-table, analyzing-table-readiness; command packages include cmd-scope, cmd-profile, cmd-generate-model, cmd-generate-tests, cmd-refactor, cmd-status, cmd-reset-migration, cmd-commit-push-pr)",
-    "plugin/mcp/ddl/tests/": "DDL MCP pytest suite split into tests/unit/ and tests/integration/oracle/. fixtures/oracle/ holds Oracle SH-schema DDL fixtures and manifest.",
+    "plugin/mcp/ddl/tests/": "DDL MCP pytest suite split into tests/unit/ plus shared top-level backend coverage under tests/integration/<technology>/ddl_mcp/ executed from the ddl-mcp project env.",
     "test-fixtures/": "Cross-dialect Kimball DW fixture: schema DDL, baseline seed data, and delta scenarios for SQL Server, Oracle, PostgreSQL",
     "docs/design/": "Durable agent-facing design notes only; keep criteria are documented in docs/design/README.md",
     ".claude/rules/": "Shared agent rules such as coding-conventions, git-workflow, logging-policy, and codex-execution-policy",
@@ -150,7 +150,7 @@
     "test_migration_python_integration_oracle_module": "cd plugin/lib && uv run pytest ../../tests/integration/oracle/<module>",
     "init_check_freetds": "cd plugin/lib && uv run init check-freetds [--register-missing]",
     "test_mcp_ddl": "cd plugin/mcp/ddl && uv run pytest",
-    "test_mcp_ddl_oracle": "cd plugin/mcp/ddl && uv run pytest tests/integration/oracle",
+    "test_mcp_ddl_oracle": "cd plugin/mcp/ddl && uv run pytest ../../../tests/integration/oracle/ddl_mcp",
     "test_harness_help": "cd plugin/lib && uv run test-harness --help",
     "test_harness_execute_spec": "cd plugin/lib && uv run test-harness execute-spec --spec <path>",
 "migrate_util_status": "cd plugin/lib && uv run migrate-util status [<fqn>]",
@@ -208,7 +208,7 @@
     "ddl_filenames": "The loader auto-detects object types from CREATE statements — .sql filenames are not significant. Any directory of .sql files works.",
     "catalog_mandatory": "discover.py requires catalog/ files from setup-ddl. Errors if catalog is missing. No AST fallback.",
     "parse_errors": "sqlglot parse failures are hard errors (DdlParseError). The loader does not silently skip unparseable DDL.",
-    "python_tests": "Two pytest suites: (1) shared lib — default unit run: cd plugin/lib && uv run pytest; path-scoped runs: ../../tests/unit/<module> and ../../tests/integration/<technology>/<module>. (2) DDL MCP server — default unit run: cd plugin/mcp/ddl && uv run pytest; Oracle live run: uv run pytest tests/integration/oracle.",
+    "python_tests": "Two pytest suites: (1) shared lib — default unit run: cd plugin/lib && uv run pytest; path-scoped runs: ../../tests/unit/<module> and ../../tests/integration/<technology>/<module>. (2) DDL MCP server — default unit run: cd plugin/mcp/ddl && uv run pytest; live backend runs target ../../../tests/integration/<technology>/ddl_mcp/.",
     "mssql_env_vars": "Live SQL Server access requires MSSQL_HOST, MSSQL_PORT, MSSQL_DB, SA_PASSWORD exported before launching claude.",
     "update_repo_map": "Refresh this file whenever any entry here becomes stale, especially after architecture, entrypoint, command, module, package, test/eval layout, or documentation-index changes."
   }
