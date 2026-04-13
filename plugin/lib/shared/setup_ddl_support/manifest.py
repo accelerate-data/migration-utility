@@ -108,6 +108,7 @@ def get_connection_identity(technology: str, database: str) -> dict[str, Any]:
                 port=os.environ.get("MSSQL_PORT", "") or None,
                 database=database or None,
                 user=os.environ.get("MSSQL_USER", "sa") or None,
+                password_env="SA_PASSWORD",
                 driver=os.environ.get("MSSQL_DRIVER", "FreeTDS") or None,
             ),
         )
@@ -123,7 +124,7 @@ def get_connection_identity(technology: str, database: str) -> dict[str, Any]:
                 service=os.environ.get("ORACLE_SERVICE", "") or None,
                 user=os.environ.get("ORACLE_USER", "") or None,
                 schema=database or os.environ.get("ORACLE_SCHEMA", "") or None,
-                password_env="ORACLE_PWD",
+                password_env="ORACLE_PASSWORD",
             ),
         )
         return role.model_dump(mode="json", by_alias=True, exclude_none=True)

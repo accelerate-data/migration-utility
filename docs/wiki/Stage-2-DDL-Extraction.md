@@ -1,6 +1,6 @@
 # Stage 2 -- DDL Extraction
 
-`/setup-ddl` extracts source metadata and builds the local migration catalog that every downstream command depends on.
+`/setup-ddl` extracts source metadata and builds the local migration catalog that every downstream command depends on. It also persists the active source endpoint in `manifest.json` as `runtime.source` and writes extraction metadata under `extraction.*`.
 
 ## What it produces
 
@@ -26,7 +26,7 @@ For SQL Server-style sources, `/setup-ddl` runs an interactive extraction flow:
 - `MSSQL_DB`
 - `SA_PASSWORD`
 
-These need to be available before the Claude session starts so the MCP server can read them.
+These are bootstrap inputs for the initial source connection. Once `/setup-ddl` completes, the active source endpoint is persisted in `manifest.json` as `runtime.source`.
 
 ## Oracle flow
 

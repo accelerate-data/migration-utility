@@ -41,7 +41,7 @@ the `reviewing-model` skill.
 | `GENERATION_FAILED` | error | `/generating-model` could not produce a usable model artifact | `error` |
 | `EQUIVALENCE_GAP` | warning | semantic gap remains between proc logic and the generated model | `partial` or `approved_with_warnings` |
 | `DBT_COMPILE_FAILED` | warning | `dbt compile` failed after self-correction attempts | `partial` |
-| `DBT_TEST_FAILED` | warning | `dbt test` failed after self-correction attempts | `partial` |
+| `DBT_TEST_FAILED` | warning | `dbt build` still failed its validation or test phase after self-correction attempts | `partial` |
 | `REVIEW_KICKED_BACK` | warning | reviewer requested another generation pass | `revision_requested` |
 | `REVIEW_APPROVED_WITH_WARNINGS` | warning | reviewer approved after max iterations with issues remaining | `approved_with_warnings` |
 

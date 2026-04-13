@@ -57,7 +57,10 @@ def _load_manifest(project_root: Path) -> dict[str, Any]:
     if get_primary_technology(manifest) is None:
         _error_exit(
             "MISSING_TECHNOLOGY",
-            f"manifest.json is missing required 'technology' key at {project_root}",
+            (
+                "manifest.json does not define a supported runtime technology. "
+                f"Configure runtime.source, runtime.target, or runtime.sandbox at {project_root}."
+            ),
         )
     return manifest
 

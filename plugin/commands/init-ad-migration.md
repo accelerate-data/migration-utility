@@ -59,7 +59,7 @@ Do NOT install or change anything yet — only gather evidence for items not alr
 
 1. `uv run --project "${CLAUDE_PLUGIN_ROOT}/lib" init check-freetds` — verify that Homebrew FreeTDS is installed, `odbcinst` is available, and `FreeTDS` appears in `odbcinst -q -d`
 2. `toolbox --version` — is the genai-toolbox binary installed?
-3. Check whether each of the four MSSQL environment variables is set (non-empty): `MSSQL_HOST`, `MSSQL_PORT`, `MSSQL_DB`, `SA_PASSWORD`. Do not print their values.
+3. Check whether each of the four MSSQL bootstrap environment variables is set (non-empty): `MSSQL_HOST`, `MSSQL_PORT`, `MSSQL_DB`, `SA_PASSWORD`. Do not print their values.
 4. If all MSSQL env vars are set, verify the MCP server: `uv run "${CLAUDE_PLUGIN_ROOT}/mcp/ddl/server.py" --help`
 
 ### Oracle prerequisites (when `$SOURCE` is `oracle`)

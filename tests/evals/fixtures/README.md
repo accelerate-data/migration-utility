@@ -19,7 +19,7 @@ Extract once. Re-extract only when the MigrationTest schema changes.
 # 1. Ensure Docker container is running with MigrationTest
 docker ps | grep sql-test
 
-# 2. Set MCP connection environment
+# 2. Set bootstrap source connection environment
 export MSSQL_HOST=localhost
 export MSSQL_PORT=1433
 export MSSQL_DB=MigrationTest

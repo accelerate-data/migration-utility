@@ -19,9 +19,9 @@ Generate dbt models for a batch of tables. Launches one sub-agent per table in p
   > `<fqn>` is marked as a dbt source — no migration needed. Use `/add-source-tables` to manage source tables.
 - `dbt_project.yml` must exist at `./dbt/`. If missing, fail all items with `DBT_PROJECT_MISSING`.
 - `dbt/profiles.yml` must exist. If missing, fail all items with `DBT_PROFILE_MISSING` and tell the user to run `/setup-target`.
-- `dbt debug` must show "Connection test: OK". If it fails, fail all items with `DBT_CONNECTION_FAILED` and tell the user to check the resolved runtime credentials and endpoint from `manifest.json` and the matching `dbt/profiles.yml` configuration.
+- `dbt debug` must show "Connection test: OK". If it fails, fail all items with `DBT_CONNECTION_FAILED` and tell the user to check the resolved `runtime.target` credentials and endpoint in `manifest.json` and the matching `dbt/profiles.yml` configuration.
 - `runtime.target` must be present in `manifest.json`. If missing, fail all items with `TARGET_NOT_CONFIGURED` and tell the user to run `/setup-target`.
-- `runtime.sandbox` must be present in `manifest.json`. If missing, fail all items with `SANDBOX_NOT_CONFIGURED` and tell the user to run `/setup-sandbox`. The sandbox provides the compile-ready source environment when the workflow needs live source-backed validation.
+- `runtime.sandbox` must be present in `manifest.json`. If missing, fail all items with `SANDBOX_NOT_CONFIGURED` and tell the user to run `/setup-sandbox`. The sandbox is the active execution endpoint when the workflow needs live source-backed validation; it is separate from `runtime.target`.
 - The sandbox must be reachable: run `uv run --project "${CLAUDE_PLUGIN_ROOT}/lib" test-harness sandbox-status`. If the sandbox does not exist or is not accessible, fail all items with `SANDBOX_NOT_CONFIGURED`.
 
 Per-item readiness is checked by the skill via `migrate-util ready` (which enforces that refactor, test generation, and sandbox configuration are complete before model generation can proceed).

@@ -74,15 +74,18 @@ def _make_backend() -> SqlServerSandbox:
         _FIXTURE_READY = True
     manifest = {
         "runtime": {
-            "source": {
-                "technology": "sql_server",
-                "dialect": "tsql",
-                "connection": {
-                    "host": os.environ.get("MSSQL_HOST", "localhost"),
-                    "port": os.environ.get("MSSQL_PORT", "1433"),
-                    "database": os.environ.get("MSSQL_DB", "MigrationTest"),
+                "source": {
+                    "technology": "sql_server",
+                    "dialect": "tsql",
+                    "connection": {
+                        "host": os.environ.get("MSSQL_HOST", "localhost"),
+                        "port": os.environ.get("MSSQL_PORT", "1433"),
+                        "database": os.environ.get("MSSQL_DB", "MigrationTest"),
+                        "user": os.environ.get("MSSQL_USER", "sa"),
+                        "driver": os.environ.get("MSSQL_DRIVER", "ODBC Driver 18 for SQL Server"),
+                        "password_env": "SA_PASSWORD",
+                    },
                 },
-            },
             "sandbox": {
                 "technology": "sql_server",
                 "dialect": "tsql",
