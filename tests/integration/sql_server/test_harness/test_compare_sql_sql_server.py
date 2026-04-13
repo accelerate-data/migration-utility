@@ -18,6 +18,7 @@ import pytest
 
 pyodbc = pytest.importorskip("pyodbc", reason="pyodbc not installed — skipping integration tests")
 
+from tests.helpers import REPO_ROOT
 from shared.fixture_materialization import materialize_migration_test
 from shared.sandbox.sql_server import SqlServerSandbox
 from shared.runtime_config_models import RuntimeConnection, RuntimeRole
@@ -51,7 +52,6 @@ def _have_mssql_env() -> bool:
 def _make_backend() -> SqlServerSandbox:
     global _FIXTURE_READY
     if not _FIXTURE_READY:
-        repo_root = Path(__file__).resolve().parents[4]
         role = RuntimeRole(
             technology="sql_server",
             dialect="tsql",
@@ -64,7 +64,7 @@ def _make_backend() -> SqlServerSandbox:
                 password_env="SA_PASSWORD",
             ),
         )
-        materialize_result = materialize_migration_test(role, repo_root)
+        materialize_result = materialize_migration_test(role, REPO_ROOT)
         if materialize_result.returncode != 0:
             raise RuntimeError(
                 "SQL Server MigrationTest materialization failed:\n"

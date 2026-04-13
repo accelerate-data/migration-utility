@@ -7,7 +7,7 @@ import os
 
 import pytest
 
-from tests.unit.setup_ddl.test_setup_ddl import _run_cli
+from tests.helpers import run_setup_ddl_cli as _run_cli
 
 pytestmark = pytest.mark.integration
 

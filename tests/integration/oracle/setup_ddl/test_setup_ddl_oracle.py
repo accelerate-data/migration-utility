@@ -3,30 +3,17 @@
 from __future__ import annotations
 
 import json
-import os
 
-import oracledb
 import pytest
 
-from tests.unit.setup_ddl.test_setup_ddl import _run_cli
+from tests.helpers import run_setup_ddl_cli as _run_cli
 
 pytestmark = pytest.mark.oracle
 
 
+@pytest.mark.usefixtures("oracle_extract_env")
 class TestListSchemasOracleIntegration:
-    def test_oracle_sh_schema_present(self, tmp_path):
-        for var in ("ORACLE_USER", "ORACLE_PASSWORD", "ORACLE_DSN"):
-            if not os.environ.get(var):
-                pytest.skip(f"{var} not set")
-        try:
-            conn = oracledb.connect(
-                user=os.environ["ORACLE_USER"],
-                password=os.environ["ORACLE_PASSWORD"],
-                dsn=os.environ["ORACLE_DSN"],
-            )
-            conn.close()
-        except oracledb.Error as exc:
-            pytest.skip(f"Oracle test database not reachable: {exc}")
+    def test_oracle_sh_schema_present(self, tmp_path, oracle_extract_env):
         (tmp_path / "manifest.json").write_text(
             '{"technology": "oracle", "dialect": "oracle"}', encoding="utf-8"
         )
@@ -40,23 +27,9 @@ class TestListSchemasOracleIntegration:
         assert sh_entry["tables"] > 0
 
 
+@pytest.mark.usefixtures("oracle_extract_env")
 class TestExtractOracleIntegration:
-    def _skip_if_missing(self):
-        for var in ("ORACLE_USER", "ORACLE_PASSWORD", "ORACLE_DSN"):
-            if not os.environ.get(var):
-                pytest.skip(f"{var} not set")
-        try:
-            conn = oracledb.connect(
-                user=os.environ["ORACLE_USER"],
-                password=os.environ["ORACLE_PASSWORD"],
-                dsn=os.environ["ORACLE_DSN"],
-            )
-            conn.close()
-        except oracledb.Error as exc:
-            pytest.skip(f"Oracle test database not reachable: {exc}")
-
-    def test_sh_produces_ddl_and_catalog(self, tmp_path):
-        self._skip_if_missing()
+    def test_sh_produces_ddl_and_catalog(self, tmp_path, oracle_extract_env):
         (tmp_path / "manifest.json").write_text(
             '{"technology": "oracle", "dialect": "oracle"}', encoding="utf-8"
         )
@@ -72,8 +45,7 @@ class TestExtractOracleIntegration:
         assert tables_dir.is_dir()
         assert len(list(tables_dir.glob("*.json"))) > 0
 
-    def test_sh_table_has_pk(self, tmp_path):
-        self._skip_if_missing()
+    def test_sh_table_has_pk(self, tmp_path, oracle_extract_env):
         (tmp_path / "manifest.json").write_text(
             '{"technology": "oracle", "dialect": "oracle"}', encoding="utf-8"
         )
@@ -89,8 +61,7 @@ class TestExtractOracleIntegration:
         ]
         assert len(tables_with_pk) > 0
 
-    def test_sh_table_has_fk(self, tmp_path):
-        self._skip_if_missing()
+    def test_sh_table_has_fk(self, tmp_path, oracle_extract_env):
         (tmp_path / "manifest.json").write_text(
             '{"technology": "oracle", "dialect": "oracle"}', encoding="utf-8"
         )
@@ -106,8 +77,7 @@ class TestExtractOracleIntegration:
         ]
         assert len(tables_with_fk) > 0
 
-    def test_sh_change_capture_null(self, tmp_path):
-        self._skip_if_missing()
+    def test_sh_change_capture_null(self, tmp_path, oracle_extract_env):
         (tmp_path / "manifest.json").write_text(
             '{"technology": "oracle", "dialect": "oracle"}', encoding="utf-8"
         )
@@ -122,8 +92,7 @@ class TestExtractOracleIntegration:
             data = json.loads(f.read_text())
             assert data.get("change_capture") is None
 
-    def test_sh_views_sql_created(self, tmp_path):
-        self._skip_if_missing()
+    def test_sh_views_sql_created(self, tmp_path, oracle_extract_env):
         (tmp_path / "manifest.json").write_text(
             '{"technology": "oracle", "dialect": "oracle"}', encoding="utf-8"
         )
@@ -138,8 +107,7 @@ class TestExtractOracleIntegration:
         content = views_sql.read_text(encoding="utf-8")
         assert "CREATE OR REPLACE VIEW" in content
 
-    def test_sh_views_catalog_created(self, tmp_path):
-        self._skip_if_missing()
+    def test_sh_views_catalog_created(self, tmp_path, oracle_extract_env):
         (tmp_path / "manifest.json").write_text(
             '{"technology": "oracle", "dialect": "oracle"}', encoding="utf-8"
         )
@@ -157,8 +125,7 @@ class TestExtractOracleIntegration:
         assert "sql" in data
         assert "CREATE OR REPLACE VIEW" in data["sql"]
 
-    def test_sh_views_ddl_contains_select(self, tmp_path):
-        self._skip_if_missing()
+    def test_sh_views_ddl_contains_select(self, tmp_path, oracle_extract_env):
         (tmp_path / "manifest.json").write_text(
             '{"technology": "oracle", "dialect": "oracle"}', encoding="utf-8"
         )
@@ -171,8 +138,7 @@ class TestExtractOracleIntegration:
         content = (tmp_path / "ddl" / "views.sql").read_text(encoding="utf-8")
         assert "SELECT" in content.upper()
 
-    def test_sh_views_no_force_editionable(self, tmp_path):
-        self._skip_if_missing()
+    def test_sh_views_no_force_editionable(self, tmp_path, oracle_extract_env):
         (tmp_path / "manifest.json").write_text(
             '{"technology": "oracle", "dialect": "oracle"}', encoding="utf-8"
         )

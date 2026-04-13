@@ -16,6 +16,7 @@ from pathlib import Path
 import oracledb
 import pytest
 
+from tests.helpers import REPO_ROOT
 from shared.fixture_materialization import materialize_migration_test
 from shared.sandbox.oracle import OracleSandbox
 from shared.runtime_config_models import RuntimeConnection, RuntimeRole
@@ -80,7 +81,6 @@ def _materialize_oracle_fixture() -> None:
     global _FIXTURE_READY
     if _FIXTURE_READY:
         return
-    repo_root = Path(__file__).resolve().parents[4]
     role = RuntimeRole(
         technology="oracle",
         dialect="oracle",
@@ -93,7 +93,7 @@ def _materialize_oracle_fixture() -> None:
             password_env="ORACLE_PWD",
         ),
     )
-    result = materialize_migration_test(role, repo_root)
+    result = materialize_migration_test(role, REPO_ROOT)
     if result.returncode != 0:
         raise RuntimeError(
             "Oracle MigrationTest materialization failed:\n"

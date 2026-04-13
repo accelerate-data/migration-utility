@@ -20,12 +20,11 @@ from typing import Any
 
 import pytest
 
+from tests.helpers import SHARED_LIB_DIR
+
 pyodbc = pytest.importorskip("pyodbc", reason="pyodbc not installed — skipping integration tests")
 
 pytestmark = pytest.mark.integration
-
-SHARED_DIR = Path(__file__).resolve().parents[4] / "plugin" / "lib"
-
 
 def _have_mssql_env() -> bool:
     if not all(os.environ.get(name) for name in ("MSSQL_HOST", "MSSQL_DB", "SA_PASSWORD")):
@@ -218,7 +217,7 @@ def _run_write_catalog(staging_dir: Path, project_root: Path, database: str) -> 
          "--staging-dir", str(staging_dir),
          "--project-root", str(project_root),
          "--database", database],
-        cwd=str(SHARED_DIR),
+        cwd=str(SHARED_LIB_DIR),
         capture_output=True, text=True, timeout=30,
     )
     assert result.returncode == 0, f"write-catalog failed: {result.stderr}"

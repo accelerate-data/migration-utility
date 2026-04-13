@@ -1,0 +1,67 @@
+from __future__ import annotations
+
+import os
+import subprocess
+import sys
+from pathlib import Path
+
+import pytest
+
+REPO_ROOT = Path(__file__).resolve().parents[1]
+SHARED_LIB_DIR = REPO_ROOT / "plugin" / "lib"
+
+
+def git_init(path: Path) -> None:
+    subprocess.run(["git", "init", str(path)], capture_output=True, check=True)
+
+
+def run_python_module(
+    module: str,
+    args: list[str],
+    *,
+    cwd: Path = SHARED_LIB_DIR,
+    timeout: int = 30,
+) -> subprocess.CompletedProcess:
+    return subprocess.run(
+        [sys.executable, "-m", module, *args],
+        cwd=str(cwd),
+        capture_output=True,
+        text=True,
+        timeout=timeout,
+    )
+
+
+def run_setup_ddl_cli(args: list[str], *, timeout: int = 30) -> subprocess.CompletedProcess:
+    return run_python_module("shared.setup_ddl", args, timeout=timeout)
+
+
+def run_catalog_enrich_cli(
+    project_root: Path,
+    extra_args: list[str] | tuple[str, ...] = (),
+    *,
+    timeout: int = 30,
+) -> subprocess.CompletedProcess:
+    return run_python_module(
+        "shared.catalog_enrich",
+        ["--project-root", str(project_root), *extra_args],
+        timeout=timeout,
+    )
+
+
+def require_oracle_extract_env() -> None:
+    oracledb = pytest.importorskip(
+        "oracledb",
+        reason="oracledb not installed - skipping Oracle integration tests",
+    )
+    for var in ("ORACLE_USER", "ORACLE_PASSWORD", "ORACLE_DSN"):
+        if not os.environ.get(var):
+            pytest.skip(f"{var} not set")
+    try:
+        conn = oracledb.connect(
+            user=os.environ["ORACLE_USER"],
+            password=os.environ["ORACLE_PASSWORD"],
+            dsn=os.environ["ORACLE_DSN"],
+        )
+        conn.close()
+    except oracledb.Error as exc:
+        pytest.skip(f"Oracle test database not reachable: {exc}")

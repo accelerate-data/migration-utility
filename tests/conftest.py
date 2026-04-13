@@ -3,10 +3,12 @@ from pathlib import Path
 
 import pytest
 
-# Ensure plugin/lib/ is on the path so tests can import shared.* directly.
-sys.path.insert(0, str(Path(__file__).parents[1] / "plugin" / "lib"))
-# Ensure tests/unit/ is on the path so test modules can import shared helpers.
-sys.path.insert(0, str(Path(__file__).parent / "unit"))
+REPO_ROOT = Path(__file__).resolve().parents[1]
+
+# Ensure repo, plugin/lib, and tests/unit are importable regardless of cwd.
+sys.path.insert(0, str(REPO_ROOT))
+sys.path.insert(0, str(REPO_ROOT / "plugin" / "lib"))
+sys.path.insert(0, str(Path(__file__).resolve().parent / "unit"))
 
 
 def pytest_configure(config):

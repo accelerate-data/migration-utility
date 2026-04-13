@@ -14,10 +14,9 @@ oracledb = pytest.importorskip(
 
 from shared.fixture_materialization import materialize_migration_test
 from shared.runtime_config_models import RuntimeConnection, RuntimeRole
+from tests.helpers import REPO_ROOT
 
 pytestmark = pytest.mark.oracle
-
-REPO_ROOT = Path(__file__).resolve().parents[4]
 
 
 def _have_oracle_env() -> bool:

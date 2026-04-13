@@ -7,35 +7,15 @@ from __future__ import annotations
 
 import json
 import os
-import subprocess
-import sys
 from pathlib import Path
 from unittest.mock import MagicMock, patch
 
-import oracledb
 import pytest
+oracledb = pytest.importorskip("oracledb", reason="oracledb not installed")
 
 from shared.sql_types import format_sql_type
 from shared.sqlserver_extract import _run_dmf_queries
-
-SHARED_DIR = (
-    Path(__file__).resolve().parents[3]
-    / "plugin"
-    / "lib"
-)
-
-
-# ── Helpers ──────────────────────────────────────────────────────────────────
-
-
-def _run_cli(args: list[str], cwd: Path = SHARED_DIR, timeout: int = 30) -> subprocess.CompletedProcess:
-    return subprocess.run(
-        [sys.executable, "-m", "shared.setup_ddl", *args],
-        cwd=str(cwd),
-        capture_output=True,
-        text=True,
-        timeout=timeout,
-    )
+from tests.helpers import run_setup_ddl_cli as _run_cli
 
 
 def _write_json(path: Path, data) -> None:

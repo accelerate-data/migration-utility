@@ -4,43 +4,19 @@ from __future__ import annotations
 
 import json
 import os
-import subprocess
-import sys
 from pathlib import Path
 from typing import Any
 
-import oracledb
 import pytest
+oracledb = pytest.importorskip("oracledb", reason="oracledb not installed")
 
 from shared.catalog_enrich import enrich_catalog
 from shared import catalog_enrich
-
-SHARED_DIR = Path(__file__).resolve().parents[3] / "plugin" / "lib"
-
-
-def _run_enrich_cli(project_root: Path, extra_args: list[str] = (), timeout: int = 30) -> subprocess.CompletedProcess:
-    return subprocess.run(
-        [sys.executable, "-m", "shared.catalog_enrich", "--project-root", str(project_root), *extra_args],
-        cwd=str(SHARED_DIR),
-        capture_output=True,
-        text=True,
-        timeout=timeout,
-    )
-
-
-def _run_setup_ddl_cli(args: list[str], timeout: int = 120) -> subprocess.CompletedProcess:
-    return subprocess.run(
-        [sys.executable, "-m", "shared.setup_ddl", *args],
-        cwd=str(SHARED_DIR),
-        capture_output=True,
-        text=True,
-        timeout=timeout,
-    )
-
-
-def _git_init(path: Path) -> None:
-    """Initialize a bare git repo in path so resolve_project_root passes."""
-    subprocess.run(["git", "init", str(path)], capture_output=True, check=True)
+from tests.helpers import (
+    git_init as _git_init,
+    run_catalog_enrich_cli as _run_enrich_cli,
+    run_setup_ddl_cli as _run_setup_ddl_cli,
+)
 
 
 def _write_sql(path: Path, filename: str, content: str) -> None:
