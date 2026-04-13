@@ -46,6 +46,7 @@ logger = logging.getLogger(__name__)
 _project_root_cache: dict[tuple[str, str], Path] = {}
 _catalog_cache: dict[Path, DdlCatalog] = {}
 _catalog_dialect_cache: dict[Path, str] = {}
+_catalog_token_cache: dict[Path, tuple[tuple[str, int], ...]] = {}
 
 _DDL_PATH_SCHEMA: dict = {}
 
@@ -74,11 +75,14 @@ def _project_root() -> Path:
 
 def _catalog(project_root: Path) -> DdlCatalog:
     resolved = project_root.resolve()
+    token = _ddl_cache_token(project_root)
     dialect = _catalog_dialect_cache.get(resolved)
     if dialect is None:
         manifest = read_manifest(project_root)
         dialect = manifest["dialect"]
-    _catalog_cache[resolved] = load_directory(project_root, dialect=dialect)
+    if _catalog_token_cache.get(resolved) != token or resolved not in _catalog_cache:
+        _catalog_cache[resolved] = load_directory(project_root, dialect=dialect)
+        _catalog_token_cache[resolved] = token
     _catalog_dialect_cache[resolved] = dialect
     return _catalog_cache[resolved]
 
@@ -88,6 +92,23 @@ def _catalog_dialect(project_root: Path) -> str:
     if resolved not in _catalog_dialect_cache:
         _catalog(project_root)
     return _catalog_dialect_cache[resolved]
+
+
+def _ddl_cache_token(project_root: Path) -> tuple[tuple[str, int], ...]:
+    manifest = project_root / "manifest.json"
+    tracked_paths = [manifest, *sorted(project_root.rglob("*.sql"))]
+    return tuple(
+        (str(path.relative_to(project_root)), path.stat().st_mtime_ns)
+        for path in tracked_paths
+        if path.exists()
+    )
+
+
+def _require_argument(arguments: dict, key: str) -> str | None:
+    value = arguments.get(key)
+    if isinstance(value, str) and value:
+        return value
+    return None
 
 
 # ── Column metadata ───────────────────────────────────────────────────────────
@@ -248,6 +269,7 @@ async def list_tools() -> list[types.Tool]:
 
 @server.call_tool()
 async def call_tool(name: str, arguments: dict) -> list[types.TextContent]:
+    arguments = arguments or {}
     project_root = _project_root()
     catalog = _catalog(project_root)
 
@@ -255,9 +277,12 @@ async def call_tool(name: str, arguments: dict) -> list[types.TextContent]:
         return [types.TextContent(type="text", text="\n".join(sorted(catalog.tables)) or "(none)")]
 
     if name == "get_table_schema":
-        entry = catalog.get_table(arguments["name"])
+        table_name = _require_argument(arguments, "name")
+        if table_name is None:
+            return [types.TextContent(type="text", text="Missing required argument: name")]
+        entry = catalog.get_table(table_name)
         if not entry:
-            return [types.TextContent(type="text", text=f"Table not found: {arguments['name']}")]
+            return [types.TextContent(type="text", text=f"Table not found: {table_name}")]
         dialect = _catalog_dialect(project_root)
         return [types.TextContent(type="text", text=json.dumps({
             "ddl": entry.raw_ddl,
@@ -268,13 +293,19 @@ async def call_tool(name: str, arguments: dict) -> list[types.TextContent]:
         return [types.TextContent(type="text", text="\n".join(sorted(catalog.procedures)) or "(none)")]
 
     if name == "get_procedure_body":
-        entry = catalog.get_procedure(arguments["name"])
+        procedure_name = _require_argument(arguments, "name")
+        if procedure_name is None:
+            return [types.TextContent(type="text", text="Missing required argument: name")]
+        entry = catalog.get_procedure(procedure_name)
         if not entry:
-            return [types.TextContent(type="text", text=f"Procedure not found: {arguments['name']}")]
+            return [types.TextContent(type="text", text=f"Procedure not found: {procedure_name}")]
         return [types.TextContent(type="text", text=entry.raw_ddl)]
 
     if name == "get_dependencies":
-        target = normalize(arguments["table_name"])
+        table_name = _require_argument(arguments, "table_name")
+        if table_name is None:
+            return [types.TextContent(type="text", text="Missing required argument: table_name")]
+        target = normalize(table_name)
         matches = []
         for proc_name, entry in catalog.procedures.items():
             try:
@@ -285,7 +316,7 @@ async def call_tool(name: str, arguments: dict) -> list[types.TextContent]:
                 logger.warning(
                     "event=get_dependencies operation=skip_procedure procedure=%s table=%s error=%s",
                     proc_name,
-                    arguments["table_name"],
+                    table_name,
                     exc,
                 )
         return [types.TextContent(
@@ -297,18 +328,24 @@ async def call_tool(name: str, arguments: dict) -> list[types.TextContent]:
         return [types.TextContent(type="text", text="\n".join(sorted(catalog.views)) or "(none)")]
 
     if name == "get_view_body":
-        entry = catalog.get_view(arguments["name"])
+        view_name = _require_argument(arguments, "name")
+        if view_name is None:
+            return [types.TextContent(type="text", text="Missing required argument: name")]
+        entry = catalog.get_view(view_name)
         if not entry:
-            return [types.TextContent(type="text", text=f"View not found: {arguments['name']}")]
+            return [types.TextContent(type="text", text=f"View not found: {view_name}")]
         return [types.TextContent(type="text", text=entry.raw_ddl)]
 
     if name == "list_functions":
         return [types.TextContent(type="text", text="\n".join(sorted(catalog.functions)) or "(none)")]
 
     if name == "get_function_body":
-        entry = catalog.get_function(arguments["name"])
+        function_name = _require_argument(arguments, "name")
+        if function_name is None:
+            return [types.TextContent(type="text", text="Missing required argument: name")]
+        entry = catalog.get_function(function_name)
         if not entry:
-            return [types.TextContent(type="text", text=f"Function not found: {arguments['name']}")]
+            return [types.TextContent(type="text", text=f"Function not found: {function_name}")]
         return [types.TextContent(type="text", text=entry.raw_ddl)]
 
     return [types.TextContent(type="text", text=f"Unknown tool: {name}")]

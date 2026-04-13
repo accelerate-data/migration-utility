@@ -259,6 +259,7 @@ def test_call_tool_reloads_catalog_after_ddl_changes(
     """Subsequent tool calls should see on-disk DDL changes without restart."""
     ddl_server._catalog_cache.clear()
     ddl_server._catalog_dialect_cache.clear()
+    ddl_server._catalog_token_cache.clear()
     monkeypatch.setattr(ddl_server, "_project_root", lambda: ddl_dir)
 
     first = asyncio.run(ddl_server.call_tool("list_tables", {}))
@@ -279,6 +280,53 @@ GO
 
     second = asyncio.run(ddl_server.call_tool("list_tables", {}))
     assert second[0].text == "silver.dimcategory\nsilver.dimproduct"
+
+
+def test_call_tool_reuses_cached_catalog_when_files_unchanged(
+    ddl_dir: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """Repeated tool calls should reuse the cached catalog until files change."""
+    ddl_server._catalog_cache.clear()
+    ddl_server._catalog_dialect_cache.clear()
+    ddl_server._catalog_token_cache.clear()
+    monkeypatch.setattr(ddl_server, "_project_root", lambda: ddl_dir)
+
+    load_count = 0
+    original_load_directory = ddl_server.load_directory
+
+    def tracked_load_directory(project_root: Path, dialect: str = "tsql"):
+        nonlocal load_count
+        load_count += 1
+        return original_load_directory(project_root, dialect=dialect)
+
+    monkeypatch.setattr(ddl_server, "load_directory", tracked_load_directory)
+
+    first = asyncio.run(ddl_server.call_tool("list_tables", {}))
+    second = asyncio.run(ddl_server.call_tool("list_tables", {}))
+
+    assert first[0].text == "silver.dimproduct"
+    assert second[0].text == "silver.dimproduct"
+    assert load_count == 1
+
+
+def test_get_table_schema_requires_name_argument(
+    ddl_dir: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    monkeypatch.setattr(ddl_server, "_project_root", lambda: ddl_dir)
+
+    result = asyncio.run(ddl_server.call_tool("get_table_schema", {}))
+
+    assert result[0].text == "Missing required argument: name"
+
+
+def test_get_dependencies_requires_table_name_argument(
+    ddl_dir: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    monkeypatch.setattr(ddl_server, "_project_root", lambda: ddl_dir)
+
+    result = asyncio.run(ddl_server.call_tool("get_dependencies", {}))
+
+    assert result[0].text == "Missing required argument: table_name"
 
 
 def test_get_table_schema_column_count(ddl_dir: Path) -> None:

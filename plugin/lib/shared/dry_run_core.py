@@ -7,6 +7,8 @@ import logging
 from pathlib import Path
 from typing import Any
 
+from pydantic import ValidationError
+
 from shared.catalog import (
     detect_catalog_bucket,
     detect_object_type,
@@ -15,6 +17,7 @@ from shared.catalog import (
     load_view_catalog,
     write_json,
 )
+from shared.catalog_models import TableCatalog
 from shared.deps import collect_deps
 from shared.loader_data import CatalogLoadError
 from shared.name_resolver import normalize
@@ -80,6 +83,13 @@ def _object_detail(
 
 def _runtime_role_exists(manifest: dict[str, Any], role: str) -> bool:
     return get_runtime_role(manifest, role) is not None
+
+
+def _read_catalog_json(path: Path) -> dict[str, Any]:
+    try:
+        return json.loads(path.read_text(encoding="utf-8"))
+    except (json.JSONDecodeError, OSError) as exc:
+        raise CatalogLoadError(str(path), exc) from exc
 
 
 def _project_stage_ready(project_root: Path, stage: str) -> ReadinessDetail:
@@ -271,9 +281,15 @@ def run_ready(project_root: Path, stage: str, object_fqn: str | None = None) -> 
     return object_out(False, "invalid_stage")
 
 
-def _single_object_status(project_root: Path, norm_fqn: str) -> ObjectStatus | StatusOutput:
+def _single_object_status(
+    project_root: Path,
+    norm_fqn: str,
+    *,
+    obj_type: str | None = None,
+    cat_data: dict[str, Any] | None = None,
+) -> ObjectStatus | StatusOutput:
     """Collate all stage statuses for a single object."""
-    obj_type = detect_object_type(project_root, norm_fqn)
+    obj_type = obj_type or detect_object_type(project_root, norm_fqn)
     if obj_type is None:
         return StatusOutput(
             fqn=norm_fqn,
@@ -293,10 +309,16 @@ def _single_object_status(project_root: Path, norm_fqn: str) -> ObjectStatus | S
         refactor = cat.refactor.status if cat and cat.refactor else None
         generate = cat.generate.status if cat and cat.generate else None
     else:
-        try:
-            cat = load_table_catalog(project_root, norm_fqn)
-        except (json.JSONDecodeError, OSError, CatalogLoadError):
-            cat = None
+        if cat_data is not None:
+            try:
+                cat = TableCatalog.model_validate(cat_data)
+            except ValidationError:
+                cat = None
+        else:
+            try:
+                cat = load_table_catalog(project_root, norm_fqn)
+            except (json.JSONDecodeError, OSError, CatalogLoadError):
+                cat = None
         scope = _display_scope_status(cat.scoping.status if cat and cat.scoping else None)
         profile = cat.profile.status if cat and cat.profile else None
         test_gen = cat.test_gen.status if cat and cat.test_gen else None
@@ -346,13 +368,20 @@ def run_status(project_root: Path, fqn: str | None = None) -> StatusOutput | Obj
             norm_fqn = path.stem
             if bucket == "tables":
                 try:
-                    cat_data = json.loads(path.read_text(encoding="utf-8"))
-                except (json.JSONDecodeError, OSError):
+                    cat_data = _read_catalog_json(path)
+                except CatalogLoadError:
                     cat_data = {}
                 if cat_data.get("is_source"):
                     continue
+                obj_status = _single_object_status(
+                    project_root,
+                    norm_fqn,
+                    obj_type="table",
+                    cat_data=cat_data,
+                )
+            else:
+                obj_status = _single_object_status(project_root, norm_fqn)
 
-            obj_status = _single_object_status(project_root, norm_fqn)
             objects.append(obj_status)
             for stage_name, status_val in obj_status.stages.model_dump().items():
                 label = status_val if status_val else "pending"
@@ -421,7 +450,7 @@ def _reset_table_sections(
     stage: str,
 ) -> tuple[list[str], list[str], str | None]:
     table_path = project_root / "catalog" / "tables" / f"{norm}.json"
-    table_data = json.loads(table_path.read_text(encoding="utf-8"))
+    table_data = _read_catalog_json(table_path)
     writer = (
         table_data.get("scoping", {}).get("selected_writer")
         if isinstance(table_data.get("scoping"), dict)
@@ -457,7 +486,7 @@ def _reset_writer_refactor(
     if not proc_path.exists():
         return []
 
-    proc_data = json.loads(proc_path.read_text(encoding="utf-8"))
+    proc_data = _read_catalog_json(proc_path)
     if "refactor" not in proc_data:
         return []
 
@@ -496,7 +525,7 @@ def run_reset_migration(project_root: Path, stage: str, fqns: list[str]) -> Rese
             continue
 
         table_path = project_root / "catalog" / "tables" / f"{norm}.json"
-        table_data = json.loads(table_path.read_text(encoding="utf-8"))
+        table_data = _read_catalog_json(table_path)
         generate_status = (
             table_data.get("generate", {}).get("status")
             if isinstance(table_data.get("generate"), dict)

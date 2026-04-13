@@ -65,7 +65,6 @@ from shared.sandbox.base import (
     build_execute_output,
     capture_rows as _capture_rows_base,
     generate_sandbox_name,
-    serialize_rows,
     validate_fixtures as _validate_fixtures_base,
     validate_readonly_sql as _validate_readonly_sql_base,
 )
@@ -98,12 +97,6 @@ def _validate_oracle_sandbox_name(sandbox_schema: str) -> None:
     """Validate that a sandbox schema name is safe for DDL interpolation."""
     if not _ORA_SANDBOX_NAME_RE.match(sandbox_schema):
         raise ValueError(f"Invalid Oracle sandbox schema name: {sandbox_schema!r}")
-
-
-def _generate_oracle_sandbox_name() -> str:
-    """Generate a unique sandbox schema name in the ``__test_<hex>`` format."""
-    return generate_sandbox_name()
-
 
 _ORA_TYPE_DEFAULTS: dict[str, Any] = {
     "number": 0,
@@ -557,7 +550,7 @@ class OracleSandbox(SandboxBackend):
         """
         source_schema = schemas[0] if schemas else self.source_schema
         _validate_oracle_identifier(source_schema)
-        sandbox_schema = _generate_oracle_sandbox_name()
+        sandbox_schema = generate_sandbox_name()
 
         logger.info(
             "event=oracle_sandbox_up sandbox=%s source_schema=%s",
@@ -786,11 +779,6 @@ class OracleSandbox(SandboxBackend):
                 )
         return materialized
 
-    @staticmethod
-    def _capture_rows(cursor: Any) -> list[dict[str, Any]]:
-        """Read all rows from the current cursor result set as dicts."""
-        return _capture_rows_base(cursor)
-
     def execute_scenario(
         self,
         sandbox_db: str,
@@ -843,7 +831,7 @@ class OracleSandbox(SandboxBackend):
                     cursor.execute(
                         f'SELECT * FROM "{sandbox_db}".{target_table}'
                     )
-                    result_rows = self._capture_rows(cursor)
+                    result_rows = _capture_rows_base(cursor)
                 finally:
                     conn.rollback()
 
@@ -889,7 +877,7 @@ class OracleSandbox(SandboxBackend):
                 try:
                     self._seed_fixtures(cursor, sandbox_db, fixtures)
                     cursor.execute(sql)
-                    result_rows = self._capture_rows(cursor)
+                    result_rows = _capture_rows_base(cursor)
                 finally:
                     conn.rollback()
 
@@ -948,15 +936,17 @@ class OracleSandbox(SandboxBackend):
             return build_compare_error("VIEW_MATERIALIZE_FAILED", str(exc))
 
         try:
+            rows_a: list[dict[str, Any]] = []
+            rows_b: list[dict[str, Any]] = []
             with self._connect() as conn:
                 conn.autocommit = False
                 cursor = conn.cursor()
                 try:
                     self._seed_fixtures(cursor, sandbox_db, fixtures)
                     cursor.execute(sql_a)
-                    rows_a = self._capture_rows(cursor)
+                    rows_a = _capture_rows_base(cursor)
                     cursor.execute(sql_b)
-                    rows_b = self._capture_rows(cursor)
+                    rows_b = _capture_rows_base(cursor)
                 finally:
                     conn.rollback()
             result = build_compare_result(rows_a, rows_b)

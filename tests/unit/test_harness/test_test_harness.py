@@ -16,10 +16,9 @@ import pytest
 
 from shared.loader_io import clear_manifest_sandbox, read_manifest, write_manifest_sandbox
 from shared.sandbox import get_backend
-from shared.sandbox.base import SandboxBackend
+from shared.sandbox.base import SandboxBackend, generate_sandbox_name
 from shared.sandbox.oracle import (
     OracleSandbox,
-    _generate_oracle_sandbox_name,
     _validate_oracle_identifier,
     _validate_oracle_sandbox_name,
 )
@@ -38,7 +37,6 @@ from shared.output_models.test_specs import TestSpec, TestSpecOutput
 from shared.sandbox.sql_server import (
     SqlServerSandbox,
     _detect_remote_exec_target,
-    _generate_sandbox_db_name,
     _get_identity_columns,
     _get_not_null_defaults,
     _validate_identifier,
@@ -74,15 +72,15 @@ class TestBackendRegistry:
 
 class TestSandboxDbNameGeneration:
     def test_name_has_correct_prefix(self) -> None:
-        name = _generate_sandbox_db_name()
+        name = generate_sandbox_name()
         assert name.startswith("__test_")
 
     def test_name_is_unique(self) -> None:
-        names = {_generate_sandbox_db_name() for _ in range(10)}
+        names = {generate_sandbox_name() for _ in range(10)}
         assert len(names) == 10
 
     def test_name_passes_validation(self) -> None:
-        name = _generate_sandbox_db_name()
+        name = generate_sandbox_name()
         _validate_sandbox_db_name(name)  # should not raise
 
 
@@ -250,7 +248,7 @@ class TestFromEnv:
             clear=True,
         ):
             backend = SqlServerSandbox.from_env(manifest)
-        assert backend.database == "manifestDB"
+        assert backend.database == "master"
         assert backend.user == "admin"
         assert backend.driver == "FreeTDS"
         assert backend.source_user == "source_user"
@@ -593,7 +591,6 @@ class TestIdentityInsert:
         sandbox_cursor.description = [("id",), ("name",)]
 
         fake_connect = _mock_connect_factory(sandbox_cursor=sandbox_cursor)
-        source_connect = _mock_connect_factory(source_cursor=MagicMock(), sandbox_cursor=sandbox_cursor)
         source_connect = _mock_connect_factory(source_cursor=MagicMock(), sandbox_cursor=sandbox_cursor)
 
         scenario = {
@@ -1926,19 +1923,19 @@ class TestOracleIdentifierValidation:
 
 class TestOracleSandboxName:
     def test_name_has_correct_prefix(self) -> None:
-        name = _generate_oracle_sandbox_name()
+        name = generate_sandbox_name()
         assert name.startswith("__test_")
 
     def test_name_is_unique(self) -> None:
-        names = {_generate_oracle_sandbox_name() for _ in range(10)}
+        names = {generate_sandbox_name() for _ in range(10)}
         assert len(names) == 10
 
     def test_name_passes_validation(self) -> None:
-        name = _generate_oracle_sandbox_name()
+        name = generate_sandbox_name()
         _validate_oracle_sandbox_name(name)  # should not raise
 
     def test_name_hex_length(self) -> None:
-        name = _generate_oracle_sandbox_name()
+        name = generate_sandbox_name()
         hex_part = name[len("__test_"):]
         assert len(hex_part) == 12
         assert all(c in "0123456789abcdef" for c in hex_part)

@@ -7,17 +7,15 @@ import uuid
 from abc import ABC, abstractmethod
 from collections.abc import Callable
 from decimal import Decimal
-from typing import TYPE_CHECKING, Any
+from typing import Any
 
-if TYPE_CHECKING:
-    from shared.output_models.sandbox import (
-        SandboxDownOutput,
-        SandboxStatusOutput,
-        SandboxUpOutput,
-        TestHarnessExecuteOutput,
-    )
-
-from shared.output_models.sandbox import ErrorEntry, TestHarnessExecuteOutput
+from shared.output_models.sandbox import (
+    ErrorEntry,
+    SandboxDownOutput,
+    SandboxStatusOutput,
+    SandboxUpOutput,
+    TestHarnessExecuteOutput,
+)
 
 
 def serialize_rows(rows: list[dict[str, Any]]) -> list[dict[str, Any]]:

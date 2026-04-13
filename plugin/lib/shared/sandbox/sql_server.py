@@ -27,7 +27,6 @@ from shared.sandbox.base import (
     build_execute_output,
     capture_rows as _capture_rows_base,
     generate_sandbox_name,
-    serialize_rows,
     validate_fixtures as _validate_fixtures_base,
     validate_readonly_sql as _validate_readonly_sql_base,
 )
@@ -104,12 +103,6 @@ def _validate_sandbox_db_name(sandbox_db: str) -> None:
     """
     if not re.match(r"^__test_[a-zA-Z0-9_]{1,128}$", sandbox_db):
         raise ValueError(f"Invalid sandbox database name: {sandbox_db!r}")
-
-
-def _generate_sandbox_db_name() -> str:
-    """Generate a random sandbox database name."""
-    return generate_sandbox_name()
-
 
 def _split_identifier_parts(identifier: str) -> list[str]:
     parts: list[str] = []
@@ -330,7 +323,7 @@ class SqlServerSandbox(SandboxBackend):
         return cls(
             host=sandbox_host,
             port=sandbox_port,
-            database=source_database,
+            database=sandbox_role.connection.database or "master",
             password=sandbox_password,
             user=sandbox_user,
             driver=sandbox_driver,
@@ -613,7 +606,7 @@ class SqlServerSandbox(SandboxBackend):
         schemas: list[str],
     ) -> SandboxUpOutput:
         _validate_identifier(self.source_database)
-        sandbox_db = _generate_sandbox_db_name()
+        sandbox_db = generate_sandbox_name()
 
         logger.info(
             "event=sandbox_up sandbox_db=%s source=%s schemas=%s",
@@ -905,11 +898,6 @@ class SqlServerSandbox(SandboxBackend):
                 )
         return materialized
 
-    @staticmethod
-    def _capture_rows(cursor: Any) -> list[dict[str, Any]]:
-        """Read all rows from the current cursor result set as dicts."""
-        return _capture_rows_base(cursor)
-
     def execute_scenario(
         self,
         sandbox_db: str,
@@ -991,7 +979,7 @@ class SqlServerSandbox(SandboxBackend):
                     cursor.execute(f"EXEC {procedure}")
 
                     cursor.execute(f"SELECT * FROM {target_table}")
-                    result_rows = self._capture_rows(cursor)
+                    result_rows = _capture_rows_base(cursor)
                 finally:
                     conn.rollback()
 
@@ -1038,7 +1026,7 @@ class SqlServerSandbox(SandboxBackend):
                 try:
                     self._seed_fixtures(cursor, sandbox_db, fixtures)
                     cursor.execute(sql)
-                    result_rows = self._capture_rows(cursor)
+                    result_rows = _capture_rows_base(cursor)
                 finally:
                     conn.rollback()
 
@@ -1081,6 +1069,8 @@ class SqlServerSandbox(SandboxBackend):
             return build_compare_error("VIEW_MATERIALIZE_FAILED", str(exc))
 
         try:
+            rows_a: list[dict[str, Any]] = []
+            rows_b: list[dict[str, Any]] = []
             with self._connect(database=sandbox_db) as conn:
                 conn.autocommit = False
                 cursor = conn.cursor()
@@ -1107,10 +1097,10 @@ class SqlServerSandbox(SandboxBackend):
                     self._seed_fixtures(cursor, sandbox_db, fixtures)
 
                     cursor.execute(sql_a)
-                    rows_a = self._capture_rows(cursor)
+                    rows_a = _capture_rows_base(cursor)
 
                     cursor.execute(sql_b)
-                    rows_b = self._capture_rows(cursor)
+                    rows_b = _capture_rows_base(cursor)
                 finally:
                     conn.rollback()
 

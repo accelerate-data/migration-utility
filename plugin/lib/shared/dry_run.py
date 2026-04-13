@@ -39,6 +39,7 @@ import typer
 
 from shared.batch_plan import build_batch_plan
 from shared.cli_utils import emit
+from shared.loader_data import CatalogLoadError
 from shared.dry_run_core import (
     run_exclude,
     run_ready,
@@ -175,7 +176,7 @@ def reset_migration_cmd(
         logger.error("event=reset_migration_failed stage=%s error=%s", stage, exc)
         emit({"error": str(exc)})
         raise typer.Exit(code=1) from exc
-    except (OSError, json.JSONDecodeError) as exc:
+    except (OSError, json.JSONDecodeError, CatalogLoadError) as exc:
         logger.error("event=reset_migration_failed stage=%s error=%s", stage, exc)
         emit({"error": str(exc)})
         raise typer.Exit(code=2) from exc

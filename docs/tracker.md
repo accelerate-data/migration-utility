@@ -11,6 +11,32 @@ This tracker is the working checklist for addressing the code review findings fr
 
 ## Tasks
 
+- [x] Task 7: Address follow-up review feedback from Claude
+  Findings addressed:
+  - Restore DDL MCP caching with safe invalidation.
+  - Fix confirmed config, error-handling, and cleanup issues from the second review pass.
+  Files:
+  - `plugin/mcp/ddl/server.py`
+  - `plugin/mcp/ddl/tests/unit/test_server.py`
+  - `plugin/lib/shared/sandbox/base.py`
+  - `plugin/lib/shared/sandbox/sql_server.py`
+  - `plugin/lib/shared/sandbox/oracle.py`
+  - `plugin/lib/shared/dry_run_core.py`
+  - `plugin/lib/shared/test_harness.py`
+  - `tests/unit/test_harness/test_test_harness.py`
+  - `tests/unit/dry_run/test_dry_run.py`
+  Verification:
+  - `cd plugin/mcp/ddl && uv run pytest tests/unit/test_server.py -k 'reuses_cached_catalog_when_files_unchanged or reloads_catalog_after_ddl_changes or requires_name_argument or requires_table_name_argument or uses_cached_catalog_dialect'`
+  - `cd plugin/lib && uv run pytest ../../tests/unit/dry_run/test_dry_run.py -k 'reset_migration_cli_corrupt_catalog_exits_2 or reset_migration_mixed_valid_and_missing or reset_migration_not_found_returns_without_mutation or ready_scope_no_catalog_file or status_single_missing_object_reports_not_found'`
+  - `cd plugin/lib && uv run pytest ../../tests/unit/test_harness/test_test_harness.py -k 'from_env_uses_explicit_runtime_roles or TestSandboxDbNameGeneration or TestOracleSandboxName or partial_failure or TestExecuteSelectOracle or TestCompareTwoSqlOracle'`
+  - `cd plugin/lib && uv run pytest ../../tests/unit/test_harness/test_test_harness.py`
+  - `cd plugin/lib && uv run pytest ../../tests/unit/dry_run/test_dry_run.py`
+  - `cd plugin/mcp/ddl && uv run pytest tests/unit/test_server.py`
+  Results:
+  - `test_harness`: 129 passed
+  - `dry_run`: 67 passed
+  - `ddl_mcp`: 34 passed
+
 - [x] Task 1: Create execution tracker and keep it current
   Files:
   - `docs/tracker.md`

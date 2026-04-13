@@ -20,7 +20,6 @@ from shared.test_harness_support.manifest import (
     _error_exit,
     _load_manifest,
     _resolve_sandbox_db,
-    _validate_test_spec,
 )
 from shared.test_harness_support.review import run_validate_review
 

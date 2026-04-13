@@ -1239,3 +1239,18 @@ def test_reset_migration_cli_subcommand(tmp_path: Path) -> None:
     assert output["stage"] == "generate-tests"
     assert output["reset"] == ["silver.dimcustomer"]
     assert not (dst / "test-specs" / "silver.dimcustomer.json").exists()
+
+
+def test_reset_migration_cli_corrupt_catalog_exits_2(tmp_path: Path) -> None:
+    dst = _make_reset_project(tmp_path)
+    table_path = dst / "catalog" / "tables" / "silver.dimcustomer.json"
+    table_path.write_text("{not valid json", encoding="utf-8")
+
+    result = _cli_runner.invoke(
+        dry_run.app,
+        ["reset-migration", "profile", "silver.DimCustomer", "--project-root", str(dst)],
+    )
+
+    assert result.exit_code == 2
+    output = json.loads(result.stdout)
+    assert "error" in output
