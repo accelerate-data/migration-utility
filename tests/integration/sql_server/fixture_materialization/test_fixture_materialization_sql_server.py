@@ -31,9 +31,14 @@ pytestmark = pytest.mark.integration
 
 SQL_SERVER_FIXTURE_BRONZE_PRODUCT = "bronze_product"
 SQL_SERVER_FIXTURE_SILVER_DIMPRODUCT = "silver_dimproduct"
+SQL_SERVER_FIXTURE_SILVER_DIMPROMOTION = "silver_dimpromotion"
+SQL_SERVER_FIXTURE_SILVER_FACTINTERNETSALES = "silver_factinternetsales"
+SQL_SERVER_FIXTURE_SILVER_DIMSALESTERRITORY = "silver_dimsalesterritory"
 SQL_SERVER_FIXTURE_SILVER_LOAD_DIMCURRENCY_PROC = "silver_usp_load_dimcurrency"
 SQL_SERVER_FIXTURE_SILVER_LOAD_DIMPRODUCT_PROC = "silver_usp_load_dimproduct"
+SQL_SERVER_FIXTURE_SILVER_LOAD_DIMPROMOTION_PROC = "silver_usp_load_dimpromotion"
 SQL_SERVER_FIXTURE_SILVER_PROMOTION_VIEW = "silver_vw_dimpromotion"
+SQL_SERVER_FIXTURE_SILVER_TERRITORY_VIEW = "silver_vdimsalesterritory"
 
 REQUIRED_FIXTURE_TABLES = (
     SQL_SERVER_FIXTURE_BRONZE_CURRENCY,
@@ -41,13 +46,28 @@ REQUIRED_FIXTURE_TABLES = (
     SQL_SERVER_FIXTURE_SILVER_CONFIG,
     SQL_SERVER_FIXTURE_SILVER_DIMCURRENCY,
     SQL_SERVER_FIXTURE_SILVER_DIMPRODUCT,
+    SQL_SERVER_FIXTURE_SILVER_DIMPROMOTION,
+    SQL_SERVER_FIXTURE_SILVER_FACTINTERNETSALES,
+    SQL_SERVER_FIXTURE_SILVER_DIMSALESTERRITORY,
 )
 REQUIRED_FIXTURE_PROCEDURES = (
     SQL_SERVER_FIXTURE_SILVER_LOAD_DIMCURRENCY_PROC,
     SQL_SERVER_FIXTURE_SILVER_LOAD_DIMPRODUCT_PROC,
+    SQL_SERVER_FIXTURE_SILVER_LOAD_DIMPROMOTION_PROC,
     SQL_SERVER_FIXTURE_SILVER_PATTERN_PROC,
 )
-REQUIRED_FIXTURE_VIEWS = (SQL_SERVER_FIXTURE_SILVER_PROMOTION_VIEW,)
+REQUIRED_FIXTURE_VIEWS = (
+    SQL_SERVER_FIXTURE_SILVER_PROMOTION_VIEW,
+    SQL_SERVER_FIXTURE_SILVER_TERRITORY_VIEW,
+)
+
+REQUIRED_SENTINEL_OBJECT_SPECS = (
+    "table:silver_dimpromotion",
+    "procedure:silver_usp_load_dimpromotion",
+    "table:silver_factinternetsales",
+    "table:silver_dimsalesterritory",
+    "view:silver_vdimsalesterritory",
+)
 
 
 def _have_mssql_env() -> bool:
@@ -108,6 +128,14 @@ def _assert_fixture_contract(cursor: pyodbc.Cursor) -> None:
         assert _view_exists(cursor, view_name), f"missing required fixture view {view_name}"
 
 
+def test_materialize_migration_test_sql_server_sentinel_covers_review_contract() -> None:
+    script_path = REPO_ROOT / "scripts" / "sql" / "sql_server" / "materialize-migration-test.sh"
+    script_text = script_path.read_text(encoding="utf-8")
+
+    for object_spec in REQUIRED_SENTINEL_OBJECT_SPECS:
+        assert object_spec in script_text, f"missing sentinel object check {object_spec}"
+
+
 @pytest.mark.skipif(not _have_mssql_env(), reason="SQL Server fixture env not configured")
 def test_materialize_migration_test_sql_server_creates_core_objects() -> None:
     role = _build_sql_server_fixture_role()
@@ -138,17 +166,21 @@ def test_materialize_migration_test_sql_server_repairs_downstream_contract_objec
     try:
         cursor = conn.cursor()
         cursor.execute(
-            f"DROP PROCEDURE [{SQL_SERVER_FIXTURE_SCHEMA}].[{SQL_SERVER_FIXTURE_SILVER_LOAD_DIMPRODUCT_PROC}]"
+            f"DROP VIEW [{SQL_SERVER_FIXTURE_SCHEMA}].[{SQL_SERVER_FIXTURE_SILVER_TERRITORY_VIEW}]"
         )
         cursor.execute(
-            f"DROP TABLE [{SQL_SERVER_FIXTURE_SCHEMA}].[{SQL_SERVER_FIXTURE_SILVER_DIMPRODUCT}]"
+            f"DROP PROCEDURE [{SQL_SERVER_FIXTURE_SCHEMA}].[{SQL_SERVER_FIXTURE_SILVER_LOAD_DIMPROMOTION_PROC}]"
         )
         cursor.execute(
-            f"DROP TABLE [{SQL_SERVER_FIXTURE_SCHEMA}].[{SQL_SERVER_FIXTURE_BRONZE_PRODUCT}]"
+            f"DROP TABLE [{SQL_SERVER_FIXTURE_SCHEMA}].[{SQL_SERVER_FIXTURE_SILVER_FACTINTERNETSALES}]"
         )
-        assert not _procedure_exists(cursor, SQL_SERVER_FIXTURE_SILVER_LOAD_DIMPRODUCT_PROC)
-        assert not _table_exists(cursor, SQL_SERVER_FIXTURE_SILVER_DIMPRODUCT)
-        assert not _table_exists(cursor, SQL_SERVER_FIXTURE_BRONZE_PRODUCT)
+        cursor.execute(
+            f"DROP TABLE [{SQL_SERVER_FIXTURE_SCHEMA}].[{SQL_SERVER_FIXTURE_SILVER_DIMSALESTERRITORY}]"
+        )
+        assert not _view_exists(cursor, SQL_SERVER_FIXTURE_SILVER_TERRITORY_VIEW)
+        assert not _procedure_exists(cursor, SQL_SERVER_FIXTURE_SILVER_LOAD_DIMPROMOTION_PROC)
+        assert not _table_exists(cursor, SQL_SERVER_FIXTURE_SILVER_FACTINTERNETSALES)
+        assert not _table_exists(cursor, SQL_SERVER_FIXTURE_SILVER_DIMSALESTERRITORY)
     finally:
         conn.close()
 

@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# Builds and publishes the SQL Server Docker image with pre-baked databases.
+# Builds and publishes the SQL Server Docker image with pre-baked source data.
 #
 # Usage:
 #   SA_PASSWORD='P@ssw0rd123' ./scripts/publish-sqlserver-image.sh [--push]
@@ -7,10 +7,14 @@
 # The script:
 # 1. Starts a temporary builder container from the pinned base image
 # 2. Creates KimballFixture (schema + baseline + procedures + deltas)
-# 3. Creates MigrationTest (schemas + pattern procs)
-# 4. Checkpoints, shrinks logs, stops SQL Server cleanly
-# 5. Extracts data files and builds the final image via Dockerfile
-# 6. Optionally pushes to GHCR (with --push flag)
+# 3. Verifies and checkpoints the source fixture database
+# 4. Extracts data files and builds the final image via Dockerfile
+# 5. Optionally pushes to GHCR (with --push flag)
+#
+# This image no longer bakes a separate MigrationTest database. The canonical
+# MigrationTest fixture is a schema-level contract materialized on demand by
+# scripts/sql/sql_server/materialize-migration-test.sh inside the configured
+# SQL Server database used for tests.
 #
 # Prerequisites:
 # - Docker running
@@ -104,29 +108,11 @@ for delta_dir in "$REPO_ROOT"/test-fixtures/data/delta/*/; do
     fi
 done
 
-# ── Phase 3: Create MigrationTest ───────────────────────────────
-echo "Phase 3: Creating MigrationTest database..."
-run_sql -Q "CREATE DATABASE MigrationTest;"
-run_sql -d MigrationTest -Q "
-IF NOT EXISTS (SELECT 1 FROM sys.schemas WHERE name='bronze') EXEC('CREATE SCHEMA bronze');
-IF NOT EXISTS (SELECT 1 FROM sys.schemas WHERE name='silver') EXEC('CREATE SCHEMA silver');
-IF NOT EXISTS (SELECT 1 FROM sys.schemas WHERE name='gold')   EXEC('CREATE SCHEMA gold');
-IF NOT EXISTS (SELECT 1 FROM sys.schemas WHERE name='staging') EXEC('CREATE SCHEMA staging');
-"
-
-# Pattern procs (from the baked-in /tmp/ files in the old image, or from repo)
-if [[ -f "$REPO_ROOT/test-fixtures/procedures/pattern_procs.sql" ]]; then
-    echo "  Loading pattern procs from repo..."
-    run_sql_file "$REPO_ROOT/test-fixtures/procedures/pattern_procs.sql" MigrationTest
-else
-    echo "  No pattern_procs.sql found in test-fixtures/procedures/, skipping."
-fi
-
-# ── Phase 4: Verify ─────────────────────────────────────────────
-echo "Phase 4: Verifying databases..."
+# ── Phase 3: Verify ─────────────────────────────────────────────
+echo "Phase 3: Verifying source fixture database..."
 run_sql -Q "
 SET NOCOUNT ON;
-SELECT name FROM sys.databases WHERE name IN ('KimballFixture', 'MigrationTest') ORDER BY name;
+SELECT name FROM sys.databases WHERE name = 'KimballFixture';
 "
 
 run_sql -d KimballFixture -Q "
@@ -139,18 +125,17 @@ SELECT 'rows='   + CAST(CAST(SUM(p.rows) AS BIGINT) AS VARCHAR)
   JOIN sys.partitions p ON t.object_id = p.object_id AND p.index_id IN (0,1);
 "
 
-# ── Phase 5: Checkpoint, shrink, shutdown ────────────────────────
-echo "Phase 5: Checkpointing and shrinking log files..."
+# ── Phase 4: Checkpoint, shrink, shutdown ────────────────────────
+echo "Phase 4: Checkpointing and shrinking log files..."
 run_sql -Q "
-USE KimballFixture;  CHECKPOINT; DBCC SHRINKFILE(KimballFixture_log, 1);
-USE MigrationTest;   CHECKPOINT; DBCC SHRINKFILE(MigrationTest_log, 1);
+USE KimballFixture; CHECKPOINT; DBCC SHRINKFILE(KimballFixture_log, 1);
 "
 
 echo "Stopping SQL Server cleanly..."
 docker stop "$BUILDER_CONTAINER"
 
-# ── Phase 6: Extract data files ─────────────────────────────────
-echo "Phase 6: Extracting data files..."
+# ── Phase 5: Extract data files ─────────────────────────────────
+echo "Phase 5: Extracting data files..."
 rm -rf "$DATA_STAGING"
 mkdir -p "$DATA_STAGING"
 docker cp "${BUILDER_CONTAINER}:/var/opt/mssql/data/." "$DATA_STAGING/"
@@ -161,9 +146,9 @@ rm -f "$DATA_STAGING"/tempdb*.mdf "$DATA_STAGING"/tempdb*.ndf "$DATA_STAGING"/te
 echo "Data files:"
 ls -lh "$DATA_STAGING/"
 
-# ── Phase 7: Build image ────────────────────────────────────────
+# ── Phase 6: Build image ────────────────────────────────────────
 DATE_TAG="$(date +%Y%m%d)"
-echo "Phase 7: Building image..."
+echo "Phase 6: Building image..."
 docker build \
     --build-arg "MSSQL_TAG=${MSSQL_TAG}" \
     -t "${IMAGE}:latest" \
@@ -172,9 +157,9 @@ docker build \
 
 echo "Built: ${IMAGE}:latest and ${IMAGE}:${DATE_TAG}"
 
-# ── Phase 8: Push (optional) ────────────────────────────────────
+# ── Phase 7: Push (optional) ────────────────────────────────────
 if [[ "$DO_PUSH" == "true" ]]; then
-    echo "Phase 8: Pushing to GHCR..."
+    echo "Phase 7: Pushing to GHCR..."
     docker push "${IMAGE}:latest"
     docker push "${IMAGE}:${DATE_TAG}"
     echo "Published ${IMAGE}:latest and ${IMAGE}:${DATE_TAG}"

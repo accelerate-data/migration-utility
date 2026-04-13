@@ -53,9 +53,14 @@ declare -a REQUIRED_FIXTURE_OBJECTS=(
   "table:silver_config"
   "table:silver_dimcurrency"
   "table:silver_dimproduct"
+  "table:silver_dimpromotion"
+  "table:silver_factinternetsales"
+  "table:silver_dimsalesterritory"
   "view:silver_vw_dimpromotion"
+  "view:silver_vdimsalesterritory"
   "procedure:silver_usp_load_dimcurrency"
   "procedure:silver_usp_load_dimproduct"
+  "procedure:silver_usp_load_dimpromotion"
   "procedure:silver_usp_unionall"
 )
 
