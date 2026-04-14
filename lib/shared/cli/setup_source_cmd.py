@@ -69,11 +69,15 @@ def setup_source(
         return
 
     commit_files = [root / "ddl", root / "catalog", root / "manifest.json"]
-    stage_and_commit(
-        [f for f in commit_files if f.exists()],
-        f"extract DDL ({technology}, schemas: {', '.join(schema_list)})",
-        root,
-    )
+    try:
+        stage_and_commit(
+            [f for f in commit_files if f.exists()],
+            f"extract DDL ({technology}, schemas: {', '.join(schema_list)})",
+            root,
+        )
+    except RuntimeError as exc:
+        error(f"Git commit failed: {exc}")
+        raise typer.Exit(code=1) from exc
     success("Extraction committed.")
 
 

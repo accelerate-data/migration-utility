@@ -8,6 +8,7 @@ from typing import Any
 import typer
 
 from shared.cli.output import console, error, print_table
+from shared.loader_io import clear_manifest_sandbox
 from shared.runtime_config import get_sandbox_name
 from shared.sandbox.base import SandboxBackend
 from shared.test_harness_support.manifest import _create_backend as _th_create_backend
@@ -68,6 +69,7 @@ def teardown_sandbox(
     )
 
     if result.status == "ok":
+        clear_manifest_sandbox(root)
         print_table(
             "Teardown Summary",
             [("Database", result.sandbox_database), ("Status", result.status)],

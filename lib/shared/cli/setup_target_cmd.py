@@ -35,7 +35,11 @@ def setup_target(
 
     console.print("Running target setup...")
     with console.status("Scaffolding dbt project and generating sources.yml..."):
-        result = run_setup_target(root)
+        try:
+            result = run_setup_target(root)
+        except ValueError as exc:
+            error(str(exc))
+            raise typer.Exit(code=1) from exc
 
     for f in result.files:
         success(f"created  {f}")
@@ -46,16 +50,21 @@ def setup_target(
         f"{len(result.created_tables)} new, {len(result.existing_tables)} existing"
     )
 
-    in_git_repo = is_git_repo(root)
-    if no_commit or not in_git_repo:
-        if not in_git_repo:
-            warn("Not a git repository — skipping commit.")
+    if no_commit:
+        return
+
+    if not is_git_repo(root):
+        warn("Not a git repository — skipping commit.")
         return
 
     commit_files = [root / "manifest.json", root / "dbt"]
-    stage_and_commit(
-        [f for f in commit_files if f.exists()],
-        f"feat: setup target ({technology}, source_schema={source_schema})",
-        root,
-    )
+    try:
+        stage_and_commit(
+            [f for f in commit_files if f.exists()],
+            f"feat: setup target ({technology}, source_schema={source_schema})",
+            root,
+        )
+    except RuntimeError as exc:
+        error(f"Git commit failed: {exc}")
+        raise typer.Exit(code=1) from exc
     success("Target setup committed.")

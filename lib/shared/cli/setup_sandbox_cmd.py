@@ -75,6 +75,12 @@ def setup_sandbox(
         len(result.errors),
     )
 
+    if result.status == "error":
+        if result.errors:
+            for entry in result.errors:
+                error(f"[{entry.code}] {entry.message}")
+        raise typer.Exit(code=1)
+
     _write_sandbox_to_manifest(root, result.sandbox_database)
 
     print_table(
@@ -88,10 +94,3 @@ def setup_sandbox(
         ],
         columns=("", ""),
     )
-
-    if result.errors:
-        for entry in result.errors:
-            error(f"[{entry.code}] {entry.message}")
-
-    if result.status == "error":
-        raise typer.Exit(code=1)
