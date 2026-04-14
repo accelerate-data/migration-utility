@@ -4,7 +4,7 @@ const os = require('node:os');
 const path = require('node:path');
 const test = require('node:test');
 
-const { pruneOldRuns } = require('./run-workspace-extension');
+const { extensionHook, pruneOldRuns } = require('./run-workspace-extension');
 
 const REPO_ROOT = path.resolve(__dirname, '..', '..', '..');
 
@@ -26,9 +26,8 @@ function buildContext(testDescription = 'Creates a workspace copy') {
   };
 }
 
-function loadFreshModule() {
-  delete require.cache[require.resolve('./run-workspace-extension')];
-  return require('./run-workspace-extension');
+function makePruneState() {
+  return { hasPrunedRuns: false };
 }
 
 function touchMtime(target, mtimeMs) {
@@ -64,7 +63,6 @@ test('pruneOldRuns is a no-op when the runs root is missing', () => {
 });
 
 test('extensionHook creates a fresh run_path after pruning stale runs', async () => {
-  const { extensionHook } = loadFreshModule();
   const tempRunsRoot = fs.mkdtempSync(path.join(os.tmpdir(), 'eval-runs-'));
   const staleRun = makeRunDir(tempRunsRoot, 'task1-cleanup/stale-run');
   const now = Date.now();
@@ -84,6 +82,7 @@ test('extensionHook creates a fresh run_path after pruning stale runs', async ()
     const nextContext = await extensionHook('beforeEach', context, {
       nowMs: now,
       runsRoot: tempRunsRoot,
+      pruneState: makePruneState(),
     });
     const runPath = path.resolve(REPO_ROOT, nextContext.test.vars.run_path);
 
@@ -97,10 +96,10 @@ test('extensionHook creates a fresh run_path after pruning stale runs', async ()
 });
 
 test('extensionHook prunes once per process across runs roots', async () => {
-  const { extensionHook } = loadFreshModule();
   const now = Date.now();
   const firstRunsRoot = fs.mkdtempSync(path.join(os.tmpdir(), 'eval-runs-a-'));
   const secondRunsRoot = fs.mkdtempSync(path.join(os.tmpdir(), 'eval-runs-b-'));
+  const pruneState = makePruneState();
 
   try {
     const firstStaleRun = makeRunDir(firstRunsRoot, 'listing-objects/stale-run-1');
@@ -109,6 +108,7 @@ test('extensionHook prunes once per process across runs roots', async () => {
     const firstContext = await extensionHook('beforeEach', buildContext('First run'), {
       nowMs: now,
       runsRoot: firstRunsRoot,
+      pruneState,
     });
 
     assert.equal(fs.existsSync(firstStaleRun), false);
@@ -121,6 +121,7 @@ test('extensionHook prunes once per process across runs roots', async () => {
     const secondContext = await extensionHook('beforeEach', buildContext('Second run'), {
       nowMs: now + 1000,
       runsRoot: firstRunsRoot,
+      pruneState,
     });
 
     assert.equal(fs.existsSync(secondStaleRun), true);
@@ -133,6 +134,7 @@ test('extensionHook prunes once per process across runs roots', async () => {
     const thirdContext = await extensionHook('beforeEach', buildContext('Third run'), {
       nowMs: now + 2000,
       runsRoot: secondRunsRoot,
+      pruneState,
     });
 
     assert.equal(fs.existsSync(thirdStaleRun), true);
@@ -145,12 +147,11 @@ test('extensionHook prunes once per process across runs roots', async () => {
 });
 
 test('extensionHook rejects an empty runsRoot override', async () => {
-  const { extensionHook } = loadFreshModule();
-
   await assert.rejects(
     () => extensionHook('beforeEach', buildContext('Invalid root'), {
       nowMs: Date.now(),
       runsRoot: '',
+      pruneState: makePruneState(),
     }),
     /runsRoot must be a non-empty string when provided/,
   );
