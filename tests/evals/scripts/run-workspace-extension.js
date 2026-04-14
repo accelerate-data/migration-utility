@@ -5,7 +5,7 @@ const path = require('path');
 const REPO_ROOT = path.resolve(__dirname, '..', '..', '..');
 const RUNS_ROOT = path.join(REPO_ROOT, 'tests', 'evals', 'output', 'runs');
 const RUN_RETENTION_MS = 24 * 60 * 60 * 1000;
-let hasPrunedRuns = false;
+const prunedRunsRoots = new Set();
 const VOLATILE_PATHS = [
   '.migration-runs',
   'model-review-results',
@@ -133,6 +133,18 @@ function pruneOldRuns(root, { cutoffMs }) {
   }
 }
 
+function resolveRunsRoot(runsRoot) {
+  if (runsRoot === undefined || runsRoot === null) {
+    return RUNS_ROOT;
+  }
+
+  if (typeof runsRoot !== 'string' || runsRoot.trim().length === 0) {
+    throw new Error('runsRoot must be a non-empty string when provided');
+  }
+
+  return runsRoot;
+}
+
 async function extensionHook(hookName, context, options = {}) {
   if (hookName !== 'beforeEach') {
     return context;
@@ -148,12 +160,13 @@ async function extensionHook(hookName, context, options = {}) {
     return context;
   }
 
-  const runsRoot = options.runsRoot ?? RUNS_ROOT;
+  const runsRoot = resolveRunsRoot(options.runsRoot);
   const nowMs = options.nowMs ?? Date.now();
+  const prunedRunsKey = path.resolve(runsRoot);
 
-  if (!hasPrunedRuns) {
+  if (!prunedRunsRoots.has(prunedRunsKey)) {
     pruneOldRuns(runsRoot, { cutoffMs: nowMs - RUN_RETENTION_MS });
-    hasPrunedRuns = true;
+    prunedRunsRoots.add(prunedRunsKey);
   }
 
   const suiteSlug = sanitizeSegment(context?.suite?.description, 'eval');

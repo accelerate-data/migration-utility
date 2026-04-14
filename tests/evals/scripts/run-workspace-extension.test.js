@@ -96,35 +96,62 @@ test('extensionHook creates a fresh run_path after pruning stale runs', async ()
   }
 });
 
-test('extensionHook prunes stale runs once per process before creating the next run', async () => {
+test('extensionHook prunes each runs root once per process', async () => {
   const { extensionHook } = loadFreshModule();
-  const tempRunsRoot = fs.mkdtempSync(path.join(os.tmpdir(), 'eval-runs-'));
   const now = Date.now();
-  const firstStaleRun = makeRunDir(tempRunsRoot, 'listing-objects/stale-run-1');
-  touchMtime(firstStaleRun, now - (26 * 60 * 60 * 1000));
+  const firstRunsRoot = fs.mkdtempSync(path.join(os.tmpdir(), 'eval-runs-a-'));
+  const secondRunsRoot = fs.mkdtempSync(path.join(os.tmpdir(), 'eval-runs-b-'));
 
   try {
+    const firstStaleRun = makeRunDir(firstRunsRoot, 'listing-objects/stale-run-1');
+    touchMtime(firstStaleRun, now - (26 * 60 * 60 * 1000));
+
     const firstContext = await extensionHook('beforeEach', buildContext('First run'), {
       nowMs: now,
-      runsRoot: tempRunsRoot,
+      runsRoot: firstRunsRoot,
     });
 
     assert.equal(fs.existsSync(firstStaleRun), false);
     assert.equal(typeof firstContext.test.vars.run_path, 'string');
     assert.notEqual(firstContext.test.vars.run_path.length, 0);
 
-    const secondStaleRun = makeRunDir(tempRunsRoot, 'listing-objects/stale-run-2');
+    const secondStaleRun = makeRunDir(firstRunsRoot, 'listing-objects/stale-run-2');
     touchMtime(secondStaleRun, now - (26 * 60 * 60 * 1000));
 
     const secondContext = await extensionHook('beforeEach', buildContext('Second run'), {
       nowMs: now + 1000,
-      runsRoot: tempRunsRoot,
+      runsRoot: firstRunsRoot,
     });
 
     assert.equal(fs.existsSync(secondStaleRun), true);
     assert.equal(typeof secondContext.test.vars.run_path, 'string');
     assert.notEqual(secondContext.test.vars.run_path.length, 0);
+
+    const thirdStaleRun = makeRunDir(secondRunsRoot, 'listing-objects/stale-run-3');
+    touchMtime(thirdStaleRun, now - (26 * 60 * 60 * 1000));
+
+    const thirdContext = await extensionHook('beforeEach', buildContext('Third run'), {
+      nowMs: now + 2000,
+      runsRoot: secondRunsRoot,
+    });
+
+    assert.equal(fs.existsSync(thirdStaleRun), false);
+    assert.equal(typeof thirdContext.test.vars.run_path, 'string');
+    assert.notEqual(thirdContext.test.vars.run_path.length, 0);
   } finally {
-    fs.rmSync(tempRunsRoot, { recursive: true, force: true });
+    fs.rmSync(firstRunsRoot, { recursive: true, force: true });
+    fs.rmSync(secondRunsRoot, { recursive: true, force: true });
   }
+});
+
+test('extensionHook rejects an empty runsRoot override', async () => {
+  const { extensionHook } = loadFreshModule();
+
+  await assert.rejects(
+    () => extensionHook('beforeEach', buildContext('Invalid root'), {
+      nowMs: Date.now(),
+      runsRoot: '',
+    }),
+    /runsRoot must be a non-empty string when provided/,
+  );
 });
