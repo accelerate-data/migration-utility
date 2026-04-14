@@ -274,6 +274,70 @@ test('pruneOldRuns tolerates ENOENT when a nested child disappears during recurs
   }
 });
 
+test('extensionHook excludes volatile paths from the run copy', async () => {
+  const { extensionHook } = loadExtensionModule();
+  const tempRunsRoot = fs.mkdtempSync(path.join(os.tmpdir(), 'eval-runs-'));
+  const tempFixture = fs.mkdtempSync(path.join(os.tmpdir(), 'eval-fixture-'));
+
+  try {
+    // Build a minimal valid fixture
+    const manifest = {
+      technology: 'sql_server',
+      dialect: 'tsql',
+      runtime: {
+        source: { technology: 'sql_server', dialect: 'tsql', connection: { database: 'TestDB' } },
+      },
+    };
+    fs.writeFileSync(path.join(tempFixture, 'manifest.json'), JSON.stringify(manifest), 'utf8');
+    fs.mkdirSync(path.join(tempFixture, 'ddl'), { recursive: true });
+    fs.writeFileSync(path.join(tempFixture, 'ddl', 'tables.sql'), 'CREATE TABLE t(id INT);\n', 'utf8');
+    fs.mkdirSync(path.join(tempFixture, 'catalog'), { recursive: true });
+    fs.writeFileSync(path.join(tempFixture, 'catalog', 'tables.json'), '{}', 'utf8');
+
+    // Plant volatile artifacts that should be excluded
+    fs.mkdirSync(path.join(tempFixture, 'dbt', 'target'), { recursive: true });
+    fs.writeFileSync(path.join(tempFixture, 'dbt', 'target', 'manifest.json'), '{}', 'utf8');
+    fs.mkdirSync(path.join(tempFixture, 'dbt', 'logs'), { recursive: true });
+    fs.writeFileSync(path.join(tempFixture, 'dbt', 'logs', 'dbt.log'), 'log content\n', 'utf8');
+    fs.mkdirSync(path.join(tempFixture, '.migration-runs'), { recursive: true });
+    fs.writeFileSync(path.join(tempFixture, '.migration-runs', 'run.json'), '{}', 'utf8');
+    fs.mkdirSync(path.join(tempFixture, 'model-review-results'), { recursive: true });
+    fs.writeFileSync(path.join(tempFixture, 'model-review-results', 'result.json'), '{}', 'utf8');
+    fs.mkdirSync(path.join(tempFixture, 'test-review-results'), { recursive: true });
+    fs.writeFileSync(path.join(tempFixture, 'test-review-results', 'result.json'), '{}', 'utf8');
+    fs.writeFileSync(path.join(tempFixture, 'context.json'), '{}', 'utf8');
+
+    const fixturePath = path.relative(REPO_ROOT, tempFixture).split(path.sep).join(path.posix.sep);
+    const context = {
+      suite: { description: 'Filter test' },
+      test: { description: 'Excludes volatile paths', vars: { fixture_path: fixturePath } },
+    };
+
+    const nextContext = await extensionHook('beforeEach', context, {
+      nowMs: Date.now(),
+      runsRoot: tempRunsRoot,
+      pruneState: makePruneState(),
+    });
+    const runPath = path.resolve(REPO_ROOT, nextContext.test.vars.run_path);
+
+    // Valid content must be present
+    assert.equal(fs.existsSync(path.join(runPath, 'manifest.json')), true);
+    assert.equal(fs.existsSync(path.join(runPath, 'ddl', 'tables.sql')), true);
+    assert.equal(fs.existsSync(path.join(runPath, 'catalog', 'tables.json')), true);
+
+    // Volatile content must be absent
+    assert.equal(fs.existsSync(path.join(runPath, 'dbt', 'target')), false);
+    assert.equal(fs.existsSync(path.join(runPath, 'dbt', 'logs')), false);
+    assert.equal(fs.existsSync(path.join(runPath, '.migration-runs')), false);
+    assert.equal(fs.existsSync(path.join(runPath, 'model-review-results')), false);
+    assert.equal(fs.existsSync(path.join(runPath, 'test-review-results')), false);
+    assert.equal(fs.existsSync(path.join(runPath, 'context.json')), false);
+  } finally {
+    fs.rmSync(tempRunsRoot, { recursive: true, force: true });
+    fs.rmSync(tempFixture, { recursive: true, force: true });
+  }
+});
+
 test('extensionHook uses the default module prune state when pruneState is not provided', async () => {
   const firstModule = loadExtensionModule();
   const now = Date.now();
