@@ -7,7 +7,6 @@ execution.  No Docker or live database required.
 from __future__ import annotations
 
 import json
-import shutil
 import subprocess
 import tempfile
 from pathlib import Path
@@ -19,34 +18,7 @@ from shared.batch_plan import (
     build_batch_plan,
 )
 
-_TESTS_DIR = Path(__file__).parent
-_FIXTURES = _TESTS_DIR / "fixtures"
-
-
-# ── Project helpers ───────────────────────────────────────────────────────────
-
-
-def _make_project(
-    src: Path = _FIXTURES,
-) -> tuple[tempfile.TemporaryDirectory, Path]:
-    """Copy fixtures to a temp dir."""
-    tmp = tempfile.TemporaryDirectory()
-    dst = Path(tmp.name) / "project"
-    shutil.copytree(src, dst)
-    return tmp, dst
-
-
-def _make_empty_project() -> tuple[tempfile.TemporaryDirectory, Path]:
-    """Create a project with no catalog objects."""
-    tmp = tempfile.TemporaryDirectory()
-    dst = Path(tmp.name) / "project"
-    dst.mkdir(parents=True)
-    (dst / "manifest.json").write_text(
-        json.dumps({"schema_version": "1.0", "technology": "sql_server"}),
-        encoding="utf-8",
-    )
-    (dst / "catalog" / "tables").mkdir(parents=True)
-    return tmp, dst
+from .conftest import _make_empty_project, _make_project
 
 
 # ── Topological batch tests ───────────────────────────────────────────────────

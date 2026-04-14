@@ -13,11 +13,6 @@ from shared.sqlserver_extract import _run_dmf_queries
 from tests.helpers import run_setup_ddl_cli as _run_cli
 
 
-def _write_json(path: Path, data) -> None:
-    path.parent.mkdir(parents=True, exist_ok=True)
-    path.write_text(json.dumps(data, indent=2), encoding="utf-8")
-
-
 def test_run_dmf_queries_escapes_single_quotes(tmp_path) -> None:
     conn = MagicMock()
     list_cursor = MagicMock()

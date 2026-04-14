@@ -11,10 +11,7 @@ oracledb = pytest.importorskip("oracledb", reason="oracledb not installed")
 from shared.sql_types import format_sql_type
 from tests.helpers import run_setup_ddl_cli as _run_cli
 
-
-def _write_json(path: Path, data) -> None:
-    path.parent.mkdir(parents=True, exist_ok=True)
-    path.write_text(json.dumps(data, indent=2), encoding="utf-8")
+from .conftest import _write_json
 
 
 # ── Unit: assemble-modules ───────────────────────────────────────────────────

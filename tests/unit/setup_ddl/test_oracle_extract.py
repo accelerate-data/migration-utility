@@ -10,7 +10,6 @@ import pytest
 oracledb = pytest.importorskip("oracledb", reason="oracledb not installed")
 
 
-FIXTURE_DIR = Path(__file__).parent / "fixtures" / "oracle"
 ORACLE_FIXTURE_DIR = Path(__file__).parent / "fixtures" / "oracle"
 
 
@@ -20,7 +19,7 @@ ORACLE_FIXTURE_DIR = Path(__file__).parent / "fixtures" / "oracle"
 class TestOracleSchemaProcessing:
     def test_groups_by_owner_from_fixture(self):
         from shared.setup_ddl_support.manifest import build_oracle_schema_summary
-        rows = json.loads((FIXTURE_DIR / "list_schemas.json").read_text(encoding="utf-8"))
+        rows = json.loads((ORACLE_FIXTURE_DIR / "list_schemas.json").read_text(encoding="utf-8"))
         summary = build_oracle_schema_summary(rows)
         owners = {entry["owner"] for entry in summary}
         assert "SH" in owners
