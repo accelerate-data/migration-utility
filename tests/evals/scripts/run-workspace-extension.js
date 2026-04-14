@@ -223,8 +223,16 @@ async function extensionHook(hookName, context, options = {}) {
 
   fs.mkdirSync(path.dirname(runRoot), { recursive: true });
   fs.rmSync(runRoot, { force: true, recursive: true });
-  fs.cpSync(fixtureRoot, runRoot, { recursive: true });
-  clearVolatileArtifacts(runRoot);
+  fs.cpSync(fixtureRoot, runRoot, {
+    recursive: true,
+    filter: (src) => {
+      const rel = path.relative(fixtureRoot, src);
+      return !VOLATILE_PATHS.some(
+        (v) => rel === v || rel.startsWith(v + path.sep),
+      );
+    },
+  });
+  clearVolatileArtifacts(runRoot); // defensive: filter already skips these, but guard against drift
   const manifest = loadManifest(runRoot);
   validateManifest(manifest, runRoot);
   pinFixtureDatabase(runRoot, manifest);
