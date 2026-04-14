@@ -5,7 +5,7 @@ from unittest.mock import patch
 from typer.testing import CliRunner
 
 from shared.cli.main import app
-from shared.output_models.dry_run import ExcludeOutput, ResetMigrationOutput
+from shared.output_models.dry_run import DryRunOutput, ExcludeOutput, ObjectReadiness, ReadinessDetail, ResetMigrationOutput
 
 runner = CliRunner()
 
@@ -46,6 +46,7 @@ def test_reset_aborts_on_no(tmp_path):
             input="n\n",
         )
     mock_reset.assert_not_called()
+    assert result.exit_code == 0, result.output
 
 
 def test_reset_rejects_invalid_stage(tmp_path):
@@ -98,7 +99,11 @@ from shared.output_models.catalog_writer import WriteSourceOutput
 
 def test_add_source_table_marks_valid_tables(tmp_path):
     _write_manifest(tmp_path)
-    ready_out = {"ready": True, "reason": "scope complete"}
+    ready_out = DryRunOutput(
+        stage="scope",
+        ready=True,
+        object=ObjectReadiness(object="silver.audittest", ready=True, reason="scope complete"),
+    )
     write_out = WriteSourceOutput(written="catalog/tables/silver.audittest.json", is_source=True, status="ok")
 
     with (
@@ -118,7 +123,11 @@ def test_add_source_table_marks_valid_tables(tmp_path):
 
 def test_add_source_table_skips_tables_that_fail_guard(tmp_path):
     _write_manifest(tmp_path)
-    ready_out = {"ready": False, "reason": "scope not complete"}
+    ready_out = DryRunOutput(
+        stage="scope",
+        ready=False,
+        object=ObjectReadiness(object="silver.audittest", ready=False, reason="scope not complete"),
+    )
 
     with (
         patch("shared.cli.add_source_table_cmd.run_ready", return_value=ready_out),

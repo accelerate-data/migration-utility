@@ -3,16 +3,16 @@ from __future__ import annotations
 
 import logging
 from pathlib import Path
-from typing import Any
 
 import typer
 
 from shared.catalog_writer import run_write_source
 from shared.cli.git_ops import is_git_repo, stage_and_commit
-from shared.cli.output import console, error, success, warn
+from shared.cli.output import console, success, warn
 from shared.dry_run_core import run_ready
 from shared.loader_data import CatalogFileMissingError
 from shared.name_resolver import normalize
+from shared.output_models.dry_run import DryRunOutput
 
 logger = logging.getLogger(__name__)
 
@@ -33,21 +33,23 @@ def add_source_table(
         fqns,
     )
 
-    written_files: list[Path] = []
+    written_pairs: list[tuple[str, Path]] = []
 
     for fqn in fqns:
-        ready_result: Any = run_ready(root, "scope", fqn)
+        ready_result: DryRunOutput = run_ready(root, "scope", fqn)
 
-        # Support both dict (mocked in tests) and DryRunOutput (real usage)
-        if isinstance(ready_result, dict):
-            ready = ready_result.get("ready", False)
-            reason = ready_result.get("reason", "unknown")
+        if ready_result.object is not None:
+            is_ready = ready_result.object.ready
+            reason = ready_result.object.reason
+        elif ready_result.project is not None:
+            is_ready = ready_result.project.ready
+            reason = ready_result.project.reason
         else:
-            ready = ready_result.ready
-            reason = ready_result.project.reason if ready_result.project else "unknown"
+            is_ready = False
+            reason = "unknown"
 
-        if not ready:
-            warn(f"Skipping {fqn!r}: not ready for scope ({reason})")
+        if not is_ready:
+            warn(f"skipped  {fqn} — {reason}")
             logger.info(
                 "event=add_source_table_skip component=add_source_table_cmd "
                 "operation=add_source_table fqn=%s reason=%s",
@@ -58,35 +60,32 @@ def add_source_table(
 
         try:
             write_result = run_write_source(root, fqn, value=True)
-        except CatalogFileMissingError as exc:
-            error(f"Catalog file missing for {fqn!r}: {exc}")
-            logger.error(
-                "event=add_source_table_error component=add_source_table_cmd "
-                "operation=add_source_table fqn=%s error=%s",
+            success(f"source   {fqn} → is_source: true")
+            logger.info(
+                "event=add_source_table_written component=add_source_table_cmd "
+                "operation=add_source_table fqn=%s written=%s status=success",
                 fqn,
-                exc,
+                write_result.written,
             )
-            continue
+            written_pairs.append((fqn, root / write_result.written))
+        except CatalogFileMissingError:
+            warn(f"missing  {fqn} (no catalog file — run setup-source first)")
+        except ValueError as exc:
+            warn(f"skipped  {fqn} — {exc}")
 
-        success(f"Marked as source: {normalize(fqn)}")
-        logger.info(
-            "event=add_source_table_written component=add_source_table_cmd "
-            "operation=add_source_table fqn=%s written=%s status=success",
-            fqn,
-            write_result.written,
-        )
-        written_files.append(root / write_result.written)
-
-    if no_commit or not written_files:
+    if not written_pairs or no_commit:
         return
 
     if not is_git_repo(root):
         warn("Not a git repository — skipping commit.")
         return
 
+    written_files = [p for _, p in written_pairs]
+    written_fqns = [fqn for fqn, _ in written_pairs]
+
     stage_and_commit(
         [f for f in written_files if f.exists()],
-        f"add source tables: {', '.join(normalize(fqn) for fqn in fqns)}",
+        f"add source tables: {', '.join(normalize(fqn) for fqn in written_fqns)}",
         root,
     )
     console.print("Changes committed.")
