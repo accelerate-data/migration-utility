@@ -4,6 +4,8 @@ const path = require('path');
 
 const REPO_ROOT = path.resolve(__dirname, '..', '..', '..');
 const RUNS_ROOT = path.join(REPO_ROOT, 'tests', 'evals', 'output', 'runs');
+const RUN_RETENTION_MS = 24 * 60 * 60 * 1000;
+const modulePruneState = { hasPrunedRuns: false };
 const VOLATILE_PATHS = [
   '.migration-runs',
   'model-review-results',
@@ -107,7 +109,89 @@ function pinFixtureDatabase(projectRoot, manifest) {
   }
 }
 
-async function extensionHook(hookName, context) {
+function isMissingPathError(error) {
+  return error && typeof error === 'object' && error.code === 'ENOENT';
+}
+
+function readDirectoryEntries(dirPath) {
+  try {
+    return fs.readdirSync(dirPath, { withFileTypes: true });
+  } catch (error) {
+    if (isMissingPathError(error)) {
+      return [];
+    }
+    throw error;
+  }
+}
+
+function latestActivityMs(targetPath) {
+  let stats;
+  try {
+    stats = fs.statSync(targetPath);
+  } catch (error) {
+    if (isMissingPathError(error)) {
+      return null;
+    }
+    throw error;
+  }
+
+  let latestMs = stats.mtimeMs;
+  if (!stats.isDirectory()) {
+    return latestMs;
+  }
+
+  for (const entry of readDirectoryEntries(targetPath)) {
+    const childActivityMs = latestActivityMs(path.join(targetPath, entry.name));
+    if (childActivityMs !== null && childActivityMs > latestMs) {
+      latestMs = childActivityMs;
+    }
+  }
+
+  return latestMs;
+}
+
+function pruneOldRuns(root, { cutoffMs }) {
+  if (!fs.existsSync(root)) {
+    return;
+  }
+
+  for (const suiteEntry of readDirectoryEntries(root)) {
+    if (!suiteEntry.isDirectory()) {
+      continue;
+    }
+
+    const suiteRoot = path.join(root, suiteEntry.name);
+    for (const runEntry of readDirectoryEntries(suiteRoot)) {
+      if (!runEntry.isDirectory()) {
+        continue;
+      }
+
+      const runRoot = path.join(suiteRoot, runEntry.name);
+      const runActivityMs = latestActivityMs(runRoot);
+      if (runActivityMs !== null && runActivityMs < cutoffMs) {
+        fs.rmSync(runRoot, { force: true, recursive: true });
+      }
+    }
+  }
+}
+
+function resolveRunsRoot(runsRoot) {
+  if (runsRoot === undefined || runsRoot === null) {
+    return RUNS_ROOT;
+  }
+
+  if (typeof runsRoot !== 'string' || runsRoot.trim().length === 0) {
+    throw new Error('runsRoot must be a non-empty string when provided');
+  }
+
+  return runsRoot;
+}
+
+function resolvePruneState(pruneState) {
+  return pruneState ?? modulePruneState;
+}
+
+async function extensionHook(hookName, context, options = {}) {
   if (hookName !== 'beforeEach') {
     return context;
   }
@@ -122,11 +206,20 @@ async function extensionHook(hookName, context) {
     return context;
   }
 
+  const runsRoot = resolveRunsRoot(options.runsRoot);
+  const nowMs = options.nowMs ?? Date.now();
+  const pruneState = resolvePruneState(options.pruneState);
+
+  if (!pruneState.hasPrunedRuns) {
+    pruneOldRuns(runsRoot, { cutoffMs: nowMs - RUN_RETENTION_MS });
+    pruneState.hasPrunedRuns = true;
+  }
+
   const suiteSlug = sanitizeSegment(context?.suite?.description, 'eval');
   const testSlug = sanitizeSegment(context?.test?.description, 'test');
   const fixtureSlug = sanitizeSegment(path.basename(fixtureRoot), 'fixture');
   const uniqueId = crypto.randomUUID().slice(0, 8);
-  const runRoot = path.join(RUNS_ROOT, suiteSlug, `${fixtureSlug}-${testSlug}-${uniqueId}`);
+  const runRoot = path.join(runsRoot, suiteSlug, `${fixtureSlug}-${testSlug}-${uniqueId}`);
 
   fs.mkdirSync(path.dirname(runRoot), { recursive: true });
   fs.rmSync(runRoot, { force: true, recursive: true });
@@ -141,3 +234,5 @@ async function extensionHook(hookName, context) {
 }
 
 module.exports = extensionHook;
+module.exports.extensionHook = extensionHook;
+module.exports.pruneOldRuns = pruneOldRuns;
