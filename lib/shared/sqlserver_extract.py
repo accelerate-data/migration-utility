@@ -1,29 +1,14 @@
 from __future__ import annotations
 
-import json
 import logging
 from pathlib import Path
 from typing import Any
 
 from shared.db_connect import cursor_to_dicts as _rows_to_dicts
 from shared.db_connect import sql_server_connect as _sql_server_connect
+from shared.setup_ddl_support.db_helpers import build_schema_in_clause, write_staging_json
 
 logger = logging.getLogger(__name__)
-
-
-def _write_json(staging_dir: Path, filename: str, rows: list[dict[str, Any]]) -> None:
-    """Write rows as JSON to staging_dir / filename."""
-    out_path = staging_dir / filename
-    out_path.write_text(json.dumps(rows, default=str), encoding="utf-8")
-    logger.info("event=sqlserver_query file=%s rows=%d", filename, len(rows))
-
-
-def _build_in_clause(schemas: list[str]) -> str:
-    """Build a SQL IN clause literal from validated schema names."""
-    for s in schemas:
-        if "'" in s or ";" in s:
-            raise ValueError(f"Invalid schema name: {s!r}")
-    return ", ".join(f"'{s}'" for s in schemas)
 
 
 def _is_optional_metadata_unavailable(exc: Exception) -> bool:
@@ -50,7 +35,13 @@ def _run_optional_metadata_query(
     try:
         cursor = conn.cursor()
         cursor.execute(sql)
-        _write_json(staging_dir, filename, _rows_to_dicts(cursor))
+        write_staging_json(
+            staging_dir,
+            filename,
+            _rows_to_dicts(cursor),
+            logger=logger,
+            event="event=sqlserver_query",
+        )
         cursor.close()
     except Exception as exc:  # noqa: BLE001
         if not _is_optional_metadata_unavailable(exc):
@@ -60,7 +51,13 @@ def _run_optional_metadata_query(
             filename,
             exc,
         )
-        _write_json(staging_dir, filename, [])
+        write_staging_json(
+            staging_dir,
+            filename,
+            [],
+            logger=logger,
+            event="event=sqlserver_query",
+        )
 
 
 def _run_dmf_queries(
@@ -75,7 +72,7 @@ def _run_dmf_queries(
     Iterates over all objects of the given type in the selected schemas and
     calls the DMF individually, accumulating all rows into one list.
     """
-    in_clause = _build_in_clause(schemas)
+    in_clause = build_schema_in_clause(schemas)
 
     if object_type_filter == "P":
         type_predicate = "o.type = 'P'"
@@ -164,7 +161,13 @@ def _run_dmf_queries(
                 ]))
             )
 
-    _write_json(staging_dir, filename, all_rows)
+    write_staging_json(
+        staging_dir,
+        filename,
+        all_rows,
+        logger=logger,
+        event="event=sqlserver_query",
+    )
 
 
 def run_sqlserver_extraction(
@@ -189,7 +192,7 @@ def run_sqlserver_extraction(
         schemas,
     )
 
-    in_clause = _build_in_clause(schemas)
+    in_clause = build_schema_in_clause(schemas)
     conn: Any = None
 
     try:
@@ -221,7 +224,13 @@ def run_sqlserver_extraction(
         )
         cursor = conn.cursor()
         cursor.execute(sql)
-        _write_json(staging_dir, "table_columns.json", _rows_to_dicts(cursor))
+        write_staging_json(
+            staging_dir,
+            "table_columns.json",
+            _rows_to_dicts(cursor),
+            logger=logger,
+            event="event=sqlserver_query",
+        )
         cursor.close()
 
         # --- pk_unique.json ---
@@ -240,7 +249,13 @@ def run_sqlserver_extraction(
         )
         cursor = conn.cursor()
         cursor.execute(sql)
-        _write_json(staging_dir, "pk_unique.json", _rows_to_dicts(cursor))
+        write_staging_json(
+            staging_dir,
+            "pk_unique.json",
+            _rows_to_dicts(cursor),
+            logger=logger,
+            event="event=sqlserver_query",
+        )
         cursor.close()
 
         # --- foreign_keys.json ---
@@ -260,7 +275,13 @@ def run_sqlserver_extraction(
         )
         cursor = conn.cursor()
         cursor.execute(sql)
-        _write_json(staging_dir, "foreign_keys.json", _rows_to_dicts(cursor))
+        write_staging_json(
+            staging_dir,
+            "foreign_keys.json",
+            _rows_to_dicts(cursor),
+            logger=logger,
+            event="event=sqlserver_query",
+        )
         cursor.close()
 
         # --- identity_columns.json ---
@@ -273,7 +294,13 @@ def run_sqlserver_extraction(
         )
         cursor = conn.cursor()
         cursor.execute(sql)
-        _write_json(staging_dir, "identity_columns.json", _rows_to_dicts(cursor))
+        write_staging_json(
+            staging_dir,
+            "identity_columns.json",
+            _rows_to_dicts(cursor),
+            logger=logger,
+            event="event=sqlserver_query",
+        )
         cursor.close()
 
         # --- cdc.json ---
@@ -285,7 +312,13 @@ def run_sqlserver_extraction(
         )
         cursor = conn.cursor()
         cursor.execute(sql)
-        _write_json(staging_dir, "cdc.json", _rows_to_dicts(cursor))
+        write_staging_json(
+            staging_dir,
+            "cdc.json",
+            _rows_to_dicts(cursor),
+            logger=logger,
+            event="event=sqlserver_query",
+        )
         cursor.close()
 
         # --- change_tracking.json (feature optional, other errors are fatal) ---
@@ -328,7 +361,13 @@ def run_sqlserver_extraction(
         )
         cursor = conn.cursor()
         cursor.execute(sql)
-        _write_json(staging_dir, "object_types.json", _rows_to_dicts(cursor))
+        write_staging_json(
+            staging_dir,
+            "object_types.json",
+            _rows_to_dicts(cursor),
+            logger=logger,
+            event="event=sqlserver_query",
+        )
         cursor.close()
 
         # --- definitions.json ---
@@ -341,7 +380,13 @@ def run_sqlserver_extraction(
         )
         cursor = conn.cursor()
         cursor.execute(sql)
-        _write_json(staging_dir, "definitions.json", _rows_to_dicts(cursor))
+        write_staging_json(
+            staging_dir,
+            "definitions.json",
+            _rows_to_dicts(cursor),
+            logger=logger,
+            event="event=sqlserver_query",
+        )
         cursor.close()
 
         # --- proc_params.json ---
@@ -364,7 +409,13 @@ def run_sqlserver_extraction(
         )
         cursor = conn.cursor()
         cursor.execute(sql)
-        _write_json(staging_dir, "proc_params.json", _rows_to_dicts(cursor))
+        write_staging_json(
+            staging_dir,
+            "proc_params.json",
+            _rows_to_dicts(cursor),
+            logger=logger,
+            event="event=sqlserver_query",
+        )
         cursor.close()
 
         # --- indexed_views.json (materialized view detection) ---
@@ -381,7 +432,13 @@ def run_sqlserver_extraction(
         indexed_rows = _rows_to_dicts(cursor)
         cursor.close()
         indexed_fqns = [f"{r['schema_name']}.{r['name']}".lower() for r in indexed_rows]
-        _write_json(staging_dir, "indexed_views.json", indexed_fqns)
+        write_staging_json(
+            staging_dir,
+            "indexed_views.json",
+            indexed_fqns,
+            logger=logger,
+            event="event=sqlserver_query",
+        )
 
         # --- proc_dmf.json, view_dmf.json, func_dmf.json ---
         _run_dmf_queries(conn, schemas, "P", staging_dir, "proc_dmf.json")

@@ -1,12 +1,12 @@
 from __future__ import annotations
 
-import json
 import logging
 from pathlib import Path
 from typing import Any
 
 from shared.db_connect import cursor_to_dicts as _cursor_rows
 from shared.db_connect import oracle_connect as _oracle_connect
+from shared.setup_ddl_support.db_helpers import build_schema_in_clause, write_staging_json
 
 logger = logging.getLogger(__name__)
 
@@ -25,24 +25,11 @@ def _oracle_type_to_class_desc(oracle_type: str) -> str:
     return mapping.get(oracle_type.upper(), oracle_type.upper())
 
 
-def _owners_sql(schemas: list[str]) -> str:
-    for s in schemas:
-        if "'" in s or ";" in s:
-            raise ValueError(f"Invalid schema name: {s!r}")
-    return ", ".join(f"'{s.upper()}'" for s in schemas)
-
-
-def _write(staging_dir: Path, filename: str, rows: list[Any]) -> None:
-    path = staging_dir / filename
-    path.write_text(json.dumps(rows, default=str), encoding="utf-8")
-    logger.info("event=oracle_query file=%s rows=%d", filename, len(rows))
-
-
 # ── Extraction functions ──────────────────────────────────────────────────────
 
 
 def _extract_definitions(conn: Any, schemas: list[str]) -> list[dict[str, Any]]:
-    owners = _owners_sql(schemas)
+    owners = build_schema_in_clause(schemas, uppercase=True)
     cur = conn.cursor()
     cur.execute(
         f"""
@@ -88,7 +75,7 @@ def _extract_view_ddl(conn: Any, schemas: list[str]) -> list[dict[str, Any]]:
     Falls back to DBMS_METADATA.GET_DDL per view when TEXT is empty or at the
     32,767-byte LONG truncation boundary (oracledb thin mode silently truncates).
     """
-    owners = _owners_sql(schemas)
+    owners = build_schema_in_clause(schemas, uppercase=True)
     cur = conn.cursor()
     cur.execute(
         f"""
@@ -142,7 +129,7 @@ def _extract_view_ddl(conn: Any, schemas: list[str]) -> list[dict[str, Any]]:
 
 
 def _extract_table_columns(conn: Any, schemas: list[str]) -> list[dict[str, Any]]:
-    owners = _owners_sql(schemas)
+    owners = build_schema_in_clause(schemas, uppercase=True)
     cur = conn.cursor()
     cur.execute(
         f"""
@@ -173,7 +160,7 @@ def _extract_table_columns(conn: Any, schemas: list[str]) -> list[dict[str, Any]
 
 
 def _extract_pk_unique(conn: Any, schemas: list[str]) -> list[dict[str, Any]]:
-    owners = _owners_sql(schemas)
+    owners = build_schema_in_clause(schemas, uppercase=True)
     cur = conn.cursor()
     cur.execute(
         f"""
@@ -203,7 +190,7 @@ def _extract_pk_unique(conn: Any, schemas: list[str]) -> list[dict[str, Any]]:
 
 
 def _extract_foreign_keys(conn: Any, schemas: list[str]) -> list[dict[str, Any]]:
-    owners = _owners_sql(schemas)
+    owners = build_schema_in_clause(schemas, uppercase=True)
     cur = conn.cursor()
     cur.execute(
         f"""
@@ -239,7 +226,7 @@ def _extract_foreign_keys(conn: Any, schemas: list[str]) -> list[dict[str, Any]]
 
 
 def _extract_identity_columns(conn: Any, schemas: list[str]) -> list[dict[str, Any]]:
-    owners = _owners_sql(schemas)
+    owners = build_schema_in_clause(schemas, uppercase=True)
     cur = conn.cursor()
     cur.execute(
         f"""
@@ -272,7 +259,7 @@ def _extract_object_types(conn: Any, schemas: list[str]) -> tuple[list[dict[str,
         "FUNCTION": "FN",
         "MATERIALIZED VIEW": "V",
     }
-    owners = _owners_sql(schemas)
+    owners = build_schema_in_clause(schemas, uppercase=True)
     cur = conn.cursor()
     cur.execute(
         f"""
@@ -324,7 +311,7 @@ _VALID_DEP_TYPES = {"PROCEDURE", "VIEW", "FUNCTION"}
 def _extract_dmf(conn: Any, schemas: list[str], dep_type: str) -> list[dict[str, Any]]:
     if dep_type not in _VALID_DEP_TYPES:
         raise ValueError(f"dep_type must be one of {_VALID_DEP_TYPES}, got: {dep_type!r}")
-    owners = _owners_sql(schemas)
+    owners = build_schema_in_clause(schemas, uppercase=True)
     cur = conn.cursor()
     cur.execute(
         f"""
@@ -357,7 +344,7 @@ def _extract_dmf(conn: Any, schemas: list[str], dep_type: str) -> list[dict[str,
 
 
 def _extract_proc_params(conn: Any, schemas: list[str]) -> list[dict[str, Any]]:
-    owners = _owners_sql(schemas)
+    owners = build_schema_in_clause(schemas, uppercase=True)
     cur = conn.cursor()
     cur.execute(
         f"""
@@ -391,7 +378,7 @@ def _extract_packages(conn: Any, schemas: list[str]) -> list[dict[str, Any]]:
 
     Returns a list of dicts with package_name, member_name, member_type, schema_name.
     """
-    owners = _owners_sql(schemas)
+    owners = build_schema_in_clause(schemas, uppercase=True)
     cur = conn.cursor()
     cur.execute(
         f"""
@@ -440,23 +427,23 @@ def run_oracle_extraction(
     try:
         proc_func_defs = _extract_definitions(conn, schemas)
         view_defs = _extract_view_ddl(conn, schemas)
-        _write(staging_dir, "definitions.json", proc_func_defs + view_defs)
-        _write(staging_dir, "table_columns.json", _extract_table_columns(conn, schemas))
-        _write(staging_dir, "pk_unique.json", _extract_pk_unique(conn, schemas))
-        _write(staging_dir, "foreign_keys.json", _extract_foreign_keys(conn, schemas))
-        _write(staging_dir, "identity_columns.json", _extract_identity_columns(conn, schemas))
+        write_staging_json(staging_dir, "definitions.json", proc_func_defs + view_defs, logger=logger, event="event=oracle_query")
+        write_staging_json(staging_dir, "table_columns.json", _extract_table_columns(conn, schemas), logger=logger, event="event=oracle_query")
+        write_staging_json(staging_dir, "pk_unique.json", _extract_pk_unique(conn, schemas), logger=logger, event="event=oracle_query")
+        write_staging_json(staging_dir, "foreign_keys.json", _extract_foreign_keys(conn, schemas), logger=logger, event="event=oracle_query")
+        write_staging_json(staging_dir, "identity_columns.json", _extract_identity_columns(conn, schemas), logger=logger, event="event=oracle_query")
         object_types_rows, mv_fqns = _extract_object_types(conn, schemas)
-        _write(staging_dir, "object_types.json", object_types_rows)
+        write_staging_json(staging_dir, "object_types.json", object_types_rows, logger=logger, event="event=oracle_query")
         if mv_fqns:
-            _write(staging_dir, "mv_fqns.json", mv_fqns)
-        _write(staging_dir, "proc_dmf.json", _extract_dmf(conn, schemas, "PROCEDURE"))
-        _write(staging_dir, "view_dmf.json", _extract_dmf(conn, schemas, "VIEW"))
-        _write(staging_dir, "func_dmf.json", _extract_dmf(conn, schemas, "FUNCTION"))
-        _write(staging_dir, "proc_params.json", _extract_proc_params(conn, schemas))
-        _write(staging_dir, "packages.json", _extract_packages(conn, schemas))
+            write_staging_json(staging_dir, "mv_fqns.json", mv_fqns, logger=logger, event="event=oracle_query")
+        write_staging_json(staging_dir, "proc_dmf.json", _extract_dmf(conn, schemas, "PROCEDURE"), logger=logger, event="event=oracle_query")
+        write_staging_json(staging_dir, "view_dmf.json", _extract_dmf(conn, schemas, "VIEW"), logger=logger, event="event=oracle_query")
+        write_staging_json(staging_dir, "func_dmf.json", _extract_dmf(conn, schemas, "FUNCTION"), logger=logger, event="event=oracle_query")
+        write_staging_json(staging_dir, "proc_params.json", _extract_proc_params(conn, schemas), logger=logger, event="event=oracle_query")
+        write_staging_json(staging_dir, "packages.json", _extract_packages(conn, schemas), logger=logger, event="event=oracle_query")
         # Oracle does not support these signals — write empty lists for pipeline compatibility
-        _write(staging_dir, "cdc.json", [])
-        _write(staging_dir, "change_tracking.json", [])
-        _write(staging_dir, "sensitivity.json", [])
+        write_staging_json(staging_dir, "cdc.json", [], logger=logger, event="event=oracle_query")
+        write_staging_json(staging_dir, "change_tracking.json", [], logger=logger, event="event=oracle_query")
+        write_staging_json(staging_dir, "sensitivity.json", [], logger=logger, event="event=oracle_query")
     finally:
         conn.close()

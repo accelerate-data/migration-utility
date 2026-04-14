@@ -103,6 +103,9 @@ def _project_stage_ready(project_root: Path, stage: str) -> ReadinessDetail:
     if stage == "scope":
         return _detail(True, "ok")
 
+    if stage == "profile":
+        return _detail(True, "ok")
+
     try:
         manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
     except (json.JSONDecodeError, OSError) as exc:
@@ -111,9 +114,6 @@ def _project_stage_ready(project_root: Path, stage: str) -> ReadinessDetail:
             manifest_path, exc,
         )
         return _detail(False, "manifest_missing")
-
-    if stage == "profile":
-        return _detail(True, "ok")
 
     if stage in {"test-gen", "refactor"}:
         if not _runtime_role_exists(manifest, "sandbox"):

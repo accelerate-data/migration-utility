@@ -46,6 +46,13 @@ def test_run_dmf_queries_escapes_single_quotes(tmp_path) -> None:
     assert "'proc''name' AS referencing_name" in dmf_sql
 
 
+def test_schema_clause_helpers_normalize_dialect_specific_names() -> None:
+    from shared.setup_ddl_support.db_helpers import build_schema_in_clause
+
+    assert build_schema_in_clause(["dbo"], uppercase=False) == "'dbo'"
+    assert build_schema_in_clause(["sh"], uppercase=True) == "'SH'"
+
+
 class _FakeSqlCursor:
     def __init__(self, failure_map: dict[str, Exception] | None = None) -> None:
         self.failure_map = failure_map or {}

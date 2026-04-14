@@ -205,6 +205,21 @@ def test_ready_profile_writerless_table() -> None:
         assert result.object.code == "WRITERLESS_TABLE"
 
 
+def test_ready_profile_ignores_corrupt_manifest_contents() -> None:
+    """Profile readiness requires manifest presence, not valid runtime JSON."""
+    tmp, root = _make_project()
+    with tmp:
+        (root / "manifest.json").write_text("{not json", encoding="utf-8")
+        result = dry_run.run_ready(root, "profile", object_fqn="silver.DimCustomer")
+        assert isinstance(result, DryRunOutput)
+        assert result.ready is True
+        assert result.project is not None
+        assert result.project.ready is True
+        assert result.project.reason == "ok"
+        assert result.object is not None
+        assert result.object.reason == "ok"
+
+
 # ── run_ready tests: test-gen stage ──────────────────────────────────────────
 
 
