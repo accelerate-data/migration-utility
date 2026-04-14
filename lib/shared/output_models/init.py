@@ -31,3 +31,10 @@ class FreeTdsCheckOutput(BaseModel):
     registration_file: str | None
     driver_lib_path: str | None
     message: str | None
+
+
+class LocalEnvOverrideWriteOutput(BaseModel):
+    model_config = OUTPUT_CONFIG
+
+    file: str
+    changed: bool

@@ -23,6 +23,7 @@ from __future__ import annotations
 
 import json
 import logging
+import re
 import stat
 import subprocess
 from dataclasses import dataclass
@@ -45,7 +46,11 @@ from shared.init_templates import (
     _repo_map_sql_server,
     _worktree_sh,
 )
-from shared.output_models.init import ScaffoldHooksOutput, ScaffoldProjectOutput
+from shared.output_models.init import (
+    LocalEnvOverrideWriteOutput,
+    ScaffoldHooksOutput,
+    ScaffoldProjectOutput,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -168,6 +173,9 @@ _CLAUDE_MD_REQUIRED_SECTIONS = [
     "Commit Discipline",
 ]
 
+_ENV_ASSIGNMENT_RE = re.compile(r"^([A-Za-z_][A-Za-z0-9_]*)=")
+_ENVRC_DOTENV_LINE = "source_env_if_exists .env"
+
 
 # ── Business logic (run_* functions) ─────────────────────────────────────────
 
@@ -251,7 +259,20 @@ def run_scaffold_project(project_root: Path, technology: str = "sql_server") -> 
         files_created.append(".envrc")
         logger.info("event=scaffold_file file=.envrc status=created technology=%s", technology)
     else:
-        files_skipped.append(".envrc")
+        envrc_text = envrc_path.read_text(encoding="utf-8")
+        if _ENVRC_DOTENV_LINE not in envrc_text:
+            updated_envrc = envrc_text.rstrip("\n")
+            if updated_envrc:
+                updated_envrc += "\n\n"
+            updated_envrc += f"{_ENVRC_DOTENV_LINE}\n"
+            envrc_path.write_text(updated_envrc, encoding="utf-8")
+            files_updated.append(".envrc (+local .env loader)")
+            logger.info(
+                "event=scaffold_file file=.envrc status=updated technology=%s",
+                technology,
+            )
+        else:
+            files_skipped.append(".envrc")
 
     # scripts/worktree.sh
     worktree_script_path = project_root / "scripts" / "worktree.sh"
@@ -282,6 +303,58 @@ def run_scaffold_project(project_root: Path, technology: str = "sql_server") -> 
         files_updated=files_updated,
         files_skipped=files_skipped,
     )
+
+
+def _quote_env_value(value: str) -> str:
+    escaped = value.replace("\\", "\\\\").replace('"', '\\"')
+    return f'"{escaped}"'
+
+
+def run_write_local_env_overrides(
+    project_root: Path,
+    overrides: dict[str, str],
+) -> LocalEnvOverrideWriteOutput:
+    """Write machine-local, non-secret overrides into project_root/.env."""
+    project_root.mkdir(parents=True, exist_ok=True)
+    env_path = project_root / ".env"
+    existing_lines = env_path.read_text(encoding="utf-8").splitlines() if env_path.exists() else []
+    updated_lines = list(existing_lines)
+    changed = False
+
+    for key, value in overrides.items():
+        rendered = f"{key}={_quote_env_value(value)}"
+        replacement_index: int | None = None
+        for idx, line in enumerate(updated_lines):
+            match = _ENV_ASSIGNMENT_RE.match(line)
+            if match and match.group(1) == key:
+                replacement_index = idx
+                break
+        if replacement_index is None:
+            updated_lines.append(rendered)
+            changed = True
+        elif updated_lines[replacement_index] != rendered:
+            updated_lines[replacement_index] = rendered
+            changed = True
+
+    if not changed:
+        logger.info(
+            "event=local_env_override_write status=skipped file=%s",
+            env_path,
+        )
+        return LocalEnvOverrideWriteOutput(file=str(env_path), changed=False)
+
+    env_path.write_text("\n".join(updated_lines) + "\n", encoding="utf-8")
+    logger.info(
+        "event=local_env_override_write status=updated file=%s override_count=%d",
+        env_path,
+        len(overrides),
+    )
+    return LocalEnvOverrideWriteOutput(file=str(env_path), changed=True)
+
+
+def write_local_env_overrides(project_root: Path, overrides: dict[str, str]) -> bool:
+    """Backwards-compatible bool wrapper for tests and callers."""
+    return run_write_local_env_overrides(project_root, overrides).changed
 
 
 def run_scaffold_hooks(project_root: Path, technology: str = "sql_server") -> ScaffoldHooksOutput:
@@ -385,6 +458,36 @@ def check_freetds(
     except RuntimeError as exc:
         typer.echo(str(exc), err=True)
         raise typer.Exit(1) from exc
+    typer.echo(json.dumps(result.model_dump(mode="json", exclude_none=True)))
+
+
+@app.command("write-local-env-overrides")
+def write_local_env_overrides_cmd(
+    project_root: Optional[Path] = typer.Option(
+        None, "--project-root",
+        help="Project root directory (defaults to CWD)",
+    ),
+    overrides_json: str = typer.Option(
+        ...,
+        "--overrides-json",
+        help="JSON object of non-secret local env overrides to write into .env",
+    ),
+) -> None:
+    """Write machine-local non-secret overrides to .env."""
+    if project_root is None:
+        project_root = Path.cwd()
+    try:
+        overrides = json.loads(overrides_json)
+    except json.JSONDecodeError as exc:
+        typer.echo(f"Invalid --overrides-json: {exc}", err=True)
+        raise typer.Exit(1) from exc
+    if not isinstance(overrides, dict) or not all(
+        isinstance(key, str) and isinstance(value, str) for key, value in overrides.items()
+    ):
+        typer.echo("--overrides-json must be a JSON object of string keys and string values", err=True)
+        raise typer.Exit(1)
+
+    result = run_write_local_env_overrides(project_root, overrides)
     typer.echo(json.dumps(result.model_dump(mode="json", exclude_none=True)))
 
 

@@ -12,14 +12,19 @@ import subprocess
 from pathlib import Path
 
 import pytest
+from typer.testing import CliRunner
 
 from shared.init import (
+    app,
     GITIGNORE_ENTRIES,
     SOURCE_REGISTRY,
     get_source_config,
     run_scaffold_hooks,
     run_scaffold_project,
+    write_local_env_overrides,
 )
+
+RUNNER = CliRunner()
 
 
 # ── scaffold-project (sql_server default) ───────────────────────────────────
@@ -47,6 +52,7 @@ class TestScaffoldProject:
         assert ".mcp.json" not in (tmp_path / ".gitignore").read_text()
         assert ".envrc" in (tmp_path / ".gitignore").read_text()
         assert "MSSQL_HOST" in (tmp_path / ".envrc").read_text()
+        assert 'source_env_if_exists .env' in (tmp_path / ".envrc").read_text()
         workflow = (tmp_path / ".claude" / "rules" / "git-workflow.md").read_text()
         assert "Worktree" in workflow
         assert "../worktrees" in workflow
@@ -74,6 +80,16 @@ class TestScaffoldProject:
         assert "# Custom" in content
         assert ".mcp.json" not in content
         assert ".envrc" in content
+
+    def test_merges_local_env_loader_into_existing_envrc(self, tmp_path: Path) -> None:
+        (tmp_path / ".envrc").write_text("export MSSQL_HOST=localhost\n", encoding="utf-8")
+
+        result = run_scaffold_project(tmp_path)
+
+        assert ".envrc (+local .env loader)" in result.files_updated
+        envrc = (tmp_path / ".envrc").read_text()
+        assert "export MSSQL_HOST=localhost" in envrc
+        assert "source_env_if_exists .env" in envrc
 
     def test_reports_missing_claude_md_sections(self, tmp_path: Path) -> None:
         (tmp_path / "CLAUDE.md").write_text("# Project\n\n## Domain\n\nSome domain info.\n")
@@ -105,6 +121,7 @@ class TestScaffoldProjectOracle:
         assert "ORACLE_SERVICE" in envrc
         assert "ORACLE_USER" in envrc
         assert "ORACLE_PASSWORD" in envrc
+        assert 'source_env_if_exists .env' in envrc
         assert "MSSQL" not in envrc
 
         claude_md = (tmp_path / "CLAUDE.md").read_text()
@@ -194,3 +211,77 @@ class TestSourceRegistry:
             assert len(config.envrc_fn()) > 0
             assert len(config.repo_map_fn()) > 0
             assert len(config.pre_commit_hook_fn()) > 0
+
+
+class TestWriteLocalEnvOverrides:
+    def test_writes_new_local_env_file(self, tmp_path: Path) -> None:
+        changed = write_local_env_overrides(
+            tmp_path,
+            {
+                "MSSQL_DRIVER": "ODBC Driver 18 for SQL Server",
+                "SQLCL_BIN": "/opt/sqlcl/bin/sql",
+            },
+        )
+
+        assert changed is True
+        assert (tmp_path / ".env").read_text() == (
+            'MSSQL_DRIVER="ODBC Driver 18 for SQL Server"\n'
+            'SQLCL_BIN="/opt/sqlcl/bin/sql"\n'
+        )
+
+    def test_updates_existing_keys_without_touching_other_lines(self, tmp_path: Path) -> None:
+        env_path = tmp_path / ".env"
+        env_path.write_text(
+            'KEEP_ME="1"\n'
+            'MSSQL_DRIVER="FreeTDS"\n',
+            encoding="utf-8",
+        )
+
+        changed = write_local_env_overrides(
+            tmp_path,
+            {"MSSQL_DRIVER": "ODBC Driver 18 for SQL Server"},
+        )
+
+        assert changed is True
+        assert env_path.read_text() == (
+            'KEEP_ME="1"\n'
+            'MSSQL_DRIVER="ODBC Driver 18 for SQL Server"\n'
+        )
+
+    def test_returns_false_when_no_changes_are_needed(self, tmp_path: Path) -> None:
+        env_path = tmp_path / ".env"
+        env_path.write_text('SQLCL_BIN="/opt/sqlcl/bin/sql"\n', encoding="utf-8")
+
+        changed = write_local_env_overrides(
+            tmp_path,
+            {"SQLCL_BIN": "/opt/sqlcl/bin/sql"},
+        )
+
+        assert changed is False
+        assert env_path.read_text() == 'SQLCL_BIN="/opt/sqlcl/bin/sql"\n'
+
+    def test_escapes_quotes_and_backslashes(self, tmp_path: Path) -> None:
+        changed = write_local_env_overrides(
+            tmp_path,
+            {"SQLCL_BIN": 'C:\\Program Files\\SQLcl\\"sql".exe'},
+        )
+
+        assert changed is True
+        assert (tmp_path / ".env").read_text() == (
+            'SQLCL_BIN="C:\\\\Program Files\\\\SQLcl\\\\\\"sql\\".exe"\n'
+        )
+
+    def test_cli_writes_local_env_overrides(self, tmp_path: Path) -> None:
+        result = RUNNER.invoke(
+            app,
+            [
+                "write-local-env-overrides",
+                "--project-root", str(tmp_path),
+                "--overrides-json", '{"SQLCL_BIN":"/opt/sqlcl/bin/sql"}',
+            ],
+        )
+
+        assert result.exit_code == 0, result.stdout
+        payload = json.loads(result.stdout)
+        assert payload["changed"] is True
+        assert payload["file"].endswith("/.env")

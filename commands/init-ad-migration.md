@@ -1,6 +1,6 @@
 ---
 name: init-ad-migration
-description: Checks prerequisites for the chosen source technology, installs missing deps, scaffolds project files (CLAUDE.md, README.md, repo-map.json, .gitignore, .envrc, .githooks), writes a partial manifest, and hands off to /setup-ddl.
+description: Checks environment prerequisites for the chosen source and target technologies, installs missing deps, scaffolds project files (CLAUDE.md, README.md, repo-map.json, .gitignore, .envrc, .githooks), writes a partial manifest, and hands off to later setup stages.
 user-invocable: true
 ---
 
@@ -18,27 +18,36 @@ If `CLAUDE_PLUGIN_ROOT` is not set, stop immediately and tell the user to load t
 
 If the host platform is Windows, stop immediately and tell the user local Windows execution is not supported for this workflow. Recommend running the plugin on macOS or Linux instead. Do not continue with any prerequisite checks on Windows.
 
-## Step 2: Source selection
+## Step 2: Runtime selection
 
-Determine which source technology to configure:
+Determine which source and target technologies to configure:
 
 1. Check `$ARGUMENTS` for a positional source slug (e.g. `/init-ad-migration oracle` or `/init-ad-migration sql_server`).
-2. If no argument was provided, ask the user to choose:
+2. If no source argument was provided, ask the user to choose:
 
 > **Which source database are you migrating from?**
 >
 > 1. `sql_server` — Microsoft SQL Server (T-SQL)
 > 2. `oracle` — Oracle Database (PL/SQL)
 
-Validate the chosen slug against the source registry in `init.py`. If the slug is unknown, list the valid options and ask again.
+1. Ask the user which target technology they want to generate dbt assets for:
 
-Store the chosen slug as `$SOURCE` for the remaining steps.
+> **Which target database technology are you writing dbt assets for?**
+>
+> 1. `sql_server` — Microsoft SQL Server
+> 2. `oracle` — Oracle Database
+
+Validate both chosen slugs against the source registry in `init.py`. If either slug is unknown, list the valid options and ask again.
+
+Store the chosen slugs as `$SOURCE` and `$TARGET` for the remaining steps.
+
+Do **not** ask a separate sandbox question during init. The partial manifest persists `runtime.sandbox` as a separate role, initialized from `$SOURCE`, so later commands can still manage sandbox explicitly.
 
 ## Step 3: Gather evidence
 
 ### Read existing handoff state
 
-Before running any checks, read `manifest.json` in the project root. If it contains an `init_handoff` key, load it as `$EXISTING_HANDOFF`. Items recorded as `true` in the existing handoff are **already validated — skip them silently**. Only run checks for items that are `false`, missing from the handoff, or when no handoff exists at all.
+Before running any checks, read `manifest.json` in the project root. If it contains an `init_handoff` key, load it as `$EXISTING_HANDOFF`. For idempotency, skip checks already recorded as passing in the matching handoff section. Re-run checks that are `false`, missing, or belong to a different selected technology.
 
 To force a full re-check of all prerequisites, the user must delete `manifest.json` manually.
 
@@ -46,7 +55,7 @@ To force a full re-check of all prerequisites, the user must delete `manifest.js
 
 Do NOT install or change anything yet — only gather evidence for items not already validated.
 
-### Common prerequisites (all sources)
+### Common prerequisites (all projects)
 
 1. `uv --version` — is uv installed?
 2. `python3 --version` — is Python >= 3.11?
@@ -55,23 +64,39 @@ Do NOT install or change anything yet — only gather evidence for items not alr
 5. `git rev-parse --is-inside-work-tree` — is the current working directory inside a git repository? If not, warn the user that the project folder is not under version control and recommend initialising git before running extraction skills.
 6. `direnv version` — is direnv installed? This is optional; mark as `—` if missing.
 
-### SQL Server prerequisites (when `$SOURCE` is `sql_server`)
+### Source runtime prerequisites
+
+Run the source-stack checks for `$SOURCE`. These checks validate that the local machine can support the selected source technology. Do **not** ask for or validate hostnames, database names, usernames, passwords, or other connection details during init.
+
+#### When `$SOURCE` is `sql_server`
 
 1. `uv run --project "${CLAUDE_PLUGIN_ROOT}/lib" init check-freetds` — verify that Homebrew FreeTDS is installed, `odbcinst` is available, and `FreeTDS` appears in `odbcinst -q -d`
 2. `toolbox --version` — is the genai-toolbox binary installed?
-3. Check whether each of the four MSSQL bootstrap environment variables is set (non-empty): `MSSQL_HOST`, `MSSQL_PORT`, `MSSQL_DB`, `SA_PASSWORD`. Do not print their values.
-4. If all MSSQL env vars are set, verify the MCP server: `uv run "${CLAUDE_PLUGIN_ROOT}/mcp/ddl/server.py" --help`
+3. Discover the effective local SQL Server driver override. If a driver other than the default needs to be pinned locally, plan to write `MSSQL_DRIVER` into the project-local `.env`.
 
-### Oracle prerequisites (when `$SOURCE` is `oracle`)
+#### When `$SOURCE` is `oracle`
 
 1. `sql -V` — is SQLcl installed?
 2. `java -version` — is Java 11+ installed?
-3. Check whether each of the five Oracle environment variables is set (non-empty): `ORACLE_HOST`, `ORACLE_PORT`, `ORACLE_SERVICE`, `ORACLE_USER`, `ORACLE_PASSWORD`. Do not print their values.
-4. If all Oracle env vars are set, verify the Oracle MCP server can start: test that `sql -mcp` exits cleanly (does NOT require a live DB connection — just checks the binary runs).
+3. Verify the Oracle MCP server can start: test that `sql -mcp` or `"${SQLCL_BIN}" -mcp` exits cleanly. This is a startup check only and does **not** require a live DB connection.
+4. Discover the effective local SQLcl binary path. If the machine requires an explicit binary override, plan to write `SQLCL_BIN` into the project-local `.env`.
+
+### Target runtime prerequisites
+
+Run the target-stack checks for `$TARGET`. These checks validate that the local machine has the client libraries needed by `/setup-target` and later dbops-backed flows. Do **not** ask for or validate target connection details during init.
+
+#### When `$TARGET` is `sql_server`
+
+1. `uv run --project "${CLAUDE_PLUGIN_ROOT}/lib" python3 -c "import pyodbc"` — is the SQL Server Python client available?
+2. Discover the effective local SQL Server driver override. If a driver other than the default needs to be pinned locally, plan to write `MSSQL_DRIVER` into the project-local `.env`.
+
+#### When `$TARGET` is `oracle`
+
+1. `uv run --project "${CLAUDE_PLUGIN_ROOT}/lib" python3 -c "import oracledb"` — is the Oracle Python client available?
 
 ## Step 4: Present plan
 
-Show the user what was found and what needs to be done, grouped into common and source-specific sections:
+Show the user what was found and what needs to be done, grouped into common, source-runtime, and target-runtime sections:
 
 ```text
 Common prerequisites:
@@ -83,43 +108,49 @@ Common prerequisites:
   direnv:      ✓ installed (x.y.z)  /  — not found (recommended)
 ```
 
-**For SQL Server:**
+**For source = SQL Server:**
 
 ```text
-SQL Server prerequisites:
-  freetds:     ✓ installed + registered  /  ✗ not installed  /  ✗ unixODBC missing  /  ✗ not registered
-  toolbox:     ✓ installed (x.y.z)  /  — not found (optional)
-  MSSQL_HOST:  ✓ set  /  — not set
-  MSSQL_PORT:  ✓ set  /  — not set
-  MSSQL_DB:    ✓ set  /  — not set
-  SA_PASSWORD: ✓ set  /  — not set
+Source runtime (SQL Server):
+  freetds:                ✓ installed + registered  /  ✗ not installed  /  ✗ unixODBC missing  /  ✗ not registered
+  toolbox:                ✓ installed (x.y.z)  /  — not found (optional until /setup-ddl)
+  mssql_driver_override:  ✓ resolved  /  — default FreeTDS  /  ✗ manual override needed
 ```
 
-**For Oracle:**
+**For source = Oracle:**
 
 ```text
-Oracle prerequisites:
-  sqlcl:          ✓ installed          /  ✗ not found
-  java:           ✓ 11+ (x.y.z)       /  ✗ not found or < 11
-  oracle_mcp:     ✓ starts             /  ✗ fails  /  — skipped (env vars missing)
-  ORACLE_HOST:    ✓ set  /  — not set
-  ORACLE_PORT:    ✓ set  /  — not set
-  ORACLE_SERVICE: ✓ set  /  — not set
-  ORACLE_USER:    ✓ set  /  — not set
-  ORACLE_PASSWORD: ✓ set  /  — not set
+Source runtime (Oracle):
+  sqlcl:               ✓ installed  /  ✗ not found
+  java:                ✓ 11+ (x.y.z)  /  ✗ not found or < 11
+  oracle_mcp:          ✓ starts  /  ✗ fails
+  sqlcl_bin_override:  ✓ resolved  /  — PATH default  /  ✗ manual override needed
 ```
 
-`toolbox`, `direnv`, and the source credentials are marked `—` (not `✗`) when missing — they are optional for DDL file mode but required for `/setup-ddl` and any live-database skill. They will not block setup of the core tools.
+**For target = SQL Server:**
+
+```text
+Target runtime (SQL Server):
+  pyodbc:                 ✓ importable  /  ✗ missing
+  mssql_driver_override:  ✓ resolved  /  — default FreeTDS  /  ✗ manual override needed
+```
+
+**For target = Oracle:**
+
+```text
+Target runtime (Oracle):
+  oracledb:  ✓ importable  /  ✗ missing
+```
+
+`toolbox` and `direnv` are marked `—` (not `✗`) when missing. `toolbox` is optional for DDL file mode but required later for SQL Server `/setup-ddl`.
 
 For SQL Server, `freetds` is only green after both installation and unixODBC registration pass. If `brew` reports FreeTDS installed but `odbcinst` is missing, treat that as a failed prerequisite because `/setup-ddl` will not work with the default `MSSQL_DRIVER="FreeTDS"` path.
 
-If any credential variable is unset, recommend using direnv for credential management:
+If any local override is discovered or required, explain that init will write only non-secret machine-specific overrides into `.env`, while `.envrc` remains the shared repo-local scaffold:
 
-> **Recommended: use direnv for credentials.** The scaffolding step will create a `.envrc` template with the correct variables for your source technology. Fill in your values and run `direnv allow`. This keeps credentials out of your shell history and loads them automatically when you enter the project directory.
->
-> If you prefer not to use direnv, export the variables in your shell before launching `claude`.
+> **Recommended: keep machine-local overrides in `.env`.** The scaffolding step writes repo-shared environment scaffolding to `.envrc` and loads `.env` when present. Use `.env` only for non-secret local overrides such as `MSSQL_DRIVER` or `SQLCL_BIN`. Connection details are collected later in the stage-specific setup commands.
 
-These values are passed to the MCP server at startup via environment inheritance — they must be set before launching `claude`, not after.
+Do not ask the user for source, target, or sandbox connection details during init. Those belong to `/setup-ddl`, `/setup-target`, and `/setup-sandbox`.
 
 If everything is already validated (all items `true` in the existing handoff and no new gaps found), say "All prerequisites validated" and proceed directly to Step 6 without asking for confirmation. Otherwise, ask the user to confirm before proceeding with Step 5.
 
@@ -173,6 +204,20 @@ For Oracle:
 uv sync --project "${CLAUDE_PLUGIN_ROOT}/lib" --extra oracle
 ```
 
+**Verify target client libraries**:
+
+For SQL Server target:
+
+```bash
+uv run --project "${CLAUDE_PLUGIN_ROOT}/lib" python3 -c "import pyodbc"
+```
+
+For Oracle target:
+
+```bash
+uv run --project "${CLAUDE_PLUGIN_ROOT}/lib" python3 -c "import oracledb"
+```
+
 **ddl_mcp fails** (after shared sync): re-run the ddl_mcp check. If it still fails, show the error output to the user and tell them to check their Python environment.
 
 **toolbox missing** (SQL Server, if the user asks how to install it): Direct the user to `https://github.com/googleapis/genai-toolbox/releases` to download the binary for their platform and add it to PATH. Do not attempt to install it automatically.
@@ -183,7 +228,7 @@ uv sync --project "${CLAUDE_PLUGIN_ROOT}/lib" --extra oracle
 
 ## Step 6: Scaffold project files
 
-Run the `init` CLI to scaffold the project directory, passing the chosen technology. This creates CLAUDE.md, README.md, repo-map.json, .gitignore, .envrc, `scripts/worktree.sh`, `.claude/rules/git-workflow.md`, and `.githooks/pre-commit` — all idempotently and parameterized by source.
+Run the `init` CLI to scaffold the project directory, passing the chosen source technology. This creates CLAUDE.md, README.md, repo-map.json, .gitignore, .envrc, `scripts/worktree.sh`, `.claude/rules/git-workflow.md`, and `.githooks/pre-commit` — all idempotently and parameterized by source.
 
 ```bash
 uv run --project "${CLAUDE_PLUGIN_ROOT}/lib" init scaffold-project --project-root . --technology $SOURCE
@@ -194,19 +239,33 @@ Parse the JSON output and report to the user which files were created, updated, 
 
 If `scaffold-project` reports missing CLAUDE.md sections (in `files_skipped`), tell the user which sections are missing and recommend adding them.
 
-Then write the partial manifest with prerequisite validation results. Build a JSON object `$PREREQS` from the combined results of Steps 3-5 (merging any existing handoff values with newly validated items). The object must have `env_vars` and `tools` keys:
+If local overrides were discovered, write them to `.env` in the project root. Write only non-secret machine-specific overrides such as `MSSQL_DRIVER` or `SQLCL_BIN`. Do not write connection details during init.
+
+Use the deterministic init helper for that write:
+
+```bash
+uv run --project "${CLAUDE_PLUGIN_ROOT}/lib" init write-local-env-overrides --project-root . --overrides-json '$OVERRIDES'
+```
+
+Then write the partial manifest with prerequisite validation results. Build a JSON object `$PREREQS` from the combined results of Steps 3-5 (merging any existing handoff values with newly validated items). The object should record common startup checks plus role-scoped startup readiness:
 
 ```json
 {
-  "env_vars": {"MSSQL_HOST": true, "MSSQL_PORT": true, ...},
-  "tools": {"uv": true, "python": true, "shared_deps": true, "ddl_mcp": true, "freetds": true, "toolbox": false, ...}
+  "common": {
+    "startup": {"uv": true, "python": true, "shared_deps": true, "ddl_mcp": true, "direnv": false}
+  },
+  "roles": {
+    "source": {"technology": "sql_server", "startup": {"freetds": true, "toolbox": false, "driver_override_resolved": true}},
+    "sandbox": {"technology": "sql_server", "startup": {"freetds": true, "driver_override_resolved": true}},
+    "target": {"technology": "oracle", "startup": {"oracledb": true}}
+  }
 }
 ```
 
 Pass it to the CLI:
 
 ```bash
-uv run --project "${CLAUDE_PLUGIN_ROOT}/lib" setup-ddl write-partial-manifest --project-root . --technology $SOURCE --prereqs-json '$PREREQS'
+uv run --project "${CLAUDE_PLUGIN_ROOT}/lib" setup-ddl write-partial-manifest --project-root . --technology $SOURCE --target-technology $TARGET --prereqs-json '$PREREQS'
 ```
 
 Re-running `/init-ad-migration` reads the handoff from `manifest.json` and skips already-passing checks.
@@ -230,7 +289,7 @@ git add CLAUDE.md README.md .gitignore .githooks/ repo-map.json .claude/ scripts
 git commit -m "chore: init migration project ($SOURCE)"
 ```
 
-Do not stage `.envrc` — it is gitignored and contains credentials.
+Do not stage `.envrc` or `.env` — both are local environment files. `.envrc` contains repo-local environment scaffolding and `.env` contains machine-local overrides.
 
 If not a git repository, skip silently.
 
@@ -240,15 +299,20 @@ Then tell the user: **"Restart Claude to pick up the new project instructions."*
 
 Tell the user:
 
-**For SQL Server:**
+**For source = SQL Server:**
 
-- **toolbox installed and all MSSQL vars set**: ready to run `/setup-ddl` to extract DDL from the live database.
-- **toolbox missing or MSSQL vars unset**: DDL file mode (`listing-objects`, `analyzing-table`, `scoping`) is fully available. Live-database skills (`/setup-ddl`) require both `toolbox` and all four MSSQL env vars. If using direnv, fill in `.envrc` and run `direnv allow`. Then install `toolbox` from the genai-toolbox releases page.
+- **toolbox installed**: the SQL Server source toolchain is ready for `/setup-ddl` once the user provides source connection details in that stage.
+- **toolbox missing**: DDL file mode (`listing-objects`, `analyzing-table`, `scoping`) is fully available. Live source extraction in `/setup-ddl` still requires `toolbox`.
 
-**For Oracle:**
+**For source = Oracle:**
 
-- **SQLcl + Java installed and all Oracle vars set**: ready to run `/setup-ddl` to extract DDL from the live database. Remember: the Oracle MCP server requires a manual connect step at the start of each session.
-- **SQLcl/Java missing or Oracle vars unset**: DDL file mode (`listing-objects`, `analyzing-table`, `scoping`) is fully available. Live-database skills (`/setup-ddl`) require SQLcl, Java 11+, and all five Oracle env vars. If using direnv, fill in `.envrc` and run `direnv allow`.
+- **SQLcl + Java installed**: the Oracle source toolchain is ready for `/setup-ddl` once the user provides source connection details in that stage. Remember: the Oracle MCP server requires a manual connect step at the start of each session.
+- **SQLcl/Java missing**: DDL file mode is still available, but live source extraction in `/setup-ddl` is blocked until those tools are installed.
+
+**For target setup:**
+
+- **target toolchain ready**: proceed to `/setup-target` when ready to collect target connection/runtime details.
+- **target toolchain not ready**: install the missing client library or local override first, then run `/setup-target`.
 
 ## Error handling
 
@@ -264,8 +328,8 @@ Tell the user:
 
 Safe to re-run. Each step checks current state before acting:
 
-- Source selection re-evaluates `$ARGUMENTS` each time.
-- Step 3 reads existing `init_handoff` from `manifest.json` and skips checks already recorded as `true`. Only items marked `false` or missing are re-checked. To force a full reset, the user deletes `manifest.json`.
+- Runtime selection re-evaluates `$ARGUMENTS` each time for the source role and re-prompts for target when needed.
+- Step 3 reads existing `init_handoff` from `manifest.json` and skips checks already recorded as passing for the same selected technology. Only items marked `false`, missing, or tied to a different selected technology are re-checked.
 - Step 5 uses the `init` CLI which is fully idempotent: existing CLAUDE.md is checked for missing sections (not overwritten), README.md and repo-map.json are skipped if present, .gitignore gets only missing entries appended, .envrc is skipped if present, .claude/rules/git-workflow.md is skipped if present, .githooks/pre-commit is skipped if present.
-- Step 6 partial manifest merges existing handoff passes with newly validated items and updates the timestamp.
+- Step 6 partial manifest updates `runtime.source`, `runtime.sandbox`, and `runtime.target`, merges existing handoff passes with newly validated items, and updates the timestamp.
 - Step 7 only commits if there are staged changes.
