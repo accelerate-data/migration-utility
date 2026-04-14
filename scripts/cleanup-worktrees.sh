@@ -8,7 +8,6 @@ BRANCH_FILTER="${1:-}"
 cleaned=0
 skipped=0
 
-git worktree list --porcelain | awk '/^worktree /{wt=$2} /^branch /{print wt, $2}' | \
 while read -r worktree_path branch_ref; do
   branch="${branch_ref#refs/heads/}"
   [[ "$worktree_path" == "$(git rev-parse --show-toplevel)" ]] && continue
@@ -25,9 +24,9 @@ while read -r worktree_path branch_ref; do
     echo "  skipping: $branch (no merged PR)"
     (( skipped++ )) || true
   fi
-done
+done < <(git worktree list --porcelain | awk '/^worktree /{wt=$2} /^branch /{print wt, $2}')
 
 git fetch --prune --quiet
 
 echo ""
-echo "cleanup-worktrees complete"
+echo "cleanup-worktrees complete (cleaned: $cleaned, skipped: $skipped)"
