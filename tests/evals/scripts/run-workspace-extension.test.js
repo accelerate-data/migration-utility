@@ -10,7 +10,6 @@ const EVAL_PACKAGE_JSON = path.join(REPO_ROOT, 'tests', 'evals', 'package.json')
 const EVAL_PACKAGES_DIR = path.join(REPO_ROOT, 'tests', 'evals', 'packages');
 const EXTENSION_MODULE_PATH = require.resolve('./run-workspace-extension');
 const LIVE_PACKAGE_CONFIGS = [
-  'oracle-regression/promptfooconfig.yaml',
   'oracle-live/promptfooconfig.yaml',
   'mssql-live/promptfooconfig.yaml',
 ];
@@ -141,8 +140,7 @@ test('grouped eval scripts exist and point only at package configs', () => {
   assert.deepEqual(extractEvalConfigs(scripts['eval:commands']), readEvalPackageConfigsByPrefix('cmd-'));
   assert.equal(Boolean(scripts['eval:full']), false);
   assert.equal(hasMaxConcurrencyOne(scripts['eval:cmd-reset-migration']), true);
-  assert.equal(Boolean(scripts['eval:oracle-regression']), true);
-  assert.deepEqual(extractEvalConfigs(scripts['eval:oracle-regression']), ['oracle-regression/promptfooconfig.yaml']);
+  assert.equal(Boolean(scripts['eval:oracle-regression']), false);
   assert.equal(Boolean(scripts['eval:oracle-live']), true);
   assert.equal(Boolean(scripts['eval:mssql-live']), true);
   assert.deepEqual(extractEvalConfigs(scripts['eval:oracle-live']), ['oracle-live/promptfooconfig.yaml']);
