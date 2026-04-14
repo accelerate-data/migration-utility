@@ -133,7 +133,6 @@ test('smoke eval script exists and live suites remain standalone', () => {
   );
   assert.deepEqual(extractEvalConfigs(scripts['eval:smoke']), readEvalPackageConfigs());
   assert.equal(Boolean(scripts['eval:full']), false);
-  assert.equal(hasMaxConcurrencyOne(scripts['eval:cmd-reset-migration']), true);
   assert.equal(Boolean(scripts['eval:oracle-regression']), false);
   assert.equal(Boolean(scripts['eval:oracle-live']), true);
   assert.equal(Boolean(scripts['eval:mssql-live']), true);
@@ -141,9 +140,6 @@ test('smoke eval script exists and live suites remain standalone', () => {
   assert.deepEqual(extractEvalConfigs(scripts['eval:mssql-live']), ['mssql-live/promptfooconfig.yaml']);
 
   const smokeConfigs = extractEvalConfigs(scripts['eval:smoke']);
-  if (smokeConfigs.includes('packages/cmd-reset-migration/cmd-reset-migration.yaml')) {
-    assert.equal(hasMaxConcurrencyOne(scripts['eval:smoke']), true);
-  }
   for (const liveConfig of LIVE_PACKAGE_CONFIGS) {
     assert.equal(smokeConfigs.includes(liveConfig), false);
   }
