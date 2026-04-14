@@ -18,6 +18,36 @@ If `CLAUDE_PLUGIN_ROOT` is not set, stop immediately and tell the user to load t
 
 If the host platform is Windows, stop immediately and tell the user local Windows execution is not supported for this workflow. Recommend running the plugin on macOS or Linux instead. Do not continue with any prerequisite checks on Windows.
 
+## Step 1.5: Install ad-migration CLI
+
+Check whether `ad-migration` is already on PATH:
+
+```bash
+ad-migration --version 2>/dev/null && echo "INSTALLED" || echo "NOT_FOUND"
+```
+
+If already installed, print the version and continue to Step 2.
+
+If not installed, install via Homebrew:
+
+```bash
+brew tap accelerate-data/homebrew-tap
+brew install ad-migration
+```
+
+After installing, verify:
+
+```bash
+ad-migration --version
+```
+
+If Homebrew is not available on the user's machine, tell them:
+
+> Install Homebrew first: `/bin/bash -c "$(curl -fsSL https://raw.githubusercontent.com/Homebrew/install/HEAD/install.sh)"`
+> Then re-run `/init-ad-migration`.
+
+Do not continue if `ad-migration --version` still fails after installation.
+
 ## Step 2: Runtime selection
 
 Determine which source and target technologies to configure:
@@ -303,13 +333,13 @@ Tell the user:
 
 **For source = SQL Server:**
 
-- **toolbox installed**: the SQL Server source toolchain is ready for `/setup-ddl` once the user provides source connection details in that stage.
-- **toolbox missing**: DDL file mode (`listing-objects`, `analyzing-table`, `scoping`) is fully available. Live source extraction in `/setup-ddl` still requires `toolbox`.
+- **toolbox installed and all MSSQL vars set**: ready to run `ad-migration setup-source --technology sql_server --schemas <schema>` to extract DDL from the live database.
+- **toolbox missing or MSSQL vars unset**: Set credentials in `.envrc`, run `direnv allow`, install `toolbox`, then run `ad-migration setup-source`.
 
 **For source = Oracle:**
 
-- **SQLcl + Java installed**: the Oracle source toolchain is ready for `/setup-ddl` once the user provides source connection details in that stage. Remember: the Oracle MCP server requires a manual connect step at the start of each session.
-- **SQLcl/Java missing**: DDL file mode is still available, but live source extraction in `/setup-ddl` is blocked until those tools are installed.
+- **SQLcl + Java installed and all Oracle vars set**: ready to run `ad-migration setup-source --technology oracle --schemas <schema>` to extract DDL from the live database.
+- **SQLcl/Java missing or Oracle vars unset**: Set credentials in `.envrc`, run `direnv allow`, ensure SQLcl and Java 11+ are installed, then run `ad-migration setup-source`.
 
 **For target setup:**
 
