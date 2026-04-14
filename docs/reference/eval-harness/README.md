@@ -43,7 +43,7 @@ npm install
 
 Common runs:
 
-- broad offline pass: `npm run eval`
+- grouped offline runs: `npm run eval:smoke`, `npm run eval:skills`, or `npm run eval:commands`
 - smoke pass across the curated offline mix: `npm run eval:smoke`
 - all skill packages: `npm run eval:skills`
 - all command packages: `npm run eval:commands`
@@ -69,7 +69,6 @@ Common runs:
 | `/generate-tests` command orchestration | `npm run eval:cmd-generate-tests` |
 | `/status` command output | `npm run eval:cmd-status` |
 | `/commit-push-pr` failure handling | `npm run eval:cmd-commit-push-pr` |
-| Oracle post-extract command coverage | `npm run eval:commands` |
 | Live database extraction flow | `npm run eval:oracle-live` or `npm run eval:mssql-live` |
 
 ### Narrowing to one targeted eval
@@ -78,7 +77,7 @@ Start with the smallest package that owns the behavior you changed.
 
 - skill behavior: run the owning skill package first
 - command orchestration: run the owning command package first
-- Oracle post-extract command handling: run the owning command package config, not a standalone Oracle regression suite
+- Oracle post-extract command handling: run the smallest owning command package config that covers the behavior; Oracle coverage now lives in specific command package YAMLs, not a standalone `oracle-regression` suite
 - live extraction/runtime behavior: run `oracle-live` or `mssql-live`
 
 If you need one subset inside a package, run Promptfoo directly with `--filter-pattern`:
