@@ -5,6 +5,7 @@ const path = require('path');
 const REPO_ROOT = path.resolve(__dirname, '..', '..', '..');
 const RUNS_ROOT = path.join(REPO_ROOT, 'tests', 'evals', 'output', 'runs');
 const RUN_RETENTION_MS = 24 * 60 * 60 * 1000;
+let hasPrunedRuns = false;
 const VOLATILE_PATHS = [
   '.migration-runs',
   'model-review-results',
@@ -147,10 +148,13 @@ async function extensionHook(hookName, context, options = {}) {
     return context;
   }
 
-  const runsRoot = options.runsRoot || RUNS_ROOT;
-  const nowMs = options.nowMs || Date.now();
+  const runsRoot = options.runsRoot ?? RUNS_ROOT;
+  const nowMs = options.nowMs ?? Date.now();
 
-  pruneOldRuns(runsRoot, { cutoffMs: nowMs - RUN_RETENTION_MS });
+  if (!hasPrunedRuns) {
+    pruneOldRuns(runsRoot, { cutoffMs: nowMs - RUN_RETENTION_MS });
+    hasPrunedRuns = true;
+  }
 
   const suiteSlug = sanitizeSegment(context?.suite?.description, 'eval');
   const testSlug = sanitizeSegment(context?.test?.description, 'test');
