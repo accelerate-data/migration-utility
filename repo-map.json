@@ -113,7 +113,7 @@
     },
     "scripts": {
       "path": "scripts/",
-      "description": "Developer scripts: worktree.sh (single entrypoint for worktree creation/attach plus bootstrap and structured failure output), publish-sqlserver-image.sh (build + push SQL Server Docker image with pre-baked KimballFixture data files; MigrationTest stays a schema-level runtime materialization concern), demo-warehouse/ (cross-dialect Kimball demo warehouse fixture for demos, parity checks, and image builds)."
+      "description": "Developer scripts: contributor-setup.sh (canonical contributor maintainer bootstrap and readiness check with fix/show modes plus structured JSON summary), worktree.sh (single entrypoint for worktree creation/attach plus bootstrap and structured failure output), publish-sqlserver-image.sh (build + push SQL Server Docker image with pre-baked KimballFixture data files; MigrationTest stays a schema-level runtime materialization concern), demo-warehouse/ (cross-dialect Kimball demo warehouse fixture for demos, parity checks, and image builds)."
     },
     "docker_sqlserver": {
       "path": "docker/sqlserver/",
@@ -157,6 +157,8 @@
     "test_mcp_ddl_oracle": "cd mcp/ddl && uv run pytest ../../tests/integration/oracle/ddl_mcp",
     "test_harness_help": "cd lib && uv run test-harness --help",
     "test_harness_execute_spec": "cd lib && uv run test-harness execute-spec --spec <path>",
+    "contributor_setup_fix": "./scripts/contributor-setup.sh",
+    "contributor_setup_show": "./scripts/contributor-setup.sh show",
     "migrate_util_status": "cd lib && uv run migrate-util status [<fqn>]",
     "migrate_util_ready": "cd lib && uv run migrate-util ready <stage> [--object <fqn>]",
     "migrate_util_exclude": "cd lib && uv run migrate-util exclude <fqn> [fqn ...]",

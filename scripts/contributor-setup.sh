@@ -165,7 +165,7 @@ else
     if ! run_in_dir "$repo_root/lib" uv sync --extra dev; then
       bootstrap_failures="$(append_line "$bootstrap_failures" "lib environment sync failed")"
     fi
-    if ! run_in_dir "$repo_root/mcp/ddl" uv sync --extra dev; then
+    if ! run_in_dir "$repo_root/mcp/ddl" uv sync; then
       bootstrap_failures="$(append_line "$bootstrap_failures" "mcp/ddl environment sync failed")"
     fi
     if ! run_in_dir "$repo_root/tests/evals" npm install --no-audit --no-fund; then

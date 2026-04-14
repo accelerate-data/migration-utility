@@ -6,50 +6,134 @@ See `AGENTS.md` for architecture, conventions, and agent guidance.
 
 ---
 
-## Prerequisites
+## Contributor Setup
+
+This README is the canonical onboarding path for developing `migration-utility` itself.
+
+It is written for a human contributor on a fresh laptop who may be working through a coding agent.
+
+This setup is for maintaining this repository. It is not the customer or migration-project setup flow, and it does not replace `/init-ad-migration`.
+
+### Supported platforms
+
+- `macOS`
+- `Linux/Unix-like`
+
+Windows is not supported by the contributor bootstrap flow.
+
+### Maintainer-ready target
+
+`maintainer ready` means:
+
+- the repo can be edited, linted, and unit-tested
+- repo-local environments for `lib/`, `mcp/ddl/`, and `tests/evals/` are bootstrapped
+- Docker is installed and the daemon is reachable
+- contributor containers can be started
+- at least one live maintainer backend path works end to end: SQL Server or Oracle
+
+### Canonical commands
+
+Use the contributor bootstrap script from the repo root:
+
+```bash
+./scripts/contributor-setup.sh
+```
+
+This is the default `fix` mode. It runs repo-local bootstrap, verifies maintainer readiness, and ends with a human-readable summary plus trailing JSON for coding agents.
+
+For a non-mutating report:
+
+```bash
+./scripts/contributor-setup.sh show
+```
+
+### What the script checks
+
+- supported OS
+- required vs optional machine-level tools
+- repo-local bootstrap inputs
+- `lib/` and `mcp/ddl/` Python environments
+- `tests/evals/` dependencies
+- Docker binary and daemon readiness
+- SQL Server contributor path
+- Oracle contributor path
+
+### What the script can do automatically
+
+- sync the repo-local Python environments in `lib/` and `mcp/ddl/`
+- install repo-local eval harness dependencies in `tests/evals/`
+- verify Docker and contributor container readiness
+
+### What still requires user action
+
+- installing machine-level tools
+- Docker login/image pull/setup when containers are missing
+- fixing host-level toolchain or permission issues
+
+### Status meanings
+
+- `ready`: Docker works, repo-local bootstrap succeeded, and at least one backend path works
+- `partially_ready`: the repo is close but still needs manual follow-up
+- `blocked`: the environment cannot satisfy maintainer readiness yet
+
+---
+
+## Machine Tools
 
 ### Required tools
 
 | Tool | Purpose |
 |------|---------|
+| `git` | Version control and worktree support |
 | Python 3.11+ | Runtime for `lib/` and `mcp/` |
 | [uv](https://docs.astral.sh/uv/) | Python package manager |
 | Node.js + npm | Promptfoo eval harness for migration-only evals (`tests/evals/`) |
-| [Claude Code CLI](https://docs.anthropic.com/claude-code) | Plugin development and agent execution |
 | [direnv](https://direnv.net/) | Auto-loads `.env` credentials |
+| Docker | Contributor container and integration readiness |
 | [markdownlint-cli](https://github.com/igorshubovych/markdownlint-cli) | All `.md` files must pass before commit |
+| [`toolbox`](https://github.com/googleapis/genai-toolbox/releases) | SQL Server maintainer path |
+| [`sql` / SQLcl](https://www.oracle.com/database/sqldeveloper/technologies/sqlcl/) | Oracle maintainer path |
+| Java 11+ | Runtime required by SQLcl |
 
-### Claude Code plugins
-
-Install these via the Claude Code plugin marketplace before starting work:
-
-- **promptfoo-evals** — eval harness skill for creating/updating promptfoo suites
-- **@claude-plugins-official** — official plugin pack (enables code-simplifier, frontend-design, feature-dev, code-review as configured in `.claude/settings.json`)
-
-### Optional (for integration tests)
+### Optional tools
 
 | Tool | Purpose |
 |------|---------|
-| Docker Desktop | Runs SQL Server 2022 container for `pytest -m integration` |
 | [gh CLI](https://cli.github.com/) | GitHub API interactions |
 
 ### Environment variables
 
-Fill in `.env` (commented examples are included). For local SQL Server MCP usage, set `SA_PASSWORD`; `MSSQL_HOST`, `MSSQL_PORT`, and `MSSQL_DB` default from `.mcp.json` and can be overridden in your environment if needed. Then:
+Fill in `.env` (commented examples are included), then:
 
 ```bash
 direnv allow
 ```
 
+See [docs/wiki/Installation-and-Prerequisites.md](docs/wiki/Installation-and-Prerequisites.md) for the detailed environment-variable reference.
+
 ---
 
-## Setup
+## Fresh-Laptop Flow
+
+1. Clone the repo.
+2. Run `./scripts/contributor-setup.sh`.
+3. Follow any manual actions it reports.
+4. Re-run `./scripts/contributor-setup.sh` until it reports `ready`.
+5. Use `./scripts/contributor-setup.sh show` later when you want a non-mutating status check.
 
 ```bash
 git clone https://github.com/accelerate-data/migration-utility
 cd migration-utility
-uv sync --project lib
+./scripts/contributor-setup.sh
 ```
+
+### Manual Docker setup reference
+
+The contributor bootstrap script verifies Docker and contributor containers, but it does not pull images or log in to registries for you.
+
+Use [docs/reference/setup-docker/README.md](docs/reference/setup-docker/README.md) for the one-time Docker image and container setup.
+
+### Local plugin execution
 
 To run the plugin locally:
 
@@ -57,9 +141,7 @@ To run the plugin locally:
 claude --plugin-dir .
 ```
 
-This assumes the local MCP prerequisites are already installed and on `PATH`:
-`toolbox` for the SQL Server MCP server and `sql` (SQLcl) for the Oracle MCP
-server. See `docs/wiki/Installation-and-Prerequisites.md`.
+This assumes the relevant MCP prerequisites are already installed and on `PATH`.
 
 ---
 
@@ -84,22 +166,6 @@ See `repo-map.json` for the full structure, entrypoints, and command reference.
 
 ## Development
 
-### Worktrees
-
-Use the single wrapper command to create or attach a worktree and bootstrap it:
-
-```bash
-./scripts/worktree.sh feature/<branch-name>
-```
-
-The wrapper creates the worktree under `../worktrees/<branch-name>`, symlinks `.env`, runs
-`direnv allow` when available, installs Python dev dependencies in `lib`, verifies
-`pyodbc` and `oracledb`, and installs eval dependencies in `tests/evals`.
-
-If the requested branch is already checked out in another worktree, the script fails with
-structured JSON on stderr that includes the existing worktree path so an agent can recover
-deterministically.
-
 ### Tests
 
 ```bash
@@ -122,6 +188,7 @@ Add a subdirectory under `docs/design/` with a `README.md`, then update `docs/de
 
 ## Contributing
 
+- **Contributor bootstrap:** `./scripts/contributor-setup.sh`
 - **Branch:** `feature/vu-<id>-short-description`
 - **PR title:** `VU-XXX: short description`
 - **PR body:** `Fixes VU-XXX`
