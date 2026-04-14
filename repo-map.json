@@ -97,7 +97,7 @@
     },
     "tests_migration": {
       "path": "tests/unit/",
-      "description": "Shared-library unit pytest suite organized by module under tests/unit/<module>/. Shared fixtures that support multiple modules remain under tests/unit/fixtures/. Shared pytest plumbing lives in tests/conftest.py. oracle_mcp_config/ locks the repository Oracle MCP config and install-doc fallback contract."
+      "description": "Shared-library unit pytest suite organized by module under tests/unit/<module>/. Each module directory contains focused test files split by responsibility (e.g. test_harness/ has test_registry.py, test_sqlserver_sandbox.py, test_oracle_sandbox.py, test_cli.py, test_views_and_compare.py) with shared helpers in per-directory conftest.py files. Shared fixtures that support multiple modules remain under tests/unit/fixtures/. Shared pytest plumbing lives in tests/conftest.py. oracle_mcp_config/ locks the repository Oracle MCP config and install-doc fallback contract."
     },
     "tests_migration_integration": {
       "path": "tests/integration/",
