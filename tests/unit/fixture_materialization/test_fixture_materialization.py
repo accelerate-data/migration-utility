@@ -152,3 +152,30 @@ def test_sql_server_materializer_pyodbc_fallback_uses_shared_connection_builder(
     assert "PWD={os.environ['SA_PASSWORD']}" not in script_text
     assert 'sys.path.insert(0, str(Path(sys.argv[3]) / "lib"))' in script_text
     assert 'Path.cwd() / "lib"' not in script_text
+
+
+def test_oracle_materializer_avoids_dropping_the_target_schema_user() -> None:
+    script_path = (
+        Path(__file__).resolve().parents[3]
+        / "scripts/sql/oracle/materialize-migration-test.sh"
+    )
+    script_text = script_path.read_text(encoding="utf-8")
+
+    assert 'DROP USER "${ORACLE_SCHEMA}" CASCADE' not in script_text
+    assert 'ALTER USER "${ORACLE_SCHEMA}" IDENTIFIED BY "${ORACLE_SCHEMA_PASSWORD}" ACCOUNT UNLOCK' in script_text
+    assert "FROM all_objects" in script_text
+    assert "owner = UPPER('${ORACLE_SCHEMA}')" in script_text
+
+
+def test_oracle_materializer_exits_cleanly_when_no_cli_and_no_oracledb() -> None:
+    script_path = (
+        Path(__file__).resolve().parents[3]
+        / "scripts/sql/oracle/materialize-migration-test.sh"
+    )
+    script_text = script_path.read_text(encoding="utf-8")
+
+    assert (
+        "no Oracle CLI (SQLCL/sql or sqlplus) is installed and python package "
+        "'oracledb' is unavailable for Oracle materialization"
+    ) in script_text
+    assert script_text.count("run_python_materialization") == 2

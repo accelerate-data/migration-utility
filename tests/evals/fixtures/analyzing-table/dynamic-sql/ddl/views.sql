@@ -1,12 +1,12 @@
 -- ============================================================
 -- SCENARIO: view over a table loaded via dynamic SQL
 -- ============================================================
-CREATE VIEW silver.vw_DimCurrency
+CREATE VIEW MigrationTest.silver_vw_dimcurrency
 AS
 SELECT
     CurrencyKey,
     CurrencyAlternateKey,
     CurrencyName
-FROM silver.DimCurrency;
+FROM MigrationTest.silver_dimcurrency;
 
 GO

@@ -47,17 +47,66 @@ BEGIN
   END LOOP;
 
   SELECT COUNT(*) INTO v_count FROM ALL_USERS WHERE USERNAME = UPPER('${ORACLE_SCHEMA}');
-  IF v_count > 0 THEN
-    EXECUTE IMMEDIATE 'DROP USER "${ORACLE_SCHEMA}" CASCADE';
+  IF v_count = 0 THEN
+    EXECUTE IMMEDIATE
+      'CREATE USER "${ORACLE_SCHEMA}" IDENTIFIED BY "${ORACLE_SCHEMA_PASSWORD}" ACCOUNT UNLOCK';
+  ELSE
+    EXECUTE IMMEDIATE
+      'ALTER USER "${ORACLE_SCHEMA}" IDENTIFIED BY "${ORACLE_SCHEMA_PASSWORD}" ACCOUNT UNLOCK';
   END IF;
 
-  EXECUTE IMMEDIATE
-    'CREATE USER "${ORACLE_SCHEMA}" IDENTIFIED BY "${ORACLE_SCHEMA_PASSWORD}" ACCOUNT UNLOCK';
   EXECUTE IMMEDIATE 'GRANT CREATE SESSION TO "${ORACLE_SCHEMA}"';
   EXECUTE IMMEDIATE 'GRANT CREATE TABLE TO "${ORACLE_SCHEMA}"';
   EXECUTE IMMEDIATE 'GRANT CREATE VIEW TO "${ORACLE_SCHEMA}"';
   EXECUTE IMMEDIATE 'GRANT CREATE PROCEDURE TO "${ORACLE_SCHEMA}"';
   EXECUTE IMMEDIATE 'GRANT UNLIMITED TABLESPACE TO "${ORACLE_SCHEMA}"';
+END;
+/
+BEGIN
+  FOR object_rec IN (
+    SELECT object_name, object_type
+    FROM all_objects
+    WHERE owner = UPPER('${ORACLE_SCHEMA}')
+      AND object_type IN (
+        'VIEW',
+        'MATERIALIZED VIEW',
+        'SYNONYM',
+        'PROCEDURE',
+        'FUNCTION',
+        'PACKAGE',
+        'TABLE',
+        'SEQUENCE'
+      )
+    ORDER BY CASE object_type
+      WHEN 'VIEW' THEN 1
+      WHEN 'MATERIALIZED VIEW' THEN 2
+      WHEN 'SYNONYM' THEN 3
+      WHEN 'PROCEDURE' THEN 4
+      WHEN 'FUNCTION' THEN 5
+      WHEN 'PACKAGE' THEN 6
+      WHEN 'TABLE' THEN 7
+      WHEN 'SEQUENCE' THEN 8
+      ELSE 9
+    END
+  ) LOOP
+    BEGIN
+      IF object_rec.object_type = 'TABLE' THEN
+        EXECUTE IMMEDIATE
+          'DROP TABLE "${ORACLE_SCHEMA}"."' || object_rec.object_name || '" CASCADE CONSTRAINTS PURGE';
+      ELSIF object_rec.object_type = 'MATERIALIZED VIEW' THEN
+        EXECUTE IMMEDIATE
+          'DROP MATERIALIZED VIEW "${ORACLE_SCHEMA}"."' || object_rec.object_name || '"';
+      ELSE
+        EXECUTE IMMEDIATE
+          'DROP ' || object_rec.object_type || ' "${ORACLE_SCHEMA}"."' || object_rec.object_name || '"';
+      END IF;
+    EXCEPTION
+      WHEN OTHERS THEN
+        IF SQLCODE NOT IN (-942, -4043) THEN
+          RAISE;
+        END IF;
+    END;
+  END LOOP;
 END;
 /
 SQL
@@ -200,4 +249,5 @@ PY
   exit 0
 fi
 
-run_python_materialization
+echo "no Oracle CLI (SQLCL/sql or sqlplus) is installed and python package 'oracledb' is unavailable for Oracle materialization" >&2
+exit 1

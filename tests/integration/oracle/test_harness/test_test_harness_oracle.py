@@ -234,6 +234,7 @@ class TestOracleExecuteScenario:
                             {
                                 "CURRENCYCODE": "ZZZ",
                                 "CURRENCYNAME": "Rollback Test",
+                                "MODIFIEDDATE": "2024-01-03",
                             },
                         ],
                     },
