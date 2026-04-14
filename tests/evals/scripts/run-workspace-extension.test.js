@@ -96,7 +96,7 @@ test('extensionHook creates a fresh run_path after pruning stale runs', async ()
   }
 });
 
-test('extensionHook prunes each runs root once per process', async () => {
+test('extensionHook prunes once per process across runs roots', async () => {
   const { extensionHook } = loadFreshModule();
   const now = Date.now();
   const firstRunsRoot = fs.mkdtempSync(path.join(os.tmpdir(), 'eval-runs-a-'));
@@ -135,7 +135,7 @@ test('extensionHook prunes each runs root once per process', async () => {
       runsRoot: secondRunsRoot,
     });
 
-    assert.equal(fs.existsSync(thirdStaleRun), false);
+    assert.equal(fs.existsSync(thirdStaleRun), true);
     assert.equal(typeof thirdContext.test.vars.run_path, 'string');
     assert.notEqual(thirdContext.test.vars.run_path.length, 0);
   } finally {
