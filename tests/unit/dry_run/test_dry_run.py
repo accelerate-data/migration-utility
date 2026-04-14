@@ -20,6 +20,7 @@ from shared import dry_run
 from shared import dry_run_core
 from shared import generate_sources as gen_src
 from shared.output_models.dry_run import DryRunOutput
+from shared.output_models.dry_run import ResetMigrationOutput
 
 _cli_runner = CliRunner()
 
@@ -1387,6 +1388,34 @@ def test_run_reset_migration_mixed_valid_and_missing_resets_valid_targets(tmp_pa
         "silver.dimcustomer": "reset",
     }
     assert not (dst / "test-specs" / "silver.dimcustomer.json").exists()
+
+
+def test_reset_migration_global_output_contract_serializes_deleted_paths() -> None:
+    result = ResetMigrationOutput.model_validate(
+        {
+            "stage": "all",
+            "targets": [],
+            "reset": [],
+            "noop": [],
+            "blocked": [],
+            "not_found": [],
+            "deleted_paths": [
+                "catalog/tables/silver.dimcustomer.json",
+                "dbt/models/marts/dim_customer.sql",
+            ],
+            "missing_paths": ["test-specs/silver.dimcustomer.json"],
+            "cleared_manifest_sections": ["runtime.target", "runtime.sandbox"],
+        }
+    )
+
+    payload = result.model_dump(mode="json", exclude_none=True)
+    assert payload["stage"] == "all"
+    assert payload["deleted_paths"] == [
+        "catalog/tables/silver.dimcustomer.json",
+        "dbt/models/marts/dim_customer.sql",
+    ]
+    assert payload["missing_paths"] == ["test-specs/silver.dimcustomer.json"]
+    assert payload["cleared_manifest_sections"] == ["runtime.target", "runtime.sandbox"]
 
 
 def test_reset_migration_cli_subcommand(tmp_path: Path) -> None:

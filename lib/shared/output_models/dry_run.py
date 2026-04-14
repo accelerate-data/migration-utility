@@ -225,12 +225,15 @@ class ResetTargetResult(BaseModel):
 class ResetMigrationOutput(BaseModel):
     model_config = OUTPUT_CONFIG
 
-    stage: Literal["scope", "profile", "generate-tests", "refactor"]
+    stage: Literal["scope", "profile", "generate-tests", "refactor", "all"]
     targets: list[ResetTargetResult]
     reset: list[str]
     noop: list[str]
     blocked: list[str]
     not_found: list[str]
+    deleted_paths: list[str] = Field(default_factory=list)
+    missing_paths: list[str] = Field(default_factory=list)
+    cleared_manifest_sections: list[str] = Field(default_factory=list)
 
 
 class SyncExcludedWarningsOutput(BaseModel):
