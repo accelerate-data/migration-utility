@@ -48,3 +48,17 @@ class TestSqlServerConnect:
                 reload(mod)
                 with pytest.raises(mock_pyodbc.Error, match="Login failed"):
                     mod.sql_server_connect("testdb")
+
+    def test_password_is_odbc_escaped_in_connection_string(self) -> None:
+        env = {"MSSQL_HOST": "localhost", "SA_PASSWORD": "pa;ss}word"}
+        mock_pyodbc = MagicMock()
+        with patch.dict(os.environ, env, clear=True):
+            with patch.dict("sys.modules", {"pyodbc": mock_pyodbc}):
+                from importlib import reload
+                import shared.db_connect as mod
+
+                reload(mod)
+                mod.sql_server_connect("testdb")
+
+        conn_str = mock_pyodbc.connect.call_args[0][0]
+        assert "PWD={pa;ss}}word};" in conn_str

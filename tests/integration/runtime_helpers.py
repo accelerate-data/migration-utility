@@ -5,6 +5,7 @@ import shutil
 from typing import Any
 
 import pytest
+from shared.db_connect import build_sql_server_connection_string as _build_sql_server_connection_string
 from shared.fixture_materialization import materialize_migration_test
 from shared.runtime_config_models import RuntimeConnection, RuntimeRole
 
@@ -35,22 +36,22 @@ def find_oracle_cli() -> str | None:
         if resolved:
             return resolved
     return None
+
+
 def build_sql_server_connection_string(
     *,
     database: str = SQL_SERVER_MIGRATION_DATABASE,
     login_timeout: int | None = None,
 ) -> str:
-    parts = [
-        f"DRIVER={{{os.environ.get('MSSQL_DRIVER', 'ODBC Driver 18 for SQL Server')}}}",
-        f"SERVER={os.environ.get('MSSQL_HOST', 'localhost')},{os.environ.get('MSSQL_PORT', '1433')}",
-        f"DATABASE={database}",
-        f"UID={os.environ.get('MSSQL_USER', 'sa')}",
-        f"PWD={os.environ.get('SA_PASSWORD', '')}",
-        "TrustServerCertificate=yes",
-    ]
-    if login_timeout is not None:
-        parts.append(f"LoginTimeout={login_timeout}")
-    return ";".join(parts) + ";"
+    return _build_sql_server_connection_string(
+        host=os.environ.get("MSSQL_HOST", "localhost"),
+        port=os.environ.get("MSSQL_PORT", "1433"),
+        database=database,
+        user=os.environ.get("MSSQL_USER", "sa"),
+        password=os.environ.get("SA_PASSWORD", ""),
+        driver=os.environ.get("MSSQL_DRIVER", "ODBC Driver 18 for SQL Server"),
+        login_timeout=login_timeout,
+    )
 
 
 def build_sql_server_source_role() -> RuntimeRole:

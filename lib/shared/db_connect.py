@@ -21,6 +21,35 @@ def cursor_to_dicts(cursor: Any) -> list[dict[str, Any]]:
     return [dict(zip(columns, row)) for row in cursor.fetchall()]
 
 
+def _escape_odbc_value(value: str) -> str:
+    """Escape a value for use in an ODBC connection string."""
+    return "{" + value.replace("}", "}}") + "}"
+
+
+def build_sql_server_connection_string(
+    *,
+    host: str,
+    port: str,
+    database: str,
+    user: str,
+    password: str,
+    driver: str,
+    login_timeout: int | None = None,
+) -> str:
+    """Build a SQL Server ODBC connection string with safe value escaping."""
+    parts = [
+        f"DRIVER={{{driver}}}",
+        f"SERVER={host},{port}",
+        f"DATABASE={database}",
+        f"UID={user}",
+        f"PWD={_escape_odbc_value(password)}",
+        "TrustServerCertificate=yes",
+    ]
+    if login_timeout is not None:
+        parts.append(f"LoginTimeout={login_timeout}")
+    return ";".join(parts) + ";"
+
+
 def sql_server_connect(database: str) -> Any:
     """Open a pyodbc connection to SQL Server.
 
@@ -46,12 +75,13 @@ def sql_server_connect(database: str) -> Any:
     if missing:
         raise ValueError(f"Required environment variables not set: {missing}")
 
-    conn_str = (
-        f"DRIVER={{{driver}}};"
-        f"SERVER={host},{port};"
-        f"DATABASE={database};"
-        f"UID={user};PWD={password};"
-        f"TrustServerCertificate=yes;"
+    conn_str = build_sql_server_connection_string(
+        host=host,
+        port=port,
+        database=database,
+        user=user,
+        password=password,
+        driver=driver,
     )
     try:
         return pyodbc.connect(conn_str, autocommit=True)

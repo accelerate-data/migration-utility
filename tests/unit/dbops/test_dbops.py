@@ -219,3 +219,25 @@ def test_dbops_rejects_unsafe_identifier() -> None:
 
     with pytest.raises(ValueError, match="Unsafe SQL identifier"):
         adapter.ensure_source_schema('bronze"; DROP TABLE --')
+
+
+def test_sql_server_dbops_connect_escapes_password(monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.setenv("SA_PASSWORD", "pa;ss}word")
+    role = RuntimeRole(
+        technology="sql_server",
+        dialect="tsql",
+        connection=RuntimeConnection(
+            host="localhost",
+            port="1433",
+            database="WarehouseOne",
+            password_env="SA_PASSWORD",
+        ),
+    )
+    adapter = get_dbops("sql_server").from_role(role)
+    mock_pyodbc = MagicMock()
+    monkeypatch.setattr("shared.dbops.sql_server._import_pyodbc", lambda: mock_pyodbc)
+
+    adapter._connect()  # type: ignore[attr-defined]
+
+    conn_str = mock_pyodbc.connect.call_args.args[0]
+    assert "PWD={pa;ss}}word};" in conn_str

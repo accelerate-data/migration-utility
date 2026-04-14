@@ -4,6 +4,7 @@ from __future__ import annotations
 
 from typing import Any
 
+from shared.db_connect import build_sql_server_connection_string
 from shared.dbops.base import ColumnSpec, DatabaseOperations
 
 _pyodbc = None
@@ -56,12 +57,13 @@ class SqlServerOperations(DatabaseOperations):
                 "runtime.target.connection.password_env must reference a set environment variable for SQL Server target setup"
             )
         return _import_pyodbc().connect(
-            (
-                f"DRIVER={{{driver}}};"
-                f"SERVER={host},{port};"
-                f"DATABASE={database};"
-                f"UID={user};PWD={password};"
-                "TrustServerCertificate=yes;"
+            build_sql_server_connection_string(
+                host=host,
+                port=port,
+                database=database,
+                user=user,
+                password=password,
+                driver=driver,
             ),
             autocommit=True,
         )
