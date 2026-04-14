@@ -12,7 +12,10 @@ def test_oracle_mcp_uses_sqlcl_bin_with_sql_fallback() -> None:
     oracle = config["mcpServers"]["oracle"]
 
     assert oracle["command"] == "sh"
-    assert oracle["args"] == ["-lc", 'exec "${SQLCL_BIN:-sql}" -mcp']
+    assert oracle["args"] == [
+        "-lc",
+        'exec "${SQLCL_BIN:-$(command -v sql || command -v sqlcl || printf sql)}" -mcp',
+    ]
 
 
 def test_install_docs_explain_sqlcl_bin_override() -> None:
