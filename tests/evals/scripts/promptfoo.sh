@@ -19,4 +19,4 @@ export TMPDIR="$SCRIPT_DIR/.tmp"
 export TMP="$TMPDIR"
 export TEMP="$TMPDIR"
 
-exec "$NODE_BIN" "$SCRIPT_DIR/node_modules/promptfoo/dist/src/entrypoint.js" "$@"
+exec "$NODE_BIN" "$SCRIPT_DIR/scripts/run-promptfoo-with-guard.js" "$@"
