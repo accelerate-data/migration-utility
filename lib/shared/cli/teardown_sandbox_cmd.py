@@ -1,7 +1,6 @@
 """teardown-sandbox command — drop sandbox database from manifest config."""
 from __future__ import annotations
 
-import json
 import logging
 from pathlib import Path
 from typing import Any
@@ -41,16 +40,16 @@ def teardown_sandbox(
 
     manifest = _load_manifest(root)
 
+    sandbox_db = _get_sandbox_name(manifest)
+    if not sandbox_db:
+        error("No sandbox database name found in manifest.json. Run setup-sandbox first.")
+        raise typer.Exit(code=1)
+
     if not yes:
         confirmed = typer.confirm("Tear down sandbox database? This action cannot be undone.")
         if not confirmed:
             console.print("Aborted.")
             raise typer.Exit(code=0)
-
-    sandbox_db = _get_sandbox_name(manifest)
-    if not sandbox_db:
-        error("No sandbox database name found in manifest.json. Run setup-sandbox first.")
-        raise typer.Exit(code=1)
 
     backend = _create_backend(manifest)
 

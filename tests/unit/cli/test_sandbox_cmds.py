@@ -53,12 +53,14 @@ def test_setup_sandbox_runs_sandbox_up(tmp_path):
 def test_teardown_sandbox_requires_confirmation(tmp_path):
     _write_manifest(tmp_path, with_sandbox=True)
 
-    with patch("shared.cli.teardown_sandbox_cmd._load_manifest", return_value={"runtime": {"sandbox": {}}}):
+    with (
+        patch("shared.cli.teardown_sandbox_cmd._load_manifest", return_value={"runtime": {"sandbox": {}}}),
+        patch("shared.cli.teardown_sandbox_cmd._get_sandbox_name", return_value="__test_abc123"),
+    ):
         # User enters 'n' at the prompt
         result = runner.invoke(app, ["teardown-sandbox", "--project-root", str(tmp_path)], input="n\n")
 
     assert result.exit_code == 0
-    assert "Aborted" in result.output or result.exit_code == 0
 
 
 def test_teardown_sandbox_yes_flag_skips_prompt(tmp_path):
@@ -75,3 +77,19 @@ def test_teardown_sandbox_yes_flag_skips_prompt(tmp_path):
 
     assert result.exit_code == 0
     mock_backend.sandbox_down.assert_called_once_with("__test_abc123")
+
+
+def test_teardown_sandbox_error_exits_nonzero(tmp_path):
+    from shared.output_models.sandbox import SandboxDownOutput
+    error_out = SandboxDownOutput(sandbox_database="__test_abc123", status="error")
+    mock_backend = MagicMock()
+    mock_backend.sandbox_down.return_value = error_out
+
+    with (
+        patch("shared.cli.teardown_sandbox_cmd._load_manifest", return_value={}),
+        patch("shared.cli.teardown_sandbox_cmd._create_backend", return_value=mock_backend),
+        patch("shared.cli.teardown_sandbox_cmd._get_sandbox_name", return_value="__test_abc123"),
+    ):
+        result = runner.invoke(app, ["teardown-sandbox", "--yes", "--project-root", str(tmp_path)])
+
+    assert result.exit_code == 1
