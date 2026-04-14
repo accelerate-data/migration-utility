@@ -4,6 +4,7 @@ const path = require('path');
 
 const REPO_ROOT = path.resolve(__dirname, '..', '..', '..');
 const RUNS_ROOT = path.join(REPO_ROOT, 'tests', 'evals', 'output', 'runs');
+const RUN_RETENTION_MS = 24 * 60 * 60 * 1000;
 const VOLATILE_PATHS = [
   '.migration-runs',
   'model-review-results',
@@ -107,7 +108,31 @@ function pinFixtureDatabase(projectRoot, manifest) {
   }
 }
 
-async function extensionHook(hookName, context) {
+function pruneOldRuns(root, { cutoffMs }) {
+  if (!fs.existsSync(root)) {
+    return;
+  }
+
+  for (const suiteEntry of fs.readdirSync(root, { withFileTypes: true })) {
+    if (!suiteEntry.isDirectory()) {
+      continue;
+    }
+
+    const suiteRoot = path.join(root, suiteEntry.name);
+    for (const runEntry of fs.readdirSync(suiteRoot, { withFileTypes: true })) {
+      if (!runEntry.isDirectory()) {
+        continue;
+      }
+
+      const runRoot = path.join(suiteRoot, runEntry.name);
+      if (fs.statSync(runRoot).mtimeMs < cutoffMs) {
+        fs.rmSync(runRoot, { force: true, recursive: true });
+      }
+    }
+  }
+}
+
+async function extensionHook(hookName, context, options = {}) {
   if (hookName !== 'beforeEach') {
     return context;
   }
@@ -122,11 +147,16 @@ async function extensionHook(hookName, context) {
     return context;
   }
 
+  const runsRoot = options.runsRoot || RUNS_ROOT;
+  const nowMs = options.nowMs || Date.now();
+
+  pruneOldRuns(runsRoot, { cutoffMs: nowMs - RUN_RETENTION_MS });
+
   const suiteSlug = sanitizeSegment(context?.suite?.description, 'eval');
   const testSlug = sanitizeSegment(context?.test?.description, 'test');
   const fixtureSlug = sanitizeSegment(path.basename(fixtureRoot), 'fixture');
   const uniqueId = crypto.randomUUID().slice(0, 8);
-  const runRoot = path.join(RUNS_ROOT, suiteSlug, `${fixtureSlug}-${testSlug}-${uniqueId}`);
+  const runRoot = path.join(runsRoot, suiteSlug, `${fixtureSlug}-${testSlug}-${uniqueId}`);
 
   fs.mkdirSync(path.dirname(runRoot), { recursive: true });
   fs.rmSync(runRoot, { force: true, recursive: true });
@@ -141,3 +171,5 @@ async function extensionHook(hookName, context) {
 }
 
 module.exports = extensionHook;
+module.exports.extensionHook = extensionHook;
+module.exports.pruneOldRuns = pruneOldRuns;
