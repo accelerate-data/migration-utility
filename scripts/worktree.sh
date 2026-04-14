@@ -146,17 +146,33 @@ bootstrap_worktree() {
 
   local evals_dir="$worktree_path/tests/evals"
   if [[ -f "$evals_dir/package.json" ]]; then
-    echo "npm: installing eval dependencies in $evals_dir"
+    local npm_command=(
+      install
+      --no-audit
+      --no-fund
+    )
+    local npm_command_str="npm install --no-audit --no-fund"
+
+    if [[ -f "$evals_dir/package-lock.json" ]]; then
+      npm_command=(
+        ci
+        --no-audit
+        --no-fund
+      )
+      npm_command_str="npm ci --no-audit --no-fund"
+    fi
+
+    echo "npm: bootstrapping eval dependencies in $evals_dir with $npm_command_str"
     (
       cd "$evals_dir" &&
-        npm install --no-audit --no-fund
+        npm "${npm_command[@]}"
     ) || json_error \
       "WORKTREE_NPM_INSTALL_FAILED" \
       "npm_install" \
-      "npm install failed for worktree eval dependencies." \
+      "npm dependency bootstrap failed for worktree eval dependencies." \
       "true" \
       "$0 $branch" \
-      "Run 'cd $evals_dir && npm install --no-audit --no-fund' to repair node dependencies, then rerun the worktree command."
+      "Run 'cd $evals_dir && $npm_command_str' to repair node dependencies, then rerun the worktree command."
   else
     echo "npm: skipped (no package.json in tests/evals)"
   fi

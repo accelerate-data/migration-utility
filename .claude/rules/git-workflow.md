@@ -21,7 +21,7 @@ Create or attach a worktree with:
 2. Runs `direnv allow` when available
 3. Runs `uv sync --extra dev` in `lib/`
 4. Verifies `pyodbc` and `oracledb` import from the worktree venv
-5. Runs `npm install --no-audit --no-fund` in `tests/evals/`
+5. Runs `npm ci --no-audit --no-fund` in `tests/evals/` when `package-lock.json` exists, otherwise falls back to `npm install --no-audit --no-fund`
 
 It fails fast if a required setup step breaks so the worktree is not left half-configured. When the
 branch is already checked out in a different worktree, it exits with structured JSON on stderr that

@@ -50,6 +50,9 @@ if [[ "$1" == "worktree" && "$2" == "add" ]]; then
   mkdir -p "$path/lib" "$path/tests/evals"
   printf "[project]\\nname='x'\\n" > "$path/lib/pyproject.toml"
   printf "{{}}\\n" > "$path/tests/evals/package.json"
+  if [[ "${{FAKE_EVAL_LOCKFILE:-1}}" == "1" ]]; then
+    printf "{{\\n  \\"lockfileVersion\\": 3\\n}}\\n" > "$path/tests/evals/package-lock.json"
+  fi
   printf "dotenv\\n" > "$path/.envrc"
   printf "worktree %s\\nHEAD deadbeef\\nbranch refs/heads/%s\\n\\n" "$path" "$branch" > "${{FAKE_GIT_WORKTREE_LIST_OUT:-/dev/null}}"
   exit 0
@@ -114,6 +117,7 @@ exit 0
     env["FAKE_GIT_BRANCH_EXISTS"] = "1" if branch_exists else "0"
     env["FAKE_GIT_WORKTREE_LIST"] = str(worktree_list_path)
     env["FAKE_GIT_WORKTREE_LIST_OUT"] = str(worktree_list_out)
+    env["FAKE_EVAL_LOCKFILE"] = "1"
     return env, log_path
 
 
@@ -141,7 +145,7 @@ def test_worktree_script_creates_new_branch_and_bootstraps(tmp_path: Path) -> No
         f"direnv allow {expected_path}",
         "uv sync --extra dev",
         "uv run python -c import pyodbc, oracledb",
-        "npm install --no-audit --no-fund",
+        "npm ci --no-audit --no-fund",
     ]
 
 
@@ -231,4 +235,24 @@ def test_worktree_script_fails_when_dependency_verification_fails(tmp_path: Path
     assert "pyodbc" in payload["message"]
     assert log_path.read_text(encoding="utf-8").splitlines()[-1] == (
         "uv run python -c import pyodbc, oracledb"
+    )
+
+
+def test_worktree_script_falls_back_to_npm_install_without_lockfile(tmp_path: Path) -> None:
+    """Worktree bootstrap should use npm install when the eval lockfile is absent."""
+    env, log_path = _base_env(tmp_path)
+    env["FAKE_EVAL_LOCKFILE"] = "0"
+
+    result = subprocess.run(
+        [str(SCRIPT_PATH), "feature/no-lockfile"],
+        cwd=REPO_ROOT,
+        capture_output=True,
+        text=True,
+        env=env,
+        check=False,
+    )
+
+    assert result.returncode == 0
+    assert log_path.read_text(encoding="utf-8").splitlines()[-1] == (
+        "npm install --no-audit --no-fund"
     )
