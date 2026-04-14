@@ -267,6 +267,12 @@ def test_show_mode_reports_ready_when_docker_and_sql_server_work(tmp_path: Path)
     assert payload["checks"]["sql_server"]["status"] == "ok"
     assert payload["checks"]["oracle"]["status"] in {"manual_action", "blocked"}
     assert payload["summary"]["working_backends"] == ["sql_server"]
+    log_lines = (tmp_path / "calls.log").read_text(encoding="utf-8").splitlines()
+    assert "uv sync --extra dev" not in log_lines
+    assert "uv sync" not in log_lines
+    assert "npm install --no-audit --no-fund" not in log_lines
+    assert "docker start sql-test" not in log_lines
+    assert "docker start oracle-test" not in log_lines
 
 
 def test_fix_mode_bootstraps_repo_local_envs(tmp_path: Path) -> None:
@@ -292,6 +298,9 @@ def test_fix_mode_reports_blocked_when_docker_daemon_unavailable(tmp_path: Path)
     assert payload["checks"]["docker"]["status"] == "blocked"
     assert payload["checks"]["sql_server"]["status"] == "skipped"
     assert payload["checks"]["oracle"]["status"] == "skipped"
+    log_lines = (tmp_path / "calls.log").read_text(encoding="utf-8").splitlines()
+    assert "docker start sql-test" not in log_lines
+    assert "docker start oracle-test" not in log_lines
 
 
 def test_show_mode_rejects_unsupported_platform(tmp_path: Path) -> None:
@@ -302,6 +311,9 @@ def test_show_mode_rejects_unsupported_platform(tmp_path: Path) -> None:
     assert payload["status"] == "blocked"
     assert payload["checks"]["platform"]["status"] == "blocked"
     assert "Windows" in payload["checks"]["platform"]["message"]
+    assert payload["checks"]["repo_bootstrap"]["status"] == "skipped"
+    log_lines = (tmp_path / "calls.log").read_text(encoding="utf-8").splitlines()
+    assert "docker info" not in log_lines
 
 
 def test_fix_mode_reports_partial_when_repo_bootstrap_fails_but_checks_continue(tmp_path: Path) -> None:
@@ -319,3 +331,8 @@ def test_fix_mode_reports_partial_when_repo_bootstrap_fails_but_checks_continue(
     assert payload["status"] == "partially_ready"
     assert payload["checks"]["repo_bootstrap"]["status"] == "manual_action"
     assert payload["checks"]["sql_server"]["status"] == "ok"
+    assert payload["summary"]["manual_actions"] == [
+        "Repair repo-local bootstrap failures and rerun ./scripts/contributor-setup.sh."
+    ]
+    log_lines = (tmp_path / "calls.log").read_text(encoding="utf-8").splitlines()
+    assert "docker info" in log_lines

@@ -25,10 +25,6 @@ fi
 script_dir="$(cd "$(dirname "$0")" && pwd)"
 repo_root="$(cd "$script_dir/.." && pwd)"
 
-json_string() {
-  python3 -c 'import json, sys; print(json.dumps(sys.argv[1]))' "$1"
-}
-
 json_check() {
   local status="$1"
   local message="$2"
@@ -61,25 +57,29 @@ print(line)
 PY
 }
 
-array_json_from_lines() {
-  local lines="${1:-}"
-  LINES="$lines" python3 - <<'PY'
+array_json() {
+  python3 - <<'PY' "$@"
 import json
-import os
+import sys
 
-items = [line for line in os.environ.get("LINES", "").splitlines() if line]
-print(json.dumps(items))
+print(json.dumps(sys.argv[1:]))
 PY
 }
 
-append_line() {
-  local current="${1:-}"
-  local line="$2"
-  if [[ -z "$current" ]]; then
-    printf '%s' "$line"
-  else
-    printf '%s\n%s' "$current" "$line"
-  fi
+join_items() {
+  local separator="$1"
+  shift
+  local item=""
+  local joined=""
+  for item in "$@"; do
+    [[ -z "$item" ]] && continue
+    if [[ -z "$joined" ]]; then
+      joined="$item"
+    else
+      joined="${joined}${separator}${item}"
+    fi
+  done
+  printf '%s' "$joined"
 }
 
 run_in_dir() {
@@ -109,8 +109,9 @@ sql_server_check=""
 oracle_check=""
 
 overall_status="ready"
-manual_actions=""
-working_backends=""
+manual_actions=()
+working_backends=()
+backend_result_status=""
 
 base_required_tools=(git python3 uv node npm direnv docker markdownlint)
 optional_tools=(gh)
@@ -127,32 +128,75 @@ case "$platform_name" in
 esac
 print_step "platform" "$platform_check"
 
-missing_required_tools=""
+missing_required_tools=()
 for tool in "${base_required_tools[@]}"; do
   if ! check_command "$tool" "--version"; then
-    missing_required_tools="$(append_line "$missing_required_tools" "$tool")"
+    missing_required_tools+=("$tool")
   fi
 done
-if [[ -z "$missing_required_tools" ]]; then
+if [[ ${#missing_required_tools[@]} -eq 0 ]]; then
   required_tools_check="$(json_check "ok" "Required machine-level tools are installed.")"
 else
-  required_tools_check="$(json_check "blocked" "Missing required machine-level tools: $(echo "$missing_required_tools" | tr '\n' ',' | sed 's/,/, /g; s/, $//')." "Install the missing required tools, then rerun ./scripts/contributor-setup.sh.")"
+  required_tools_check="$(json_check "blocked" "Missing required machine-level tools: $(join_items ", " "${missing_required_tools[@]}")." "Install the missing required tools, then rerun ./scripts/contributor-setup.sh.")"
   overall_status="blocked"
 fi
 print_step "required_tools" "$required_tools_check"
 
-missing_optional_tools=""
+missing_optional_tools=()
 for tool in "${optional_tools[@]}"; do
   if ! check_command "$tool" "--version"; then
-    missing_optional_tools="$(append_line "$missing_optional_tools" "$tool")"
+    missing_optional_tools+=("$tool")
   fi
 done
-if [[ -z "$missing_optional_tools" ]]; then
+if [[ ${#missing_optional_tools[@]} -eq 0 ]]; then
   optional_tools_check="$(json_check "ok" "Optional machine-level tools are installed.")"
 else
-  optional_tools_check="$(json_check "manual_action" "Missing optional tools: $(echo "$missing_optional_tools" | tr '\n' ',' | sed 's/,/, /g; s/, $//')." "Install optional tools only if you need their related workflows.")"
+  optional_tools_check="$(json_check "manual_action" "Missing optional tools: $(join_items ", " "${missing_optional_tools[@]}")." "Install optional tools only if you need their related workflows.")"
 fi
 print_step "optional_tools" "$optional_tools_check"
+
+backend_check() {
+  local backend_name="$1"
+  local container_name="$2"
+  local setup_doc="$3"
+  local smoke_failure_message="$4"
+  shift 4
+  local smoke_cmd=("$@")
+  local container_running=""
+
+  local result_status=""
+  local result_json=""
+  container_running="$(docker inspect --format '{{.State.Running}}' "$container_name" 2>/dev/null || true)"
+
+  if [[ "$mode" == "fix" ]]; then
+    if [[ "$container_running" != "true" ]] && ! docker start "$container_name" >/dev/null 2>&1; then
+      result_status="manual_action"
+      result_json="$(json_check "manual_action" "$backend_name contributor container could not be started." "Run the $backend_name Docker setup from $setup_doc, then rerun ./scripts/contributor-setup.sh.")"
+      printf '%s\t%s\n' "$result_status" "$result_json"
+      return
+    fi
+  elif [[ "$container_running" != "true" ]]; then
+    result_status="manual_action"
+    result_json="$(json_check "manual_action" "$backend_name contributor container is not running in show mode." "Start $container_name or rerun ./scripts/contributor-setup.sh in fix mode.")"
+    printf '%s\t%s\n' "$result_status" "$result_json"
+    return
+  fi
+
+  container_running="$(docker inspect --format '{{.State.Running}}' "$container_name" 2>/dev/null || true)"
+
+  if [[ "$container_running" != "true" ]]; then
+    result_status="manual_action"
+    result_json="$(json_check "manual_action" "$backend_name contributor container is not healthy." "Check the $container_name container and rerun ./scripts/contributor-setup.sh.")"
+  elif ! docker exec "$container_name" "${smoke_cmd[@]}" >/dev/null 2>&1; then
+    result_status="manual_action"
+    result_json="$(json_check "manual_action" "$smoke_failure_message" "Repair the $container_name container image or credentials and rerun ./scripts/contributor-setup.sh.")"
+  else
+    result_status="ok"
+    result_json="$(json_check "ok" "$backend_name maintainer path is working.")"
+  fi
+
+  printf '%s\t%s\n' "$result_status" "$result_json"
+}
 
 if [[ "$overall_status" == "blocked" ]]; then
   repo_bootstrap_check="$(json_check "skipped" "Repo bootstrap skipped because prerequisite checks are blocked.")"
@@ -161,23 +205,23 @@ if [[ "$overall_status" == "blocked" ]]; then
   oracle_check="$(json_check "skipped" "Oracle checks skipped because prerequisite checks are blocked.")"
 else
   if [[ "$mode" == "fix" ]]; then
-    bootstrap_failures=""
+    bootstrap_failures=()
     if ! run_in_dir "$repo_root/lib" uv sync --extra dev; then
-      bootstrap_failures="$(append_line "$bootstrap_failures" "lib environment sync failed")"
+      bootstrap_failures+=("lib environment sync failed")
     fi
     if ! run_in_dir "$repo_root/mcp/ddl" uv sync; then
-      bootstrap_failures="$(append_line "$bootstrap_failures" "mcp/ddl environment sync failed")"
+      bootstrap_failures+=("mcp/ddl environment sync failed")
     fi
     if ! run_in_dir "$repo_root/tests/evals" npm install --no-audit --no-fund; then
-      bootstrap_failures="$(append_line "$bootstrap_failures" "eval dependencies install failed")"
+      bootstrap_failures+=("eval dependencies install failed")
     fi
 
-    if [[ -z "$bootstrap_failures" ]]; then
+    if [[ ${#bootstrap_failures[@]} -eq 0 ]]; then
       repo_bootstrap_check="$(json_check "fixed" "Repo-local contributor bootstrap completed.")"
     else
-      repo_bootstrap_check="$(json_check "manual_action" "Repo-local bootstrap did not complete cleanly: $(echo "$bootstrap_failures" | tr '\n' '; ' | sed 's/; $//')." "Repair the listed repo-local bootstrap failures, then rerun ./scripts/contributor-setup.sh.")"
+      repo_bootstrap_check="$(json_check "manual_action" "Repo-local bootstrap did not complete cleanly: $(join_items "; " "${bootstrap_failures[@]}")." "Repair the listed repo-local bootstrap failures, then rerun ./scripts/contributor-setup.sh.")"
       overall_status="partially_ready"
-      manual_actions="$(append_line "$manual_actions" "Repair repo-local bootstrap failures and rerun ./scripts/contributor-setup.sh.")"
+      manual_actions+=("Repair repo-local bootstrap failures and rerun ./scripts/contributor-setup.sh.")
     fi
   else
     repo_bootstrap_check="$(json_check "ok" "Show mode does not mutate repo-local environments.")"
@@ -198,24 +242,29 @@ else
     docker_check="$(json_check "ok" "Docker is installed and the daemon is reachable.")"
 
     sql_tool_ok=true
+    backend_result_status="manual_action"
     if ! check_command toolbox "--version"; then
       sql_tool_ok=false
     fi
     if ! $sql_tool_ok; then
       sql_server_check="$(json_check "manual_action" "SQL Server maintainer path is missing toolbox." "Install toolbox and rerun ./scripts/contributor-setup.sh.")"
-    elif ! docker start sql-test >/dev/null 2>&1; then
-      sql_server_check="$(json_check "manual_action" "SQL Server contributor container could not be started." "Run the SQL Server Docker setup from docs/reference/setup-docker/README.md, then rerun ./scripts/contributor-setup.sh.")"
-    elif ! docker inspect --format '{{.State.Running}}' sql-test >/dev/null 2>&1; then
-      sql_server_check="$(json_check "manual_action" "SQL Server contributor container is not healthy." "Check the sql-test container and rerun ./scripts/contributor-setup.sh.")"
-    elif ! docker exec sql-test /opt/mssql-tools18/bin/sqlcmd -S localhost -U sa -P 'P@ssw0rd123' -C -d KimballFixture -Q "SELECT 1" >/dev/null 2>&1; then
-      sql_server_check="$(json_check "manual_action" "SQL Server contributor smoke check failed." "Repair the sql-test container image or credentials and rerun ./scripts/contributor-setup.sh.")"
     else
-      sql_server_check="$(json_check "ok" "SQL Server maintainer path is working.")"
-      working_backends="$(append_line "$working_backends" "sql_server")"
+      IFS=$'\t' read -r backend_result_status sql_server_check < <(
+        backend_check \
+          "SQL Server" \
+          "sql-test" \
+          "docs/reference/setup-docker/README.md" \
+          "SQL Server contributor smoke check failed." \
+          /opt/mssql-tools18/bin/sqlcmd -S localhost -U sa -P 'P@ssw0rd123' -C -d KimballFixture -Q "SELECT 1"
+      )
+    fi
+    if [[ "$backend_result_status" == "ok" ]]; then
+      working_backends+=("sql_server")
     fi
 
     java_ok=true
     java_version_output=""
+    backend_result_status="manual_action"
     if ! command -v java >/dev/null 2>&1; then
       java_ok=false
     else
@@ -241,15 +290,18 @@ PY
       oracle_check="$(json_check "manual_action" "Oracle maintainer path is missing SQLcl." "Install SQLcl and rerun ./scripts/contributor-setup.sh.")"
     elif ! $java_ok; then
       oracle_check="$(json_check "manual_action" "Oracle maintainer path requires Java 11 or newer." "Install Java 11+ and rerun ./scripts/contributor-setup.sh.")"
-    elif ! docker start oracle-test >/dev/null 2>&1; then
-      oracle_check="$(json_check "manual_action" "Oracle contributor container could not be started." "Run the Oracle Docker setup from docs/reference/setup-docker/README.md, then rerun ./scripts/contributor-setup.sh.")"
-    elif ! docker inspect --format '{{.State.Running}}' oracle-test >/dev/null 2>&1; then
-      oracle_check="$(json_check "manual_action" "Oracle contributor container is not healthy." "Check the oracle-test container and rerun ./scripts/contributor-setup.sh.")"
-    elif ! docker exec oracle-test bash -c "echo 'SELECT 1 FROM dual;' | sqlplus -S kimball/kimball@FREEPDB1" >/dev/null 2>&1; then
-      oracle_check="$(json_check "manual_action" "Oracle contributor smoke check failed." "Repair the oracle-test container image or credentials and rerun ./scripts/contributor-setup.sh.")"
     else
-      oracle_check="$(json_check "ok" "Oracle maintainer path is working.")"
-      working_backends="$(append_line "$working_backends" "oracle")"
+      IFS=$'\t' read -r backend_result_status oracle_check < <(
+        backend_check \
+          "Oracle" \
+          "oracle-test" \
+          "docs/reference/setup-docker/README.md" \
+          "Oracle contributor smoke check failed." \
+          bash -c "echo 'SELECT 1 FROM dual;' | sqlplus -S kimball/kimball@FREEPDB1"
+      )
+    fi
+    if [[ "$backend_result_status" == "ok" ]]; then
+      working_backends+=("oracle")
     fi
   fi
   print_step "docker" "$docker_check"
@@ -270,18 +322,11 @@ if [[ -z "$docker_check" ]]; then
   docker_check="$(json_check "skipped" "Docker checks were not reached.")"
 fi
 
-working_backends_json="$(array_json_from_lines "$working_backends")"
-manual_actions_json="$(array_json_from_lines "$manual_actions")"
+working_backends_json="$(array_json "${working_backends[@]}")"
+manual_actions_json="$(array_json "${manual_actions[@]}")"
 
 if [[ "$overall_status" != "blocked" ]]; then
-  backend_count="$(WORKING_BACKENDS_JSON="$working_backends_json" python3 - <<'PY'
-import json
-import os
-
-print(len(json.loads(os.environ["WORKING_BACKENDS_JSON"])))
-PY
-)"
-  if [[ "$backend_count" -eq 0 ]]; then
+  if (( ${#working_backends[@]} == 0 )); then
     overall_status="blocked"
   fi
 fi
