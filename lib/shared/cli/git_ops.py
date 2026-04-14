@@ -1,8 +1,11 @@
 """Git helpers for ad-migration CLI commands."""
 from __future__ import annotations
 
+import logging
 import subprocess
 from pathlib import Path
+
+logger = logging.getLogger(__name__)
 
 
 def stage_and_commit(files: list[Path], message: str, project_root: Path) -> bool:
@@ -17,6 +20,7 @@ def stage_and_commit(files: list[Path], message: str, project_root: Path) -> boo
             cwd=project_root,
             check=True,
             capture_output=True,
+            text=True,
         )
         result = subprocess.run(
             ["git", "commit", "-m", message],
@@ -25,11 +29,24 @@ def stage_and_commit(files: list[Path], message: str, project_root: Path) -> boo
             text=True,
         )
         if result.returncode == 0:
+            logger.debug(
+                "event=git_commit status=success component=git_ops message=%r project_root=%s",
+                message,
+                project_root,
+            )
             return True
         if "nothing to commit" in result.stdout or "nothing to commit" in result.stderr:
+            logger.debug(
+                "event=git_commit status=nothing_to_commit component=git_ops project_root=%s",
+                project_root,
+            )
             return False
         raise subprocess.CalledProcessError(result.returncode, "git commit", result.stderr)
     except subprocess.CalledProcessError as exc:
+        logger.error(
+            "event=git_commit status=failure component=git_ops error=%s",
+            exc.stderr or exc,
+        )
         raise RuntimeError(f"git operation failed: {exc.stderr or exc}") from exc
 
 

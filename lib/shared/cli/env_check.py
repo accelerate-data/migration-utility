@@ -5,8 +5,11 @@ Exits 1 with a clear message listing every missing var.
 """
 from __future__ import annotations
 
+import logging
 import os
 import sys
+
+logger = logging.getLogger(__name__)
 
 _SOURCE_VARS: dict[str, dict[str, str]] = {
     "sql_server": {
@@ -47,22 +50,53 @@ _TARGET_VARS: dict[str, dict[str, str]] = {
 
 
 def require_source_vars(technology: str) -> None:
-    """Validate source env vars. Exits 1 if any are missing."""
-    _check(_SOURCE_VARS.get(technology, {}), technology, "setup-source")
+    """Validate source env vars. Exits 1 if any are missing or technology unknown."""
+    if technology not in _SOURCE_VARS:
+        print(
+            f"Error: unknown source technology '{technology}'. Valid: {list(_SOURCE_VARS)}",
+            file=sys.stderr,
+        )
+        logger.error(
+            "event=env_check status=failure component=env_check technology=%s reason=unknown_technology",
+            technology,
+        )
+        sys.exit(1)
+    _check(_SOURCE_VARS[technology], technology, "setup-source")
 
 
 def require_target_vars(technology: str) -> None:
-    """Validate target env vars. Exits 1 if any are missing."""
-    _check(_TARGET_VARS.get(technology, {}), technology, "setup-target")
+    """Validate target env vars. Exits 1 if any are missing or technology unknown."""
+    if technology not in _TARGET_VARS:
+        print(
+            f"Error: unknown target technology '{technology}'. Valid: {list(_TARGET_VARS)}",
+            file=sys.stderr,
+        )
+        logger.error(
+            "event=env_check status=failure component=env_check technology=%s reason=unknown_technology",
+            technology,
+        )
+        sys.exit(1)
+    _check(_TARGET_VARS[technology], technology, "setup-target")
 
 
 def _check(required: dict[str, str], technology: str, command: str) -> None:
     missing = [var for var in required if not os.environ.get(var)]
     if not missing:
+        logger.debug(
+            "event=env_check status=success component=env_check technology=%s command=%s",
+            technology,
+            command,
+        )
         return
     lines = [f"Error: missing required environment variables for {technology}:\n"]
     for var in missing:
         lines.append(f"  {var:<30} not set")
     lines.append(f"\nSet these in your shell or .envrc before running {command}.")
     print("\n".join(lines), file=sys.stderr)
+    logger.error(
+        "event=env_check status=failure component=env_check technology=%s command=%s missing=%s",
+        technology,
+        command,
+        missing,
+    )
     sys.exit(1)

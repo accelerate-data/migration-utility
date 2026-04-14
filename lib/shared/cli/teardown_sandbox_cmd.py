@@ -1,10 +1,13 @@
 """teardown-sandbox command — stub (implemented in Task 4)."""
 from __future__ import annotations
 
+import logging
 from pathlib import Path
 from typing import Optional
 
 import typer
+
+logger = logging.getLogger(__name__)
 
 
 def teardown_sandbox(
