@@ -55,6 +55,22 @@ def test_reset_rejects_invalid_stage(tmp_path):
     assert result.exit_code == 1
 
 
+def test_reset_exits_1_on_not_found(tmp_path):
+    _write_manifest(tmp_path)
+    out = ResetMigrationOutput(stage="scope", targets=[], reset=[], noop=[], blocked=[], not_found=["silver.Missing"])
+    with patch("shared.cli.reset_cmd.run_reset_migration", return_value=out):
+        result = runner.invoke(app, ["reset", "scope", "silver.Missing", "--yes", "--project-root", str(tmp_path)])
+    assert result.exit_code == 1
+
+
+def test_reset_exits_1_on_blocked(tmp_path):
+    _write_manifest(tmp_path)
+    out = ResetMigrationOutput(stage="scope", targets=[], reset=[], noop=[], blocked=["silver.Locked"], not_found=[])
+    with patch("shared.cli.reset_cmd.run_reset_migration", return_value=out):
+        result = runner.invoke(app, ["reset", "scope", "silver.Locked", "--yes", "--project-root", str(tmp_path)])
+    assert result.exit_code == 1
+
+
 # ── exclude-table ────────────────────────────────────────────────────────────
 
 _EXCLUDE_OUT = ExcludeOutput(marked=["silver.AuditLog"], not_found=[])
@@ -119,6 +135,29 @@ def test_add_source_table_marks_valid_tables(tmp_path):
 
     assert result.exit_code == 0, result.output
     mock_commit.assert_called_once()
+
+
+def test_add_source_table_no_commit_flag(tmp_path):
+    _write_manifest(tmp_path)
+    ready_out = DryRunOutput(
+        stage="scope",
+        ready=True,
+        object=ObjectReadiness(object="silver.audittest", ready=True, reason="scope complete"),
+    )
+    write_out = WriteSourceOutput(written="catalog/tables/silver.audittest.json", is_source=True, status="ok")
+
+    with (
+        patch("shared.cli.add_source_table_cmd.run_ready", return_value=ready_out),
+        patch("shared.cli.add_source_table_cmd.run_write_source", return_value=write_out),
+        patch("shared.cli.add_source_table_cmd.stage_and_commit") as mock_commit,
+    ):
+        result = runner.invoke(
+            app,
+            ["add-source-table", "silver.AuditTest", "--no-commit", "--project-root", str(tmp_path)],
+        )
+
+    assert result.exit_code == 0
+    mock_commit.assert_not_called()
 
 
 def test_add_source_table_skips_tables_that_fail_guard(tmp_path):

@@ -3,8 +3,7 @@ import logging
 
 import typer
 
-logger = logging.getLogger(__name__)
-
+from shared.cli import output
 from shared.cli.add_source_table_cmd import add_source_table
 from shared.cli.exclude_table_cmd import exclude_table
 from shared.cli.reset_cmd import reset
@@ -13,6 +12,8 @@ from shared.cli.setup_source_cmd import setup_source
 from shared.cli.setup_target_cmd import setup_target
 from shared.cli.teardown_sandbox_cmd import teardown_sandbox
 
+logger = logging.getLogger(__name__)
+
 app = typer.Typer(
     name="ad-migration",
     help="Migration pipeline CLI for warehouses to dbt.",
@@ -20,6 +21,15 @@ app = typer.Typer(
     add_completion=False,
     pretty_exceptions_enable=False,
 )
+
+
+@app.callback()
+def _main(
+    quiet: bool = typer.Option(False, "--quiet", help="Suppress all output except errors, for CI use."),
+) -> None:
+    if quiet:
+        output.set_quiet(True)
+
 
 app.command("setup-source")(setup_source)
 app.command("setup-target")(setup_target)

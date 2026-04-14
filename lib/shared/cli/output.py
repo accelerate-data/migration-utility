@@ -5,22 +5,31 @@ import logging
 from contextlib import contextmanager
 from typing import Iterator
 
-logger = logging.getLogger(__name__)
-
 from rich.console import Console
 from rich.progress import Progress, SpinnerColumn, TextColumn
 from rich.table import Table
 
+logger = logging.getLogger(__name__)
+
 console = Console()
 err_console = Console(stderr=True)
 
+_quiet: bool = False
+
+
+def set_quiet(value: bool) -> None:
+    global _quiet
+    _quiet = value
+
 
 def success(message: str) -> None:
-    console.print(f"[green]✓[/green] {message}")
+    if not _quiet:
+        console.print(f"[green]✓[/green] {message}")
 
 
 def warn(message: str) -> None:
-    err_console.print(f"[yellow]![/yellow] {message}")
+    if not _quiet:
+        err_console.print(f"[yellow]![/yellow] {message}")
 
 
 def error(message: str) -> None:
@@ -28,6 +37,8 @@ def error(message: str) -> None:
 
 
 def print_table(title: str, rows: list[tuple[str, str]], columns: tuple[str, str] = ("Item", "Status")) -> None:
+    if _quiet:
+        return
     table = Table(title=title, show_header=True, header_style="bold")
     for col in columns:
         table.add_column(col)
@@ -38,6 +49,9 @@ def print_table(title: str, rows: list[tuple[str, str]], columns: tuple[str, str
 
 @contextmanager
 def spinner(message: str) -> Iterator[None]:
+    if _quiet:
+        yield
+        return
     with Progress(SpinnerColumn(), TextColumn(message), transient=True) as progress:
         progress.add_task("", total=None)
         yield

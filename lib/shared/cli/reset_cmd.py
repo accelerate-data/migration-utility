@@ -7,7 +7,7 @@ from pathlib import Path
 import typer
 
 from shared.dry_run_core import RESETTABLE_STAGES, run_reset_migration
-from shared.cli.output import console, error, success
+from shared.cli.output import console, error, print_table, success
 
 logger = logging.getLogger(__name__)
 
@@ -56,11 +56,19 @@ def reset(
         result.not_found,
     )
 
-    if result.reset:
-        success(f"Reset ({len(result.reset)}): {', '.join(result.reset)}")
-    if result.noop:
-        console.print(f"No-op ({len(result.noop)}): {', '.join(result.noop)}")
+    print_table(
+        "Reset Summary",
+        [
+            ("Reset", str(len(result.reset))),
+            ("No-op", str(len(result.noop))),
+            ("Blocked", str(len(result.blocked))),
+            ("Not found", str(len(result.not_found))),
+        ],
+        columns=("Category", "Count"),
+    )
     if result.blocked:
-        error(f"Blocked ({len(result.blocked)}): {', '.join(result.blocked)}")
+        error(f"Blocked: {', '.join(result.blocked)}")
     if result.not_found:
-        error(f"Not found ({len(result.not_found)}): {', '.join(result.not_found)}")
+        error(f"Not found: {', '.join(result.not_found)}")
+    if result.blocked or result.not_found:
+        raise typer.Exit(code=1)

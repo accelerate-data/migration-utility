@@ -8,7 +8,7 @@ import typer
 
 from shared.cli.env_check import require_target_vars
 from shared.cli.git_ops import is_git_repo, stage_and_commit
-from shared.cli.output import console, success, warn
+from shared.cli.output import console, error, success, warn
 from shared.target_setup import run_setup_target, write_target_runtime_from_env
 
 logger = logging.getLogger(__name__)
@@ -26,7 +26,11 @@ def setup_target(
     require_target_vars(technology)
 
     console.print(f"\nWriting runtime.target for [bold]{technology}[/bold]...")
-    write_target_runtime_from_env(root, technology, source_schema)
+    try:
+        write_target_runtime_from_env(root, technology, source_schema)
+    except ValueError as exc:
+        error(str(exc))
+        raise typer.Exit(code=1) from exc
     success(f"runtime.target written (source_schema={source_schema})")
 
     console.print("Running target setup...")

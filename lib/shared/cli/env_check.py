@@ -88,15 +88,16 @@ def _check(required: dict[str, str], technology: str, command: str) -> None:
             command,
         )
         return
+    col = max(len(v) for v in missing) + 2
     lines = [f"Error: missing required environment variables for {technology}:\n"]
     for var in missing:
-        lines.append(f"  {var:<30} not set")
+        lines.append(f"  {var:<{col}} not set")
     lines.append(f"\nSet these in your shell or .envrc before running {command}.")
     print("\n".join(lines), file=sys.stderr)
     logger.error(
-        "event=env_check status=failure component=env_check technology=%s command=%s missing=%s",
+        "event=env_check status=failure component=env_check technology=%s command=%s missing_count=%d",
         technology,
         command,
-        missing,
+        len(missing),
     )
     sys.exit(1)
