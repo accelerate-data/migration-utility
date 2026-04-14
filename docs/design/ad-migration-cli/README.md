@@ -13,7 +13,6 @@ New `lib/shared/cli/` package: a thin human-facing layer that calls the same `ru
 ```text
 lib/shared/cli/
   main.py               # top-level Typer app
-  init_cmd.py
   setup_source_cmd.py
   setup_target_cmd.py   # new Python backing (no prior CLI)
   setup_sandbox_cmd.py
@@ -37,11 +36,21 @@ Dev usage (no install required):
 uv run --project lib ad-migration <command>
 ```
 
-## Commands
+## User flow
+
+```text
+1. Install plugin from Claude Code marketplace
+2. Run /init-ad-migration (plugin command) — installs CLI + checks prereqs + scaffolds project
+3. Run ad-migration setup-source / setup-target / setup-sandbox (CLI)
+4. Run /scope, /profile, /generate-model etc. (plugin, LLM-driven)
+```
+
+`init-ad-migration` is the only plugin command that acts as a bootstrap — it is the single entry point that installs the `ad-migration` CLI via Homebrew, validates prerequisites, and scaffolds the project. After that, the CLI takes over for all deterministic setup work.
+
+## CLI commands
 
 | Command | Flags | Env vars read |
 |---|---|---|
-| `init` | `[--project-root PATH]` | None required; checks common tools |
 | `setup-source` | `--technology sql_server\|oracle` `--schemas silver,gold` `[--no-commit]` | `MSSQL_*` / `ORACLE_*` |
 | `setup-target` | `--technology fabric\|snowflake\|duckdb` `[--source-schema bronze]` `[--no-commit]` | `TARGET_*` (technology-specific) |
 | `setup-sandbox` | `[--yes]` | Reads `runtime.sandbox` from manifest + sandbox credential vars |
@@ -52,10 +61,9 @@ uv run --project lib ad-migration <command>
 
 Technology ownership:
 
-- `setup-source --technology` owns source prereq checks (freetds for SQL Server, sqlcl + Java for Oracle) and source-specific file scaffolding (CLAUDE.md, .envrc template).
+- `setup-source --technology` validates source env vars and runs extraction.
 - `setup-target --technology` owns target env var validation and dbt scaffolding.
 - `setup-sandbox` infers technology from manifest (set by `setup-source`).
-- `init` is technology-agnostic: checks only common prereqs (uv, Python 3.11+, git, direnv) and scaffolds common files (.gitignore, scripts/worktree.sh, .githooks/pre-commit).
 
 ## Env var contract
 
@@ -88,9 +96,9 @@ Human-readable `rich` output to stdout. Spinners for long-running steps (extract
 
 Remove plugin commands whose logic now lives in the CLI or in scripts:
 
-- `init-ad-migration`, `setup-ddl`, `setup-target`, `setup-sandbox`, `teardown-sandbox`, `reset-migration`, `exclude-table`, `add-source-tables`, `commit`, `commit-push-pr`
+- `setup-ddl`, `setup-target`, `setup-sandbox`, `teardown-sandbox`, `reset-migration`, `exclude-table`, `add-source-tables`, `commit`, `commit-push-pr`
 
-Plugin retains only LLM-driven commands: `scope`, `profile`, `generate-model`, `generate-tests`, `refactor`, `status`, plus a thin `install-cli` command that checks if `ad-migration` is on PATH and prints Homebrew install instructions if not.
+Plugin retains `init-ad-migration` (bootstrap: installs CLI, checks prereqs, scaffolds project) and LLM-driven commands: `scope`, `profile`, `generate-model`, `generate-tests`, `refactor`, `status`.
 
 When a skill or rule needs to invoke a deterministic step mid-workflow, it calls `ad-migration <command>` via bash.
 

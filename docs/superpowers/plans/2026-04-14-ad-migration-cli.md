@@ -22,7 +22,6 @@ lib/shared/cli/env_check.py          # env var validation, exits 1 with clear me
 lib/shared/cli/output.py             # rich console helpers and spinner
 lib/shared/cli/git_ops.py            # stage_and_commit helper
 lib/shared/cli/main.py               # top-level Typer app, registers all commands
-lib/shared/cli/init_cmd.py
 lib/shared/cli/setup_source_cmd.py
 lib/shared/cli/setup_target_cmd.py
 lib/shared/cli/setup_sandbox_cmd.py
@@ -32,7 +31,6 @@ lib/shared/cli/exclude_table_cmd.py
 lib/shared/cli/add_source_table_cmd.py
 tests/unit/cli/__init__.py
 tests/unit/cli/test_env_check.py
-tests/unit/cli/test_init_cmd.py
 tests/unit/cli/test_setup_source_cmd.py
 tests/unit/cli/test_setup_target_cmd.py
 tests/unit/cli/test_sandbox_cmds.py
@@ -46,14 +44,12 @@ scripts/commit-push-pr.sh
 
 ```text
 lib/pyproject.toml                   # add rich dep + ad-migration entrypoint
-lib/shared/init.py                   # add run_scaffold_common()
 lib/shared/target_setup.py          # add write_target_runtime_from_env()
 ```
 
 **Delete:**
 
 ```text
-commands/init-ad-migration.md
 commands/setup-ddl.md
 commands/setup-target.md
 commands/setup-sandbox.md
@@ -310,7 +306,6 @@ import typer
 
 from shared.cli.add_source_table_cmd import add_source_table
 from shared.cli.exclude_table_cmd import exclude_table
-from shared.cli.init_cmd import init
 from shared.cli.reset_cmd import reset
 from shared.cli.setup_sandbox_cmd import setup_sandbox
 from shared.cli.setup_source_cmd import setup_source
@@ -325,7 +320,6 @@ app = typer.Typer(
     pretty_exceptions_enable=False,
 )
 
-app.command("init")(init)
 app.command("setup-source")(setup_source)
 app.command("setup-target")(setup_target)
 app.command("setup-sandbox")(setup_sandbox)
@@ -362,212 +356,7 @@ git commit -m "feat: add ad-migration CLI package skeleton and env_check"
 
 ---
 
-## Task 2: `init` command
-
-**Files:**
-
-- Modify: `lib/shared/init.py` — add `run_scaffold_common()`
-- Create: `lib/shared/cli/init_cmd.py`
-- Create: `tests/unit/cli/test_init_cmd.py`
-
-- [ ] **Step 1: Add `run_scaffold_common` to `lib/shared/init.py`**
-
-Add after the existing `run_scaffold_project` function:
-
-```python
-def run_scaffold_common(project_root: Path) -> ScaffoldProjectOutput:
-    """Scaffold technology-agnostic project files only.
-
-    Creates: .gitignore, scripts/worktree.sh, .claude/rules/git-workflow.md.
-    Skips: CLAUDE.md, README.md, .envrc, repo-map.json (technology-specific).
-    Idempotent — safe to re-run.
-    """
-    created: list[str] = []
-    updated: list[str] = []
-    skipped: list[str] = []
-
-    _scaffold_gitignore(project_root, created, updated, skipped)
-    _scaffold_worktree_sh(project_root, created, skipped)
-    _scaffold_git_workflow_md(project_root, created, skipped)
-
-    return ScaffoldProjectOutput(
-        files_created=created,
-        files_updated=updated,
-        files_skipped=skipped,
-    )
-```
-
-Note: `_scaffold_gitignore`, `_scaffold_worktree_sh`, and `_scaffold_git_workflow_md` are the private helpers already called by `run_scaffold_project`. Check `init.py` for their exact names and add `run_scaffold_common` calling only these three.
-
-- [ ] **Step 2: Write failing test for init command**
-
-```python
-# tests/unit/cli/test_init_cmd.py
-import subprocess
-from pathlib import Path
-from unittest.mock import MagicMock, patch
-
-import pytest
-from typer.testing import CliRunner
-
-from shared.cli.main import app
-from shared.output_models.init import ScaffoldHooksOutput, ScaffoldProjectOutput
-
-runner = CliRunner()
-
-
-def test_init_scaffolds_and_commits(tmp_path):
-    scaffold_out = ScaffoldProjectOutput(
-        files_created=[".gitignore", "scripts/worktree.sh"],
-        files_updated=[],
-        files_skipped=[],
-    )
-    hooks_out = ScaffoldHooksOutput(hook_created=True, hooks_path_configured=True)
-
-    with (
-        patch("shared.cli.init_cmd.run_scaffold_common", return_value=scaffold_out) as mock_scaffold,
-        patch("shared.cli.init_cmd.run_scaffold_hooks", return_value=hooks_out) as mock_hooks,
-        patch("shared.cli.init_cmd.is_git_repo", return_value=True),
-        patch("shared.cli.init_cmd.stage_and_commit", return_value=True) as mock_commit,
-    ):
-        result = runner.invoke(app, ["init", "--project-root", str(tmp_path)])
-
-    assert result.exit_code == 0, result.output
-    mock_scaffold.assert_called_once_with(tmp_path)
-    mock_hooks.assert_called_once()
-    mock_commit.assert_called_once()
-
-
-def test_init_skips_commit_when_not_git_repo(tmp_path):
-    scaffold_out = ScaffoldProjectOutput(files_created=[], files_updated=[], files_skipped=[])
-    hooks_out = ScaffoldHooksOutput(hook_created=False, hooks_path_configured=False)
-
-    with (
-        patch("shared.cli.init_cmd.run_scaffold_common", return_value=scaffold_out),
-        patch("shared.cli.init_cmd.run_scaffold_hooks", return_value=hooks_out),
-        patch("shared.cli.init_cmd.is_git_repo", return_value=False),
-        patch("shared.cli.init_cmd.stage_and_commit") as mock_commit,
-    ):
-        result = runner.invoke(app, ["init", "--project-root", str(tmp_path)])
-
-    assert result.exit_code == 0
-    mock_commit.assert_not_called()
-```
-
-- [ ] **Step 3: Run test to confirm failure**
-
-```bash
-cd lib && uv run pytest ../tests/unit/cli/test_init_cmd.py -v
-```
-
-Expected: `ImportError` on `shared.cli.init_cmd`.
-
-- [ ] **Step 4: Implement `init_cmd.py`**
-
-```python
-# lib/shared/cli/init_cmd.py
-"""init command — technology-agnostic project scaffolding."""
-from __future__ import annotations
-
-import subprocess
-import sys
-from pathlib import Path
-from typing import Optional
-
-import typer
-
-from shared.cli.git_ops import is_git_repo, stage_and_commit
-from shared.cli.output import console, success, warn
-from shared.env_config import resolve_project_root
-from shared.init import run_scaffold_common, run_scaffold_hooks
-
-
-def init(
-    project_root: Optional[Path] = typer.Option(None, "--project-root", help="Project root directory (default: cwd)"),
-) -> None:
-    """Check common prerequisites and scaffold technology-agnostic project files.
-
-    Run before setup-source. Does not require source or target technology.
-    """
-    root = resolve_project_root(project_root)
-
-    # Prereq checks (informational only — do not block)
-    _check_common_prereqs()
-
-    # Scaffold common files
-    with console.status("Scaffolding project files..."):
-        scaffold_result = run_scaffold_common(root)
-        hooks_result = run_scaffold_hooks(root)
-
-    _report_scaffold(scaffold_result, hooks_result)
-
-    # Git commit
-    if not is_git_repo(root):
-        warn("Not a git repository — skipping commit. Initialize git before running setup-source.")
-        return
-
-    commit_files = [root / f for f in scaffold_result.files_created + scaffold_result.files_updated]
-    if commit_files:
-        stage_and_commit(commit_files, "chore: init migration project", root)
-        success("Scaffolding committed.")
-    else:
-        console.print("Nothing new to commit.")
-
-
-def _check_common_prereqs() -> None:
-    checks = [
-        ("uv", ["uv", "--version"]),
-        ("python", ["python3", "--version"]),
-        ("git", ["git", "--version"]),
-        ("direnv", ["direnv", "version"]),
-    ]
-    for name, cmd in checks:
-        result = subprocess.run(cmd, capture_output=True, text=True)
-        if result.returncode == 0:
-            version = result.stdout.strip().split("\n")[0]
-            console.print(f"  {name:<10} [green]✓[/green] {version}")
-        else:
-            marker = "[yellow]—[/yellow]" if name == "direnv" else "[red]✗[/red] not found"
-            console.print(f"  {name:<10} {marker}")
-
-
-def _report_scaffold(scaffold_result: object, hooks_result: object) -> None:
-    for f in getattr(scaffold_result, "files_created", []):
-        success(f"created  {f}")
-    for f in getattr(scaffold_result, "files_updated", []):
-        success(f"updated  {f}")
-    for f in getattr(scaffold_result, "files_skipped", []):
-        console.print(f"  [dim]skipped  {f}[/dim]")
-    if getattr(hooks_result, "hook_created", False):
-        success("created  .githooks/pre-commit")
-```
-
-- [ ] **Step 5: Run tests**
-
-```bash
-cd lib && uv run pytest ../tests/unit/cli/test_init_cmd.py -v
-```
-
-Expected: 2 tests pass.
-
-- [ ] **Step 6: Smoke-test the command**
-
-```bash
-cd lib && uv run ad-migration init --help
-```
-
-Expected: help text for the `init` command with `--project-root` option.
-
-- [ ] **Step 7: Commit**
-
-```bash
-git add lib/shared/init.py lib/shared/cli/init_cmd.py tests/unit/cli/test_init_cmd.py
-git commit -m "feat: add ad-migration init command"
-```
-
----
-
-## Task 3: `setup-source` command
+## Task 2: `setup-source` command
 
 **Files:**
 
@@ -595,16 +384,13 @@ _HOOKS_OUT = ScaffoldHooksOutput(hook_created=True, hooks_path_configured=True)
 _EXTRACT_OUT = {"tables": 5, "procedures": 3, "views": 2, "functions": 0}
 
 
-def test_setup_source_sql_server_runs_full_pipeline(tmp_path, monkeypatch):
+def test_setup_source_sql_server_runs_extraction(tmp_path, monkeypatch):
     monkeypatch.setenv("MSSQL_HOST", "localhost")
     monkeypatch.setenv("MSSQL_PORT", "1433")
     monkeypatch.setenv("MSSQL_DB", "AdventureWorks2022")
     monkeypatch.setenv("SA_PASSWORD", "secret")
 
     with (
-        patch("shared.cli.setup_source_cmd._check_source_prereqs"),
-        patch("shared.cli.setup_source_cmd.run_scaffold_project", return_value=_SCAFFOLD_OUT),
-        patch("shared.cli.setup_source_cmd.run_scaffold_hooks", return_value=_HOOKS_OUT),
         patch("shared.cli.setup_source_cmd.run_extract", return_value=_EXTRACT_OUT) as mock_extract,
         patch("shared.cli.setup_source_cmd.is_git_repo", return_value=True),
         patch("shared.cli.setup_source_cmd.stage_and_commit", return_value=True),
@@ -681,7 +467,6 @@ from shared.cli.env_check import require_source_vars
 from shared.cli.git_ops import is_git_repo, stage_and_commit
 from shared.cli.output import console, success, warn
 from shared.env_config import resolve_project_root
-from shared.init import run_scaffold_hooks, run_scaffold_project
 from shared.setup_ddl_support.extract import run_extract
 
 
@@ -691,16 +476,14 @@ def setup_source(
     no_commit: bool = typer.Option(False, "--no-commit", help="Skip git commit after extraction"),
     project_root: Optional[Path] = typer.Option(None, "--project-root"),
 ) -> None:
-    """Check source prerequisites, scaffold source files, and extract DDL."""
+    """Validate source env vars and extract DDL from the source database.
+
+    Run /init-ad-migration (plugin command) first to install the CLI, check prerequisites, and scaffold project files.
+    """
     root = resolve_project_root(project_root)
     schema_list = [s.strip() for s in schemas.split(",") if s.strip()]
 
     require_source_vars(technology)
-    _check_source_prereqs(technology)
-
-    console.print(f"\nScaffolding source project files for [bold]{technology}[/bold]...")
-    run_scaffold_project(root, technology)
-    run_scaffold_hooks(root, technology)
 
     database = os.environ.get("MSSQL_DB") if technology == "sql_server" else None
 
@@ -770,7 +553,7 @@ git commit -m "feat: add ad-migration setup-source command"
 
 ---
 
-## Task 4: `setup-target` command
+## Task 3: `setup-target` command
 
 **Files:**
 
@@ -1011,7 +794,7 @@ git commit -m "feat: add ad-migration setup-target command"
 
 ---
 
-## Task 5: Sandbox commands
+## Task 4: Sandbox commands
 
 **Files:**
 
@@ -1257,7 +1040,7 @@ git commit -m "feat: add ad-migration setup-sandbox and teardown-sandbox command
 
 ---
 
-## Task 6: Pipeline state commands — `reset`, `exclude-table`, `add-source-table`
+## Task 5: Pipeline state commands — `reset`, `exclude-table`, `add-source-table`
 
 **Files:**
 
@@ -1597,7 +1380,7 @@ git commit -m "feat: add ad-migration reset, exclude-table, and add-source-table
 
 ---
 
-## Task 7: Shell scripts
+## Task 6: Shell scripts
 
 **Files:**
 
@@ -1736,12 +1519,11 @@ git commit -m "feat: add cleanup-worktrees, commit, and commit-push-pr scripts"
 
 ---
 
-## Task 8: Remove plugin commands
+## Task 7: Remove plugin commands and update init-ad-migration
 
-**Files to delete** (10 files):
+**Files to delete** (9 files):
 
 ```text
-commands/init-ad-migration.md
 commands/setup-ddl.md
 commands/setup-target.md
 commands/setup-sandbox.md
@@ -1753,11 +1535,16 @@ commands/commit.md
 commands/commit-push-pr.md
 ```
 
+**Files to update** (1 file):
+
+```text
+commands/init-ad-migration.md   # add CLI installation step before existing prereq checks
+```
+
 - [ ] **Step 1: Delete the command files**
 
 ```bash
-git rm commands/init-ad-migration.md \
-       commands/setup-ddl.md \
+git rm commands/setup-ddl.md \
        commands/setup-target.md \
        commands/setup-sandbox.md \
        commands/teardown-sandbox.md \
@@ -1768,45 +1555,70 @@ git rm commands/init-ad-migration.md \
        commands/commit-push-pr.md
 ```
 
-- [ ] **Step 2: Add `install-cli` plugin command**
+- [ ] **Step 2: Update `commands/init-ad-migration.md` to install the CLI**
 
-Create `commands/install-cli.md`:
+Insert a new **Step 1.5: Install ad-migration CLI** between the existing "Step 1: Pre-check" and "Step 2: Source selection" sections of `commands/init-ad-migration.md`:
 
 ```markdown
----
-name: install-cli
-description: Check if ad-migration CLI is installed and print Homebrew install instructions if not.
-user-invocable: true
----
+## Step 1.5: Install ad-migration CLI
 
-# Install CLI
-
-Check whether the `ad-migration` CLI is available and guide the user to install it if missing.
-
-## Step 1: Check PATH
-
-Run:
+Check whether `ad-migration` is already on PATH:
 
 \`\`\`bash
-ad-migration --version 2>/dev/null || echo "NOT_FOUND"
+ad-migration --version 2>/dev/null && echo "INSTALLED" || echo "NOT_FOUND"
 \`\`\`
 
-If the command succeeds, tell the user the CLI is already installed and show the version.
+If already installed, print the version and continue to Step 2.
 
-## Step 2: If not found
+If not installed, install via Homebrew:
 
-Tell the user:
+\`\`\`bash
+brew tap accelerate-data/homebrew-tap
+brew install ad-migration
+\`\`\`
 
-> The `ad-migration` CLI is not installed. Install it with Homebrew:
->
-> \`\`\`bash
-> brew tap accelerate-data/homebrew-tap
-> brew install ad-migration
-> \`\`\`
->
-> After installing, restart your terminal and re-run this command to confirm.
+After installing, verify:
 
-Do not attempt to auto-install. Do not run curl or pip commands.
+\`\`\`bash
+ad-migration --version
+\`\`\`
+
+If Homebrew is not available on the user's machine, tell them:
+
+> Install Homebrew first: `/bin/bash -c "$(curl -fsSL https://raw.githubusercontent.com/Homebrew/install/HEAD/install.sh)"`
+> Then re-run `/init-ad-migration`.
+
+Do not continue if `ad-migration --version` still fails after installation.
+```
+
+Also update the **Step 8: Handoff** section to replace the `/setup-ddl` references with `ad-migration setup-source`:
+
+Replace:
+
+```text
+- **toolbox installed and all MSSQL vars set**: ready to run `/setup-ddl` to extract DDL from the live database.
+- **toolbox missing or MSSQL vars unset**: DDL file mode (`listing-objects`, `analyzing-table`, `scoping`) is fully available. Live-database skills (`/setup-ddl`) require both `toolbox` and all four MSSQL env vars.
+```
+
+With:
+
+```text
+- **toolbox installed and all MSSQL vars set**: ready to run `ad-migration setup-source --technology sql_server --schemas <schema>` to extract DDL from the live database.
+- **toolbox missing or MSSQL vars unset**: Set credentials in `.envrc`, run `direnv allow`, install `toolbox`, then run `ad-migration setup-source`.
+```
+
+Replace:
+
+```text
+- **SQLcl + Java installed and all Oracle vars set**: ready to run `/setup-ddl` to extract DDL from the live database. Remember: the Oracle MCP server requires a manual connect step at the start of each session.
+- **SQLcl/Java missing or Oracle vars unset**: DDL file mode (`listing-objects`, `analyzing-table`, `scoping`) is fully available. Live-database skills (`/setup-ddl`) require SQLcl, Java 11+, and all five Oracle env vars.
+```
+
+With:
+
+```text
+- **SQLcl + Java installed and all Oracle vars set**: ready to run `ad-migration setup-source --technology oracle --schemas <schema>` to extract DDL from the live database.
+- **SQLcl/Java missing or Oracle vars unset**: Set credentials in `.envrc`, run `direnv allow`, ensure SQLcl and Java 11+ are installed, then run `ad-migration setup-source`.
 ```
 
 - [ ] **Step 3: Verify remaining commands**
@@ -1815,18 +1627,18 @@ Do not attempt to auto-install. Do not run curl or pip commands.
 ls commands/
 ```
 
-Expected: only LLM-driven commands remain — `scope.md`, `profile.md`, `generate-model.md`, `generate-tests.md`, `refactor.md`, `status.md`, `install-cli.md`.
+Expected: `init-ad-migration.md`, `scope.md`, `profile.md`, `generate-model.md`, `generate-tests.md`, `refactor.md`, `status.md`.
 
 - [ ] **Step 4: Commit**
 
 ```bash
 git add commands/
-git commit -m "feat: remove deterministic plugin commands — now in ad-migration CLI"
+git commit -m "feat: remove deterministic plugin commands — now in ad-migration CLI; update init-ad-migration to install CLI"
 ```
 
 ---
 
-## Task 9: Update repo-map.json
+## Task 8: Update repo-map.json
 
 **Files:**
 
@@ -1845,7 +1657,7 @@ Add `ad_migration_cli` to `entrypoints`:
 In `modules.migration_commands`, update `description` to:
 
 ```text
-"Stage-specific commands (LLM-driven only): scope.md, profile.md, generate-model.md, generate-tests.md, refactor.md, status.md, install-cli.md. Deterministic setup and state-mutation commands have moved to the ad-migration CLI (lib/shared/cli/)."
+"Stage-specific commands (LLM-driven only): scope.md, profile.md, generate-model.md, generate-tests.md, refactor.md, status.md. Deterministic setup and state-mutation commands have moved to the ad-migration CLI (lib/shared/cli/)."
 ```
 
 - [ ] **Step 3: Update `commands` section**
@@ -1853,7 +1665,6 @@ In `modules.migration_commands`, update `description` to:
 Remove entries for deleted commands. Add:
 
 ```json
-"ad_migration_init": "cd lib && uv run ad-migration init [--project-root PATH]",
 "ad_migration_setup_source": "cd lib && uv run ad-migration setup-source --technology sql_server|oracle --schemas silver,gold",
 "ad_migration_setup_target": "cd lib && uv run ad-migration setup-target --technology fabric|snowflake|duckdb",
 "ad_migration_setup_sandbox": "cd lib && uv run ad-migration setup-sandbox [--yes]",
@@ -1872,7 +1683,7 @@ git commit -m "docs: update repo-map.json for ad-migration CLI"
 
 ---
 
-## Task 10: Full test run and smoke test
+## Task 9: Full test run and smoke test
 
 - [ ] **Step 1: Run all CLI unit tests**
 
@@ -1896,7 +1707,7 @@ Expected: no regressions.
 cd lib && uv run ad-migration --help
 ```
 
-Expected: lists all 8 commands (`init`, `setup-source`, `setup-target`, `setup-sandbox`, `teardown-sandbox`, `reset`, `exclude-table`, `add-source-table`).
+Expected: lists all 7 commands (`setup-source`, `setup-target`, `setup-sandbox`, `teardown-sandbox`, `reset`, `exclude-table`, `add-source-table`).
 
 ```bash
 cd lib && uv run ad-migration reset --help
