@@ -22,5 +22,6 @@ If information is mainly operational or contributor-facing, put it in `docs/refe
 - [Command Design](command-design/README.md) — plugin command lifecycle, sub-agent spawning, run log structure, and relationship to skills
 - [Coverage Matrix](coverage-matrix/README.md) — statement-by-statement coverage by phase and by test layer
 - [Catalog Enrichment Diagnostics](catalog-enrich/README.md) — exhaustive warning/error scenarios for view, function, and procedure catalog entries
+- [Contributor Setup](contributor-setup/README.md) — contributor onboarding contract, agent bootstrap script shape, and maintainer-readiness rules
 
 When adding one, use `docs/design/<topic>/README.md` and record only the durable decision and the reason it matters to agents.
