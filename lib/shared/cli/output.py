@@ -1,8 +1,11 @@
 """Rich formatting helpers for ad-migration CLI commands."""
 from __future__ import annotations
 
+import logging
 from contextlib import contextmanager
 from typing import Iterator
+
+logger = logging.getLogger(__name__)
 
 from rich.console import Console
 from rich.progress import Progress, SpinnerColumn, TextColumn

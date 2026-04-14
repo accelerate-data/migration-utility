@@ -1,5 +1,9 @@
 """Top-level ad-migration Typer app."""
+import logging
+
 import typer
+
+logger = logging.getLogger(__name__)
 
 from shared.cli.add_source_table_cmd import add_source_table
 from shared.cli.exclude_table_cmd import exclude_table

@@ -1,10 +1,13 @@
 """setup-target command — stub (implemented in Task 3)."""
 from __future__ import annotations
 
+import logging
 from pathlib import Path
 from typing import Optional
 
 import typer
+
+logger = logging.getLogger(__name__)
 
 
 def setup_target(

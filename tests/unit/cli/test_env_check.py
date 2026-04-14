@@ -39,3 +39,17 @@ def test_require_target_vars_snowflake_exits_on_missing(monkeypatch, capsys):
     with pytest.raises(SystemExit) as exc_info:
         require_target_vars("snowflake")
     assert exc_info.value.code == 1
+
+
+def test_require_source_vars_unknown_technology_exits(capsys):
+    with pytest.raises(SystemExit) as exc_info:
+        require_source_vars("unknown_db")
+    assert exc_info.value.code == 1
+    assert "unknown_db" in capsys.readouterr().err
+
+
+def test_require_target_vars_unknown_technology_exits(capsys):
+    with pytest.raises(SystemExit) as exc_info:
+        require_target_vars("unknown_platform")
+    assert exc_info.value.code == 1
+    assert "unknown_platform" in capsys.readouterr().err
