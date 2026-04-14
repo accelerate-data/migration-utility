@@ -22,6 +22,10 @@ if ! git diff --cached --quiet; then
 fi
 
 BRANCH=$(git branch --show-current)
+if [[ -z "$BRANCH" ]]; then
+  echo "Error: not on a named branch (detached HEAD). Checkout a branch before running this script." >&2
+  exit 1
+fi
 git push -u origin "$BRANCH"
 
 gh pr create \
