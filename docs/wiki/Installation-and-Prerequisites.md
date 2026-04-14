@@ -26,7 +26,7 @@ Local execution is supported on macOS and Linux. Windows is not supported for th
 
 | Tool | When needed | Purpose |
 |---|---|---|
-| [genai-toolbox](https://github.com/googleapis/genai-toolbox/releases) (`toolbox`) | Live SQL Server extraction via `/setup-ddl` | HTTP-mode MCP server that bridges Claude Code to SQL Server |
+| [genai-toolbox](https://github.com/googleapis/genai-toolbox/releases) (`toolbox`) | Live SQL Server extraction via `ad-migration setup-source` | HTTP-mode MCP server that bridges Claude Code to SQL Server |
 | [SQLcl](https://www.oracle.com/database/sqldeveloper/technologies/sqlcl/) (`sql`) | Oracle source projects | CLI tool that provides the Oracle MCP server via `sql -mcp`; requires Java 11+. The plugin launches Oracle via `exec "${SQLCL_BIN:-sql}" -mcp`, so `SQLCL_BIN` is the explicit override when SQLcl is not on `PATH` or another `sql` binary conflicts. |
 | Java 11+ | Oracle source projects | Runtime required by SQLcl |
 | [direnv](https://direnv.net) | Recommended for all projects | Auto-loads `.envrc` credentials when you enter the project directory; keeps secrets out of shell history |
@@ -58,7 +58,7 @@ The variables required depend on your source technology. The `/init-ad-migration
 
 When using the default `FreeTDS` path, `/init-ad-migration` now verifies both the Homebrew package and the unixODBC driver registration. A plain `brew install freetds` is not considered sufficient if `FreeTDS` does not appear in `odbcinst -q -d`.
 
-All four connection variables are required for `/setup-ddl`, `/setup-sandbox`, `/generate-tests`, `/refactor`, and any other live-database skill.
+All four connection variables are required for `ad-migration setup-source`, `/setup-sandbox`, `/generate-tests`, `/refactor`, and any other live-database skill.
 
 ### Oracle
 
@@ -118,6 +118,23 @@ claude --plugin-dir .
 
 The `ad-migration` plugin provides all pipeline commands and skills in a single package.
 
+## Installing the ad-migration CLI
+
+The `ad-migration` CLI is installed automatically when you run `/init-ad-migration`. To install
+manually or verify an existing installation:
+
+```bash
+brew tap accelerate-data/homebrew-tap
+brew install ad-migration
+ad-migration --version
+```
+
+Dev usage without installing:
+
+```bash
+uv run --project lib ad-migration --help
+```
+
 ## Verifying Setup
 
 Run the initialization command inside your Claude Code session:
@@ -126,7 +143,7 @@ Run the initialization command inside your Claude Code session:
 /init-ad-migration
 ```
 
-This prompts for source technology selection, then checks every prerequisite silently and presents a status display grouped by source. See [[Stage 1 Project Init]] for full details on the status display format and what each check covers.
+This installs the `ad-migration` CLI via Homebrew if not already present, then prompts for source technology selection, checks every prerequisite silently, and presents a status display grouped by source. See [[Stage 1 Project Init]] for full details on the status display format and what each check covers.
 
 ## Next Step
 

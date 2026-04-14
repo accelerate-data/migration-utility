@@ -100,6 +100,18 @@ PRs target the repo's default branch. The FDE reviews and merges — commands do
 | PR creation | FDE manages manually | Command offers PR at end |
 | Error handling | FDE handles directly | Inline revert per error, surface in summary |
 
+## Committing and pushing
+
+Use the bundled scripts for git operations:
+
+```bash
+bash scripts/commit.sh "<message>" <files>          # stage and commit
+bash scripts/commit-push-pr.sh "<message>" "<title>"  # stage, commit, push, open PR
+```
+
+Claude rules call these scripts automatically during batch command checkpoints. You can also run
+them directly from a terminal when making manual checkpoint commits.
+
 ## What gets committed vs what stays local
 
 | Committed (durable) | Never committed (ephemeral) |
@@ -115,7 +127,7 @@ The `.migration-runs/` directory contains per-command execution metadata (timing
 
 ## Cleaning up worktrees
 
-After a PR is merged, the worktree and its branches are no longer needed. Run `/cleanup-worktrees` to remove them. See [[Cleanup and Teardown]] for details.
+After a PR is merged, the worktree and its branches are no longer needed. Run `bash scripts/cleanup-worktrees.sh` to remove them. See [[Cleanup and Teardown]] for details.
 
 ## Related pages
 

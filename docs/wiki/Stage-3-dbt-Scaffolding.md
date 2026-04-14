@@ -1,6 +1,18 @@
 # Stage 3 -- dbt Scaffolding
 
-`/setup-target` collects target runtime information, scaffolds the dbt project, and generates `sources.yml` from the catalog.
+`ad-migration setup-target` scaffolds the dbt project and generates `sources.yml` from the catalog.
+
+## Invocation
+
+```bash
+ad-migration setup-target --technology fabric
+```
+
+| Option | Required | Description |
+|---|---|---|
+| `--technology` | yes | `fabric`, `snowflake`, or `duckdb` |
+| `--source-schema` | no | Source schema for `sources.yml` (defaults to `bronze`) |
+| `--no-commit` | no | Skip the automatic git commit |
 
 ## Prerequisites
 

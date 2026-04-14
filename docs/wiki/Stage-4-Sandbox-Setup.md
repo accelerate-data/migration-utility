@@ -20,9 +20,11 @@ Creates a throwaway sandbox execution environment and persists it as `runtime.sa
 
 ## Invocation
 
-```text
-/setup-sandbox
+```bash
+ad-migration setup-sandbox
 ```
+
+Use `--yes` to skip the confirmation prompt (useful in scripts).
 
 ## Idempotency
 
