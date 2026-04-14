@@ -108,6 +108,7 @@ tests:
   # procedure body covering all 5 patterns: INSERT+CTE, MERGE, IF/ELSIF, EXCEPTION.
   # Pre-committed scoping and profile sections allow guards to pass.
   - description: "oracle — generate-tests — SUMMARIZE_CHANNEL_SALES enumerates PL/SQL branches"
+    provider: file://../../providers/sonnet-120.yaml
     vars:
       fixture_path: "tests/evals/fixtures/oracle-regression"
       target_tables: "sh.CHANNEL_SALES_SUMMARY"
