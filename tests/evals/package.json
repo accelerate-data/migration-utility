@@ -21,7 +21,7 @@
     "eval:cmd-refactor": "./scripts/promptfoo.sh eval --no-cache -c packages/cmd-refactor/cmd-refactor.yaml",
     "eval:cmd-commit-push-pr": "./scripts/promptfoo.sh eval --no-cache -c packages/cmd-commit-push-pr/cmd-commit-push-pr.yaml",
     "test:workspace-extension": "node --test scripts/run-workspace-extension.test.js",
-
+    "test:cleanliness-guard": "node --test scripts/run-promptfoo-with-guard.test.js",
     "eval:oracle-regression": "./scripts/promptfoo.sh eval --no-cache -c oracle-regression/promptfooconfig.yaml",
     "eval:oracle-live": "./scripts/promptfoo.sh eval --no-cache -c oracle-live/promptfooconfig.yaml",
     "eval:mssql-live": "./scripts/promptfoo.sh eval --no-cache -c mssql-live/promptfooconfig.yaml",

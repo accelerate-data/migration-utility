@@ -93,6 +93,11 @@ function pinFixtureDatabase(projectRoot, manifest) {
     return;
   }
 
+  const target = manifest?.runtime?.target;
+  if (target?.technology === 'oracle') {
+    return;
+  }
+
   const targetDatabase = targetDatabaseFromManifest(manifest);
   const original = fs.readFileSync(profilesPath, 'utf8');
   const pinned = original.replace(

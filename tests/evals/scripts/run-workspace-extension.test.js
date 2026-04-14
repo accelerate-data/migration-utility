@@ -338,6 +338,69 @@ test('extensionHook excludes volatile paths from the run copy', async () => {
   }
 });
 
+test('extensionHook allows oracle dbt fixtures without rewriting profiles.yml', async () => {
+  const { extensionHook } = loadExtensionModule();
+  const tempRunsRoot = fs.mkdtempSync(path.join(os.tmpdir(), 'eval-runs-'));
+  const tempFixture = fs.mkdtempSync(path.join(os.tmpdir(), 'eval-fixture-'));
+
+  try {
+    const manifest = {
+      technology: 'oracle',
+      dialect: 'oracle',
+      runtime: {
+        source: {
+          technology: 'oracle',
+          dialect: 'oracle',
+          connection: { service: 'FREEPDB1' },
+        },
+        target: {
+          technology: 'oracle',
+          dialect: 'oracle',
+          connection: { service: 'FREEPDB1' },
+        },
+      },
+    };
+    const profileText = [
+      'oracle_regression_test:',
+      '  target: dev',
+      '  outputs:',
+      '    dev:',
+      '      type: oracle',
+      '      service: "{{ env_var(\'ORACLE_SERVICE\', \'FREEPDB1\') }}"',
+      '      schema: "{{ env_var(\'DBT_SCHEMA\', \'sh\') }}"',
+      '',
+    ].join('\n');
+
+    fs.writeFileSync(path.join(tempFixture, 'manifest.json'), JSON.stringify(manifest), 'utf8');
+    fs.mkdirSync(path.join(tempFixture, 'ddl'), { recursive: true });
+    fs.writeFileSync(path.join(tempFixture, 'ddl', 'procedures.sql'), 'BEGIN NULL; END;\n', 'utf8');
+    fs.mkdirSync(path.join(tempFixture, 'catalog'), { recursive: true });
+    fs.writeFileSync(path.join(tempFixture, 'catalog', 'tables.json'), '{}', 'utf8');
+    fs.mkdirSync(path.join(tempFixture, 'dbt'), { recursive: true });
+    fs.writeFileSync(path.join(tempFixture, 'dbt', 'profiles.yml'), profileText, 'utf8');
+
+    const fixturePath = path.relative(REPO_ROOT, tempFixture).split(path.sep).join(path.posix.sep);
+    const context = {
+      suite: { description: 'Oracle regression' },
+      test: { description: 'Oracle fixture', vars: { fixture_path: fixturePath } },
+    };
+
+    const nextContext = await extensionHook('beforeEach', context, {
+      nowMs: Date.now(),
+      runsRoot: tempRunsRoot,
+      pruneState: makePruneState(),
+    });
+    const runPath = path.resolve(REPO_ROOT, nextContext.test.vars.run_path);
+    const copiedProfile = fs.readFileSync(path.join(runPath, 'dbt', 'profiles.yml'), 'utf8');
+
+    assert.equal(copiedProfile, profileText);
+    assert.equal(fs.existsSync(path.join(runPath, 'manifest.json')), true);
+  } finally {
+    fs.rmSync(tempRunsRoot, { recursive: true, force: true });
+    fs.rmSync(tempFixture, { recursive: true, force: true });
+  }
+});
+
 test('extensionHook uses the default module prune state when pruneState is not provided', async () => {
   const firstModule = loadExtensionModule();
   const now = Date.now();

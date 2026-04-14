@@ -10,18 +10,7 @@ extensions:
   - file://../../scripts/run-workspace-extension.js:extensionHook
 
 providers:
-  - id: anthropic:claude-agent-sdk
-    config:
-      model: claude-haiku-4-5-20251001
-      working_dir: ../..
-      max_turns: 80
-      permission_mode: auto
-      append_allowed_tools:
-        - Read
-        - Write
-        - Bash
-        - Glob
-        - Grep
+  - file://../../providers/haiku-60.yaml
 
 defaultTest:
   assert:
