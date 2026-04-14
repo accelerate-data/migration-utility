@@ -43,10 +43,7 @@ npm install
 
 Common runs:
 
-- grouped offline runs: `npm run eval:smoke`, `npm run eval:skills`, or `npm run eval:commands`
-- smoke pass across the curated offline mix: `npm run eval:smoke`
-- all skill packages: `npm run eval:skills`
-- all command packages: `npm run eval:commands`
+- curated offline smoke pass across all package configs: `npm run eval:smoke`
 - live SQL Server extract → scope → profile: `npm run eval:mssql-live`
 - live Oracle extract → scope → profile: `npm run eval:oracle-live`
 - inspect results in the browser: `npm run view`

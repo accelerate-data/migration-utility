@@ -4,6 +4,7 @@ const test = require('node:test');
 const {
   ALLOWED_ARTIFACT_PREFIXES,
   detectCleanupViolations,
+  splitPromptfooInvocations,
 } = require('./run-promptfoo-with-guard');
 
 test('detectCleanupViolations ignores new files under approved eval artifact directories', () => {
@@ -79,4 +80,69 @@ test('allowed artifact prefixes stay limited to the dedicated eval output roots'
     'tests/evals/output/',
     'tests/evals/results/',
   ]);
+});
+
+test('splitPromptfooInvocations preserves shared args and runs each config separately', () => {
+  const invocations = splitPromptfooInvocations([
+    'eval',
+    '--no-cache',
+    '--max-concurrency',
+    '1',
+    '--filter-pattern',
+    '^\\[smoke\\]',
+    '-c',
+    'packages/analyzing-table/skill-analyzing-table.yaml',
+    '-c',
+    'packages/cmd-profile/cmd-profile.yaml',
+  ]);
+
+  assert.deepEqual(invocations, [
+    [
+      'eval',
+      '--no-cache',
+      '--max-concurrency',
+      '1',
+      '--filter-pattern',
+      '^\\[smoke\\]',
+      '-c',
+      'packages/analyzing-table/skill-analyzing-table.yaml',
+    ],
+    [
+      'eval',
+      '--no-cache',
+      '--max-concurrency',
+      '1',
+      '--filter-pattern',
+      '^\\[smoke\\]',
+      '-c',
+      'packages/cmd-profile/cmd-profile.yaml',
+    ],
+  ]);
+});
+
+test('splitPromptfooInvocations keeps single-config and no-config argv unchanged', () => {
+  assert.deepEqual(
+    splitPromptfooInvocations([
+      'view',
+      '-c',
+      'packages/listing-objects/skill-listing-objects.yaml',
+    ]),
+    [[
+      'view',
+      '-c',
+      'packages/listing-objects/skill-listing-objects.yaml',
+    ]],
+  );
+
+  assert.deepEqual(
+    splitPromptfooInvocations(['list']),
+    [['list']],
+  );
+});
+
+test('splitPromptfooInvocations rejects a dangling -c flag', () => {
+  assert.throws(
+    () => splitPromptfooInvocations(['eval', '-c']),
+    /Missing config path after -c/,
+  );
 });

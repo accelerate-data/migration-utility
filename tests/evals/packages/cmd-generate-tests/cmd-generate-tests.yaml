@@ -23,7 +23,7 @@ tests:
     vars:
       fixture_path: "tests/evals/fixtures/cmd-generate-tests/happy-path"
       target_tables: "silver.InsertSelectTarget"
-      expected_item_statuses: '{"silver.InsertSelectTarget": "partial"}'
+      expected_item_statuses: '{"silver.InsertSelectTarget": "ok"}'
 
   # ── review-cycle: single table triggers review cycle ─────────
   - description: "review-cycle — CorrelatedSubqueryTarget review loop"

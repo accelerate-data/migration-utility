@@ -70,10 +70,6 @@ function readEvalPackageConfigs() {
     .sort();
 }
 
-function readEvalPackageConfigsByPrefix(prefix) {
-  return readEvalPackageConfigs().filter((configPath) => path.basename(configPath).startsWith(prefix));
-}
-
 function extractEvalConfigs(command) {
   const configs = [];
   const configPattern = /(?:^|\s)-c\s+([^\s]+)/g;
@@ -119,13 +115,13 @@ test('workspace extension entrypoint is wired into eval scripts and ignores run 
   assert.equal(gitignoreEntries.includes('tests/evals/output/runs/'), true);
 });
 
-test('grouped eval scripts exist and point only at package configs', () => {
+test('smoke eval script exists and live suites remain standalone', () => {
   const packageJson = readJson(EVAL_PACKAGE_JSON);
   const scripts = packageJson.scripts;
 
   assert.equal(Boolean(scripts['eval:smoke']), true);
-  assert.equal(Boolean(scripts['eval:skills']), true);
-  assert.equal(Boolean(scripts['eval:commands']), true);
+  assert.equal(Boolean(scripts['eval:skills']), false);
+  assert.equal(Boolean(scripts['eval:commands']), false);
 
   assert.equal(
     hasWhitespaceSeparatedTokens(scripts['eval:smoke'], ['./scripts/promptfoo.sh', 'eval', '--no-cache']),
@@ -136,8 +132,6 @@ test('grouped eval scripts exist and point only at package configs', () => {
     true,
   );
   assert.deepEqual(extractEvalConfigs(scripts['eval:smoke']), readEvalPackageConfigs());
-  assert.deepEqual(extractEvalConfigs(scripts['eval:skills']), readEvalPackageConfigsByPrefix('skill-'));
-  assert.deepEqual(extractEvalConfigs(scripts['eval:commands']), readEvalPackageConfigsByPrefix('cmd-'));
   assert.equal(Boolean(scripts['eval:full']), false);
   assert.equal(hasMaxConcurrencyOne(scripts['eval:cmd-reset-migration']), true);
   assert.equal(Boolean(scripts['eval:oracle-regression']), false);
@@ -146,14 +140,12 @@ test('grouped eval scripts exist and point only at package configs', () => {
   assert.deepEqual(extractEvalConfigs(scripts['eval:oracle-live']), ['oracle-live/promptfooconfig.yaml']);
   assert.deepEqual(extractEvalConfigs(scripts['eval:mssql-live']), ['mssql-live/promptfooconfig.yaml']);
 
-  for (const scriptName of ['eval:smoke', 'eval:commands']) {
-    const configs = extractEvalConfigs(scripts[scriptName]);
-    if (configs.includes('packages/cmd-reset-migration/cmd-reset-migration.yaml')) {
-      assert.equal(hasMaxConcurrencyOne(scripts[scriptName]), true);
-    }
-    for (const liveConfig of LIVE_PACKAGE_CONFIGS) {
-      assert.equal(configs.includes(liveConfig), false);
-    }
+  const smokeConfigs = extractEvalConfigs(scripts['eval:smoke']);
+  if (smokeConfigs.includes('packages/cmd-reset-migration/cmd-reset-migration.yaml')) {
+    assert.equal(hasMaxConcurrencyOne(scripts['eval:smoke']), true);
+  }
+  for (const liveConfig of LIVE_PACKAGE_CONFIGS) {
+    assert.equal(smokeConfigs.includes(liveConfig), false);
   }
 });
 
