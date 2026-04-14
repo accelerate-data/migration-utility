@@ -240,14 +240,4 @@ SQL
   echo "Oracle CLI materialization failed; retrying with python oracledb fallback" >&2
 fi
 
-if python - <<'PY' >/dev/null 2>&1; then
-import importlib.util
-import sys
-sys.exit(0 if importlib.util.find_spec("oracledb") else 1)
-PY
-  run_python_materialization
-  exit 0
-fi
-
-echo "no Oracle CLI (SQLCL/sql or sqlplus) is installed and python package 'oracledb' is unavailable for Oracle materialization" >&2
-exit 1
+run_python_materialization

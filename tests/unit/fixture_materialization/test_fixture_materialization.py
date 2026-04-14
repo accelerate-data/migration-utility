@@ -178,4 +178,5 @@ def test_oracle_materializer_exits_cleanly_when_no_cli_and_no_oracledb() -> None
         "no Oracle CLI (SQLCL/sql or sqlplus) is installed and python package "
         "'oracledb' is unavailable for Oracle materialization"
     ) in script_text
-    assert script_text.count("run_python_materialization") == 2
+    assert 'importlib.util.find_spec("oracledb")' not in script_text
+    assert "\nrun_python_materialization\n" in script_text
