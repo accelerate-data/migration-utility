@@ -8,7 +8,7 @@ import typer
 
 from shared.catalog_writer import run_write_source
 from shared.cli.git_ops import is_git_repo, stage_and_commit
-from shared.cli.output import console, success, warn
+from shared.cli.output import console, error, success, warn
 from shared.dry_run_core import run_ready
 from shared.loader_data import CatalogFileMissingError
 from shared.name_resolver import normalize
@@ -45,8 +45,7 @@ def add_source_table(
             is_ready = ready_result.project.ready
             reason = ready_result.project.reason
         else:
-            is_ready = False
-            reason = "unknown"
+            raise AssertionError(f"run_ready returned neither object nor project payload for {fqn}")
 
         if not is_ready:
             warn(f"skipped  {fqn} — {reason}")
@@ -83,9 +82,13 @@ def add_source_table(
     written_files = [p for _, p in written_pairs]
     written_fqns = [fqn for fqn, _ in written_pairs]
 
-    stage_and_commit(
-        [f for f in written_files if f.exists()],
-        f"add source tables: {', '.join(normalize(fqn) for fqn in written_fqns)}",
-        root,
-    )
+    try:
+        stage_and_commit(
+            [f for f in written_files if f.exists()],
+            f"add source tables: {', '.join(normalize(fqn) for fqn in written_fqns)}",
+            root,
+        )
+    except RuntimeError as exc:
+        error(f"Git commit failed: {exc}")
+        raise typer.Exit(code=1) from exc
     console.print("Changes committed.")

@@ -58,9 +58,13 @@ def exclude_table(
         root / "catalog" / "tables" / f"{normalize(fqn)}.json"
         for fqn in result.marked
     ]
-    stage_and_commit(
-        [f for f in catalog_files if f.exists()],
-        f"exclude tables: {', '.join(result.marked)}",
-        root,
-    )
+    try:
+        stage_and_commit(
+            [f for f in catalog_files if f.exists()],
+            f"exclude tables: {', '.join(result.marked)}",
+            root,
+        )
+    except RuntimeError as exc:
+        error(f"Git commit failed: {exc}")
+        raise typer.Exit(code=1) from exc
     console.print("Changes committed.")
