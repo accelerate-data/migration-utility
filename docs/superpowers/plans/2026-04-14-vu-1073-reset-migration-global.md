@@ -396,6 +396,7 @@ Document that sandbox teardown must run first when configured and that the next 
 - [ ] **Step 2: Update eval coverage for the new mode**
 
 Add Promptfoo cases for:
+
 - global reset with existing artifacts
 - global reset with configured sandbox in manifest inventory
 - global reset when some paths are already absent
