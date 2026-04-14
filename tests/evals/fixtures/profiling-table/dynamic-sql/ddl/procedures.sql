@@ -12,7 +12,7 @@ BEGIN
     SET @sql = N'
         INSERT INTO silver.DimCurrency (CurrencyAlternateKey, CurrencyName)
         SELECT CurrencyCode, CurrencyName
-        FROM MigrationTest.bronze.Currency';
+        FROM MigrationTest.bronze_currency';
     EXEC sp_executesql @sql;
 END;
 

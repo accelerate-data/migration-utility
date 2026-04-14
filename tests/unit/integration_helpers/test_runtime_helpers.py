@@ -39,6 +39,14 @@ def test_build_sql_server_connection_string_targets_canonical_database() -> None
     assert "LoginTimeout=1;" in connection_string
 
 
+def test_build_sql_server_connection_string_escapes_password(monkeypatch) -> None:
+    monkeypatch.setenv("SA_PASSWORD", "pa;ss}word")
+
+    connection_string = build_sql_server_connection_string()
+
+    assert "PWD={pa;ss}}word};" in connection_string
+
+
 def test_build_sql_server_sandbox_manifest_uses_canonical_source_database() -> None:
     manifest = build_sql_server_sandbox_manifest()
 

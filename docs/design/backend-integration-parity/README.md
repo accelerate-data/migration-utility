@@ -2,8 +2,10 @@
 
 Backend integration coverage uses one canonical fixture contract: `MigrationTest`.
 
-- SQL Server provisions `MigrationTest` as a database.
-- Oracle provisions `MIGRATIONTEST` inside the canonical Oracle service.
+- SQL Server provisions `MigrationTest` as a schema inside the configured database.
+- Oracle provisions `MIGRATIONTEST` as a schema inside the configured service or PDB.
+- Canonical fixture objects live in that one schema for both backends.
+- Tier semantics live in object names, not schema names.
 - Shared integration tests live under `tests/integration/<backend>/<module>/`.
 - DDL MCP keeps its own Python environment, but its live backend coverage also lives under `tests/integration/` and runs against the same `MigrationTest` fixture contract.
 

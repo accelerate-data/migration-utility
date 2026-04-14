@@ -9,21 +9,26 @@ Eval fixtures use the canonical `manifest.json` runtime contract:
 
 Stale flat manifest fields are not supported in the eval harness.
 
-Most SQL Server-backed fixtures still originate from the `MigrationTest` fixture database. Source-of-truth background and materialization entrypoints live under `scripts/sql/`.
+Most SQL Server-backed fixtures still originate from the canonical `MigrationTest`
+schema fixture inside the configured SQL Server container. Source-of-truth
+background and materialization entrypoints live under `scripts/sql/`.
 
 ## Extraction
 
-Extract once. Re-extract only when the MigrationTest schema changes.
+Extract once. Re-extract only when the `MigrationTest` schema contract changes.
 
 ```bash
-# 1. Ensure Docker container is running with MigrationTest
+# 1. Ensure the configured SQL Server container is running with the
+#    canonical MigrationTest schema materialized
 docker ps | grep sql-test
 
 # 2. Set bootstrap source connection environment
 export MSSQL_HOST=localhost
 export MSSQL_PORT=1433
-export MSSQL_DB=MigrationTest
+export MSSQL_DB=<configured-source-database>
 export SA_PASSWORD=<your-password>
+
+# MigrationTest is the schema-level fixture contract inside that database.
 
 # 3. Extract DDL and build catalog via setup-ddl
 cd <migration-project-root>

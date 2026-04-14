@@ -1,12 +1,12 @@
 # Docker Setup
 
-Pre-built Docker images with the full Kimball DW fixture baked in: schema, 20 stored procedures, ~47K baseline rows, and all 5 delta scenarios. The SQL Server image pins a specific CU version to prevent data-file/binary mismatches. Pull, run, and the database is immediately ready — no manual SQL loading required.
+Pre-built Docker images with the full Kimball DW fixture baked in: schema, 20 stored procedures, ~47K baseline rows, and all 5 delta scenarios. The SQL Server image pins a specific CU version to prevent data-file/binary mismatches. Pull, run, and the source fixture database is immediately ready — no manual SQL loading required.
 
 ## Container Conventions
 
 | Container | Image | Port | Purpose |
 |---|---|---|---|
-| `sql-test` | `ghcr.io/accelerate-data/migration-sample-sqlserver:latest` | `1433` | SQL Server — KimballFixture |
+| `sql-test` | `ghcr.io/accelerate-data/migration-sample-sqlserver:latest` | `1433` | SQL Server source fixture image |
 | `oracle-test` | `ghcr.io/accelerate-data/migration-sample-oracle:latest` | `1521` | Oracle 23ai — KimballFixture |
 | `pg-test` | `ghcr.io/accelerate-data/migration-sample-postgres:latest` | `5432` | PostgreSQL — KimballFixture |
 
@@ -82,7 +82,7 @@ docker stop sql-test oracle-test pg-test
 |---|---|
 | Host | `localhost` |
 | Port | `1433` |
-| Databases | `KimballFixture`, `MigrationTest` |
+| Database | `KimballFixture` |
 | User | `sa` |
 | Password | `P@ssw0rd123` |
 
@@ -92,6 +92,8 @@ docker exec sql-test /opt/mssql-tools18/bin/sqlcmd \
   -d KimballFixture \
   -Q "SELECT COUNT(*) FROM dim.dim_customer;"
 ```
+
+`sql-test` only provides the pre-baked `KimballFixture` source fixture for parity runs and manual source-fixture checks. It is not the supported source for the schema-level SQL Server `MigrationTest` flow. For SQL Server integration tests, evals, and harness runs, point `MSSQL_DB` at the source database that owns the AdventureWorks objects (default `AdventureWorks2022`) and materialize the canonical `MigrationTest` schema with `scripts/sql/sql_server/materialize-migration-test.sh` or the test helpers that wrap it.
 
 ### Oracle
 
@@ -157,13 +159,13 @@ See [`test-fixtures/parity/README.md`](../../../test-fixtures/parity/README.md) 
 
 ## `.env` Variables for MCP Servers
 
-Add to `.env` if running MCP server connections against the Kimball fixture:
+Add to `.env` for the schema-level SQL Server `MigrationTest` contract used by tests/evals:
 
 ```bash
-# SQL Server (KimballFixture)
+# SQL Server MigrationTest materialization source
 MSSQL_HOST=127.0.0.1
 MSSQL_PORT=1433
-MSSQL_DB=KimballFixture
+MSSQL_DB=AdventureWorks2022
 
 # Oracle
 ORACLE_HOST=localhost
@@ -180,11 +182,13 @@ PG_USER=postgres
 PG_PASSWORD=postgres
 ```
 
+Use `MSSQL_DB=KimballFixture` only when you intentionally want a direct connection to the pre-baked Kimball source-fixture image for parity/manual source-fixture work. That image is not the supported source for the schema-level SQL Server `MigrationTest` flow.
+
 The Oracle Docker image expects `ORACLE_PWD` as its container-internal env var (set via `docker run -e`). The `.env` variables above (`ORACLE_HOST`, `ORACLE_PORT`, `ORACLE_SERVICE`, `ORACLE_USER`, `ORACLE_PASSWORD`) are the canonical names used by plugin commands (`/init-ad-migration`, `/setup-ddl`) for host-side MCP connections.
 
 ## Rebuilding the SQL Server Image
 
-The SQL Server image bundles pre-built MDF/LDF data files so databases are available instantly on `docker run`. Rebuild when fixture SQL changes or when upgrading the SQL Server CU version.
+The SQL Server image bundles pre-built MDF/LDF data files so the Kimball source fixture database is available instantly on `docker run`. Rebuild when Kimball fixture SQL changes or when upgrading the SQL Server CU version. This does not rebuild or validate the schema-level SQL Server `MigrationTest` contract.
 
 ### Rebuild locally
 
@@ -237,7 +241,7 @@ Use the date tag when you need reproducibility. Use `:latest` when you just want
 
 ### Bumping the SQL Server CU version
 
-Edit `MSSQL_TAG` at the top of `scripts/publish-sqlserver-image.sh`, then rebuild. The script starts a builder container from the new CU, creates databases (producing data files at the new version), and builds the final image from the same CU base. This ensures data files always match the binary version.
+Edit `MSSQL_TAG` at the top of `scripts/publish-sqlserver-image.sh`, then rebuild. The script starts a builder container from the new CU, creates the source fixture database (producing data files at the new version), and builds the final image from the same CU base. This ensures data files always match the binary version.
 
 ### Why images pin a specific CU
 
@@ -248,7 +252,7 @@ SQL Server stores an internal version number in its data files (e.g., version 95
 ```text
 scripts/publish-sqlserver-image.sh
 ├── Starts builder container from pinned mcr.microsoft.com/mssql/server:$MSSQL_TAG
-├── Runs test-fixtures/ SQL files to create KimballFixture + MigrationTest
+├── Runs test-fixtures/ SQL files to create KimballFixture
 ├── Checkpoints, shrinks logs, stops SQL Server cleanly
 ├── Extracts /var/opt/mssql/data/ from builder
 ├── Builds final image via docker/sqlserver/Dockerfile (FROM same $MSSQL_TAG + COPY data/)
@@ -256,3 +260,5 @@ scripts/publish-sqlserver-image.sh
 ```
 
 Build artifacts: `docker/sqlserver/Dockerfile` (version-controlled), `docker/sqlserver/data/` (ephemeral, gitignored).
+
+The schema-level `MigrationTest` contract is materialized separately at runtime and is not baked into this image as a standalone SQL Server database.

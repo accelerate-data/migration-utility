@@ -5,10 +5,15 @@ import shutil
 from typing import Any
 
 import pytest
+from shared.db_connect import build_sql_server_connection_string as _build_sql_server_connection_string
 from shared.fixture_materialization import materialize_migration_test
 from shared.runtime_config_models import RuntimeConnection, RuntimeRole
 
-from tests.helpers import REPO_ROOT
+from tests.helpers import (
+    REPO_ROOT,
+    SQL_SERVER_FIXTURE_DATABASE,
+    SQL_SERVER_FIXTURE_SCHEMA,
+)
 
 ORACLE_MIGRATION_SCHEMA = os.environ.get("ORACLE_SCHEMA", "MIGRATIONTEST").upper()
 ORACLE_MIGRATION_SCHEMA_PASSWORD = os.environ.get(
@@ -18,7 +23,8 @@ ORACLE_MIGRATION_SCHEMA_PASSWORD = os.environ.get(
 
 _ORACLE_MIGRATION_TEST_READY = False
 _SQL_SERVER_MIGRATION_TEST_READY = False
-SQL_SERVER_MIGRATION_DATABASE = "MigrationTest"
+SQL_SERVER_MIGRATION_DATABASE = SQL_SERVER_FIXTURE_DATABASE
+SQL_SERVER_MIGRATION_SCHEMA = SQL_SERVER_FIXTURE_SCHEMA
 
 
 def find_oracle_cli() -> str | None:
@@ -30,22 +36,22 @@ def find_oracle_cli() -> str | None:
         if resolved:
             return resolved
     return None
+
+
 def build_sql_server_connection_string(
     *,
     database: str = SQL_SERVER_MIGRATION_DATABASE,
     login_timeout: int | None = None,
 ) -> str:
-    parts = [
-        f"DRIVER={{{os.environ.get('MSSQL_DRIVER', 'ODBC Driver 18 for SQL Server')}}}",
-        f"SERVER={os.environ.get('MSSQL_HOST', 'localhost')},{os.environ.get('MSSQL_PORT', '1433')}",
-        f"DATABASE={database}",
-        f"UID={os.environ.get('MSSQL_USER', 'sa')}",
-        f"PWD={os.environ.get('SA_PASSWORD', '')}",
-        "TrustServerCertificate=yes",
-    ]
-    if login_timeout is not None:
-        parts.append(f"LoginTimeout={login_timeout}")
-    return ";".join(parts) + ";"
+    return _build_sql_server_connection_string(
+        host=os.environ.get("MSSQL_HOST", "localhost"),
+        port=os.environ.get("MSSQL_PORT", "1433"),
+        database=database,
+        user=os.environ.get("MSSQL_USER", "sa"),
+        password=os.environ.get("SA_PASSWORD", ""),
+        driver=os.environ.get("MSSQL_DRIVER", "ODBC Driver 18 for SQL Server"),
+        login_timeout=login_timeout,
+    )
 
 
 def build_sql_server_source_role() -> RuntimeRole:
@@ -56,6 +62,7 @@ def build_sql_server_source_role() -> RuntimeRole:
             host=os.environ.get("MSSQL_HOST", "localhost"),
             port=os.environ.get("MSSQL_PORT", "1433"),
             database=SQL_SERVER_MIGRATION_DATABASE,
+            schema=SQL_SERVER_MIGRATION_SCHEMA,
             user=os.environ.get("MSSQL_USER", "sa"),
             driver=os.environ.get("MSSQL_DRIVER", "ODBC Driver 18 for SQL Server"),
             password_env="SA_PASSWORD",
@@ -73,6 +80,7 @@ def build_sql_server_sandbox_manifest() -> dict[str, object]:
                     "host": os.environ.get("MSSQL_HOST", "localhost"),
                     "port": os.environ.get("MSSQL_PORT", "1433"),
                     "database": SQL_SERVER_MIGRATION_DATABASE,
+                    "schema": SQL_SERVER_MIGRATION_SCHEMA,
                     "user": os.environ.get("MSSQL_USER", "sa"),
                     "driver": os.environ.get("MSSQL_DRIVER", "ODBC Driver 18 for SQL Server"),
                     "password_env": "SA_PASSWORD",

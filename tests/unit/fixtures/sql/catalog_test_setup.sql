@@ -1,7 +1,10 @@
 -- catalog_test_setup.sql
 -- Idempotent setup for VU-766 catalog integration tests.
--- Target: MigrationTest database on local Docker SQL Server.
--- Usage: sqlcmd -S localhost -U sa -P 'P@ssw0rd123' -d MigrationTest -i catalog_test_setup.sql -C
+-- Target: local Docker SQL Server container with the canonical MigrationTest
+-- schema fixture available inside the configured database.
+-- Usage: sqlcmd -S localhost -U sa -P 'P@ssw0rd123' \
+--   -d <configured-database-hosting-migrationtest-schema> \
+--   -i catalog_test_setup.sql -C
 
 -- ── Schema ────────────────────────────────────────────────────────────────
 IF NOT EXISTS (SELECT 1 FROM sys.schemas WHERE name = 'test_catalog')

@@ -6,7 +6,7 @@
   visible, so this model is a graceful placeholder noting the dynamic
   SQL limitation. The recovered SQL (from enrichment) is:
     INSERT INTO silver.DimCurrency (CurrencyAlternateKey, CurrencyName)
-    SELECT CurrencyCode, CurrencyName FROM bronze.Currency
+    SELECT CurrencyCode, CurrencyName FROM MigrationTest.bronze_currency
 #}
 
 with source_currency as (

@@ -11,6 +11,15 @@ from tests.integration.runtime_helpers import ORACLE_MIGRATION_SCHEMA
 
 pytestmark = pytest.mark.oracle
 
+BRONZE_CURRENCY = "bronze_currency"
+BRONZE_PROMOTION = "bronze_promotion"
+SILVER_DIMCURRENCY = "silver_dimcurrency"
+SILVER_DIMPROMOTION = "silver_dimpromotion"
+SILVER_CONFIG = "silver_config"
+SILVER_USP_LOAD_DIMCURRENCY = "silver_usp_load_dimcurrency"
+LEGACY_CHANNELS = "channels"
+LEGACY_SALES = "sales"
+
 
 @pytest.mark.usefixtures("oracle_extract_env")
 class TestListSchemasOracleIntegration:
@@ -46,7 +55,14 @@ class TestExtractOracleIntegration:
         assert (tmp_path / "catalog").is_dir()
         tables_dir = tmp_path / "catalog" / "tables"
         assert tables_dir.is_dir()
-        assert len(list(tables_dir.glob("*.json"))) > 0
+        table_stems = {path.stem.lower() for path in tables_dir.glob("*.json")}
+        assert any(stem.endswith(BRONZE_CURRENCY) for stem in table_stems)
+        assert any(stem.endswith(BRONZE_PROMOTION) for stem in table_stems)
+        assert any(stem.endswith(SILVER_DIMCURRENCY) for stem in table_stems)
+        assert any(stem.endswith(SILVER_DIMPROMOTION) for stem in table_stems)
+        assert any(stem.endswith(SILVER_CONFIG) for stem in table_stems)
+        assert not any(stem.endswith(LEGACY_CHANNELS) for stem in table_stems)
+        assert not any(stem.endswith(LEGACY_SALES) for stem in table_stems)
 
     def test_migrationtest_table_has_pk(self, tmp_path, oracle_extract_env):
         (tmp_path / "manifest.json").write_text(
@@ -74,11 +90,22 @@ class TestExtractOracleIntegration:
             "--project-root", str(tmp_path),
         ], timeout=120)
         assert result.returncode == 0, result.stderr
-        tables_dir = tmp_path / "catalog" / "tables"
-        tables_with_fk = [
-            f.name for f in tables_dir.glob("*.json") if json.loads(f.read_text()).get("foreign_keys")
-        ]
-        assert len(tables_with_fk) > 0
+        table_catalog = {
+            f.stem.lower(): json.loads(f.read_text())
+            for f in (tmp_path / "catalog" / "tables").glob("*.json")
+        }
+        promotion_table = next(
+            data
+            for stem, data in table_catalog.items()
+            if stem.endswith(SILVER_DIMPROMOTION)
+        )
+        foreign_keys = promotion_table.get("foreign_keys") or []
+        assert len(foreign_keys) == 1
+        fk = foreign_keys[0]
+        assert fk["columns"] == ["CONFIGID"]
+        assert fk["referenced_schema"].lower() == ORACLE_MIGRATION_SCHEMA.lower()
+        assert fk["referenced_table"].lower() == SILVER_CONFIG
+        assert fk["referenced_columns"] == ["CONFIGID"]
 
     def test_migrationtest_change_capture_null(self, tmp_path, oracle_extract_env):
         (tmp_path / "manifest.json").write_text(
@@ -105,10 +132,31 @@ class TestExtractOracleIntegration:
             "--project-root", str(tmp_path),
         ], timeout=120)
         assert result.returncode == 0, result.stderr
+        procedures_dir = tmp_path / "catalog" / "procedures"
+        proc_stems = {path.stem.lower() for path in procedures_dir.glob("*.json")}
+        assert any(stem.endswith(SILVER_USP_LOAD_DIMCURRENCY) for stem in proc_stems)
         views_sql = tmp_path / "ddl" / "views.sql"
         assert views_sql.exists()
         content = views_sql.read_text(encoding="utf-8")
         assert "CREATE OR REPLACE VIEW" in content
+
+    def test_migrationtest_extract_excludes_legacy_objects(self, tmp_path, oracle_extract_env):
+        (tmp_path / "manifest.json").write_text(
+            '{"technology": "oracle", "dialect": "oracle"}', encoding="utf-8"
+        )
+        result = _run_cli([
+            "extract",
+            "--schemas", ORACLE_MIGRATION_SCHEMA,
+            "--project-root", str(tmp_path),
+        ], timeout=120)
+        assert result.returncode == 0, result.stderr
+        catalog_root = tmp_path / "catalog"
+        extracted_names = {
+            path.stem.lower()
+            for path in catalog_root.rglob("*.json")
+        }
+        assert LEGACY_CHANNELS not in extracted_names
+        assert LEGACY_SALES not in extracted_names
 
     def test_migrationtest_views_catalog_created(self, tmp_path, oracle_extract_env):
         (tmp_path / "manifest.json").write_text(

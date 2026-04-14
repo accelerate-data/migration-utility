@@ -46,7 +46,7 @@ The variables required depend on your source technology. The `/init-ad-migration
 |---|---|---|
 | `MSSQL_HOST` | SQL Server hostname or IP | `localhost` |
 | `MSSQL_PORT` | SQL Server port | `1433` |
-| `MSSQL_DB` | Default database | `KimballFixture` |
+| `MSSQL_DB` | Configured source database that contains the runtime `MigrationTest` schema fixture | `AdventureWorks2022` |
 | `SA_PASSWORD` | SQL login password | _(from env)_ |
 | `MSSQL_DRIVER` | _(optional)_ ODBC driver override | `FreeTDS` _(default)_ |
 
@@ -82,7 +82,7 @@ Export them in your shell before launching `claude`:
 # SQL Server
 export MSSQL_HOST=localhost
 export MSSQL_PORT=1433
-export MSSQL_DB=KimballFixture
+export MSSQL_DB=AdventureWorks2022
 export SA_PASSWORD=<your-password>
 
 # Oracle

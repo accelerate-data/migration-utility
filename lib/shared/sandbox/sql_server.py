@@ -19,6 +19,7 @@ from shared.output_models.sandbox import (
     SandboxUpOutput,
     TestHarnessExecuteOutput,
 )
+from shared.db_connect import build_sql_server_connection_string
 from shared.sandbox.base import (
     SandboxBackend,
     build_compare_error,
@@ -342,12 +343,13 @@ class SqlServerSandbox(SandboxBackend):
     @contextmanager
     def _connect(self, *, database: str | None = None) -> Generator[pyodbc.Connection, None, None]:
         db = database or "master"
-        conn_str = (
-            f"DRIVER={{{self.driver}}};"
-            f"SERVER={self.host},{self.port};"
-            f"DATABASE={db};"
-            f"UID={self.user};PWD={self.password};"
-            f"TrustServerCertificate=yes;"
+        conn_str = build_sql_server_connection_string(
+            host=self.host,
+            port=self.port,
+            database=db,
+            user=self.user,
+            password=self.password,
+            driver=self.driver,
         )
         try:
             conn = _import_pyodbc().connect(conn_str, autocommit=True)
@@ -370,12 +372,13 @@ class SqlServerSandbox(SandboxBackend):
     ) -> Generator[pyodbc.Connection, None, None]:
         db = database or self.source_database
         conn = _import_pyodbc().connect(
-            (
-                f"DRIVER={{{self.source_driver}}};"
-                f"SERVER={self.source_host},{self.source_port};"
-                f"DATABASE={db};"
-                f"UID={self.source_user};PWD={self.source_password};"
-                "TrustServerCertificate=yes;"
+            build_sql_server_connection_string(
+                host=self.source_host,
+                port=self.source_port,
+                database=db,
+                user=self.source_user,
+                password=self.source_password,
+                driver=self.source_driver,
             ),
             autocommit=True,
         )

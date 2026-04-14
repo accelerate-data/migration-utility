@@ -8,6 +8,11 @@ from pathlib import Path
 
 import pytest
 
+pytest.importorskip(
+    "mcp.types",
+    reason="mcp.types not available — skipping Oracle DDL MCP integration tests outside the mcp/ddl environment",
+)
+
 _DDL_MCP_DIR = Path(__file__).resolve().parents[4] / "mcp" / "ddl"
 if str(_DDL_MCP_DIR) not in sys.path:
     sys.path.insert(0, str(_DDL_MCP_DIR))
@@ -16,6 +21,8 @@ import server as ddl_server
 from shared.loader import load_directory
 from tests.helpers import git_init, run_setup_ddl_cli
 from tests.integration.runtime_helpers import ORACLE_MIGRATION_SCHEMA
+
+BRONZE_PROMOTION = "BRONZE_PROMOTION"
 
 
 @pytest.mark.oracle
@@ -39,20 +46,24 @@ class TestOracleLiveIntegration:
         self._extract_migrationtest(tmp_path)
 
         catalog = load_directory(tmp_path)
-        entry = catalog.get_table(f"{ORACLE_MIGRATION_SCHEMA}.CHANNELS")
-        assert entry is not None, f"{ORACLE_MIGRATION_SCHEMA}.CHANNELS not found in extracted DDL"
+        entry = catalog.get_table(f"{ORACLE_MIGRATION_SCHEMA}.{BRONZE_PROMOTION}")
+        assert entry is not None, (
+            f"{ORACLE_MIGRATION_SCHEMA}.{BRONZE_PROMOTION} not found in extracted DDL"
+        )
 
         cols = {
             c["name"].upper(): c
             for c in ddl_server._parse_columns(entry, dialect="oracle")
         }
+        assert "DESCRIPTION" in cols
+        assert "DISCOUNTPCT" in cols
         assert any(
             c["type"].startswith("VARCHAR2") for c in cols.values()
-        ), f"Expected VARCHAR2 columns in {ORACLE_MIGRATION_SCHEMA}.CHANNELS"
+        ), f"Expected VARCHAR2 columns in {ORACLE_MIGRATION_SCHEMA}.{BRONZE_PROMOTION}"
         assert any(
             c["type"] == "NUMBER" or c["type"].startswith("NUMBER(")
             for c in cols.values()
-        ), f"Expected NUMBER columns in {ORACLE_MIGRATION_SCHEMA}.CHANNELS"
+        ), f"Expected NUMBER columns in {ORACLE_MIGRATION_SCHEMA}.{BRONZE_PROMOTION}"
 
     def test_list_procedures_returns_migrationtest_procedures(self, tmp_path: Path, oracle_extract_env) -> None:
         git_init(tmp_path)
