@@ -7,7 +7,7 @@ from typing import Any
 
 import typer
 
-from shared.cli.output import console, error, success
+from shared.cli.output import console, error, print_table
 from shared.runtime_config import get_sandbox_name
 from shared.sandbox.base import SandboxBackend
 from shared.test_harness_support.manifest import _create_backend as _th_create_backend
@@ -68,7 +68,11 @@ def teardown_sandbox(
     )
 
     if result.status == "ok":
-        success(f"Sandbox {result.sandbox_database} dropped successfully.")
+        print_table(
+            "Teardown Summary",
+            [("Database", result.sandbox_database), ("Status", result.status)],
+            columns=("", ""),
+        )
     else:
         error(f"Sandbox teardown failed: {result.status}")
         for entry in (result.errors or []):
