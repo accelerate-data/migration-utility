@@ -32,6 +32,7 @@ _TARGET_ENV_MAPS: dict[str, dict[str, str]] = {
         "schema": "TARGET_LAKEHOUSE",
         "user": "TARGET_CLIENT_ID",
         "password_env": "TARGET_CLIENT_SECRET",
+        "tenant_id": "TARGET_TENANT_ID",
     },
     "duckdb": {
         "path": "TARGET_PATH",
@@ -49,7 +50,17 @@ def write_target_runtime_from_env(
 
     Returns the RuntimeRole written. Raises ValueError if manifest is missing.
     """
-    env_map = _TARGET_ENV_MAPS.get(technology, {})
+    if technology not in _TARGET_ENV_MAPS:
+        raise ValueError(
+            f"Unknown target technology '{technology}'. "
+            f"Supported: {list(_TARGET_ENV_MAPS)}"
+        )
+
+    manifest_path = project_root / "manifest.json"
+    if not manifest_path.exists():
+        raise ValueError(f"manifest.json not found at {manifest_path}. Run setup-source first.")
+
+    env_map = _TARGET_ENV_MAPS[technology]
     connection_kwargs: dict[str, str] = {}
     for field, env_var in env_map.items():
         value = os.environ.get(env_var, "")
@@ -62,10 +73,6 @@ def write_target_runtime_from_env(
         connection=RuntimeConnection(**connection_kwargs),
         schemas=RuntimeSchemas(source=source_schema, marts=None),
     )
-
-    manifest_path = project_root / "manifest.json"
-    if not manifest_path.exists():
-        raise ValueError(f"manifest.json not found at {manifest_path}. Run setup-source first.")
 
     manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
     if "runtime" not in manifest or not isinstance(manifest["runtime"], dict):
