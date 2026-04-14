@@ -22,7 +22,7 @@ defaultTest:
 
 tests:
   # ── insert-select ─────────────────────────────────────────────
-  - description: "insert-select — simple INSERT...SELECT extracted and refactored"
+  - description: "[smoke] insert-select — simple INSERT...SELECT extracted and refactored"
     prompts: ["refactoring-sql"]
     vars:
       fixture_path: "tests/evals/fixtures/refactoring-sql/insert-select"

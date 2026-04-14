@@ -19,7 +19,7 @@ defaultTest:
 
 tests:
   # ── happy path: single table generates spec cleanly ─────────
-  - description: "happy-path — InsertSelectTarget generates spec"
+  - description: "[smoke] happy-path — InsertSelectTarget generates spec"
     vars:
       fixture_path: "tests/evals/fixtures/cmd-generate-tests/happy-path"
       target_tables: "silver.InsertSelectTarget"

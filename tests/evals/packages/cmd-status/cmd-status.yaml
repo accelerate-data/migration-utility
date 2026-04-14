@@ -19,7 +19,7 @@ defaultTest:
 
 tests:
   # ── status-single-insertselecttarget: scoped + profiled ──────
-  - description: "status-single-insertselecttarget — scoped + profiled, no sandbox"
+  - description: "[smoke] status-single-insertselecttarget — scoped + profiled, no sandbox"
     vars:
       fixture_path: "tests/evals/fixtures/cmd-status/status-single-insertselecttarget"
       target_table: "silver.InsertSelectTarget"

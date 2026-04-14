@@ -13,7 +13,7 @@ providers:
   - file://../../providers/haiku-60.yaml
 
 tests:
-  - description: "ready-pass — merge fixture proceeds past scope readiness"
+  - description: "[smoke] ready-pass — merge fixture proceeds past scope readiness"
     prompts: ["analyzing-table"]
     vars:
       fixture_path: "tests/evals/fixtures/analyzing-table/merge"

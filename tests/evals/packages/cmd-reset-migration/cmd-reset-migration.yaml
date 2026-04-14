@@ -18,7 +18,7 @@ defaultTest:
       value: file://../../assertions/check-command-summary.js
 
 tests:
-  - description: "scope — reset clears scope and downstream pre-model state"
+  - description: "[smoke] scope — reset clears scope and downstream pre-model state"
     vars:
       fixture_path: "tests/evals/fixtures/cmd-reset-migration/base"
       instruction: "Run `/reset-migration scope silver.DimCustomer`."

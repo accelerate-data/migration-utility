@@ -21,7 +21,7 @@ defaultTest:
 
 tests:
   # ── happy path: 2 tables, both generate dbt models ──────────
-  - description: "happy-path — InsertSelectTarget + UpdateJoinTarget both generate models"
+  - description: "[smoke] happy-path — InsertSelectTarget + UpdateJoinTarget both generate models"
     vars:
       fixture_path: "tests/evals/fixtures/cmd-generate-model/happy-path"
       target_tables: "silver.InsertSelectTarget silver.UpdateJoinTarget"

@@ -19,7 +19,7 @@ defaultTest:
 
 tests:
   # ── happy path: 2 tables with scoping set, both profile ok ──
-  - description: "happy-path — InsertSelectTarget + UpdateJoinTarget both profile ok"
+  - description: "[smoke] happy-path — InsertSelectTarget + UpdateJoinTarget both profile ok"
     vars:
       fixture_path: "tests/evals/fixtures/cmd-profile/happy-path"
       target_tables: "silver.InsertSelectTarget silver.UpdateJoinTarget"

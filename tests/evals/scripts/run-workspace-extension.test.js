@@ -92,6 +92,15 @@ function touchMtime(target, mtimeMs) {
   fs.utimesSync(target, mtime, mtime);
 }
 
+function countSmokeDescriptions(packageConfigPath) {
+  const relativePath = packageConfigPath.startsWith('packages/')
+    ? packageConfigPath.slice('packages/'.length)
+    : packageConfigPath;
+  const configText = readText(path.join(EVAL_PACKAGES_DIR, relativePath));
+  const matches = configText.match(/^\s*-\s+description:\s*["']?\[smoke\]/gm);
+  return matches === null ? 0 : matches.length;
+}
+
 test('workspace extension entrypoint is wired into eval scripts and ignores run output', () => {
   const packageJson = readJson(EVAL_PACKAGE_JSON);
   const gitignoreEntries = readText(ROOT_GITIGNORE)
@@ -147,6 +156,15 @@ test('grouped eval scripts exist and point only at package configs', () => {
     for (const liveConfig of LIVE_PACKAGE_CONFIGS) {
       assert.equal(configs.includes(liveConfig), false);
     }
+  }
+});
+
+test('each eval package config has exactly one smoke scenario', () => {
+  const packageJson = readJson(EVAL_PACKAGE_JSON);
+  const smokePackageConfigs = extractEvalConfigs(packageJson.scripts['eval:smoke']);
+
+  for (const packageConfigPath of smokePackageConfigs) {
+    assert.equal(countSmokeDescriptions(packageConfigPath), 1, packageConfigPath);
   }
 });
 

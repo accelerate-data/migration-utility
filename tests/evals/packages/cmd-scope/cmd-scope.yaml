@@ -19,7 +19,7 @@ defaultTest:
 
 tests:
   # ── happy path: 2 tables, both resolve ──────────────────────
-  - description: "happy-path — DimProduct + DimCustomer both resolve"
+  - description: "[smoke] happy-path — DimProduct + DimCustomer both resolve"
     vars:
       fixture_path: "tests/evals/fixtures/cmd-scope/happy-path"
       target_tables: "silver.DimProduct silver.DimCustomer"
