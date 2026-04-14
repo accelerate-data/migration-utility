@@ -62,7 +62,7 @@ tests:
   # ── oracle regression ────────────────────────────────────────
   # Verifies that the profile command produces a valid profile for an Oracle target
   # table. Pre-committed scoping section allows the guard to pass without running scope.
-  - description: "oracle — profile — CHANNEL_SALES_SUMMARY profiles as fact_transaction"
+  - description: "oracle — profile — CHANNEL_SALES_SUMMARY profiles as fact_aggregate"
     provider: file://../../providers/sonnet-120.yaml
     vars:
       fixture_path: "tests/evals/fixtures/oracle-regression"
