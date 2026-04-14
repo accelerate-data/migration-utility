@@ -390,7 +390,6 @@ Require explicit confirmation:
 
 Type `reset all` to confirm global reset.
 ```
-```
 
 Document that sandbox teardown must run first when configured and that the next required step after success is `/setup-ddl`.
 
