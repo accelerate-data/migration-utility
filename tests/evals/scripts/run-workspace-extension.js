@@ -33,10 +33,6 @@ function sanitizeSegment(value, fallback) {
   return normalized || fallback;
 }
 
-function relativePosixPath(targetPath) {
-  return path.relative(REPO_ROOT, targetPath).split(path.sep).join(path.posix.sep);
-}
-
 function clearVolatileArtifacts(projectRoot) {
   for (const relativePath of VOLATILE_PATHS) {
     fs.rmSync(path.join(projectRoot, relativePath), { force: true, recursive: true });
@@ -237,7 +233,7 @@ async function extensionHook(hookName, context, options = {}) {
   validateManifest(manifest, runRoot);
   pinFixtureDatabase(runRoot, manifest);
 
-  context.test.vars.run_path = relativePosixPath(runRoot);
+  context.test.vars.run_path = runRoot;
   return context;
 }
 
