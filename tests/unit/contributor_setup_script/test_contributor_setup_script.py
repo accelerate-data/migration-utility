@@ -277,8 +277,8 @@ def test_fix_mode_bootstraps_repo_local_envs(tmp_path: Path) -> None:
     assert payload["status"] == "ready"
     assert payload["mode"] == "fix"
     log_lines = (tmp_path / "calls.log").read_text(encoding="utf-8").splitlines()
-    assert "uv sync --extra dev" in log_lines
-    assert log_lines.count("uv sync --extra dev") == 2
+    assert log_lines.count("uv sync --extra dev") == 1
+    assert log_lines.count("uv sync") == 1
     assert "npm install --no-audit --no-fund" in log_lines
     assert "docker info" in log_lines
 
