@@ -31,15 +31,17 @@ from typing import Any, Optional
 import typer
 
 from shared.loader_data import CorruptJSONError
-from shared.setup_ddl_core import (
-    UnsupportedOperationError,
+from shared.setup_ddl_support.catalog_write import run_write_catalog
+from shared.setup_ddl_support.extract import (
     run_assemble_modules,
     run_assemble_tables,
     run_extract,
     run_list_databases,
     run_list_schemas,
+)
+from shared.setup_ddl_support.manifest import (
+    UnsupportedOperationError,
     run_read_handoff,
-    run_write_catalog,
     run_write_manifest,
     run_write_partial_manifest,
 )

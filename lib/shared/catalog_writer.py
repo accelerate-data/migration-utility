@@ -115,15 +115,8 @@ def run_write_view_scoping(
 
     # Determine status from content
     has_sql_elements = scoping.get("sql_elements") is not None
-    has_parse_errors = any(
-        entry.get("code") == "DDL_PARSE_ERROR"
-        for entry in scoping.get("errors", [])
-        if isinstance(entry, dict)
-    )
     if has_sql_elements:
         status = "analyzed"
-    elif has_parse_errors:
-        status = "error"
     else:
         status = "error"
 

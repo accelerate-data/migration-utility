@@ -1,12 +1,12 @@
 from __future__ import annotations
 
-import json
 import logging
 from pathlib import Path
 from typing import Any
 
 from shared.db_connect import cursor_to_dicts as _cursor_rows
 from shared.db_connect import oracle_connect as _oracle_connect
+from shared.setup_ddl_support.db_helpers import build_schema_in_clause, write_staging_json
 
 logger = logging.getLogger(__name__)
 
@@ -25,24 +25,16 @@ def _oracle_type_to_class_desc(oracle_type: str) -> str:
     return mapping.get(oracle_type.upper(), oracle_type.upper())
 
 
-def _owners_sql(schemas: list[str]) -> str:
-    for s in schemas:
-        if "'" in s or ";" in s:
-            raise ValueError(f"Invalid schema name: {s!r}")
-    return ", ".join(f"'{s.upper()}'" for s in schemas)
-
-
 def _write(staging_dir: Path, filename: str, rows: list[Any]) -> None:
-    path = staging_dir / filename
-    path.write_text(json.dumps(rows, default=str), encoding="utf-8")
-    logger.info("event=oracle_query file=%s rows=%d", filename, len(rows))
+    """Write rows as JSON to staging_dir / filename."""
+    write_staging_json(staging_dir, filename, rows, logger=logger, event_name="oracle_query")
 
 
 # ── Extraction functions ──────────────────────────────────────────────────────
 
 
 def _extract_definitions(conn: Any, schemas: list[str]) -> list[dict[str, Any]]:
-    owners = _owners_sql(schemas)
+    owners = build_schema_in_clause(schemas, uppercase=True)
     cur = conn.cursor()
     cur.execute(
         f"""
@@ -88,7 +80,7 @@ def _extract_view_ddl(conn: Any, schemas: list[str]) -> list[dict[str, Any]]:
     Falls back to DBMS_METADATA.GET_DDL per view when TEXT is empty or at the
     32,767-byte LONG truncation boundary (oracledb thin mode silently truncates).
     """
-    owners = _owners_sql(schemas)
+    owners = build_schema_in_clause(schemas, uppercase=True)
     cur = conn.cursor()
     cur.execute(
         f"""
@@ -142,7 +134,7 @@ def _extract_view_ddl(conn: Any, schemas: list[str]) -> list[dict[str, Any]]:
 
 
 def _extract_table_columns(conn: Any, schemas: list[str]) -> list[dict[str, Any]]:
-    owners = _owners_sql(schemas)
+    owners = build_schema_in_clause(schemas, uppercase=True)
     cur = conn.cursor()
     cur.execute(
         f"""
@@ -173,7 +165,7 @@ def _extract_table_columns(conn: Any, schemas: list[str]) -> list[dict[str, Any]
 
 
 def _extract_pk_unique(conn: Any, schemas: list[str]) -> list[dict[str, Any]]:
-    owners = _owners_sql(schemas)
+    owners = build_schema_in_clause(schemas, uppercase=True)
     cur = conn.cursor()
     cur.execute(
         f"""
@@ -203,7 +195,7 @@ def _extract_pk_unique(conn: Any, schemas: list[str]) -> list[dict[str, Any]]:
 
 
 def _extract_foreign_keys(conn: Any, schemas: list[str]) -> list[dict[str, Any]]:
-    owners = _owners_sql(schemas)
+    owners = build_schema_in_clause(schemas, uppercase=True)
     cur = conn.cursor()
     cur.execute(
         f"""
@@ -239,7 +231,7 @@ def _extract_foreign_keys(conn: Any, schemas: list[str]) -> list[dict[str, Any]]
 
 
 def _extract_identity_columns(conn: Any, schemas: list[str]) -> list[dict[str, Any]]:
-    owners = _owners_sql(schemas)
+    owners = build_schema_in_clause(schemas, uppercase=True)
     cur = conn.cursor()
     cur.execute(
         f"""
@@ -272,7 +264,7 @@ def _extract_object_types(conn: Any, schemas: list[str]) -> tuple[list[dict[str,
         "FUNCTION": "FN",
         "MATERIALIZED VIEW": "V",
     }
-    owners = _owners_sql(schemas)
+    owners = build_schema_in_clause(schemas, uppercase=True)
     cur = conn.cursor()
     cur.execute(
         f"""
@@ -324,7 +316,7 @@ _VALID_DEP_TYPES = {"PROCEDURE", "VIEW", "FUNCTION"}
 def _extract_dmf(conn: Any, schemas: list[str], dep_type: str) -> list[dict[str, Any]]:
     if dep_type not in _VALID_DEP_TYPES:
         raise ValueError(f"dep_type must be one of {_VALID_DEP_TYPES}, got: {dep_type!r}")
-    owners = _owners_sql(schemas)
+    owners = build_schema_in_clause(schemas, uppercase=True)
     cur = conn.cursor()
     cur.execute(
         f"""
@@ -357,7 +349,7 @@ def _extract_dmf(conn: Any, schemas: list[str], dep_type: str) -> list[dict[str,
 
 
 def _extract_proc_params(conn: Any, schemas: list[str]) -> list[dict[str, Any]]:
-    owners = _owners_sql(schemas)
+    owners = build_schema_in_clause(schemas, uppercase=True)
     cur = conn.cursor()
     cur.execute(
         f"""
@@ -391,7 +383,7 @@ def _extract_packages(conn: Any, schemas: list[str]) -> list[dict[str, Any]]:
 
     Returns a list of dicts with package_name, member_name, member_type, schema_name.
     """
-    owners = _owners_sql(schemas)
+    owners = build_schema_in_clause(schemas, uppercase=True)
     cur = conn.cursor()
     cur.execute(
         f"""

@@ -57,26 +57,6 @@ def load_table_columns(project_root: Path, table_fqn: str) -> list[dict[str, Any
         return cat.columns
     return []
 
-
-def load_source_columns(project_root: Path, source_fqn: str) -> list[dict[str, Any]]:
-    """Load column metadata for a source table or view.
-
-    Checks catalog/tables/<fqn>.json first; falls back to catalog/views/<fqn>.json.
-    Returns an empty list when neither catalog file exists.
-    """
-    cat = load_table_catalog(project_root, source_fqn)
-    if cat:
-        if cat.columns:
-            return cat.columns
-        logger.warning("event=source_columns_empty source=%s catalog=tables", source_fqn)
-    vcat = load_view_catalog(project_root, source_fqn)
-    if vcat:
-        if vcat.columns:
-            return vcat.columns
-        logger.warning("event=source_columns_empty source=%s catalog=views", source_fqn)
-    return []
-
-
 def collect_source_tables(project_root: Path, writer_fqn: str) -> list[str]:
     """Collect source tables and views from the writer procedure's references.
 
@@ -152,8 +132,6 @@ def sandbox_metadata(project_root: Path) -> dict[str, Any] | None:
 
 def load_test_spec(project_root: Path, table_fqn: str) -> dict[str, Any] | None:
     """Load a test spec file if it exists."""
-    import logging as _logging
-    _log = _logging.getLogger(__name__)
     norm = normalize(table_fqn)
     spec_path = project_root / "test-specs" / f"{norm}.json"
     if not spec_path.exists():

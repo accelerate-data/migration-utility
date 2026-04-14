@@ -25,23 +25,26 @@ fi
 script_dir="$(cd "$(dirname "$0")" && pwd)"
 repo_root="$(cd "$script_dir/.." && pwd)"
 
+json_escape() {
+  local value="${1//\\/\\\\}"
+  value="${value//\"/\\\"}"
+  value="${value//$'\n'/\\n}"
+  value="${value//$'\r'/\\r}"
+  value="${value//$'\t'/\\t}"
+  printf '%s' "$value"
+}
+
 json_check() {
   local status="$1"
   local message="$2"
   local next_action="${3:-}"
-  CHECK_STATUS="$status" CHECK_MESSAGE="$message" CHECK_NEXT_ACTION="$next_action" python3 - <<'PY'
-import json
-import os
-
-payload = {
-    "status": os.environ["CHECK_STATUS"],
-    "message": os.environ["CHECK_MESSAGE"],
-}
-next_action = os.environ.get("CHECK_NEXT_ACTION", "")
-if next_action:
-    payload["next_action"] = next_action
-print(json.dumps(payload))
-PY
+  local payload
+  payload="{\"status\":\"$(json_escape "$status")\",\"message\":\"$(json_escape "$message")\""
+  if [[ -n "$next_action" ]]; then
+    payload="${payload},\"next_action\":\"$(json_escape "$next_action")\""
+  fi
+  payload="${payload}}"
+  printf '%s\n' "$payload"
 }
 
 print_step() {
@@ -58,12 +61,18 @@ PY
 }
 
 array_json() {
-  python3 - <<'PY' "$@"
-import json
-import sys
-
-print(json.dumps(sys.argv[1:]))
-PY
+  local first=true
+  local item=""
+  printf '['
+  for item in "$@"; do
+    if [[ "$first" == true ]]; then
+      first=false
+    else
+      printf ','
+    fi
+    printf '"%s"' "$(json_escape "$item")"
+  done
+  printf ']'
 }
 
 join_items() {
@@ -269,18 +278,7 @@ else
       java_ok=false
     else
       java_version_output="$(java -version 2>&1 | head -n 1 || true)"
-      java_major="$(JAVA_VERSION_OUTPUT="$java_version_output" python3 - <<'PY'
-import os
-import re
-
-text = os.environ.get("JAVA_VERSION_OUTPUT", "")
-match = re.search(r'"(\d+)(?:\.\d+)?', text)
-if not match:
-    print("")
-else:
-    print(match.group(1))
-PY
-)"
+      java_major="$(printf '%s' "$java_version_output" | sed -nE 's/.*"([0-9]+)(\.[0-9]+)?(.+)?".*/\1/p')"
       if [[ -z "$java_major" || "$java_major" -lt 11 ]]; then
         java_ok=false
       fi

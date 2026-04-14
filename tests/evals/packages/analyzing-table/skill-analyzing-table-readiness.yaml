@@ -43,7 +43,7 @@ tests:
     vars:
       fixture_path: "tests/evals/fixtures/analyzing-table/merge"
       target_table: "silver.MissingTarget"
-      expected_output_terms: "catalog_missing"
+      expected_output_terms: "object_not_found"
     assert:
       - type: javascript
         value: file://../../assertions/check-output-terms.js
