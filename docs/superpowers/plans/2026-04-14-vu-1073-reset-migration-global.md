@@ -378,7 +378,7 @@ Rewrite `commands/reset-migration.md` so it explicitly documents two modes:
 
 Add the global-mode preflight contract:
 
-```md
+```text
 For `/reset-migration all`, inspect the current project first and show exactly what exists and will be removed:
 
 - `runtime.sandbox` configured / not configured
@@ -388,7 +388,6 @@ For `/reset-migration all`, inspect the current project first and show exactly w
 
 Require explicit confirmation:
 
-```text
 Type `reset all` to confirm global reset.
 ```
 ```
@@ -444,17 +443,15 @@ git commit -m "feat: document global reset migration command"
 
 In `commands/reset-migration.md`, add the exact sequence for `all`:
 
-```md
+```text
 If `runtime.sandbox` is configured:
 
 1. Show it in the preflight summary.
-2. After explicit confirmation, run:
+1. After explicit confirmation, run:
 
-   ```bash
-   uv run --project "${CLAUDE_PLUGIN_ROOT}/lib" test-harness sandbox-down
-   ```
+   `uv run --project "${CLAUDE_PLUGIN_ROOT}/lib" test-harness sandbox-down`
 
-3. If sandbox teardown fails, stop and report the failure. Do not run the global reset CLI afterward.
+1. If sandbox teardown fails, stop and report the failure. Do not run the global reset CLI afterward.
 ```
 
 This keeps teardown orchestration in the command wrapper, not in `migrate-util`.
