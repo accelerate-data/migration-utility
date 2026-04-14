@@ -14,7 +14,7 @@ compares all 20 output tables after baseline load and after each of 5 delta
 scenarios. SQL Server is the reference dialect.
 
 Usage:
-    uv run test-fixtures/parity/validate.py [--table TABLE]
+    uv run scripts/demo-warehouse/parity/validate.py [--table TABLE]
 
 Options:
     --table TABLE   Validate a single table only (default: all 20)

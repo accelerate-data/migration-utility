@@ -1,5 +1,5 @@
 -- Oracle SH schema synthetic procedure for oracle-regression eval fixtures.
--- Source: scripts/sql/oracle/synthetic_sales_procedure.sql
+-- Source: tests/integration/oracle/fixtures/synthetic-sales-procedure.sql
 --
 -- Patterns covered by the Oracle regression fixture conventions:
 --   Pattern  1 — INSERT...SELECT (INSERT INTO ... WITH ... SELECT)

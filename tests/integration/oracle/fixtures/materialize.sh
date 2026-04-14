@@ -14,8 +14,8 @@ if [[ -z "${ORACLE_PWD:-}" ]]; then
 fi
 
 SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
-REPO_ROOT="$(cd "${SCRIPT_DIR}/../../.." && pwd)"
-FIXTURE_SQL="${REPO_ROOT}/scripts/sql/oracle/migration_test.sql"
+REPO_ROOT="$(cd "${SCRIPT_DIR}/../../../.." && pwd)"
+FIXTURE_SQL="${REPO_ROOT}/tests/integration/oracle/fixtures/migration-test.sql"
 
 if [[ ! -f "${FIXTURE_SQL}" ]]; then
   echo "Oracle fixture SQL file not found: ${FIXTURE_SQL}" >&2

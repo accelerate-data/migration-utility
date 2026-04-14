@@ -19,7 +19,7 @@ docker start pg-test
 From the repo root:
 
 ```bash
-uv run test-fixtures/parity/validate.py
+uv run scripts/demo-warehouse/parity/validate.py
 ```
 
 The script:
@@ -34,7 +34,7 @@ Total: 6 rounds × 20 tables = 120 table comparisons.
 ### Validate a single table
 
 ```bash
-uv run test-fixtures/parity/validate.py --table dim.dim_customer
+uv run scripts/demo-warehouse/parity/validate.py --table dim.dim_customer
 ```
 
 ## Output

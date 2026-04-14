@@ -21,7 +21,7 @@ def _import_oracledb():
 
 
 class OracleOperations(DatabaseOperations):
-    fixture_script_relpath = "scripts/sql/oracle/materialize-migration-test.sh"
+    fixture_script_relpath = "tests/integration/oracle/fixtures/materialize.sh"
 
     def environment_name(self) -> str:
         return self.role.connection.service or "FREEPDB1"

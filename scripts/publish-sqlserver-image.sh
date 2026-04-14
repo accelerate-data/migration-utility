@@ -15,7 +15,7 @@
 # source-fixture workflows. It does not bake, publish, or validate the
 # schema-level MigrationTest contract used by SQL Server integration/eval flows;
 # that contract is materialized on demand by
-# scripts/sql/sql_server/materialize-migration-test.sh inside the configured
+# tests/integration/sql_server/fixtures/materialize.sh inside the configured
 # SQL Server database.
 #
 # Prerequisites:
@@ -94,16 +94,16 @@ echo "Phase 2: Creating KimballFixture database..."
 run_sql -Q "CREATE DATABASE KimballFixture;"
 
 echo "  Loading schema..."
-run_sql_file "$REPO_ROOT/test-fixtures/schema/sqlserver.sql" KimballFixture
+run_sql_file "$REPO_ROOT/scripts/demo-warehouse/schema/sqlserver.sql" KimballFixture
 
 echo "  Loading baseline data (~47K rows, this may take a few minutes)..."
-run_sql_file "$REPO_ROOT/test-fixtures/data/baseline/sqlserver.sql" KimballFixture
+run_sql_file "$REPO_ROOT/scripts/demo-warehouse/data/baseline/sqlserver.sql" KimballFixture
 
 echo "  Loading stored procedures..."
-run_sql_file "$REPO_ROOT/test-fixtures/procedures/sqlserver.sql" KimballFixture
+run_sql_file "$REPO_ROOT/scripts/demo-warehouse/procedures/sqlserver.sql" KimballFixture
 
 echo "  Applying delta scenarios..."
-for delta_dir in "$REPO_ROOT"/test-fixtures/data/delta/*/; do
+for delta_dir in "$REPO_ROOT"/scripts/demo-warehouse/data/delta/*/; do
     delta_name="$(basename "$delta_dir")"
     if [[ -f "$delta_dir/sqlserver.sql" ]]; then
         echo "    $delta_name"

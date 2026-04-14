@@ -15,7 +15,7 @@ from shared.runtime_config_models import RuntimeConnection, RuntimeRole
 def test_materialize_migration_test_uses_adapter_script_and_env(
     monkeypatch: pytest.MonkeyPatch, tmp_path: Path
 ) -> None:
-    script = tmp_path / "scripts/sql/sql_server/materialize-migration-test.sh"
+    script = tmp_path / "tests/integration/sql_server/fixtures/materialize.sh"
     script.parent.mkdir(parents=True)
     script.write_text("#!/bin/sh\nexit 0\n", encoding="utf-8")
     script.chmod(0o755)
@@ -69,7 +69,7 @@ def test_materialize_migration_test_logs_sql_server_lifecycle(
     tmp_path: Path,
     caplog: pytest.LogCaptureFixture,
 ) -> None:
-    script = tmp_path / "scripts/sql/sql_server/materialize-migration-test.sh"
+    script = tmp_path / "tests/integration/sql_server/fixtures/materialize.sh"
     script.parent.mkdir(parents=True)
     script.write_text("#!/bin/sh\nexit 0\n", encoding="utf-8")
     script.chmod(0o755)
@@ -108,7 +108,7 @@ def test_materialize_migration_test_logs_oracle_failure(
     tmp_path: Path,
     caplog: pytest.LogCaptureFixture,
 ) -> None:
-    script = tmp_path / "scripts/sql/oracle/materialize-migration-test.sh"
+    script = tmp_path / "tests/integration/oracle/fixtures/materialize.sh"
     script.parent.mkdir(parents=True)
     script.write_text("#!/bin/sh\nexit 12\n", encoding="utf-8")
     script.chmod(0o755)
@@ -143,7 +143,7 @@ def test_materialize_migration_test_logs_oracle_failure(
 def test_sql_server_materializer_pyodbc_fallback_uses_shared_connection_builder() -> None:
     script_path = (
         Path(__file__).resolve().parents[3]
-        / "scripts/sql/sql_server/materialize-migration-test.sh"
+        / "tests/integration/sql_server/fixtures/materialize.sh"
     )
     script_text = script_path.read_text(encoding="utf-8")
 

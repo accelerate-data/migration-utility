@@ -24,7 +24,7 @@ def _import_pyodbc():
 
 
 class SqlServerOperations(DatabaseOperations):
-    fixture_script_relpath = "scripts/sql/sql_server/materialize-migration-test.sh"
+    fixture_script_relpath = "tests/integration/sql_server/fixtures/materialize.sh"
 
     def environment_name(self) -> str:
         return self.role.connection.database or "MigrationTest"

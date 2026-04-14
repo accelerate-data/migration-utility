@@ -328,18 +328,18 @@ Schema, data, and procedures are pre-loaded in Docker images built via `scripts/
 
 ```bash
 # SQL Server
-docker cp test-fixtures/schema/sqlserver.sql sql-test:/tmp/
+docker cp scripts/demo-warehouse/schema/sqlserver.sql sql-test:/tmp/
 docker exec sql-test sqlcmd -d KimballFixture -i /tmp/sqlserver.sql
-docker cp test-fixtures/procedures/sqlserver.sql sql-test:/tmp/
+docker cp scripts/demo-warehouse/procedures/sqlserver.sql sql-test:/tmp/
 docker exec sql-test sqlcmd -d KimballFixture -i /tmp/procedures.sql
 
 # Oracle
-sqlplus kimball/kimball@localhost:1521/FREEPDB1 @test-fixtures/schema/oracle.sql
-sqlplus kimball/kimball@localhost:1521/FREEPDB1 @test-fixtures/procedures/oracle.sql
+sqlplus kimball/kimball@localhost:1521/FREEPDB1 @scripts/demo-warehouse/schema/oracle.sql
+sqlplus kimball/kimball@localhost:1521/FREEPDB1 @scripts/demo-warehouse/procedures/oracle.sql
 
 # PostgreSQL
-psql -U postgres -d kimball_fixture -f test-fixtures/schema/postgres.sql
-psql -U postgres -d kimball_fixture -f test-fixtures/procedures/postgres.sql
+psql -U postgres -d kimball_fixture -f scripts/demo-warehouse/schema/postgres.sql
+psql -U postgres -d kimball_fixture -f scripts/demo-warehouse/procedures/postgres.sql
 ```
 
-Cross-dialect output parity validated via `test-fixtures/parity/validate.py`.
+Cross-dialect output parity validated via `scripts/demo-warehouse/parity/validate.py`.

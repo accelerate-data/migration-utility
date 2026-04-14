@@ -13,8 +13,8 @@ if [[ -z "${SA_PASSWORD:-}" ]]; then
 fi
 
 SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
-REPO_ROOT="$(cd "${SCRIPT_DIR}/../../.." && pwd)"
-SQL_FILE="${REPO_ROOT}/scripts/sql/create-migration-test-db.sql"
+REPO_ROOT="$(cd "${SCRIPT_DIR}/../../../.." && pwd)"
+SQL_FILE="${REPO_ROOT}/tests/integration/sql_server/fixtures/create-migration-test.sql"
 
 if [[ ! -f "${SQL_FILE}" ]]; then
   echo "SQL fixture source not found: ${SQL_FILE}" >&2
