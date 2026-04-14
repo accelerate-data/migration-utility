@@ -25,6 +25,7 @@ If information is mainly operational or contributor-facing, put it in `docs/refe
 - [Contributor Setup](contributor-setup/README.md) — contributor onboarding contract, agent bootstrap script shape, and maintainer-readiness rules
 - [Init ad-migration Prereqs](init-ad-migration-prereqs/README.md) — separates MCP startup readiness from live connection readiness and assigns repo-wide vs machine-local env ownership
 - [Reset Migration Global Mode](reset-migration-global/README.md) — full-project migration-state reset that preserves init scaffolding and requires destructive confirmation
+- [ad-migration CLI](ad-migration-cli/README.md) — standalone CLI for deterministic commands, module layout, command flag shapes, env var contract, plugin evolution, and distribution
 
 - [Eval DB Persistence](eval-db-persistence/README.md) — symlink worktree promptfoo DB to main repo so eval results accumulate across runs
 - [Tiered Eval Groups](tiered-eval-groups/README.md) — grouped package runs, one smoke scenario per package, and live-only platform suites
