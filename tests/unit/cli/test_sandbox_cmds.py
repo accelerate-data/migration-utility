@@ -79,6 +79,16 @@ def test_teardown_sandbox_yes_flag_skips_prompt(tmp_path):
     mock_backend.sandbox_down.assert_called_once_with("__test_abc123")
 
 
+def test_teardown_sandbox_no_sandbox_exits_1(tmp_path):
+    with (
+        patch("shared.cli.teardown_sandbox_cmd._load_manifest", return_value={}),
+        patch("shared.cli.teardown_sandbox_cmd._get_sandbox_name", return_value=None),
+    ):
+        result = runner.invoke(app, ["teardown-sandbox", "--yes", "--project-root", str(tmp_path)])
+
+    assert result.exit_code == 1
+
+
 def test_teardown_sandbox_error_exits_nonzero(tmp_path):
     from shared.output_models.sandbox import SandboxDownOutput
     error_out = SandboxDownOutput(sandbox_database="__test_abc123", status="error")

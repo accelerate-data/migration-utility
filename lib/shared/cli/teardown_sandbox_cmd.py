@@ -55,7 +55,11 @@ def teardown_sandbox(
 
     console.print(f"Tearing down sandbox database: [bold]{sandbox_db}[/bold]...")
     with console.status("Running sandbox_down..."):
-        result = backend.sandbox_down(sandbox_db)
+        try:
+            result = backend.sandbox_down(sandbox_db)
+        except (OSError, ConnectionError) as exc:
+            error(f"Connection error: {exc}")
+            raise typer.Exit(code=2) from exc
 
     logger.info(
         "event=sandbox_down status=%s sandbox_database=%s",

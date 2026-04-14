@@ -51,6 +51,23 @@ def test_setup_target_writes_runtime_and_runs_orchestrator(tmp_path, monkeypatch
     mock_setup.assert_called_once_with(tmp_path)
 
 
+def test_setup_target_exits_1_on_missing_manifest(tmp_path):
+    # write_target_runtime_from_env raises ValueError when manifest.json is absent.
+    with (
+        patch("shared.cli.setup_target_cmd.require_target_vars"),
+        patch(
+            "shared.cli.setup_target_cmd.write_target_runtime_from_env",
+            side_effect=ValueError("manifest.json not found"),
+        ),
+    ):
+        result = runner.invoke(
+            app,
+            ["setup-target", "--technology", "snowflake", "--project-root", str(tmp_path)],
+        )
+
+    assert result.exit_code == 1
+
+
 def test_setup_target_no_commit(tmp_path, monkeypatch):
     _write_manifest(tmp_path)
     monkeypatch.setenv("TARGET_PATH", "/tmp/warehouse.duckdb")

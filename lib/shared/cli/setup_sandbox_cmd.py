@@ -7,7 +7,7 @@ from typing import Any
 
 import typer
 
-from shared.cli.output import console, error, success
+from shared.cli.output import console, error, print_table, success
 from shared.loader_io import write_manifest_sandbox
 from shared.runtime_config import get_extracted_schemas
 from shared.sandbox.base import SandboxBackend
@@ -59,7 +59,11 @@ def setup_sandbox(
 
     console.print(f"Provisioning sandbox for schemas: [bold]{', '.join(schemas)}[/bold]...")
     with console.status("Running sandbox_up..."):
-        result = backend.sandbox_up(schemas=schemas)
+        try:
+            result = backend.sandbox_up(schemas=schemas)
+        except (OSError, ConnectionError) as exc:
+            error(f"Connection error: {exc}")
+            raise typer.Exit(code=2) from exc
 
     logger.info(
         "event=sandbox_up status=%s sandbox_database=%s tables=%d views=%d procedures=%d errors=%d",
@@ -73,17 +77,21 @@ def setup_sandbox(
 
     _write_sandbox_to_manifest(root, result.sandbox_database)
 
-    success(f"Sandbox database: {result.sandbox_database}")
-    success(f"Tables cloned:    {len(result.tables_cloned)}")
-    success(f"Views cloned:     {len(result.views_cloned)}")
-    success(f"Procedures cloned:{len(result.procedures_cloned)}")
+    print_table(
+        "Sandbox Setup",
+        [
+            ("Database", result.sandbox_database),
+            ("Tables cloned", str(len(result.tables_cloned))),
+            ("Views cloned", str(len(result.views_cloned))),
+            ("Procedures cloned", str(len(result.procedures_cloned))),
+            ("Status", result.status),
+        ],
+        columns=("", ""),
+    )
 
     if result.errors:
         for entry in result.errors:
             error(f"[{entry.code}] {entry.message}")
-        console.print(f"[yellow]Sandbox status: {result.status}[/yellow]")
-    else:
-        console.print(f"[green]Sandbox status: {result.status}[/green]")
 
     if result.status == "error":
         raise typer.Exit(code=1)
