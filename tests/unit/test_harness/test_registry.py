@@ -9,7 +9,7 @@ from unittest.mock import MagicMock, patch
 import pytest
 
 from shared.sandbox import get_backend
-from shared.sandbox.base import SandboxBackend, generate_sandbox_name
+from shared.sandbox.base import generate_sandbox_name
 from shared.sandbox.oracle import (
     OracleSandbox,
     _validate_oracle_identifier,

@@ -7,14 +7,10 @@ fixture-based execution.  No Docker or live database required.
 from __future__ import annotations
 
 import json
-from pathlib import Path
-
-import pytest
 
 from shared.deps import collect_deps
 from shared.pipeline_status import object_pipeline_status
 
-from .conftest import _make_project
 
 
 # ── Pipeline status tests ─────────────────────────────────────────────────────

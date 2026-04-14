@@ -13,9 +13,6 @@ from tests.helpers import run_setup_ddl_cli as _run_cli
 from .conftest import _write_json
 
 
-FIXTURE_DIR = Path(__file__).parent / "fixtures" / "oracle"
-
-
 # ── Unit: write-partial-manifest ────────────────────────────────────────────
 
 

@@ -7,7 +7,6 @@ execution.  No Docker or live database required.
 from __future__ import annotations
 
 import json
-import subprocess
 import tempfile
 from pathlib import Path
 

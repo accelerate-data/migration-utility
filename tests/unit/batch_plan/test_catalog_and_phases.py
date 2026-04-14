@@ -7,9 +7,6 @@ fixture-based execution.  No Docker or live database required.
 from __future__ import annotations
 
 import json
-from pathlib import Path
-
-import pytest
 
 from shared.batch_plan import (
     _CatalogInventory,
