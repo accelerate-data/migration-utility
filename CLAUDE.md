@@ -17,24 +17,3 @@
 ### Sub-agent rules
 
 Commit + push before reporting completion.
-
-## Custom Skills
-
-### /create-linear-issue
-
-When the user runs /create-linear-issue or asks to create a Linear issue, log a bug, file a ticket, track a feature idea, or decompose an issue into smaller ones,
-read and follow the skill at `.claude/skills/creating-linear-issues/SKILL.md`.
-
-### /implement-linear-issue
-
-When the user runs /implement-linear-issue, or mentions a Linear issue identifier (e.g. "MU-123"), or asks to implement, build, fix, or work on a Linear issue,
-read and follow the skill at `.claude/skills/implementing-linear-issues/SKILL.md`.
-
-### /raise-linear-pr
-
-When the user asks to raise the PR, open the PR, finish the PR phase, or move an implemented issue into review,
-read and follow the skill at `.claude/skills/raising-linear-prs/SKILL.md`.
-
-### /close-linear-issue
-
-When the user runs /close-linear-issue, or asks to close, complete, merge, or ship a Linear issue, read and follow the skill at `.claude/skills/closing-linear-issues/SKILL.md`.
