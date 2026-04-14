@@ -5,7 +5,7 @@ import logging
 import os
 import subprocess
 from pathlib import Path
-from typing import Optional
+from typing import Any
 
 import typer
 
@@ -22,7 +22,7 @@ def setup_source(
     technology: str = typer.Option(..., "--technology", help="Source technology: sql_server or oracle"),
     schemas: str = typer.Option(..., "--schemas", help="Comma-separated schema names to extract (e.g. silver,gold)"),
     no_commit: bool = typer.Option(False, "--no-commit", help="Skip git commit after extraction"),
-    project_root: Optional[Path] = typer.Option(None, "--project-root"),
+    project_root: Path | None = typer.Option(None, "--project-root"),
 ) -> None:
     """Validate source env vars and extract DDL from the source database.
 
@@ -90,7 +90,7 @@ def _check_source_prereqs(technology: str) -> None:
             success(f"{name} available")
 
 
-def _report_extract(result: dict) -> None:
+def _report_extract(result: dict[str, Any]) -> None:
     for key, label in (
         ("tables", "Tables"),
         ("procedures", "Procedures"),
