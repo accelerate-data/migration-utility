@@ -1481,6 +1481,26 @@ def test_run_reset_migration_all_reports_missing_paths_as_noop(tmp_path: Path) -
     assert (dst / "dbt").exists() is False
 
 
+def test_run_reset_migration_all_invalid_manifest_preserves_directories(tmp_path: Path) -> None:
+    dst = _make_reset_project(tmp_path)
+    (dst / "ddl").mkdir()
+    (dst / "ddl" / "legacy.sql").write_text("select 1;", encoding="utf-8")
+    (dst / "dbt" / "models").mkdir(parents=True)
+    (dst / "dbt" / "models" / "model.sql").write_text("select 1;", encoding="utf-8")
+    (dst / ".staging").mkdir()
+    (dst / "test-specs").mkdir(exist_ok=True)
+    (dst / "manifest.json").write_text("{not valid json", encoding="utf-8")
+
+    with pytest.raises(json.JSONDecodeError):
+        dry_run.run_reset_migration(dst, "all", [])
+
+    assert (dst / "catalog").exists()
+    assert (dst / "ddl").exists()
+    assert (dst / ".staging").exists()
+    assert (dst / "test-specs").exists()
+    assert (dst / "dbt").exists()
+
+
 def test_run_reset_migration_all_rejects_extra_table_arguments(tmp_path: Path) -> None:
     dst = _make_reset_project(tmp_path)
 

@@ -530,7 +530,8 @@ def _reset_writer_refactor(
     return [f"procedure:{writer_norm}.refactor"]
 
 
-def _clear_manifest_sections(project_root: Path) -> list[str]:
+def _prepare_reset_migration_all_manifest(project_root: Path) -> tuple[dict[str, Any] | None, list[str]]:
+    """Load manifest cleanup up front; sandbox teardown stays in the command layer."""
     manifest_path = project_root / "manifest.json"
     if not manifest_path.exists():
         logger.warning(
@@ -538,7 +539,7 @@ def _clear_manifest_sections(project_root: Path) -> list[str]:
             "operation=run_reset_migration path=%s",
             manifest_path,
         )
-        return []
+        return None, []
 
     manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
     cleared_sections: list[str] = []
@@ -559,15 +560,13 @@ def _clear_manifest_sections(project_root: Path) -> list[str]:
     if isinstance(runtime, dict) and not runtime and "runtime" in manifest:
         del manifest["runtime"]
 
-    if cleared_sections:
-        write_json(manifest_path, manifest)
-
-    return cleared_sections
+    return manifest, cleared_sections
 
 
 def _run_reset_migration_all(project_root: Path) -> ResetMigrationOutput:
     deleted_paths: list[str] = []
     missing_paths: list[str] = []
+    manifest, cleared_manifest_sections = _prepare_reset_migration_all_manifest(project_root)
 
     for relative_path in RESET_GLOBAL_PATHS:
         path = project_root / relative_path
@@ -586,7 +585,9 @@ def _run_reset_migration_all(project_root: Path) -> ResetMigrationOutput:
                 relative_path,
             )
 
-    cleared_manifest_sections = _clear_manifest_sections(project_root)
+    if manifest is not None and cleared_manifest_sections:
+        write_json(project_root / "manifest.json", manifest)
+
     logger.info(
         "event=reset_migration_global_complete component=reset_migration "
         "operation=run_reset_migration deleted_paths=%s missing_paths=%s "
