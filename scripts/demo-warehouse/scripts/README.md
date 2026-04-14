@@ -15,10 +15,10 @@ Extracts data from a live AdventureWorks2022 SQL Server instance and generates b
 ```bash
 cd lib
 export SA_PASSWORD=<your-sa-password>
-uv run python ../test-fixtures/scripts/csv_to_inserts.py \
+uv run python ../scripts/demo-warehouse/scripts/csv_to_inserts.py \
     --host localhost \
     --port 1433 \
-    --output-dir ../test-fixtures/data/baseline
+    --output-dir ../scripts/demo-warehouse/data/baseline
 ```
 
 ### Options

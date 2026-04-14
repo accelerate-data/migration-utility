@@ -130,7 +130,7 @@ def test_dbops_fixture_script_paths_are_repo_relative() -> None:
         connection=RuntimeConnection(database="MigrationTest"),
     )
     adapter = get_dbops("sql_server").from_role(role)
-    assert adapter.fixture_script_path(Path("/repo")) == Path("/repo/scripts/sql/sql_server/materialize-migration-test.sh")
+    assert adapter.fixture_script_path(Path("/repo")) == Path("/repo/tests/integration/sql_server/fixtures/materialize.sh")
 
 
 def test_get_dbops_rejects_unknown_technology() -> None:

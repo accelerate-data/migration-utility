@@ -47,7 +47,7 @@ class DatabaseOperations(ABC):
 
     @abstractmethod
     def materialize_migration_test_env(self) -> dict[str, str]:
-        """Build environment variables for materialize-migration-test.sh."""
+        """Build environment variables for the canonical materialize.sh script."""
 
     @abstractmethod
     def ensure_source_schema(self, schema_name: str) -> None:

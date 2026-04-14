@@ -14,8 +14,8 @@ if [[ -z "${ORACLE_PWD:-}" ]]; then
 fi
 
 SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
-REPO_ROOT="$(cd "${SCRIPT_DIR}/../../.." && pwd)"
-FIXTURE_SQL="${REPO_ROOT}/scripts/sql/oracle/migration_test.sql"
+REPO_ROOT="$(cd "${SCRIPT_DIR}/../../../.." && pwd)"
+FIXTURE_SQL="${REPO_ROOT}/tests/integration/oracle/fixtures/migration-test.sql"
 
 if [[ ! -f "${FIXTURE_SQL}" ]]; then
   echo "Oracle fixture SQL file not found: ${FIXTURE_SQL}" >&2
@@ -240,14 +240,4 @@ SQL
   echo "Oracle CLI materialization failed; retrying with python oracledb fallback" >&2
 fi
 
-if python - <<'PY' >/dev/null 2>&1; then
-import importlib.util
-import sys
-sys.exit(0 if importlib.util.find_spec("oracledb") else 1)
-PY
-  run_python_materialization
-  exit 0
-fi
-
-echo "no Oracle CLI (SQLCL/sql or sqlplus) is installed and python package 'oracledb' is unavailable for Oracle materialization" >&2
-exit 1
+run_python_materialization

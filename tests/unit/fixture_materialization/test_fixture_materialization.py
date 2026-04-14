@@ -15,7 +15,7 @@ from shared.runtime_config_models import RuntimeConnection, RuntimeRole
 def test_materialize_migration_test_uses_adapter_script_and_env(
     monkeypatch: pytest.MonkeyPatch, tmp_path: Path
 ) -> None:
-    script = tmp_path / "scripts/sql/sql_server/materialize-migration-test.sh"
+    script = tmp_path / "tests/integration/sql_server/fixtures/materialize.sh"
     script.parent.mkdir(parents=True)
     script.write_text("#!/bin/sh\nexit 0\n", encoding="utf-8")
     script.chmod(0o755)
@@ -69,7 +69,7 @@ def test_materialize_migration_test_logs_sql_server_lifecycle(
     tmp_path: Path,
     caplog: pytest.LogCaptureFixture,
 ) -> None:
-    script = tmp_path / "scripts/sql/sql_server/materialize-migration-test.sh"
+    script = tmp_path / "tests/integration/sql_server/fixtures/materialize.sh"
     script.parent.mkdir(parents=True)
     script.write_text("#!/bin/sh\nexit 0\n", encoding="utf-8")
     script.chmod(0o755)
@@ -108,7 +108,7 @@ def test_materialize_migration_test_logs_oracle_failure(
     tmp_path: Path,
     caplog: pytest.LogCaptureFixture,
 ) -> None:
-    script = tmp_path / "scripts/sql/oracle/materialize-migration-test.sh"
+    script = tmp_path / "tests/integration/oracle/fixtures/materialize.sh"
     script.parent.mkdir(parents=True)
     script.write_text("#!/bin/sh\nexit 12\n", encoding="utf-8")
     script.chmod(0o755)
@@ -143,7 +143,7 @@ def test_materialize_migration_test_logs_oracle_failure(
 def test_sql_server_materializer_pyodbc_fallback_uses_shared_connection_builder() -> None:
     script_path = (
         Path(__file__).resolve().parents[3]
-        / "scripts/sql/sql_server/materialize-migration-test.sh"
+        / "tests/integration/sql_server/fixtures/materialize.sh"
     )
     script_text = script_path.read_text(encoding="utf-8")
 
@@ -157,7 +157,7 @@ def test_sql_server_materializer_pyodbc_fallback_uses_shared_connection_builder(
 def test_oracle_materializer_avoids_dropping_the_target_schema_user() -> None:
     script_path = (
         Path(__file__).resolve().parents[3]
-        / "scripts/sql/oracle/materialize-migration-test.sh"
+        / "tests/integration/oracle/fixtures/materialize.sh"
     )
     script_text = script_path.read_text(encoding="utf-8")
 
@@ -170,7 +170,7 @@ def test_oracle_materializer_avoids_dropping_the_target_schema_user() -> None:
 def test_oracle_materializer_exits_cleanly_when_no_cli_and_no_oracledb() -> None:
     script_path = (
         Path(__file__).resolve().parents[3]
-        / "scripts/sql/oracle/materialize-migration-test.sh"
+        / "tests/integration/oracle/fixtures/materialize.sh"
     )
     script_text = script_path.read_text(encoding="utf-8")
 
@@ -178,4 +178,5 @@ def test_oracle_materializer_exits_cleanly_when_no_cli_and_no_oracledb() -> None
         "no Oracle CLI (SQLCL/sql or sqlplus) is installed and python package "
         "'oracledb' is unavailable for Oracle materialization"
     ) in script_text
-    assert script_text.count("run_python_materialization") == 2
+    assert 'importlib.util.find_spec("oracledb")' not in script_text
+    assert "\nrun_python_materialization\n" in script_text

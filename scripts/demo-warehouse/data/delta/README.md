@@ -4,7 +4,7 @@ Each subdirectory contains one incremental scenario with dialect-specific SQL fi
 
 ## Reset between scenarios
 
-Each scenario must be applied to a **freshly loaded baseline**, not cumulatively on top of previous deltas. Scenario 05 permanently drops a PK constraint, and scenarios 01–04 insert rows with hard-coded IDs (99901, 99902) that would collide if re-run. To reset: re-run the schema DDL (`test-fixtures/schema/<dialect>.sql`) followed by the baseline seed (`test-fixtures/data/baseline/<dialect>.sql`).
+Each scenario must be applied to a **freshly loaded baseline**, not cumulatively on top of previous deltas. Scenario 05 permanently drops a PK constraint, and scenarios 01–04 insert rows with hard-coded IDs (99901, 99902) that would collide if re-run. To reset: re-run the schema DDL (`scripts/demo-warehouse/schema/<dialect>.sql`) followed by the baseline seed (`scripts/demo-warehouse/data/baseline/<dialect>.sql`).
 
 ## Scenarios
 

@@ -113,7 +113,7 @@
     },
     "scripts": {
       "path": "scripts/",
-      "description": "Developer scripts: worktree.sh (single entrypoint for worktree creation/attach plus bootstrap and structured failure output), publish-sqlserver-image.sh (build + push SQL Server Docker image with pre-baked KimballFixture data files; MigrationTest stays a schema-level runtime materialization concern), sql/ (test DB creation scripts and JSON fixtures)."
+      "description": "Developer scripts: worktree.sh (single entrypoint for worktree creation/attach plus bootstrap and structured failure output), publish-sqlserver-image.sh (build + push SQL Server Docker image with pre-baked KimballFixture data files; MigrationTest stays a schema-level runtime materialization concern), demo-warehouse/ (cross-dialect Kimball demo warehouse fixture for demos, parity checks, and image builds)."
     },
     "docker_sqlserver": {
       "path": "docker/sqlserver/",
@@ -124,7 +124,7 @@
       "description": "Documentation. docs/design/README.md defines the keep criteria for durable agent-facing design notes. docs/reference/ contains operator and contributor docs."
     },
     "test_fixtures": {
-      "path": "test-fixtures/",
+      "path": "scripts/demo-warehouse/",
       "description": "Cross-dialect Kimball DW fixture for integration testing and demos. schema/ has DDL for SQL Server, Oracle, PostgreSQL (staging, dim, fact, gold tables + views). data/baseline/ has seed INSERT SQL per dialect (extracted from AdventureWorks2022). data/delta/ has 5 incremental scenarios (new-customer-product, scd2-address-change, scd1-name-correction, late-arriving-fact, dedup-staging). procedures/ has 20-21 stored procedures per dialect covering 11 pattern categories (standard load, CTE, join, set ops, subquery, aggregate, pivot, control flow, exec chain, view-backed, error conditions). scripts/ has csv_to_inserts.py (extraction + generation tool). parity/ has validate.py (cross-dialect parity validation script — runs full orchestrator on sql-test/oracle-test/pg-test and compares all 20 output tables across baseline and 5 delta rounds) and coverage-matrix.md (procedure → pattern category mapping)."
     }
   },
@@ -136,9 +136,10 @@
     "lib/shared/schemas/": "JSON Schema files for catalog, agent I/O, discover CLI output, and shared definitions",
     "tests/unit/": "Shared-library unit pytest suite organized by module under tests/unit/<module>/.",
     "tests/integration/": "Shared-library integration pytest suite organized by backend and module under tests/integration/<technology>/<module>/.",
+    "tests/integration/scoping-inputs/": "JSON fixture inputs for scoping-logic tests and regressions.",
     "tests/evals/": "Promptfoo eval harness for skill and command testing (skill packages include listing-objects, profiling-table, generating-model, generating-tests, reviewing-tests, reviewing-model, analyzing-table, analyzing-table-readiness; command packages include cmd-scope, cmd-profile, cmd-generate-model, cmd-generate-tests, cmd-refactor, cmd-status, cmd-reset-migration, cmd-commit-push-pr)",
     "mcp/ddl/tests/": "DDL MCP pytest suite split into tests/unit/ plus shared top-level backend coverage under tests/integration/<technology>/ddl_mcp/ executed from the ddl-mcp project env.",
-    "test-fixtures/": "Cross-dialect Kimball DW fixture: schema DDL, baseline seed data, and delta scenarios for SQL Server, Oracle, PostgreSQL",
+    "scripts/demo-warehouse/": "Cross-dialect Kimball DW fixture: schema DDL, baseline seed data, and delta scenarios for SQL Server, Oracle, PostgreSQL",
     "docs/design/": "Durable agent-facing design notes only; keep criteria are documented in docs/design/README.md",
     ".claude/rules/": "Shared agent rules such as coding-conventions, git-workflow, logging-policy, and codex-execution-policy",
     ".claude/skills/": "Workflow playbooks for repo-local Claude Code skills"

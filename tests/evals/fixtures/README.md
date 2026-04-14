@@ -11,7 +11,9 @@ Stale flat manifest fields are not supported in the eval harness.
 
 Most SQL Server-backed fixtures still originate from the canonical `MigrationTest`
 schema fixture inside the configured SQL Server container. Source-of-truth
-background and materialization entrypoints live under `scripts/sql/`.
+background for the Kimball demo warehouse lives under `scripts/demo-warehouse/`,
+and the SQL Server and Oracle materialization entrypoints live under
+`tests/integration/sql_server/fixtures/` and `tests/integration/oracle/fixtures/`.
 
 ## Extraction
 

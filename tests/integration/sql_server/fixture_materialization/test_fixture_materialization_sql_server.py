@@ -123,7 +123,7 @@ def _assert_fixture_contract(cursor: pyodbc.Cursor) -> None:
 
 
 def test_materialize_migration_test_sql_server_script_rebuilds_instead_of_short_circuiting() -> None:
-    script_path = REPO_ROOT / "scripts" / "sql" / "sql_server" / "materialize-migration-test.sh"
+    script_path = REPO_ROOT / "tests" / "integration" / "sql_server" / "fixtures" / "materialize.sh"
     script_text = script_path.read_text(encoding="utf-8")
 
     assert "OBJECTS_EXIST_SQL" not in script_text

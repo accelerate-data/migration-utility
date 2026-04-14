@@ -5,9 +5,9 @@ reads directly from a live SQL Server with AdventureWorks2022 installed — not 
 
 Usage:
     cd lib
-    SA_PASSWORD=<password> uv run python ../test-fixtures/scripts/csv_to_inserts.py \
+    SA_PASSWORD=<password> uv run python ../scripts/demo-warehouse/scripts/csv_to_inserts.py \
         --host localhost --port 1433 \
-        --output-dir ../test-fixtures/data/baseline
+        --output-dir ../scripts/demo-warehouse/data/baseline
 
 Emits: sqlserver.sql, oracle.sql, postgres.sql in the output directory.
 """

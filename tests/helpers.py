@@ -36,7 +36,9 @@ def run_python_module(
 
 
 def run_setup_ddl_cli(args: list[str], *, timeout: int = 30) -> subprocess.CompletedProcess:
-    return run_python_module("shared.setup_ddl", args, timeout=timeout)
+    if "--project-root" not in args:
+        raise ValueError("run_setup_ddl_cli requires --project-root to keep test artifacts out of the repo root")
+    return run_python_module("shared.setup_ddl", args, cwd=SHARED_LIB_DIR, timeout=timeout)
 
 
 def run_catalog_enrich_cli(

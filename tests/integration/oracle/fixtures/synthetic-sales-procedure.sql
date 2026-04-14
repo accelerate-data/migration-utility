@@ -1,4 +1,4 @@
--- synthetic_sales_procedure.sql
+-- synthetic-sales-procedure.sql
 -- Adds a summary table and a PL/SQL procedure to the SH schema.
 -- Used as the execution target in OracleSandbox integration tests.
 --
@@ -10,7 +10,7 @@
 --   Pattern 46 — BEGIN...EXCEPTION (T-SQL TRY/CATCH PL/SQL equivalent)
 --
 -- Run via SQLcl while connected as a DBA user, or via:
---   sqlplus sh/sh@localhost:1521/FREEPDB1 @synthetic_sales_procedure.sql
+--   sqlplus sh/sh@localhost:1521/FREEPDB1 @synthetic-sales-procedure.sql
 --
 -- Note: CHANNEL_SALES_SUMMARY is created under the SH user.  The sandbox
 -- backend clones it (empty) into the sandbox schema via CTAS, and the cloned

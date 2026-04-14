@@ -197,8 +197,8 @@ Rules:
 
 Repo entrypoints:
 
-- `scripts/sql/sql_server/materialize-migration-test.sh`
-- `scripts/sql/oracle/materialize-migration-test.sh`
+- `tests/integration/sql_server/fixtures/materialize.sh`
+- `tests/integration/oracle/fixtures/materialize.sh`
 
 These shell scripts are env-driven and idempotent.
 

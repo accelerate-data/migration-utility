@@ -93,7 +93,7 @@ docker exec sql-test /opt/mssql-tools18/bin/sqlcmd \
   -Q "SELECT COUNT(*) FROM dim.dim_customer;"
 ```
 
-`sql-test` only provides the pre-baked `KimballFixture` source fixture for parity runs and manual source-fixture checks. It is not the supported source for the schema-level SQL Server `MigrationTest` flow. For SQL Server integration tests, evals, and harness runs, point `MSSQL_DB` at the source database that owns the AdventureWorks objects (default `AdventureWorks2022`) and materialize the canonical `MigrationTest` schema with `scripts/sql/sql_server/materialize-migration-test.sh` or the test helpers that wrap it.
+`sql-test` only provides the pre-baked `KimballFixture` source fixture for parity runs and manual source-fixture checks. It is not the supported source for the schema-level SQL Server `MigrationTest` flow. For SQL Server integration tests, evals, and harness runs, point `MSSQL_DB` at the source database that owns the AdventureWorks objects (default `AdventureWorks2022`) and materialize the canonical `MigrationTest` schema with `tests/integration/sql_server/fixtures/materialize.sh` or the test helpers that wrap it.
 
 ### Oracle
 
@@ -128,20 +128,20 @@ docker exec pg-test psql -U postgres -d kimball_fixture \
 
 ## Applying a Delta Scenario Manually
 
-Delta SQL files are in `test-fixtures/data/delta/NN-<name>/`. Example for delta 01:
+Delta SQL files are in `scripts/demo-warehouse/data/delta/NN-<name>/`. Example for delta 01:
 
 ```bash
 # SQL Server
-docker cp test-fixtures/data/delta/01-new-customer-product/sqlserver.sql sql-test:/tmp/delta01.sql
+docker cp scripts/demo-warehouse/data/delta/01-new-customer-product/sqlserver.sql sql-test:/tmp/delta01.sql
 docker exec sql-test /opt/mssql-tools18/bin/sqlcmd \
   -S localhost -U sa -P 'P@ssw0rd123' -C -d KimballFixture -i /tmp/delta01.sql
 
 # Oracle
-docker cp test-fixtures/data/delta/01-new-customer-product/oracle.sql oracle-test:/tmp/delta01.sql
+docker cp scripts/demo-warehouse/data/delta/01-new-customer-product/oracle.sql oracle-test:/tmp/delta01.sql
 docker exec oracle-test bash -c "sqlplus -S kimball/kimball@FREEPDB1 @/tmp/delta01.sql"
 
 # PostgreSQL
-docker cp test-fixtures/data/delta/01-new-customer-product/postgres.sql pg-test:/tmp/delta01.sql
+docker cp scripts/demo-warehouse/data/delta/01-new-customer-product/postgres.sql pg-test:/tmp/delta01.sql
 docker exec pg-test psql -U postgres -d kimball_fixture -f /tmp/delta01.sql
 ```
 
@@ -152,10 +152,10 @@ After applying, run `usp_exec_orchestrator_full_load` to process the staged chan
 After all three containers are running:
 
 ```bash
-uv run test-fixtures/parity/validate.py
+uv run scripts/demo-warehouse/parity/validate.py
 ```
 
-See [`test-fixtures/parity/README.md`](../../../test-fixtures/parity/README.md) for details.
+See [`scripts/demo-warehouse/parity/README.md`](../../../scripts/demo-warehouse/parity/README.md) for details.
 
 ## `.env` Variables for MCP Servers
 
@@ -252,7 +252,7 @@ SQL Server stores an internal version number in its data files (e.g., version 95
 ```text
 scripts/publish-sqlserver-image.sh
 ├── Starts builder container from pinned mcr.microsoft.com/mssql/server:$MSSQL_TAG
-├── Runs test-fixtures/ SQL files to create KimballFixture
+├── Runs scripts/demo-warehouse/ SQL files to create KimballFixture
 ├── Checkpoints, shrinks logs, stops SQL Server cleanly
 ├── Extracts /var/opt/mssql/data/ from builder
 ├── Builds final image via docker/sqlserver/Dockerfile (FROM same $MSSQL_TAG + COPY data/)
