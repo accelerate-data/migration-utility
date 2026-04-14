@@ -108,6 +108,59 @@ class TestWritePartialManifest:
         assert manifest["extraction"]["schemas"] == ["SH", "HR"]
         assert "extracted_at" in manifest["extraction"]
 
+    def test_full_manifest_preserves_existing_init_handoff(self, tmp_path):
+        prereqs_payload = {
+            "common": {
+                "startup": {
+                    "uv": True,
+                    "python": True,
+                }
+            },
+            "roles": {
+                "source": {
+                    "technology": "oracle",
+                    "startup": {
+                        "sqlcl": True,
+                    },
+                },
+                "sandbox": {
+                    "technology": "oracle",
+                    "startup": {
+                        "sqlcl": True,
+                    },
+                },
+                "target": {
+                    "technology": "sql_server",
+                    "startup": {
+                        "pyodbc": True,
+                    },
+                },
+            },
+        }
+        prereqs = json.dumps(prereqs_payload)
+        _run_cli([
+            "write-partial-manifest",
+            "--project-root", str(tmp_path),
+            "--technology", "oracle",
+            "--target-technology", "sql_server",
+            "--prereqs-json", prereqs,
+        ])
+
+        result = _run_cli([
+            "write-manifest",
+            "--project-root", str(tmp_path),
+            "--technology", "oracle",
+            "--database", "FREEPDB1",
+            "--schemas", "SH,HR",
+        ])
+
+        assert result.returncode == 0, result.stderr
+        manifest = json.loads((tmp_path / "manifest.json").read_text())
+        persisted_handoff = dict(manifest["init_handoff"])
+        persisted_handoff.pop("timestamp")
+        assert persisted_handoff == prereqs_payload
+        assert "timestamp" in manifest["init_handoff"]
+
     def test_partial_manifest_scrubs_stale_unsupported_runtime_roles(self, tmp_path):
         (tmp_path / "manifest.json").write_text(
             json.dumps(

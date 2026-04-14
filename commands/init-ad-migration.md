@@ -72,14 +72,14 @@ Run the source-stack checks for `$SOURCE`. These checks validate that the local 
 
 1. `uv run --project "${CLAUDE_PLUGIN_ROOT}/lib" init check-freetds` — verify that Homebrew FreeTDS is installed, `odbcinst` is available, and `FreeTDS` appears in `odbcinst -q -d`
 2. `toolbox --version` — is the genai-toolbox binary installed?
-3. Discover the effective local SQL Server driver override. If a driver other than the default needs to be pinned locally, plan to write `MSSQL_DRIVER` into the project-local `.env`.
+3. `uv run --project "${CLAUDE_PLUGIN_ROOT}/lib" init discover-mssql-driver-override` — discover the effective local SQL Server driver override. If the result is `status="resolved"`, add `MSSQL_DRIVER` to `$OVERRIDES`. If the result is `status="manual"`, show the returned `message` verbatim.
 
 #### When `$SOURCE` is `oracle`
 
 1. `sql -V` — is SQLcl installed?
 2. `java -version` — is Java 11+ installed?
 3. Verify the Oracle MCP server can start: test that `sql -mcp` or `"${SQLCL_BIN}" -mcp` exits cleanly. This is a startup check only and does **not** require a live DB connection.
-4. Discover the effective local SQLcl binary path. If the machine requires an explicit binary override, plan to write `SQLCL_BIN` into the project-local `.env`.
+4. `uv run --project "${CLAUDE_PLUGIN_ROOT}/lib" init discover-sqlcl-bin-override` — discover the effective local SQLcl binary path. If the result is `status="resolved"`, add `SQLCL_BIN` to `$OVERRIDES`. If the result is `status="manual"`, show the returned `message` verbatim.
 
 ### Target runtime prerequisites
 
@@ -88,7 +88,7 @@ Run the target-stack checks for `$TARGET`. These checks validate that the local 
 #### When `$TARGET` is `sql_server`
 
 1. `uv run --project "${CLAUDE_PLUGIN_ROOT}/lib" python3 -c "import pyodbc"` — is the SQL Server Python client available?
-2. Discover the effective local SQL Server driver override. If a driver other than the default needs to be pinned locally, plan to write `MSSQL_DRIVER` into the project-local `.env`.
+2. `uv run --project "${CLAUDE_PLUGIN_ROOT}/lib" init discover-mssql-driver-override` — discover the effective local SQL Server driver override. If the result is `status="resolved"` and `MSSQL_DRIVER` is not already present in `$OVERRIDES`, add it. If the result is `status="manual"`, show the returned `message` verbatim.
 
 #### When `$TARGET` is `oracle`
 
@@ -239,7 +239,9 @@ Parse the JSON output and report to the user which files were created, updated, 
 
 If `scaffold-project` reports missing CLAUDE.md sections (in `files_skipped`), tell the user which sections are missing and recommend adding them.
 
-If local overrides were discovered, write them to `.env` in the project root. Write only non-secret machine-specific overrides such as `MSSQL_DRIVER` or `SQLCL_BIN`. Do not write connection details during init.
+Maintain a JSON object `$OVERRIDES` while gathering evidence. Add only non-secret machine-specific resolved overrides such as `MSSQL_DRIVER` or `SQLCL_BIN`. Do not add connection details during init.
+
+If `$OVERRIDES` is non-empty, write it to `.env` in the project root:
 
 Use the deterministic init helper for that write:
 

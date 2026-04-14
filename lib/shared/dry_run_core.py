@@ -81,8 +81,16 @@ def _object_detail(
     )
 
 
-def _runtime_role_exists(manifest: dict[str, Any], role: str) -> bool:
-    return get_runtime_role(manifest, role) is not None
+def _runtime_role_is_configured(manifest: dict[str, Any], role: str) -> bool:
+    runtime_role = get_runtime_role(manifest, role)
+    if runtime_role is None:
+        return False
+    connection = runtime_role.connection.model_dump(
+        mode="json",
+        by_alias=True,
+        exclude_none=True,
+    )
+    return bool(connection)
 
 
 def _read_catalog_json(path: Path) -> dict[str, Any]:
@@ -118,14 +126,14 @@ def _project_stage_ready(project_root: Path, stage: str) -> ReadinessDetail:
         return _detail(False, "manifest_missing")
 
     if stage in {"test-gen", "refactor"}:
-        if not _runtime_role_exists(manifest, "sandbox"):
+        if not _runtime_role_is_configured(manifest, "sandbox"):
             return _detail(False, "sandbox_not_configured", "SANDBOX_NOT_CONFIGURED")
         return _detail(True, "ok")
 
     if stage == "generate":
-        if not _runtime_role_exists(manifest, "target"):
+        if not _runtime_role_is_configured(manifest, "target"):
             return _detail(False, "target_not_configured", "TARGET_NOT_CONFIGURED")
-        if not _runtime_role_exists(manifest, "sandbox"):
+        if not _runtime_role_is_configured(manifest, "sandbox"):
             return _detail(False, "sandbox_not_configured", "SANDBOX_NOT_CONFIGURED")
         if not (project_root / "dbt" / "dbt_project.yml").exists():
             return _detail(False, "dbt_project_missing", "DBT_PROJECT_MISSING")

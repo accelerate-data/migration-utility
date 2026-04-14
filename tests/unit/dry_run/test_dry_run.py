@@ -249,6 +249,76 @@ def test_ready_test_gen_no_profile() -> None:
         assert result.object.reason == "profile_not_complete"
 
 
+def test_ready_test_gen_requires_configured_sandbox_runtime() -> None:
+    """test-gen is blocked when init only seeded an empty sandbox role."""
+    tmp, root = _make_project()
+    with tmp:
+        manifest_path = root / "manifest.json"
+        manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
+        manifest["runtime"]["sandbox"] = {
+            "technology": "sql_server",
+            "dialect": "tsql",
+            "connection": {},
+        }
+        manifest_path.write_text(json.dumps(manifest), encoding="utf-8")
+
+        result = dry_run.run_ready(root, "test-gen", object_fqn="silver.DimCustomer")
+
+        assert isinstance(result, DryRunOutput)
+        assert result.ready is False
+        assert result.project is not None
+        assert result.project.reason == "sandbox_not_configured"
+        assert result.project.code == "SANDBOX_NOT_CONFIGURED"
+
+
+def test_ready_test_gen_accepts_oracle_sandbox_with_dsn() -> None:
+    """test-gen treats a DSN-backed Oracle sandbox as configured."""
+    tmp, root = _make_project()
+    with tmp:
+        manifest_path = root / "manifest.json"
+        manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
+        manifest["runtime"]["sandbox"] = {
+            "technology": "oracle",
+            "dialect": "oracle",
+            "connection": {"dsn": "localhost:1521/FREEPDB1"},
+        }
+        manifest_path.write_text(json.dumps(manifest), encoding="utf-8")
+
+        result = dry_run.run_ready(root, "test-gen", object_fqn="silver.DimCustomer")
+
+        assert isinstance(result, DryRunOutput)
+        assert result.ready is True
+        assert result.project is not None
+        assert result.project.reason == "ok"
+
+
+def test_ready_test_gen_accepts_sql_server_sandbox_without_named_env() -> None:
+    """test-gen accepts a runnable SQL Server sandbox even without database/schema names."""
+    tmp, root = _make_project()
+    with tmp:
+        manifest_path = root / "manifest.json"
+        manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
+        manifest["runtime"]["sandbox"] = {
+            "technology": "sql_server",
+            "dialect": "tsql",
+            "connection": {
+                "host": "localhost",
+                "port": "1433",
+                "user": "sa",
+                "driver": "FreeTDS",
+                "password_env": "SA_PASSWORD",
+            },
+        }
+        manifest_path.write_text(json.dumps(manifest), encoding="utf-8")
+
+        result = dry_run.run_ready(root, "test-gen", object_fqn="silver.DimCustomer")
+
+        assert isinstance(result, DryRunOutput)
+        assert result.ready is True
+        assert result.project is not None
+        assert result.project.reason == "ok"
+
+
 # ── run_ready tests: refactor stage ──────────────────────────────────────────
 
 
@@ -330,6 +400,50 @@ def test_ready_generate_no_sandbox_runtime() -> None:
     tmp, root = _make_project(include_sandbox=False)
     with tmp:
         result = dry_run.run_ready(root, "generate", object_fqn="silver.DimCustomer")
+        assert isinstance(result, DryRunOutput)
+        assert result.ready is False
+        assert result.project is not None
+        assert result.project.reason == "sandbox_not_configured"
+        assert result.project.code == "SANDBOX_NOT_CONFIGURED"
+
+
+def test_ready_generate_requires_configured_target_runtime() -> None:
+    """Generate is blocked when init only seeded an empty target role."""
+    tmp, root = _make_project()
+    with tmp:
+        manifest_path = root / "manifest.json"
+        manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
+        manifest["runtime"]["target"] = {
+            "technology": "sql_server",
+            "dialect": "tsql",
+            "connection": {},
+        }
+        manifest_path.write_text(json.dumps(manifest), encoding="utf-8")
+
+        result = dry_run.run_ready(root, "generate", object_fqn="silver.DimCustomer")
+
+        assert isinstance(result, DryRunOutput)
+        assert result.ready is False
+        assert result.project is not None
+        assert result.project.reason == "target_not_configured"
+        assert result.project.code == "TARGET_NOT_CONFIGURED"
+
+
+def test_ready_generate_requires_configured_sandbox_runtime() -> None:
+    """Generate is blocked when init only seeded an empty sandbox role."""
+    tmp, root = _make_project()
+    with tmp:
+        manifest_path = root / "manifest.json"
+        manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
+        manifest["runtime"]["sandbox"] = {
+            "technology": "sql_server",
+            "dialect": "tsql",
+            "connection": {},
+        }
+        manifest_path.write_text(json.dumps(manifest), encoding="utf-8")
+
+        result = dry_run.run_ready(root, "generate", object_fqn="silver.DimCustomer")
+
         assert isinstance(result, DryRunOutput)
         assert result.ready is False
         assert result.project is not None
