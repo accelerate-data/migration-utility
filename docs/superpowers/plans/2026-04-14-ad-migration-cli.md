@@ -38,6 +38,7 @@ tests/unit/cli/test_pipeline_cmds.py
 scripts/cleanup-worktrees.sh
 scripts/commit.sh
 scripts/commit-push-pr.sh
+
 ```
 
 **Modify:**
@@ -45,6 +46,7 @@ scripts/commit-push-pr.sh
 ```text
 lib/pyproject.toml                   # add rich dep + ad-migration entrypoint
 lib/shared/target_setup.py          # add write_target_runtime_from_env()
+
 ```
 
 **Delete:**
@@ -59,6 +61,7 @@ commands/exclude-table.md
 commands/add-source-tables.md
 commands/commit.md
 commands/commit-push-pr.md
+
 ```
 
 ---
@@ -121,12 +124,14 @@ def test_require_target_vars_snowflake_exits_on_missing(monkeypatch, capsys):
     with pytest.raises(SystemExit) as exc_info:
         require_target_vars("snowflake")
     assert exc_info.value.code == 1
+
 ```
 
 - [ ] **Step 2: Run tests to confirm failure**
 
 ```bash
 cd lib && uv run pytest ../tests/unit/cli/test_env_check.py -v
+
 ```
 
 Expected: `ModuleNotFoundError` (package not yet created).
@@ -135,6 +140,7 @@ Expected: `ModuleNotFoundError` (package not yet created).
 
 ```python
 # lib/shared/cli/__init__.py
+
 ```
 
 ```python
@@ -207,6 +213,7 @@ def _check(required: dict[str, str], technology: str, command: str) -> None:
     lines.append(f"\nSet these in your shell or .envrc before running {command}.")
     print("\n".join(lines), file=sys.stderr)
     sys.exit(1)
+
 ```
 
 ```python
@@ -251,6 +258,7 @@ def spinner(message: str) -> Iterator[None]:
     with Progress(SpinnerColumn(), TextColumn(message), transient=True) as progress:
         progress.add_task("", total=None)
         yield
+
 ```
 
 ```python
@@ -297,6 +305,7 @@ def is_git_repo(project_root: Path) -> bool:
         capture_output=True,
     )
     return result.returncode == 0
+
 ```
 
 ```python
@@ -327,6 +336,7 @@ app.command("teardown-sandbox")(teardown_sandbox)
 app.command("reset")(reset)
 app.command("exclude-table")(exclude_table)
 app.command("add-source-table")(add_source_table)
+
 ```
 
 - [ ] **Step 4: Add `rich` dependency and `ad-migration` entrypoint to `lib/pyproject.toml`**
@@ -337,12 +347,14 @@ In `[project.scripts]`, add:
 
 ```toml
 ad-migration = "shared.cli.main:app"
+
 ```
 
 - [ ] **Step 5: Run tests**
 
 ```bash
 cd lib && uv run pytest ../tests/unit/cli/test_env_check.py -v
+
 ```
 
 Expected: 4 tests pass.
@@ -352,6 +364,7 @@ Expected: 4 tests pass.
 ```bash
 git add lib/shared/cli/ tests/unit/cli/__init__.py tests/unit/cli/test_env_check.py lib/pyproject.toml
 git commit -m "feat: add ad-migration CLI package skeleton and env_check"
+
 ```
 
 ---
@@ -439,12 +452,14 @@ def test_setup_source_no_commit_flag(tmp_path, monkeypatch):
 
     assert result.exit_code == 0
     mock_commit.assert_not_called()
+
 ```
 
 - [ ] **Step 2: Run tests to confirm failure**
 
 ```bash
 cd lib && uv run pytest ../tests/unit/cli/test_setup_source_cmd.py -v
+
 ```
 
 Expected: `ImportError`.
@@ -534,12 +549,14 @@ def _report_extract(result: dict) -> None:
         if isinstance(count, list):
             count = len(count)
         success(f"{label:<15} {count}")
+
 ```
 
 - [ ] **Step 4: Run tests**
 
 ```bash
 cd lib && uv run pytest ../tests/unit/cli/test_setup_source_cmd.py -v
+
 ```
 
 Expected: 3 tests pass.
@@ -549,6 +566,7 @@ Expected: 3 tests pass.
 ```bash
 git add lib/shared/cli/setup_source_cmd.py tests/unit/cli/test_setup_source_cmd.py
 git commit -m "feat: add ad-migration setup-source command"
+
 ```
 
 ---
@@ -629,6 +647,7 @@ def write_target_runtime_from_env(
     manifest_path.write_text(json.dumps(manifest, indent=2), encoding="utf-8")
 
     return role
+
 ```
 
 - [ ] **Step 2: Write failing tests**
@@ -706,12 +725,14 @@ def test_setup_target_no_commit(tmp_path, monkeypatch):
 
     assert result.exit_code == 0
     mock_commit.assert_not_called()
+
 ```
 
 - [ ] **Step 3: Run tests to confirm failure**
 
 ```bash
 cd lib && uv run pytest ../tests/unit/cli/test_setup_target_cmd.py -v
+
 ```
 
 Expected: `ImportError`.
@@ -775,12 +796,14 @@ def setup_target(
         root,
     )
     success("Target setup committed.")
+
 ```
 
 - [ ] **Step 5: Run tests**
 
 ```bash
 cd lib && uv run pytest ../tests/unit/cli/test_setup_target_cmd.py -v
+
 ```
 
 Expected: 2 tests pass.
@@ -790,6 +813,7 @@ Expected: 2 tests pass.
 ```bash
 git add lib/shared/target_setup.py lib/shared/cli/setup_target_cmd.py tests/unit/cli/test_setup_target_cmd.py
 git commit -m "feat: add ad-migration setup-target command"
+
 ```
 
 ---
@@ -885,12 +909,14 @@ def test_teardown_sandbox_yes_flag_skips_prompt(tmp_path):
 
     assert result.exit_code == 0
     mock_backend.sandbox_down.assert_called_once_with("__test_abc123")
+
 ```
 
 - [ ] **Step 2: Run tests to confirm failure**
 
 ```bash
 cd lib && uv run pytest ../tests/unit/cli/test_sandbox_cmds.py -v
+
 ```
 
 Expected: `ImportError`.
@@ -960,6 +986,7 @@ def setup_sandbox(
         warn("Some objects failed to clone — sandbox is usable but incomplete.")
         for e in result.errors:
             warn(f"  {e.code}: {e.message}")
+
 ```
 
 - [ ] **Step 4: Implement `teardown_sandbox_cmd.py`**
@@ -1011,6 +1038,7 @@ def teardown_sandbox(
         raise typer.Exit(code=1)
 
     success(f"Sandbox dropped: {sandbox_db}")
+
 ```
 
 - [ ] **Step 5: Check `write_manifest_sandbox_runtime` import**
@@ -1019,6 +1047,7 @@ The import `from shared.setup_ddl_support.manifest import write_manifest_sandbox
 
 ```bash
 grep -rn "sandbox" lib/shared/setup_ddl_support/manifest.py lib/shared/runtime_config.py | grep "def "
+
 ```
 
 Update the import in `setup_sandbox_cmd.py` to match the actual function name.
@@ -1027,6 +1056,7 @@ Update the import in `setup_sandbox_cmd.py` to match the actual function name.
 
 ```bash
 cd lib && uv run pytest ../tests/unit/cli/test_sandbox_cmds.py -v
+
 ```
 
 Expected: 3 tests pass.
@@ -1036,6 +1066,7 @@ Expected: 3 tests pass.
 ```bash
 git add lib/shared/cli/setup_sandbox_cmd.py lib/shared/cli/teardown_sandbox_cmd.py tests/unit/cli/test_sandbox_cmds.py
 git commit -m "feat: add ad-migration setup-sandbox and teardown-sandbox commands"
+
 ```
 
 ---
@@ -1186,12 +1217,14 @@ def test_add_source_table_skips_tables_that_fail_guard(tmp_path):
 
     assert result.exit_code == 0
     mock_write.assert_not_called()
+
 ```
 
 - [ ] **Step 2: Run tests to confirm failure**
 
 ```bash
 cd lib && uv run pytest ../tests/unit/cli/test_pipeline_cmds.py -v
+
 ```
 
 Expected: `ImportError`.
@@ -1250,6 +1283,7 @@ def reset(
         warn(f"blocked  {fqn} (model generation complete — cannot reset)")
     for fqn in result.not_found:
         warn(f"missing  {fqn} (no catalog file)")
+
 ```
 
 - [ ] **Step 4: Implement `exclude_table_cmd.py`**
@@ -1304,6 +1338,7 @@ def exclude_table(
                 break
     stage_and_commit(catalog_files, msg, root)
     success("Exclusion committed.")
+
 ```
 
 - [ ] **Step 5: Implement `add_source_table_cmd.py`**
@@ -1361,12 +1396,14 @@ def add_source_table(
     fqn_list = " ".join(fqns[:3])
     stage_and_commit(written, f"feat: mark {fqn_list} as dbt sources", root)
     success("Source tables committed.")
+
 ```
 
 - [ ] **Step 6: Run tests**
 
 ```bash
 cd lib && uv run pytest ../tests/unit/cli/test_pipeline_cmds.py -v
+
 ```
 
 Expected: 7 tests pass.
@@ -1376,6 +1413,7 @@ Expected: 7 tests pass.
 ```bash
 git add lib/shared/cli/reset_cmd.py lib/shared/cli/exclude_table_cmd.py lib/shared/cli/add_source_table_cmd.py tests/unit/cli/test_pipeline_cmds.py
 git commit -m "feat: add ad-migration reset, exclude-table, and add-source-table commands"
+
 ```
 
 ---
@@ -1424,6 +1462,7 @@ git fetch --prune --quiet
 
 echo ""
 echo "cleanup-worktrees complete"
+
 ```
 
 - [ ] **Step 2: Create `scripts/commit.sh`**
@@ -1451,6 +1490,7 @@ fi
 
 git commit -m "$MESSAGE"
 echo "Committed: $MESSAGE"
+
 ```
 
 - [ ] **Step 3: Create `scripts/commit-push-pr.sh`**
@@ -1494,18 +1534,21 @@ EOF
 )"
 
 echo "PR created for branch: $BRANCH"
+
 ```
 
 - [ ] **Step 4: Make scripts executable**
 
 ```bash
 chmod +x scripts/cleanup-worktrees.sh scripts/commit.sh scripts/commit-push-pr.sh
+
 ```
 
 - [ ] **Step 5: Smoke-test `commit.sh` with no args**
 
 ```bash
 ./scripts/commit.sh 2>&1 | grep "Usage:"
+
 ```
 
 Expected: `Usage: ./scripts/commit.sh <message> <file> [file ...]`
@@ -1515,6 +1558,7 @@ Expected: `Usage: ./scripts/commit.sh <message> <file> [file ...]`
 ```bash
 git add scripts/cleanup-worktrees.sh scripts/commit.sh scripts/commit-push-pr.sh
 git commit -m "feat: add cleanup-worktrees, commit, and commit-push-pr scripts"
+
 ```
 
 ---
@@ -1533,12 +1577,14 @@ commands/exclude-table.md
 commands/add-source-tables.md
 commands/commit.md
 commands/commit-push-pr.md
+
 ```
 
 **Files to update** (1 file):
 
 ```text
 commands/init-ad-migration.md   # add CLI installation step before existing prereq checks
+
 ```
 
 - [ ] **Step 1: Delete the command files**
@@ -1553,6 +1599,7 @@ git rm commands/setup-ddl.md \
        commands/add-source-tables.md \
        commands/commit.md \
        commands/commit-push-pr.md
+
 ```
 
 - [ ] **Step 2: Update `commands/init-ad-migration.md` to install the CLI**
@@ -1589,6 +1636,7 @@ If Homebrew is not available on the user's machine, tell them:
 > Then re-run `/init-ad-migration`.
 
 Do not continue if `ad-migration --version` still fails after installation.
+
 ```
 
 Also update the **Step 8: Handoff** section to replace the `/setup-ddl` references with `ad-migration setup-source`:
@@ -1598,6 +1646,7 @@ Replace:
 ```text
 - **toolbox installed and all MSSQL vars set**: ready to run `/setup-ddl` to extract DDL from the live database.
 - **toolbox missing or MSSQL vars unset**: DDL file mode (`listing-objects`, `analyzing-table`, `scoping`) is fully available. Live-database skills (`/setup-ddl`) require both `toolbox` and all four MSSQL env vars.
+
 ```
 
 With:
@@ -1605,6 +1654,7 @@ With:
 ```text
 - **toolbox installed and all MSSQL vars set**: ready to run `ad-migration setup-source --technology sql_server --schemas <schema>` to extract DDL from the live database.
 - **toolbox missing or MSSQL vars unset**: Set credentials in `.envrc`, run `direnv allow`, install `toolbox`, then run `ad-migration setup-source`.
+
 ```
 
 Replace:
@@ -1612,6 +1662,7 @@ Replace:
 ```text
 - **SQLcl + Java installed and all Oracle vars set**: ready to run `/setup-ddl` to extract DDL from the live database. Remember: the Oracle MCP server requires a manual connect step at the start of each session.
 - **SQLcl/Java missing or Oracle vars unset**: DDL file mode (`listing-objects`, `analyzing-table`, `scoping`) is fully available. Live-database skills (`/setup-ddl`) require SQLcl, Java 11+, and all five Oracle env vars.
+
 ```
 
 With:
@@ -1619,12 +1670,14 @@ With:
 ```text
 - **SQLcl + Java installed and all Oracle vars set**: ready to run `ad-migration setup-source --technology oracle --schemas <schema>` to extract DDL from the live database.
 - **SQLcl/Java missing or Oracle vars unset**: Set credentials in `.envrc`, run `direnv allow`, ensure SQLcl and Java 11+ are installed, then run `ad-migration setup-source`.
+
 ```
 
 - [ ] **Step 3: Verify remaining commands**
 
 ```bash
 ls commands/
+
 ```
 
 Expected: `init-ad-migration.md`, `scope.md`, `profile.md`, `generate-model.md`, `generate-tests.md`, `refactor.md`, `status.md`.
@@ -1634,6 +1687,7 @@ Expected: `init-ad-migration.md`, `scope.md`, `profile.md`, `generate-model.md`,
 ```bash
 git add commands/
 git commit -m "feat: remove deterministic plugin commands — now in ad-migration CLI; update init-ad-migration to install CLI"
+
 ```
 
 ---
@@ -1650,6 +1704,7 @@ Add `ad_migration_cli` to `entrypoints`:
 
 ```json
 "ad_migration_cli": "lib/shared/cli/main.py"
+
 ```
 
 - [ ] **Step 2: Update `migration_commands` module description**
@@ -1658,6 +1713,7 @@ In `modules.migration_commands`, update `description` to:
 
 ```text
 "Stage-specific commands (LLM-driven only): scope.md, profile.md, generate-model.md, generate-tests.md, refactor.md, status.md. Deterministic setup and state-mutation commands have moved to the ad-migration CLI (lib/shared/cli/)."
+
 ```
 
 - [ ] **Step 3: Update `commands` section**
@@ -1672,6 +1728,7 @@ Remove entries for deleted commands. Add:
 "ad_migration_reset": "cd lib && uv run ad-migration reset <stage> <fqn> [fqn ...] [--yes]",
 "ad_migration_exclude_table": "cd lib && uv run ad-migration exclude-table <fqn> [--no-commit]",
 "ad_migration_add_source_table": "cd lib && uv run ad-migration add-source-table <fqn> [--no-commit]"
+
 ```
 
 - [ ] **Step 4: Commit**
@@ -1679,6 +1736,7 @@ Remove entries for deleted commands. Add:
 ```bash
 git add repo-map.json
 git commit -m "docs: update repo-map.json for ad-migration CLI"
+
 ```
 
 ---
@@ -1689,6 +1747,7 @@ git commit -m "docs: update repo-map.json for ad-migration CLI"
 
 ```bash
 cd lib && uv run pytest ../tests/unit/cli/ -v
+
 ```
 
 Expected: all tests pass.
@@ -1697,6 +1756,7 @@ Expected: all tests pass.
 
 ```bash
 cd lib && uv run pytest
+
 ```
 
 Expected: no regressions.
@@ -1705,12 +1765,14 @@ Expected: no regressions.
 
 ```bash
 cd lib && uv run ad-migration --help
+
 ```
 
 Expected: lists all 7 commands (`setup-source`, `setup-target`, `setup-sandbox`, `teardown-sandbox`, `reset`, `exclude-table`, `add-source-table`).
 
 ```bash
 cd lib && uv run ad-migration reset --help
+
 ```
 
 Expected: shows `STAGE` and `FQNS` arguments plus `--yes` and `--project-root` options.
@@ -1720,4 +1782,705 @@ Expected: shows `STAGE` and `FQNS` arguments plus `--yes` and `--project-root` o
 ```bash
 git add -p  # review and stage any final adjustments
 git commit -m "fix: ad-migration CLI smoke test adjustments"
+
 ```
+
+<!-- markdownlint-disable MD048 -->
+---
+
+## Task 10: Update wiki pages
+
+**Files:**
+
+- Modify: `docs/wiki/Quickstart.md`
+- Modify: `docs/wiki/Command-Reference.md`
+- Modify: `docs/wiki/Installation-and-Prerequisites.md`
+- Modify: `docs/wiki/Stage-1-Project-Init.md`
+- Modify: `docs/wiki/Stage-2-DDL-Extraction.md`
+- Modify: `docs/wiki/Stage-3-dbt-Scaffolding.md`
+- Modify: `docs/wiki/Stage-4-Sandbox-Setup.md`
+- Modify: `docs/wiki/Cleanup-and-Teardown.md`
+- Modify: `docs/wiki/Git-Workflow.md`
+- Delete: `docs/wiki/Command-Setup-DDL.md`
+- Create: `docs/wiki/Command-Setup-Source.md`
+
+- [ ] **Step 1: Update `docs/wiki/Quickstart.md`**
+
+Replace section 1 heading and body (current: "1. Scaffold the project"):
+
+~~~~text
+## 1. Scaffold the project and install the CLI
+
+```text
+/init-ad-migration
+```
+
+This installs the `ad-migration` CLI via Homebrew, checks prerequisites, writes the project
+starter files, and scaffolds `scripts/worktree.sh` plus the repo-local git-workflow guidance.
+
+See [[Stage 1 Project Init]].
+~~~~
+
+Replace section 2 (current: `/setup-ddl` invocation and body):
+
+~~~~markdown
+## 2. Extract DDL and build the catalog
+
+```bash
+ad-migration setup-source --technology sql_server --schemas silver,gold
+```
+
+This validates credentials from your environment, extracts DDL, and builds per-object catalog
+files in `catalog/`. For Oracle use `--technology oracle`.
+
+See [[Stage 2 DDL Extraction]].
+~~~~
+
+In section 3, replace:
+
+```text
+- excluded from the migration via `/exclude-table`
+- confirmed as a source via `/add-source-tables`
+```
+
+With:
+
+```text
+- excluded from the migration via `ad-migration exclude-table <fqn>`
+- confirmed as a source via `ad-migration add-source-table <fqn>`
+```
+
+Replace section 4 (current: `/setup-target` invocation and body):
+
+~~~~markdown
+## 4. Set up the target
+
+```bash
+ad-migration setup-target --technology fabric
+```
+
+Options: `--technology fabric|snowflake|duckdb`. Reads `TARGET_*` environment variables,
+scaffolds `dbt/`, persists `runtime.target`, and generates `models/staging/sources.yml`.
+
+See [[Stage 3 dbt Scaffolding]].
+~~~~
+
+Replace section 6 (current: `/setup-sandbox` invocation):
+
+~~~~markdown
+## 6. Create the sandbox
+
+```bash
+ad-migration setup-sandbox
+```
+
+This creates the active sandbox endpoint and persists it as `runtime.sandbox`.
+
+See [[Stage 4 Sandbox Setup]].
+~~~~
+
+Replace section 11 (current: `/teardown-sandbox`):
+
+~~~~markdown
+## 11. Tear down the sandbox when finished
+
+```bash
+ad-migration teardown-sandbox
+```
+
+Run this after all test generation and refactor work that depends on the sandbox is complete.
+~~~~
+
+Replace section 12 (current: `/cleanup-worktrees`):
+
+~~~~markdown
+## 12. Clean up merged worktrees later
+
+```bash
+bash scripts/cleanup-worktrees.sh
+```
+
+After PRs are merged, use this to remove stale worktrees and merged branches.
+~~~~
+
+- [ ] **Step 2: Rewrite `docs/wiki/Command-Reference.md`**
+
+Replace the entire file content with:
+
+~~~~markdown
+# Command Reference
+
+## Plugin commands
+
+Plugin commands run inside Claude Code and handle LLM-driven pipeline stages.
+
+### Bootstrap
+
+| Command | Purpose |
+|---|---|
+| `/init-ad-migration` | Install the `ad-migration` CLI, check prerequisites, and scaffold the project |
+
+### Migration pipeline
+
+| Command | Purpose |
+|---|---|
+| `/scope` | Resolve writers for tables or analyze views |
+| `/profile` | Write migration profiles for tables, views, or MVs |
+| `/generate-tests` | Generate and review test scenarios, then capture ground truth |
+| `/refactor` | Persist proof-backed import/logical/final refactors |
+| `/generate-model` | Generate dbt artifacts from approved refactors and tests |
+| `/status` | Show current readiness and the next best action |
+
+### Source and scope management
+
+| Command | Purpose |
+|---|---|
+| `/reset-migration` | Clear one migration stage so it can be re-run cleanly |
+
+## ad-migration CLI
+
+Deterministic setup and pipeline state commands, usable from a terminal or CI without Claude Code.
+
+Install via `/init-ad-migration` (automatic) or manually:
+
+```bash
+brew tap accelerate-data/homebrew-tap
+brew install ad-migration
+```
+
+Dev usage (no install needed):
+
+```bash
+uv run --project lib ad-migration <command>
+```
+
+### Setup commands
+
+| Command | Purpose |
+|---|---|
+| `ad-migration setup-source` | Extract DDL and build the local catalog from a live source database |
+| `ad-migration setup-target` | Scaffold the dbt project and generate `sources.yml` |
+| `ad-migration setup-sandbox` | Create the active sandbox execution endpoint |
+| `ad-migration teardown-sandbox` | Drop the sandbox endpoint and clear sandbox metadata |
+
+### Pipeline state commands
+
+| Command | Purpose |
+|---|---|
+| `ad-migration reset` | Clear one migration stage so it can be re-run |
+| `ad-migration exclude-table` | Exclude tables or views from the active migration pipeline |
+| `ad-migration add-source-table` | Confirm tables as dbt sources (`is_source: true`) |
+
+## Git workflow scripts
+
+Shell scripts for git operations — called by Claude rules, also runnable directly.
+
+| Script | Purpose |
+|---|---|
+| `scripts/commit.sh` | Stage specific files and commit |
+| `scripts/commit-push-pr.sh` | Stage, commit, push, and open a PR |
+| `scripts/cleanup-worktrees.sh` | Remove merged worktrees and stale merged branches |
+
+## Notes
+
+- Batch plugin commands use the git checkpoint flow and may create or reuse worktrees.
+- Successful items are committed as they complete.
+- Source-confirmed tables are skipped by downstream migration commands.
+~~~~
+
+- [ ] **Step 3: Update `docs/wiki/Installation-and-Prerequisites.md`**
+
+After the "Loading the Plugin" section, insert:
+
+~~~~markdown
+## Installing the ad-migration CLI
+
+The `ad-migration` CLI is installed automatically when you run `/init-ad-migration`. To install
+manually or verify an existing installation:
+
+```bash
+brew tap accelerate-data/homebrew-tap
+brew install ad-migration
+ad-migration --version
+```
+
+Dev usage without installing:
+
+```bash
+uv run --project lib ad-migration --help
+```
+~~~~
+
+In the "Verifying Setup" section, update the description after the `/init-ad-migration` code block. Replace:
+
+```text
+This prompts for source technology selection, then checks every prerequisite silently
+```
+
+With:
+
+```text
+This installs the `ad-migration` CLI via Homebrew if not already present, prompts for source
+technology selection, then checks every prerequisite silently
+```
+
+Replace `/setup-ddl` in the "Optional Tools" table row:
+
+```text
+| Live SQL Server extraction via `ad-migration setup-source` |
+```
+
+Replace the sentence containing `/setup-ddl` in the environment variables section:
+
+```text
+All four connection variables are required for `ad-migration setup-source`, `/setup-sandbox`,
+`/generate-tests`, `/refactor`, and any other live-database skill.
+```
+
+- [ ] **Step 4: Update `docs/wiki/Stage-1-Project-Init.md`**
+
+Replace the opening paragraph:
+
+```text
+`/init-ad-migration` is the entrypoint for a new migration repo. It installs the `ad-migration`
+CLI via Homebrew, checks prerequisites, scaffolds the project, and prepares the repo for the rest
+of the pipeline.
+```
+
+Under "SQL Server-specific checks", replace the `toolbox` line:
+
+```text
+- optional `toolbox` for live `ad-migration setup-source`
+```
+
+Replace the partial manifest sentence:
+
+```text
+It also writes a partial `manifest.json` with source technology and dialect so
+`ad-migration setup-source` can enrich it later.
+```
+
+Replace "Next step":
+
+```text
+## Next step
+
+Proceed to [[Stage 2 DDL Extraction]] and run `ad-migration setup-source`.
+```
+
+- [ ] **Step 5: Rewrite `docs/wiki/Stage-2-DDL-Extraction.md`**
+
+Replace the opening line and invocation section. The new opening:
+
+```text
+`ad-migration setup-source` extracts source metadata and builds the local migration catalog that
+every downstream command depends on. It persists the active source endpoint in `manifest.json`
+as `runtime.source` and writes extraction metadata under `extraction.*`.
+```
+
+Add an invocation section after the opening:
+
+~~~~markdown
+## Invocation
+
+```bash
+# SQL Server
+ad-migration setup-source --technology sql_server --schemas silver,gold
+
+# Oracle
+ad-migration setup-source --technology oracle --schemas SH,HR
+```
+
+| Option | Required | Description |
+|---|---|---|
+| `--technology` | yes | `sql_server` or `oracle` |
+| `--schemas` | yes | Comma-separated list of schemas to extract |
+| `--project-root` | no | Defaults to current working directory |
+| `--no-commit` | no | Skip the automatic git commit after extraction |
+~~~~
+
+Replace the "SQL Server / Fabric flow" section heading and intro with:
+
+```text
+## How it works
+
+1. Validates required environment variables (exits 1 with a list of missing vars if absent)
+2. Runs extraction via `run_extract`
+3. Writes `manifest.json`, `ddl/`, and `catalog/`
+4. Runs AST enrichment
+5. Commits extracted files (unless `--no-commit`)
+```
+
+Replace the Prerequisites subsection:
+
+~~~~markdown
+### Prerequisites
+
+**SQL Server:** `MSSQL_HOST`, `MSSQL_PORT`, `MSSQL_DB`, `SA_PASSWORD` set in environment (or `.envrc`); `toolbox` binary on PATH.
+
+**Oracle:** `ORACLE_HOST`, `ORACLE_PORT`, `ORACLE_SERVICE`, `ORACLE_USER`, `ORACLE_PASSWORD` set in environment; SQLcl and Java 11+ installed.
+
+The CLI exits immediately with a clear message listing every missing variable. See [[Installation and Prerequisites]].
+~~~~
+
+- [ ] **Step 6: Update `docs/wiki/Stage-3-dbt-Scaffolding.md`**
+
+Replace the opening line:
+
+```text
+`ad-migration setup-target` collects target runtime information from environment variables,
+scaffolds the dbt project, and generates `sources.yml` from the catalog.
+```
+
+Add an invocation section after the opening:
+
+~~~~markdown
+## Invocation
+
+```bash
+ad-migration setup-target --technology fabric
+```
+
+| Option | Required | Description |
+|---|---|---|
+| `--technology` | yes | `fabric`, `snowflake`, or `duckdb` |
+| `--source-schema` | no | Source schema for `sources.yml` (defaults to `bronze`) |
+| `--no-commit` | no | Skip the automatic git commit |
+~~~~
+
+- [ ] **Step 7: Update `docs/wiki/Stage-4-Sandbox-Setup.md`**
+
+Replace all occurrences of `/setup-sandbox` as a runnable command with `ad-migration setup-sandbox`. Add the `--yes` flag note:
+
+```text
+`ad-migration setup-sandbox` creates the sandbox. Pass `--yes` to skip the confirmation prompt
+(useful in scripts).
+```
+
+- [ ] **Step 8: Update `docs/wiki/Cleanup-and-Teardown.md`**
+
+Replace the opening sentence:
+
+```text
+Two cleanup operations remove resources created during the migration pipeline:
+`scripts/cleanup-worktrees.sh` for git worktrees and branches, and
+`ad-migration teardown-sandbox` for the throwaway test database.
+```
+
+Replace `## /teardown-sandbox` with `## ad-migration teardown-sandbox`.
+
+Replace all `/teardown-sandbox` command references in the body with `ad-migration teardown-sandbox`.
+
+Replace `## /cleanup-worktrees` with `## scripts/cleanup-worktrees.sh`.
+
+Replace the Usage section:
+
+~~~~markdown
+### Usage
+
+```bash
+bash scripts/cleanup-worktrees.sh             # scan all worktrees
+bash scripts/cleanup-worktrees.sh <branch>    # single branch
+```
+~~~~
+
+- [ ] **Step 9: Update `docs/wiki/Git-Workflow.md`**
+
+There are no direct references to `/commit` or `/commit-push-pr` in the body of Git-Workflow.md. Verify with:
+
+```bash
+grep -n "/commit" docs/wiki/Git-Workflow.md
+```
+
+If any are found, replace with `scripts/commit.sh` / `scripts/commit-push-pr.sh` references.
+
+Add a new section before "## What gets committed vs what stays local":
+
+~~~~markdown
+## Committing and pushing
+
+Use the bundled scripts for git operations:
+
+```bash
+bash scripts/commit.sh "<files>" "<message>"          # stage and commit
+bash scripts/commit-push-pr.sh "<files>" "<message>"  # stage, commit, push, open PR
+```
+
+Claude rules call these scripts automatically during batch command checkpoints. You can also run
+them directly from a terminal when making manual checkpoint commits.
+~~~~
+
+- [ ] **Step 10: Replace `docs/wiki/Command-Setup-DDL.md` with `Command-Setup-Source.md`**
+
+```bash
+git rm docs/wiki/Command-Setup-DDL.md
+```
+
+Create `docs/wiki/Command-Setup-Source.md`:
+
+~~~~markdown
+# Command: setup-source
+
+## Purpose
+
+Validates credentials, extracts DDL and catalog metadata from a live source database, and writes
+the artifact files that downstream skills consume. Produces `manifest.json`, per-object DDL files
+in `ddl/`, and per-object catalog JSON files in `catalog/`. Must run before scoping, profiling,
+or model generation.
+
+## Invocation
+
+```bash
+ad-migration setup-source --technology sql_server --schemas silver,gold
+ad-migration setup-source --technology oracle --schemas SH,HR
+```
+
+| Option | Required | Description |
+|---|---|---|
+| `--technology` | yes | `sql_server` or `oracle` |
+| `--schemas` | yes | Comma-separated list of schemas to extract |
+| `--project-root` | no | Defaults to current working directory |
+| `--no-commit` | no | Skip the automatic git commit after extraction |
+
+## Prerequisites
+
+The CLI validates all required environment variables before connecting. Missing variables cause an
+immediate exit with a message listing exactly which vars are absent.
+
+### SQL Server
+
+| Variable | Description |
+|---|---|
+| `MSSQL_HOST` | SQL Server hostname or IP |
+| `MSSQL_PORT` | SQL Server port (usually `1433`) |
+| `MSSQL_DB` | Source database name |
+| `SA_PASSWORD` | SQL Server password |
+
+Also requires `toolbox` binary on PATH for live MCP extraction.
+
+### Oracle
+
+| Variable | Description |
+|---|---|
+| `ORACLE_HOST` | Oracle hostname or IP |
+| `ORACLE_PORT` | Oracle listener port (usually `1521`) |
+| `ORACLE_SERVICE` | Oracle service name |
+| `ORACLE_USER` | Oracle username |
+| `ORACLE_PASSWORD` | Oracle password |
+
+Also requires SQLcl and Java 11+ installed.
+
+## What it writes
+
+| Path | Contents |
+|---|---|
+| `manifest.json` | Source runtime, extraction schemas, `extracted_at` timestamp |
+| `ddl/tables.sql` | CREATE TABLE statements |
+| `ddl/procedures.sql` | CREATE PROCEDURE statements |
+| `ddl/views.sql` | CREATE VIEW statements |
+| `ddl/functions.sql` | CREATE FUNCTION statements |
+| `catalog/tables/<schema>.<table>.json` | Per-table catalog with columns, PKs, FKs, CDC, sensitivity |
+| `catalog/procedures/<schema>.<proc>.json` | Per-procedure catalog |
+
+## Re-running
+
+Safe to re-run. Rebuilds `ddl/` and `catalog/` from source. Enriched catalog fields written by
+earlier skill runs (`scoping`, `profile`, `refactor`) are preserved across re-extractions.
+
+## Troubleshooting
+
+| Error | Cause | Fix |
+|---|---|---|
+| `Error: missing required environment variables` | Credentials not set | Set the listed variables in `.envrc` and run `direnv allow` |
+| `toolbox: command not found` | genai-toolbox not installed | Install from the genai-toolbox releases page and add to PATH |
+| Exit code 2 | Connection error | Verify database is reachable, credentials are correct |
+~~~~
+
+- [ ] **Step 11: Lint and commit**
+
+```bash
+markdownlint docs/wiki/
+git add docs/wiki/
+git commit -m "docs: update wiki for ad-migration CLI — replace plugin command references"
+```
+
+---
+
+## Task 11: Create CLI testing reference
+
+**Files:**
+
+- Create: `docs/wiki/Testing-the-CLI.md`
+- Modify: `docs/wiki/_Sidebar.md`
+
+- [ ] **Step 1: Create `docs/wiki/Testing-the-CLI.md`**
+
+~~~~markdown
+# Testing the ad-migration CLI
+
+## Unit tests
+
+All CLI unit tests live in `tests/unit/cli/`. They use `typer.testing.CliRunner` and mock the
+underlying `run_*` functions — no database or real environment variables needed.
+
+```bash
+# Run all CLI unit tests
+cd lib && uv run pytest ../tests/unit/cli/ -v
+
+# Run tests for a single command
+cd lib && uv run pytest ../tests/unit/cli/test_setup_source_cmd.py -v
+cd lib && uv run pytest ../tests/unit/cli/test_env_check.py -v
+
+# Full library suite — verify no regressions
+cd lib && uv run pytest
+```
+
+## Dev smoke testing
+
+Run the CLI without installing it using `uv run`:
+
+```bash
+cd lib && uv run ad-migration --help
+cd lib && uv run ad-migration setup-source --help
+cd lib && uv run ad-migration reset --help
+```
+
+Expected: each command prints its usage, options, and description.
+
+## Env var validation
+
+Test that the CLI exits 1 with a clear message when credentials are missing:
+
+```bash
+# Unset all SQL Server vars and run setup-source
+env -i HOME=$HOME uv run --project lib ad-migration setup-source \
+  --technology sql_server --schemas silver
+echo "exit: $?"
+# Expected: exit 1; stderr lists MSSQL_HOST, MSSQL_PORT, MSSQL_DB, SA_PASSWORD
+```
+
+Expected error format:
+
+```text
+Error: missing required environment variables for sql_server:
+
+  MSSQL_HOST                     not set
+  MSSQL_PORT                     not set
+  MSSQL_DB                       not set
+  SA_PASSWORD                    not set
+
+Set these in your shell or .envrc before running setup-source.
+```
+
+Test with all vars set (should pass env check and show help, not extract):
+
+```bash
+MSSQL_HOST=localhost MSSQL_PORT=1433 MSSQL_DB=AdventureWorks2022 SA_PASSWORD=test \
+  uv run --project lib ad-migration setup-source --help
+# Expected: exit 0, help text shown
+```
+
+## Per-command manual tests (requires live database)
+
+### setup-source
+
+```bash
+ad-migration setup-source --technology sql_server --schemas silver,gold
+
+# Verify artifacts written
+ls -la ddl/ catalog/tables/ manifest.json
+
+# Verify --no-commit skips git commit
+ad-migration setup-source --technology sql_server --schemas silver --no-commit
+git status  # should show untracked/modified files, not a clean tree
+```
+
+### setup-target
+
+```bash
+# Set TARGET_* vars for your technology first
+ad-migration setup-target --technology fabric
+ls dbt/dbt_project.yml dbt/models/staging/sources.yml
+```
+
+### setup-sandbox / teardown-sandbox
+
+```bash
+ad-migration setup-sandbox --yes
+python3 -c "import json; m=json.load(open('manifest.json')); print(m['runtime']['sandbox'])"
+
+ad-migration teardown-sandbox --yes
+python3 -c "import json; m=json.load(open('manifest.json')); print(m.get('runtime',{}).get('sandbox','cleared'))"
+```
+
+### reset
+
+```bash
+ad-migration reset profile silver.DimCustomer --yes
+python3 -c "
+import json
+cat = json.load(open('catalog/tables/silver.dimcustomer.json'))
+print('profile' in cat)  # False
+"
+```
+
+### exclude-table / add-source-table
+
+```bash
+ad-migration exclude-table silver.DimCurrency --no-commit
+python3 -c "
+import json
+cat = json.load(open('catalog/tables/silver.dimcurrency.json'))
+print(cat.get('is_excluded'))  # True
+"
+
+ad-migration add-source-table silver.DimGeography --no-commit
+python3 -c "
+import json
+cat = json.load(open('catalog/tables/silver.dimgeography.json'))
+print(cat.get('is_source'))  # True
+"
+```
+
+## Exit codes
+
+| Code | Meaning | Example scenario |
+|---|---|---|
+| `0` | Success | Command completed normally |
+| `1` | Domain failure | Missing env vars, invalid flag value, missing manifest.json |
+| `2` | IO / connection error | Database unreachable, permissions failure |
+
+Quick verification:
+
+```bash
+# Should exit 1 (missing env vars)
+ad-migration setup-source --technology sql_server --schemas silver 2>/dev/null
+echo "exit: $?"
+```
+
+## CI integration
+
+The `--no-commit` and `--yes` flags make all commands CI-safe:
+
+```bash
+# Full setup pipeline, no prompts, no commits
+ad-migration setup-source --technology sql_server --schemas silver --no-commit
+ad-migration setup-target --technology fabric --no-commit
+ad-migration setup-sandbox --yes
+```
+
+Use `set -e` or check `$?` after each step — exit codes are reliable.
+~~~~
+
+- [ ] **Step 2: Add entry to `docs/wiki/_Sidebar.md`**
+
+Read `docs/wiki/_Sidebar.md`. Find where `Command-Setup-DDL` is listed and replace with two entries: `Command-Setup-Source` and `Testing-the-CLI`. Add `Testing-the-CLI` near the reference section or alongside other command pages.
+
+- [ ] **Step 3: Lint and commit**
+
+```bash
+markdownlint docs/wiki/Testing-the-CLI.md docs/wiki/_Sidebar.md
+git add docs/wiki/Testing-the-CLI.md docs/wiki/_Sidebar.md
+git commit -m "docs: add CLI testing reference"
+```
+<!-- markdownlint-enable MD048 -->
