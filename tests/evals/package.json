@@ -3,7 +3,6 @@
   "private": true,
   "description": "Promptfoo eval harness for skill testing",
   "scripts": {
-    "eval": "npm run eval:listing-objects && npm run eval:profiling-table && npm run eval:reviewing-tests && npm run eval:reviewing-model && npm run eval:analyzing-table && npm run eval:analyzing-table-readiness && npm run eval:refactoring-sql && npm run eval:generating-tests && npm run eval:generating-model && npm run eval:cmd-scope && npm run eval:cmd-profile && npm run eval:cmd-generate-model && npm run eval:cmd-generate-tests && npm run eval:cmd-refactor && npm run eval:cmd-status && npm run eval:cmd-reset-migration && npm run eval:cmd-commit-push-pr",
     "eval:listing-objects": "./scripts/promptfoo.sh eval --no-cache -c packages/listing-objects/skill-listing-objects.yaml",
     "eval:profiling-table": "./scripts/promptfoo.sh eval --no-cache -c packages/profiling-table/skill-profiling-table.yaml",
     "eval:reviewing-tests": "./scripts/promptfoo.sh eval --no-cache -c packages/reviewing-tests/skill-reviewing-tests.yaml",

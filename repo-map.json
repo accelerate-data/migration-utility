@@ -169,7 +169,6 @@
     "refactor_write": "cd lib && uv run refactor write --table <schema.table> --refactored-sql-file <path> --status ok|partial|error",
     "compare_sql": "cd lib && uv run test-harness compare-sql --sql-a-file <extracted.sql> --sql-b-file <refactored.sql> --spec <spec-path>",
     "lint_md": "markdownlint <file>",
-    "eval_all": "cd tests/evals && npm run eval",
     "eval_listing_objects": "cd tests/evals && npm run eval:listing-objects",
     "eval_profiling_table": "cd tests/evals && npm run eval:profiling-table",
     "eval_generating_model": "cd tests/evals && npm run eval:generating-model",
