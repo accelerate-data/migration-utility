@@ -150,6 +150,11 @@ def write_partial_manifest(
         help="Project root directory (defaults to CWD)"
     ),
     technology: str = typer.Option(..., help="Source technology: sql_server or oracle"),
+    target_technology: str = typer.Option(
+        ...,
+        "--target-technology",
+        help="Target technology: sql_server or oracle",
+    ),
     prereqs_json: Optional[str] = typer.Option(
         None, "--prereqs-json",
         help="JSON object of validated prerequisite results (env_vars, tools)",
@@ -168,7 +173,12 @@ def write_partial_manifest(
             raise typer.Exit(1) from exc
 
     try:
-        result = run_write_partial_manifest(project_root, technology, prereqs=prereqs)
+        result = run_write_partial_manifest(
+            project_root,
+            technology,
+            prereqs=prereqs,
+            target_technology=target_technology,
+        )
     except ValueError as exc:
         typer.echo(str(exc), err=True)
         raise typer.Exit(1) from exc

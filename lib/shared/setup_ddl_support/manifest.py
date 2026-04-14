@@ -170,25 +170,42 @@ def build_runtime_role(technology: str, database: str) -> RuntimeRole:
     return RuntimeRole.model_validate(get_connection_identity(technology, database))
 
 
+def _seed_runtime_role(
+    manifest: dict[str, Any],
+    role_name: str,
+    technology: str,
+) -> dict[str, Any]:
+    existing_role = get_runtime_role(manifest, role_name)
+    if existing_role is not None and existing_role.technology == technology:
+        seeded_role = existing_role.model_copy(update={"dialect": TECH_DIALECT[technology]})
+    else:
+        seeded_role = RuntimeRole(technology=technology, dialect=TECH_DIALECT[technology])
+    return set_runtime_role(manifest, role_name, seeded_role)
+
+
 def run_write_partial_manifest(
     project_root: Path,
     technology: str,
+    target_technology: str,
     prereqs: dict[str, Any] | None = None,
 ) -> dict[str, Any]:
     if technology not in TECH_DIALECT:
         raise ValueError(
             f"Unknown technology: {technology}. Must be one of {list(TECH_DIALECT.keys())}."
         )
+    if target_technology not in TECH_DIALECT:
+        raise ValueError(
+            "Unknown target technology: "
+            f"{target_technology}. Must be one of {list(TECH_DIALECT.keys())}."
+        )
     project_root.mkdir(parents=True, exist_ok=True)
     out_path = project_root / "manifest.json"
     existing = read_manifest_or_empty(project_root)
     existing = sanitize_manifest(existing)
-    manifest: dict[str, Any] = {
-        **existing,
-        "schema_version": "1.0",
-        "technology": technology,
-        "dialect": TECH_DIALECT[technology],
-    }
+    manifest: dict[str, Any] = {**existing, "schema_version": "1.0"}
+    manifest = _seed_runtime_role(manifest, "source", technology)
+    manifest = _seed_runtime_role(manifest, "sandbox", technology)
+    manifest = _seed_runtime_role(manifest, "target", target_technology)
     if prereqs is not None:
         manifest["init_handoff"] = {
             **prereqs,

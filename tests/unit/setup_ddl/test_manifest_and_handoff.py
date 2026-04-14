@@ -22,14 +22,19 @@ class TestWritePartialManifest:
             "write-partial-manifest",
             "--project-root", str(tmp_path),
             "--technology", "oracle",
+            "--target-technology", "oracle",
         ])
         assert result.returncode == 0
         manifest = json.loads((tmp_path / "manifest.json").read_text())
         assert manifest["schema_version"] == "1.0"
         assert manifest["technology"] == "oracle"
         assert manifest["dialect"] == "oracle"
-        # Partial manifest should NOT have database or schema fields
-        assert "runtime" not in manifest
+        assert manifest["runtime"]["source"]["technology"] == "oracle"
+        assert manifest["runtime"]["source"]["dialect"] == "oracle"
+        assert manifest["runtime"]["sandbox"]["technology"] == "oracle"
+        assert manifest["runtime"]["sandbox"]["dialect"] == "oracle"
+        assert manifest["runtime"]["source"]["connection"] == {}
+        assert manifest["runtime"]["sandbox"]["connection"] == {}
         assert "extraction" not in manifest
 
     def test_partial_manifest_sql_server(self, tmp_path):
@@ -37,17 +42,44 @@ class TestWritePartialManifest:
             "write-partial-manifest",
             "--project-root", str(tmp_path),
             "--technology", "sql_server",
+            "--target-technology", "sql_server",
         ])
         assert result.returncode == 0
         manifest = json.loads((tmp_path / "manifest.json").read_text())
         assert manifest["technology"] == "sql_server"
         assert manifest["dialect"] == "tsql"
+        assert manifest["runtime"]["source"]["technology"] == "sql_server"
+        assert manifest["runtime"]["sandbox"]["technology"] == "sql_server"
+
+    def test_partial_manifest_can_seed_distinct_target_role(self, tmp_path):
+        result = _run_cli([
+            "write-partial-manifest",
+            "--project-root", str(tmp_path),
+            "--technology", "oracle",
+            "--target-technology", "sql_server",
+        ])
+        assert result.returncode == 0, result.stderr
+        manifest = json.loads((tmp_path / "manifest.json").read_text())
+        assert manifest["runtime"]["source"]["technology"] == "oracle"
+        assert manifest["runtime"]["sandbox"]["technology"] == "oracle"
+        assert manifest["runtime"]["target"]["technology"] == "sql_server"
+        assert manifest["runtime"]["target"]["dialect"] == "tsql"
 
     def test_partial_manifest_invalid_technology(self, tmp_path):
         result = _run_cli([
             "write-partial-manifest",
             "--project-root", str(tmp_path),
             "--technology", "postgres",
+            "--target-technology", "oracle",
+        ])
+        assert result.returncode != 0
+
+    def test_partial_manifest_invalid_target_technology(self, tmp_path):
+        result = _run_cli([
+            "write-partial-manifest",
+            "--project-root", str(tmp_path),
+            "--technology", "oracle",
+            "--target-technology", "postgres",
         ])
         assert result.returncode != 0
 
@@ -57,6 +89,7 @@ class TestWritePartialManifest:
             "write-partial-manifest",
             "--project-root", str(tmp_path),
             "--technology", "oracle",
+            "--target-technology", "oracle",
         ])
         # Then enrich with full manifest
         result = _run_cli([
@@ -74,6 +107,59 @@ class TestWritePartialManifest:
         assert manifest["runtime"]["source"]["connection"]["schema"] == "FREEPDB1"
         assert manifest["extraction"]["schemas"] == ["SH", "HR"]
         assert "extracted_at" in manifest["extraction"]
+
+    def test_full_manifest_preserves_existing_init_handoff(self, tmp_path):
+        prereqs_payload = {
+            "common": {
+                "startup": {
+                    "uv": True,
+                    "python": True,
+                }
+            },
+            "roles": {
+                "source": {
+                    "technology": "oracle",
+                    "startup": {
+                        "sqlcl": True,
+                    },
+                },
+                "sandbox": {
+                    "technology": "oracle",
+                    "startup": {
+                        "sqlcl": True,
+                    },
+                },
+                "target": {
+                    "technology": "sql_server",
+                    "startup": {
+                        "pyodbc": True,
+                    },
+                },
+            },
+        }
+        prereqs = json.dumps(prereqs_payload)
+        _run_cli([
+            "write-partial-manifest",
+            "--project-root", str(tmp_path),
+            "--technology", "oracle",
+            "--target-technology", "sql_server",
+            "--prereqs-json", prereqs,
+        ])
+
+        result = _run_cli([
+            "write-manifest",
+            "--project-root", str(tmp_path),
+            "--technology", "oracle",
+            "--database", "FREEPDB1",
+            "--schemas", "SH,HR",
+        ])
+
+        assert result.returncode == 0, result.stderr
+        manifest = json.loads((tmp_path / "manifest.json").read_text())
+        persisted_handoff = dict(manifest["init_handoff"])
+        persisted_handoff.pop("timestamp")
+        assert persisted_handoff == prereqs_payload
+        assert "timestamp" in manifest["init_handoff"]
 
     def test_partial_manifest_scrubs_stale_unsupported_runtime_roles(self, tmp_path):
         (tmp_path / "manifest.json").write_text(
@@ -95,12 +181,115 @@ class TestWritePartialManifest:
             "write-partial-manifest",
             "--project-root", str(tmp_path),
             "--technology", "oracle",
+            "--target-technology", "oracle",
         ])
 
         assert result.returncode == 0, result.stderr
         manifest = json.loads((tmp_path / "manifest.json").read_text())
-        assert "runtime" not in manifest
+        assert manifest["runtime"]["source"]["technology"] == "oracle"
+        assert manifest["runtime"]["sandbox"]["technology"] == "oracle"
+        assert manifest["runtime"]["target"]["technology"] == "oracle"
         assert manifest["technology"] == "oracle"
+
+    def test_partial_manifest_preserves_supported_existing_target_role(self, tmp_path):
+        (tmp_path / "manifest.json").write_text(
+            json.dumps(
+                {
+                    "technology": "oracle",
+                    "dialect": "oracle",
+                    "runtime": {
+                        "target": {
+                            "technology": "sql_server",
+                            "dialect": "tsql",
+                            "connection": {"database": "TargetDB"},
+                            "schemas": {"source": "bronze"},
+                        }
+                    },
+                }
+            ),
+            encoding="utf-8",
+        )
+
+        result = _run_cli([
+            "write-partial-manifest",
+            "--project-root", str(tmp_path),
+            "--technology", "oracle",
+            "--target-technology", "sql_server",
+        ])
+
+        assert result.returncode == 0, result.stderr
+        manifest = json.loads((tmp_path / "manifest.json").read_text())
+        assert manifest["runtime"]["target"]["connection"]["database"] == "TargetDB"
+        assert manifest["runtime"]["target"]["schemas"]["source"] == "bronze"
+
+    def test_partial_manifest_replaces_existing_target_when_technology_changes(self, tmp_path):
+        (tmp_path / "manifest.json").write_text(
+            json.dumps(
+                {
+                    "technology": "oracle",
+                    "dialect": "oracle",
+                    "runtime": {
+                        "target": {
+                            "technology": "sql_server",
+                            "dialect": "tsql",
+                            "connection": {"database": "TargetDB"},
+                            "schemas": {"source": "bronze"},
+                        }
+                    },
+                }
+            ),
+            encoding="utf-8",
+        )
+
+        result = _run_cli([
+            "write-partial-manifest",
+            "--project-root", str(tmp_path),
+            "--technology", "oracle",
+            "--target-technology", "oracle",
+        ])
+
+        assert result.returncode == 0, result.stderr
+        manifest = json.loads((tmp_path / "manifest.json").read_text())
+        assert manifest["runtime"]["target"]["technology"] == "oracle"
+        assert manifest["runtime"]["target"]["connection"] == {}
+        assert "schemas" not in manifest["runtime"]["target"]
+
+    def test_partial_manifest_preserves_existing_source_and_sandbox_connection_state(self, tmp_path):
+        (tmp_path / "manifest.json").write_text(
+            json.dumps(
+                {
+                    "technology": "oracle",
+                    "dialect": "oracle",
+                    "runtime": {
+                        "source": {
+                            "technology": "oracle",
+                            "dialect": "oracle",
+                            "connection": {"service": "SRCPDB", "schema": "BRONZE"},
+                        },
+                        "sandbox": {
+                            "technology": "oracle",
+                            "dialect": "oracle",
+                            "connection": {"service": "SANDBOXPDB", "schema": "TESTING"},
+                        },
+                    },
+                }
+            ),
+            encoding="utf-8",
+        )
+
+        result = _run_cli([
+            "write-partial-manifest",
+            "--project-root", str(tmp_path),
+            "--technology", "oracle",
+            "--target-technology", "oracle",
+        ])
+
+        assert result.returncode == 0, result.stderr
+        manifest = json.loads((tmp_path / "manifest.json").read_text())
+        assert manifest["runtime"]["source"]["connection"]["service"] == "SRCPDB"
+        assert manifest["runtime"]["source"]["connection"]["schema"] == "BRONZE"
+        assert manifest["runtime"]["sandbox"]["connection"]["service"] == "SANDBOXPDB"
+        assert manifest["runtime"]["sandbox"]["connection"]["schema"] == "TESTING"
 
 
 # ── Unit: write-partial-manifest with prereqs ───────────────────────────────
@@ -109,21 +298,54 @@ class TestWritePartialManifest:
 class TestWritePartialManifestHandoff:
     def test_prereqs_json_writes_init_handoff(self, tmp_path):
         prereqs = json.dumps({
-            "env_vars": {"MSSQL_HOST": True, "MSSQL_PORT": True, "MSSQL_DB": True, "SA_PASSWORD": True},
-            "tools": {"uv": True, "python": True, "shared_deps": True, "ddl_mcp": True, "freetds": True},
+            "common": {
+                "startup": {
+                    "uv": True,
+                    "python": True,
+                    "shared_deps": True,
+                    "ddl_mcp": True,
+                }
+            },
+            "roles": {
+                "source": {
+                    "technology": "sql_server",
+                    "startup": {
+                        "freetds": True,
+                        "toolbox": False,
+                        "driver_override_resolved": True,
+                    },
+                },
+                "sandbox": {
+                    "technology": "sql_server",
+                    "startup": {
+                        "freetds": True,
+                    },
+                },
+                "target": {
+                    "technology": "oracle",
+                    "startup": {
+                        "sqlcl": True,
+                        "java": True,
+                    },
+                },
+            },
         })
         result = _run_cli([
             "write-partial-manifest",
             "--project-root", str(tmp_path),
             "--technology", "sql_server",
+            "--target-technology", "oracle",
             "--prereqs-json", prereqs,
         ])
         assert result.returncode == 0
         manifest = json.loads((tmp_path / "manifest.json").read_text())
         assert "init_handoff" in manifest
         handoff = manifest["init_handoff"]
-        assert handoff["env_vars"]["MSSQL_HOST"] is True
-        assert handoff["tools"]["uv"] is True
+        assert handoff["common"]["startup"]["uv"] is True
+        assert handoff["roles"]["source"]["technology"] == "sql_server"
+        assert handoff["roles"]["source"]["startup"]["freetds"] is True
+        assert handoff["roles"]["target"]["technology"] == "oracle"
+        assert handoff["roles"]["target"]["startup"]["sqlcl"] is True
         assert "timestamp" in handoff
 
     def test_without_prereqs_json_no_init_handoff(self, tmp_path):
@@ -131,6 +353,7 @@ class TestWritePartialManifestHandoff:
             "write-partial-manifest",
             "--project-root", str(tmp_path),
             "--technology", "oracle",
+            "--target-technology", "oracle",
         ])
         assert result.returncode == 0
         manifest = json.loads((tmp_path / "manifest.json").read_text())

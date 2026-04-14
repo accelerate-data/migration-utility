@@ -12,14 +12,22 @@ import subprocess
 from pathlib import Path
 
 import pytest
+from typer.testing import CliRunner
 
 from shared.init import (
+    app,
     GITIGNORE_ENTRIES,
     SOURCE_REGISTRY,
     get_source_config,
+    run_discover_mssql_driver_override,
+    run_discover_sqlcl_bin_override,
     run_scaffold_hooks,
     run_scaffold_project,
+    write_local_env_overrides,
 )
+from shared.output_models.init import LocalOverrideDiscoveryOutput
+
+RUNNER = CliRunner()
 
 
 # ── scaffold-project (sql_server default) ───────────────────────────────────
@@ -47,6 +55,7 @@ class TestScaffoldProject:
         assert ".mcp.json" not in (tmp_path / ".gitignore").read_text()
         assert ".envrc" in (tmp_path / ".gitignore").read_text()
         assert "MSSQL_HOST" in (tmp_path / ".envrc").read_text()
+        assert 'source_env_if_exists .env' in (tmp_path / ".envrc").read_text()
         workflow = (tmp_path / ".claude" / "rules" / "git-workflow.md").read_text()
         assert "Worktree" in workflow
         assert "../worktrees" in workflow
@@ -74,6 +83,16 @@ class TestScaffoldProject:
         assert "# Custom" in content
         assert ".mcp.json" not in content
         assert ".envrc" in content
+
+    def test_merges_local_env_loader_into_existing_envrc(self, tmp_path: Path) -> None:
+        (tmp_path / ".envrc").write_text("export MSSQL_HOST=localhost\n", encoding="utf-8")
+
+        result = run_scaffold_project(tmp_path)
+
+        assert ".envrc (+local .env loader)" in result.files_updated
+        envrc = (tmp_path / ".envrc").read_text()
+        assert "export MSSQL_HOST=localhost" in envrc
+        assert "source_env_if_exists .env" in envrc
 
     def test_reports_missing_claude_md_sections(self, tmp_path: Path) -> None:
         (tmp_path / "CLAUDE.md").write_text("# Project\n\n## Domain\n\nSome domain info.\n")
@@ -105,6 +124,7 @@ class TestScaffoldProjectOracle:
         assert "ORACLE_SERVICE" in envrc
         assert "ORACLE_USER" in envrc
         assert "ORACLE_PASSWORD" in envrc
+        assert 'source_env_if_exists .env' in envrc
         assert "MSSQL" not in envrc
 
         claude_md = (tmp_path / "CLAUDE.md").read_text()
@@ -194,3 +214,302 @@ class TestSourceRegistry:
             assert len(config.envrc_fn()) > 0
             assert len(config.repo_map_fn()) > 0
             assert len(config.pre_commit_hook_fn()) > 0
+
+
+class TestWriteLocalEnvOverrides:
+    def test_writes_new_local_env_file(self, tmp_path: Path) -> None:
+        changed = write_local_env_overrides(
+            tmp_path,
+            {
+                "MSSQL_DRIVER": "ODBC Driver 18 for SQL Server",
+                "SQLCL_BIN": "/opt/sqlcl/bin/sql",
+            },
+        )
+
+        assert changed is True
+        assert (tmp_path / ".env").read_text() == (
+            'MSSQL_DRIVER="ODBC Driver 18 for SQL Server"\n'
+            'SQLCL_BIN="/opt/sqlcl/bin/sql"\n'
+        )
+
+    def test_updates_existing_keys_without_touching_other_lines(self, tmp_path: Path) -> None:
+        env_path = tmp_path / ".env"
+        env_path.write_text(
+            'KEEP_ME="1"\n'
+            'MSSQL_DRIVER="FreeTDS"\n',
+            encoding="utf-8",
+        )
+
+        changed = write_local_env_overrides(
+            tmp_path,
+            {"MSSQL_DRIVER": "ODBC Driver 18 for SQL Server"},
+        )
+
+        assert changed is True
+        assert env_path.read_text() == (
+            'KEEP_ME="1"\n'
+            'MSSQL_DRIVER="ODBC Driver 18 for SQL Server"\n'
+        )
+
+    def test_returns_false_when_no_changes_are_needed(self, tmp_path: Path) -> None:
+        env_path = tmp_path / ".env"
+        env_path.write_text('SQLCL_BIN="/opt/sqlcl/bin/sql"\n', encoding="utf-8")
+
+        changed = write_local_env_overrides(
+            tmp_path,
+            {"SQLCL_BIN": "/opt/sqlcl/bin/sql"},
+        )
+
+        assert changed is False
+        assert env_path.read_text() == 'SQLCL_BIN="/opt/sqlcl/bin/sql"\n'
+
+    def test_escapes_quotes_and_backslashes(self, tmp_path: Path) -> None:
+        changed = write_local_env_overrides(
+            tmp_path,
+            {"SQLCL_BIN": 'C:\\Program Files\\SQLcl\\"sql".exe'},
+        )
+
+        assert changed is True
+        assert (tmp_path / ".env").read_text() == (
+            'SQLCL_BIN="C:\\\\Program Files\\\\SQLcl\\\\\\"sql\\".exe"\n'
+        )
+
+    def test_cli_writes_local_env_overrides(self, tmp_path: Path) -> None:
+        result = RUNNER.invoke(
+            app,
+            [
+                "write-local-env-overrides",
+                "--project-root", str(tmp_path),
+                "--overrides-json", '{"SQLCL_BIN":"/opt/sqlcl/bin/sql"}',
+            ],
+        )
+
+        assert result.exit_code == 0, result.stdout
+        payload = json.loads(result.stdout)
+        assert payload["changed"] is True
+        assert payload["file"].endswith("/.env")
+
+    def test_cli_rejects_invalid_json(self, tmp_path: Path) -> None:
+        result = RUNNER.invoke(
+            app,
+            [
+                "write-local-env-overrides",
+                "--project-root", str(tmp_path),
+                "--overrides-json", "{not-json}",
+            ],
+        )
+
+        assert result.exit_code == 1
+        assert "Invalid --overrides-json" in result.stderr
+
+    def test_cli_rejects_non_string_map(self, tmp_path: Path) -> None:
+        result = RUNNER.invoke(
+            app,
+            [
+                "write-local-env-overrides",
+                "--project-root", str(tmp_path),
+                "--overrides-json", '{"SQLCL_BIN":123}',
+            ],
+        )
+
+        assert result.exit_code == 1
+        assert "must be a JSON object of string keys and string values" in result.stderr
+
+
+class TestDiscoverMssqlDriverOverride:
+    def test_uses_non_default_env_override(self, monkeypatch: pytest.MonkeyPatch) -> None:
+        monkeypatch.setenv("MSSQL_DRIVER", "ODBC Driver 18 for SQL Server")
+        monkeypatch.setattr(
+            "shared.init._query_odbc_drivers",
+            lambda: ["ODBC Driver 18 for SQL Server"],
+        )
+
+        result = run_discover_mssql_driver_override()
+
+        assert result.status == "resolved"
+        assert result.value == "ODBC Driver 18 for SQL Server"
+
+    def test_rejects_unknown_env_driver_override(self, monkeypatch: pytest.MonkeyPatch) -> None:
+        monkeypatch.setenv("MSSQL_DRIVER", "bogus")
+        monkeypatch.setattr("shared.init._query_odbc_drivers", lambda: ["FreeTDS"])
+
+        result = run_discover_mssql_driver_override()
+
+        assert result.status == "manual"
+        assert result.message == (
+            'Set MSSQL_DRIVER="ODBC Driver 18 for SQL Server" after installing a SQL Server ODBC driver.'
+        )
+
+    def test_rejects_default_env_driver_when_freetds_not_available(
+        self,
+        monkeypatch: pytest.MonkeyPatch,
+    ) -> None:
+        monkeypatch.setenv("MSSQL_DRIVER", "FreeTDS")
+        monkeypatch.setattr("shared.init._query_odbc_drivers", lambda: ["SQLite3"])
+
+        result = run_discover_mssql_driver_override()
+
+        assert result.status == "manual"
+
+    def test_rejects_default_env_driver_when_different_driver_is_installed(
+        self,
+        monkeypatch: pytest.MonkeyPatch,
+    ) -> None:
+        monkeypatch.setenv("MSSQL_DRIVER", "FreeTDS")
+        monkeypatch.setattr(
+            "shared.init._query_odbc_drivers",
+            lambda: ["ODBC Driver 18 for SQL Server"],
+        )
+
+        result = run_discover_mssql_driver_override()
+
+        assert result.status == "manual"
+
+    def test_defaults_when_freetds_registered(
+        self,
+        monkeypatch: pytest.MonkeyPatch,
+    ) -> None:
+        monkeypatch.delenv("MSSQL_DRIVER", raising=False)
+        monkeypatch.setattr("shared.init._query_odbc_drivers", lambda: ["FreeTDS"])
+
+        result = run_discover_mssql_driver_override()
+
+        assert result.status == "default"
+        assert result.value is None
+
+    def test_resolves_microsoft_driver_from_odbcinst(
+        self,
+        monkeypatch: pytest.MonkeyPatch,
+    ) -> None:
+        monkeypatch.delenv("MSSQL_DRIVER", raising=False)
+        monkeypatch.setattr(
+            "shared.init._query_odbc_drivers",
+            lambda: ["ODBC Driver 18 for SQL Server"],
+        )
+
+        result = run_discover_mssql_driver_override()
+
+        assert result.status == "resolved"
+        assert result.value == "ODBC Driver 18 for SQL Server"
+
+    def test_reports_manual_override_when_no_supported_driver_found(
+        self,
+        monkeypatch: pytest.MonkeyPatch,
+    ) -> None:
+        monkeypatch.delenv("MSSQL_DRIVER", raising=False)
+        monkeypatch.setattr("shared.init._query_odbc_drivers", lambda: ["SQLite3"])
+
+        result = run_discover_mssql_driver_override()
+
+        assert result.status == "manual"
+        assert result.message == (
+            'Set MSSQL_DRIVER="ODBC Driver 18 for SQL Server" after installing a SQL Server ODBC driver.'
+        )
+
+    def test_cli_returns_discovery_payload(self, monkeypatch: pytest.MonkeyPatch) -> None:
+        monkeypatch.setattr(
+            "shared.init.run_discover_mssql_driver_override",
+            lambda: LocalOverrideDiscoveryOutput(
+                key="MSSQL_DRIVER",
+                status="resolved",
+                value="ODBC Driver 18 for SQL Server",
+            ),
+        )
+
+        result = RUNNER.invoke(app, ["discover-mssql-driver-override"])
+
+        assert result.exit_code == 0, result.stdout
+        payload = json.loads(result.stdout)
+        assert payload["key"] == "MSSQL_DRIVER"
+        assert payload["status"] == "resolved"
+
+
+class TestDiscoverSqlclBinOverride:
+    def test_uses_env_override(self, monkeypatch: pytest.MonkeyPatch) -> None:
+        monkeypatch.setenv("SQLCL_BIN", "/opt/sqlcl/bin/sql")
+        monkeypatch.setattr("shared.init._is_executable_file", lambda _path: True)
+        monkeypatch.setattr("shared.init._is_sqlcl_binary", lambda _path: True)
+
+        result = run_discover_sqlcl_bin_override()
+
+        assert result.status == "resolved"
+        assert result.value == "/opt/sqlcl/bin/sql"
+
+    def test_rejects_non_executable_env_override(self, monkeypatch: pytest.MonkeyPatch) -> None:
+        monkeypatch.setenv("SQLCL_BIN", "/missing/sql")
+        monkeypatch.setattr("shared.init._is_executable_file", lambda _path: False)
+
+        result = run_discover_sqlcl_bin_override()
+
+        assert result.status == "manual"
+        assert result.message == 'Set SQLCL_BIN="/absolute/path/to/sql" and ensure Java 11+ is on PATH.'
+
+    def test_rejects_non_sqlcl_env_override(self, monkeypatch: pytest.MonkeyPatch) -> None:
+        monkeypatch.setenv("SQLCL_BIN", "/usr/local/bin/sql")
+        monkeypatch.setattr("shared.init._is_executable_file", lambda _path: True)
+        monkeypatch.setattr("shared.init._is_sqlcl_binary", lambda _path: False)
+
+        result = run_discover_sqlcl_bin_override()
+
+        assert result.status == "manual"
+
+    def test_defaults_when_sql_on_path(self, monkeypatch: pytest.MonkeyPatch) -> None:
+        monkeypatch.delenv("SQLCL_BIN", raising=False)
+        monkeypatch.setattr("shared.init.which", lambda name: "/usr/local/bin/sql" if name == "sql" else None)
+        monkeypatch.setattr("shared.init._is_sqlcl_binary", lambda _path: True)
+
+        result = run_discover_sqlcl_bin_override()
+
+        assert result.status == "default"
+        assert result.value is None
+
+    def test_defaults_when_sqlcl_on_path(self, monkeypatch: pytest.MonkeyPatch) -> None:
+        monkeypatch.delenv("SQLCL_BIN", raising=False)
+        monkeypatch.setattr("shared.init.which", lambda name: "/usr/local/bin/sqlcl" if name == "sqlcl" else None)
+        monkeypatch.setattr("shared.init._is_sqlcl_binary", lambda _path: True)
+
+        result = run_discover_sqlcl_bin_override()
+
+        assert result.status == "default"
+        assert result.value is None
+
+    def test_reports_manual_override_when_sqlcl_not_found(
+        self,
+        monkeypatch: pytest.MonkeyPatch,
+    ) -> None:
+        monkeypatch.delenv("SQLCL_BIN", raising=False)
+        monkeypatch.setattr("shared.init.which", lambda _name: None)
+
+        result = run_discover_sqlcl_bin_override()
+
+        assert result.status == "manual"
+        assert result.message == 'Set SQLCL_BIN="/absolute/path/to/sql" and ensure Java 11+ is on PATH.'
+
+    def test_reports_manual_override_when_path_sql_is_not_sqlcl(
+        self,
+        monkeypatch: pytest.MonkeyPatch,
+    ) -> None:
+        monkeypatch.delenv("SQLCL_BIN", raising=False)
+        monkeypatch.setattr("shared.init.which", lambda name: "/usr/local/bin/sql" if name == "sql" else None)
+        monkeypatch.setattr("shared.init._is_sqlcl_binary", lambda _path: False)
+
+        result = run_discover_sqlcl_bin_override()
+
+        assert result.status == "manual"
+
+    def test_cli_returns_sqlcl_discovery_payload(self, monkeypatch: pytest.MonkeyPatch) -> None:
+        monkeypatch.setattr(
+            "shared.init.run_discover_sqlcl_bin_override",
+            lambda: LocalOverrideDiscoveryOutput(
+                key="SQLCL_BIN",
+                status="manual",
+                message='Set SQLCL_BIN="/absolute/path/to/sql" and ensure Java 11+ is on PATH.',
+            ),
+        )
+
+        result = RUNNER.invoke(app, ["discover-sqlcl-bin-override"])
+
+        assert result.exit_code == 0, result.stdout
+        payload = json.loads(result.stdout)
+        assert payload["key"] == "SQLCL_BIN"
+        assert payload["status"] == "manual"

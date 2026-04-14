@@ -1,5 +1,7 @@
 """Init command output contracts."""
 
+from typing import Literal
+
 from pydantic import BaseModel
 
 from shared.output_models.shared import OUTPUT_CONFIG
@@ -31,3 +33,19 @@ class FreeTdsCheckOutput(BaseModel):
     registration_file: str | None
     driver_lib_path: str | None
     message: str | None
+
+
+class LocalEnvOverrideWriteOutput(BaseModel):
+    model_config = OUTPUT_CONFIG
+
+    file: str
+    changed: bool
+
+
+class LocalOverrideDiscoveryOutput(BaseModel):
+    model_config = OUTPUT_CONFIG
+
+    key: str
+    status: Literal["resolved", "default", "manual"]
+    value: str | None = None
+    message: str | None = None

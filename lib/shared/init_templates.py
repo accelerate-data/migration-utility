@@ -174,6 +174,8 @@ def _envrc_sql_server() -> str:
 # Fill in your values and run `direnv allow`.
 # This file is gitignored — do not commit it.
 
+source_env_if_exists .env
+
 export MSSQL_HOST=localhost
 export MSSQL_PORT=1433
 export MSSQL_DB=
@@ -406,6 +408,8 @@ def _envrc_oracle() -> str:
 # Oracle credentials for the Oracle MCP server (SQLcl).
 # Fill in your values and run `direnv allow`.
 # This file is gitignored — do not commit it.
+
+source_env_if_exists .env
 
 export ORACLE_HOST=localhost
 export ORACLE_PORT=1521

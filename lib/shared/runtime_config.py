@@ -163,6 +163,7 @@ def get_sandbox_name(manifest: dict[str, Any]) -> str | None:
         or sandbox.connection.schema_name
         or sandbox.connection.path
         or sandbox.connection.service
+        or sandbox.connection.dsn
     )
 
 
