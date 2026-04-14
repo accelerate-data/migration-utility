@@ -2,12 +2,27 @@
 
 from __future__ import annotations
 
+import logging
 import os
 import subprocess
 from pathlib import Path
 
 from shared.dbops import get_dbops
 from shared.runtime_config_models import RuntimeRole
+
+logger = logging.getLogger(__name__)
+
+
+def _log_context(role: RuntimeRole) -> str:
+    connection = role.connection
+    parts = [f"technology={role.technology}"]
+    if connection.database:
+        parts.append(f"database={connection.database}")
+    if connection.service:
+        parts.append(f"service={connection.service}")
+    if connection.schema_name:
+        parts.append(f"schema={connection.schema_name}")
+    return " ".join(parts)
 
 
 def materialize_migration_test(
@@ -26,6 +41,11 @@ def materialize_migration_test(
     adapter = get_dbops(role.technology).from_role(role, project_root=repo_root)
     script_path = adapter.fixture_script_path(repo_root)
     if not script_path.exists():
+        logger.error(
+            "event=fixture_materialization_finish %s status=failure reason=script_missing script_path=%s",
+            _log_context(role),
+            script_path,
+        )
         raise FileNotFoundError(f"MigrationTest fixture script not found: {script_path}")
 
     env = os.environ.copy()
@@ -33,7 +53,13 @@ def materialize_migration_test(
     if extra_env:
         env.update(extra_env)
 
-    return subprocess.run(
+    logger.info(
+        "event=fixture_materialization_start %s script_path=%s",
+        _log_context(role),
+        script_path,
+    )
+
+    result = subprocess.run(
         [str(script_path)],
         cwd=repo_root,
         env=env,
@@ -41,3 +67,11 @@ def materialize_migration_test(
         text=True,
         check=False,
     )
+    logger.info(
+        "event=fixture_materialization_finish %s status=%s returncode=%s script_path=%s",
+        _log_context(role),
+        "success" if result.returncode == 0 else "failure",
+        result.returncode,
+        script_path,
+    )
+    return result
