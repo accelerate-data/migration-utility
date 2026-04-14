@@ -20,6 +20,9 @@ def test_setup_source_sql_server_runs_extraction(tmp_path, monkeypatch):
     monkeypatch.setenv("SA_PASSWORD", "secret")
 
     with (
+        patch("shared.cli.setup_source_cmd._check_source_prereqs"),
+        patch("shared.cli.setup_source_cmd.run_scaffold_project", return_value=_SCAFFOLD_OUT),
+        patch("shared.cli.setup_source_cmd.run_scaffold_hooks", return_value=_HOOKS_OUT),
         patch("shared.cli.setup_source_cmd.run_extract", return_value=_EXTRACT_OUT) as mock_extract,
         patch("shared.cli.setup_source_cmd.is_git_repo", return_value=True),
         patch("shared.cli.setup_source_cmd.stage_and_commit", return_value=True),
@@ -68,3 +71,28 @@ def test_setup_source_no_commit_flag(tmp_path, monkeypatch):
 
     assert result.exit_code == 0
     mock_commit.assert_not_called()
+
+
+def test_setup_source_oracle_passes_none_database(tmp_path, monkeypatch):
+    monkeypatch.setenv("ORACLE_HOST", "localhost")
+    monkeypatch.setenv("ORACLE_PORT", "1521")
+    monkeypatch.setenv("ORACLE_SERVICE", "FREEPDB1")
+    monkeypatch.setenv("ORACLE_USER", "sh")
+    monkeypatch.setenv("ORACLE_PASSWORD", "pw")
+
+    with (
+        patch("shared.cli.setup_source_cmd._check_source_prereqs"),
+        patch("shared.cli.setup_source_cmd.run_scaffold_project", return_value=_SCAFFOLD_OUT),
+        patch("shared.cli.setup_source_cmd.run_scaffold_hooks", return_value=_HOOKS_OUT),
+        patch("shared.cli.setup_source_cmd.run_extract", return_value=_EXTRACT_OUT) as mock_extract,
+        patch("shared.cli.setup_source_cmd.is_git_repo", return_value=True),
+        patch("shared.cli.setup_source_cmd.stage_and_commit", return_value=True),
+    ):
+        result = runner.invoke(
+            app,
+            ["setup-source", "--technology", "oracle", "--schemas", "sh",
+             "--project-root", str(tmp_path)],
+        )
+
+    assert result.exit_code == 0, result.output
+    mock_extract.assert_called_once_with(tmp_path, None, ["sh"])
