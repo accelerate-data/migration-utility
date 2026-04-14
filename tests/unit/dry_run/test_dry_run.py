@@ -1508,6 +1508,47 @@ def test_run_reset_migration_all_rejects_extra_table_arguments(tmp_path: Path) -
         dry_run.run_reset_migration(dst, "all", ["silver.DimCustomer"])
 
 
+def test_reset_migration_cli_all_succeeds_without_fqns(tmp_path: Path) -> None:
+    dst = _make_reset_project(tmp_path)
+    manifest = json.loads((dst / "manifest.json").read_text(encoding="utf-8"))
+    manifest["runtime"] = {
+        "source": {"technology": "sql_server"},
+        "target": {"technology": "sql_server"},
+        "sandbox": {"technology": "sql_server"},
+    }
+    manifest["extraction"] = {"schemas": ["silver"]}
+    manifest["init_handoff"] = {"timestamp": "2026-04-01T00:00:00Z"}
+    (dst / "manifest.json").write_text(json.dumps(manifest), encoding="utf-8")
+    (dst / "ddl").mkdir()
+    (dst / ".staging").mkdir()
+    (dst / "dbt" / "models").mkdir(parents=True)
+
+    result = _cli_runner.invoke(dry_run.app, ["reset-migration", "all", "--project-root", str(dst)])
+
+    assert result.exit_code == 0, result.output
+    output = json.loads(result.stdout)
+    assert output["stage"] == "all"
+    assert output["deleted_paths"] == ["catalog", "ddl", ".staging", "test-specs", "dbt"]
+    assert not (dst / "catalog").exists()
+    assert not (dst / "ddl").exists()
+    assert not (dst / ".staging").exists()
+    assert not (dst / "test-specs").exists()
+    assert not (dst / "dbt").exists()
+
+
+def test_reset_migration_cli_all_rejects_extra_fqns(tmp_path: Path) -> None:
+    dst = _make_reset_project(tmp_path)
+
+    result = _cli_runner.invoke(
+        dry_run.app,
+        ["reset-migration", "all", "silver.DimCustomer", "--project-root", str(dst)],
+    )
+
+    assert result.exit_code == 1, result.output
+    output = json.loads(result.stdout)
+    assert "global reset stage 'all' does not accept table arguments" in output["error"]
+
+
 def test_reset_migration_cli_subcommand(tmp_path: Path) -> None:
     dst = _make_reset_project(tmp_path)
     result = _cli_runner.invoke(

@@ -154,8 +154,9 @@ def exclude_cmd(
 @app.command("reset-migration")
 def reset_migration_cmd(
     stage: str = typer.Argument(..., help="Pre-model stage to reset"),
-    fqns: List[str] = typer.Argument(
-        ...,
+    # Optional so `all` can run without positional FQNs; core handles mode rules.
+    fqns: List[str] | None = typer.Argument(
+        None,
         help="Fully-qualified table names to reset",
     ),
     project_root: Optional[Path] = typer.Option(
@@ -171,7 +172,9 @@ def reset_migration_cmd(
         raise typer.Exit(code=2) from exc
 
     try:
-        result = run_reset_migration(root, stage, list(fqns))
+        if stage != "all" and not fqns:
+            raise ValueError("reset-migration requires at least one FQN for staged resets")
+        result = run_reset_migration(root, stage, list(fqns or []))
     except ValueError as exc:
         logger.error("event=reset_migration_failed stage=%s error=%s", stage, exc)
         emit({"error": str(exc)})
