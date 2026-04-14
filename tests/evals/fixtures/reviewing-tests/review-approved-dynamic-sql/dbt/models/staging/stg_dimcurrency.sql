@@ -5,7 +5,7 @@
   build and execute the INSERT statement. The SQL is not statically
   visible, so this model is a graceful placeholder noting the dynamic
   SQL limitation. The recovered SQL (from enrichment) is:
-    INSERT INTO silver.DimCurrency (CurrencyAlternateKey, CurrencyName)
+    INSERT INTO MigrationTest.silver_dimcurrency (CurrencyAlternateKey, CurrencyName)
     SELECT CurrencyCode, CurrencyName FROM MigrationTest.bronze_currency
 #}
 
