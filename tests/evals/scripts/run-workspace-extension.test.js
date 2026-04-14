@@ -239,19 +239,22 @@ test('extensionHook rejects an empty runsRoot override', async () => {
   );
 });
 
-test('pruneOldRuns tolerates ENOENT when a run disappears after readdirSync', () => {
+test('pruneOldRuns tolerates ENOENT when a nested child disappears during recursive traversal', () => {
   const extensionModule = loadExtensionModule();
   const { pruneOldRuns } = extensionModule;
   const tempRoot = fs.mkdtempSync(path.join(os.tmpdir(), 'eval-runs-'));
   const originalStatSync = fs.statSync;
+  const statCalls = [];
 
   try {
     const vanishingRun = makeRunDir(tempRoot, 'suite-a/vanishing-run');
+    const missingChild = makeRunDir(vanishingRun, 'logs');
     const steadyRun = makeRunDir(tempRoot, 'suite-a/steady-run');
     const cutoffMs = Date.now() - (24 * 60 * 60 * 1000);
 
     fs.statSync = (targetPath, ...args) => {
-      if (targetPath === vanishingRun) {
+      statCalls.push(targetPath);
+      if (targetPath === missingChild) {
         const error = new Error(`ENOENT: no such file or directory, stat '${targetPath}'`);
         error.code = 'ENOENT';
         throw error;
@@ -262,6 +265,8 @@ test('pruneOldRuns tolerates ENOENT when a run disappears after readdirSync', ()
     assert.doesNotThrow(() => {
       pruneOldRuns(tempRoot, { cutoffMs });
     });
+    assert.equal(statCalls.includes(vanishingRun), true);
+    assert.equal(statCalls.includes(missingChild), true);
     assert.equal(fs.existsSync(steadyRun), true);
   } finally {
     fs.statSync = originalStatSync;
