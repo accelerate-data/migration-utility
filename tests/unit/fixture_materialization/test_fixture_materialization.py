@@ -138,3 +138,17 @@ def test_materialize_migration_test_logs_oracle_failure(
     assert "event=fixture_materialization_finish technology=oracle" in caplog.text
     assert "status=failure" in caplog.text
     assert "returncode=12" in caplog.text
+
+
+def test_sql_server_materializer_pyodbc_fallback_uses_shared_connection_builder() -> None:
+    script_path = (
+        Path(__file__).resolve().parents[3]
+        / "scripts/sql/sql_server/materialize-migration-test.sh"
+    )
+    script_text = script_path.read_text(encoding="utf-8")
+
+    assert "from shared.db_connect import build_sql_server_connection_string" in script_text
+    assert "build_sql_server_connection_string(" in script_text
+    assert "PWD={os.environ['SA_PASSWORD']}" not in script_text
+    assert 'sys.path.insert(0, str(Path(sys.argv[3]) / "lib"))' in script_text
+    assert 'Path.cwd() / "lib"' not in script_text

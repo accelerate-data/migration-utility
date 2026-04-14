@@ -53,11 +53,15 @@ if [[ ${#SQLCMD[@]} -gt 0 ]]; then
   exit 0
 fi
 
-python - <<'PY' "${SQL_INPUT}" "${MSSQL_DB}"
+python - <<'PY' "${SQL_INPUT}" "${MSSQL_DB}" "${REPO_ROOT}"
 import os
 import re
 import sys
 from pathlib import Path
+
+sys.path.insert(0, str(Path(sys.argv[3]) / "lib"))
+
+from shared.db_connect import build_sql_server_connection_string
 
 try:
     import pyodbc
@@ -70,12 +74,13 @@ sql_path = Path(sys.argv[1])
 database_name = sys.argv[2]
 
 conn = pyodbc.connect(
-    (
-        f"DRIVER={{{os.environ.get('MSSQL_DRIVER', 'ODBC Driver 18 for SQL Server')}}};"
-        f"SERVER={os.environ.get('MSSQL_HOST', 'localhost')},{os.environ.get('MSSQL_PORT', '1433')};"
-        f"DATABASE={database_name};"
-        f"UID={os.environ.get('MSSQL_USER', 'sa')};PWD={os.environ['SA_PASSWORD']};"
-        "TrustServerCertificate=yes;"
+    build_sql_server_connection_string(
+        host=os.environ.get("MSSQL_HOST", "localhost"),
+        port=os.environ.get("MSSQL_PORT", "1433"),
+        database=database_name,
+        user=os.environ.get("MSSQL_USER", "sa"),
+        password=os.environ["SA_PASSWORD"],
+        driver=os.environ.get("MSSQL_DRIVER", "ODBC Driver 18 for SQL Server"),
     ),
     autocommit=True,
 )
