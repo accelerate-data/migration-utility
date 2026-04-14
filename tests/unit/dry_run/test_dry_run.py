@@ -1508,6 +1508,13 @@ def test_run_reset_migration_all_rejects_extra_table_arguments(tmp_path: Path) -
         dry_run.run_reset_migration(dst, "all", ["silver.DimCustomer"])
 
 
+def test_reset_migration_requires_at_least_one_fqn(tmp_path: Path) -> None:
+    dst = _make_reset_project(tmp_path)
+
+    with pytest.raises(ValueError, match="reset-migration requires at least one FQN for staged resets"):
+        dry_run.run_reset_migration(dst, "profile", [])
+
+
 def test_reset_migration_cli_all_succeeds_without_fqns(tmp_path: Path) -> None:
     dst = _make_reset_project(tmp_path)
     manifest = json.loads((dst / "manifest.json").read_text(encoding="utf-8"))

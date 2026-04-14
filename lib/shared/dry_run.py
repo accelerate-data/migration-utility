@@ -172,8 +172,6 @@ def reset_migration_cmd(
         raise typer.Exit(code=2) from exc
 
     try:
-        if stage != "all" and not fqns:
-            raise ValueError("reset-migration requires at least one FQN for staged resets")
         result = run_reset_migration(root, stage, list(fqns or []))
     except ValueError as exc:
         logger.error("event=reset_migration_failed stage=%s error=%s", stage, exc)

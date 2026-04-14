@@ -624,6 +624,8 @@ def run_reset_migration(project_root: Path, stage: str, fqns: list[str]) -> Rese
 
     if stage not in RESETTABLE_STAGES:
         raise ValueError(f"Unsupported reset stage: {stage}")
+    if not fqns:
+        raise ValueError("reset-migration requires at least one FQN for staged resets")
 
     normalized = [normalize(fqn) for fqn in fqns]
     targets: list[ResetTargetResult] = []
