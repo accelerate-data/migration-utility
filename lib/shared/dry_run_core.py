@@ -104,6 +104,8 @@ def _project_stage_ready(project_root: Path, stage: str) -> ReadinessDetail:
         return _detail(True, "ok")
 
     if stage == "profile":
+        # Profiling uses catalog + DDL artifacts only; runtime manifest content
+        # is not required beyond the project already being initialized.
         return _detail(True, "ok")
 
     try:

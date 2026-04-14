@@ -316,6 +316,27 @@ def test_show_mode_rejects_unsupported_platform(tmp_path: Path) -> None:
     assert "docker info" not in log_lines
 
 
+def test_print_step_handles_quoted_json_messages() -> None:
+    result = subprocess.run(
+        [
+            "bash",
+            "-lc",
+            (
+                'eval "$(sed -n \'2,/^platform_check=""/p\' '
+                f'"{SCRIPT_PATH}" | sed \'$d\')"; '
+                'payload=$(json_check ok \'value with "quotes"\'); '
+                'print_step platform "$payload"'
+            ),
+        ],
+        capture_output=True,
+        text=True,
+        check=False,
+    )
+
+    assert result.returncode == 0
+    assert result.stdout.strip() == 'platform: ok - value with "quotes"'
+
+
 def test_fix_mode_reports_partial_when_repo_bootstrap_fails_but_checks_continue(tmp_path: Path) -> None:
     result = _run_script(
         tmp_path,

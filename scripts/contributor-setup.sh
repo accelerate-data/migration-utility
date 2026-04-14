@@ -50,10 +50,14 @@ json_check() {
 print_step() {
   local name="$1"
   local payload_json="$2"
-  local status message
-  status="$(printf '%s' "$payload_json" | sed -n 's/.*"status":"\([^"]*\)".*/\1/p')"
-  message="$(printf '%s' "$payload_json" | sed -n 's/.*"message":"\([^"]*\)".*/\1/p')"
-  printf '%s: %s - %s\n' "$name" "$status" "$message"
+  STEP_NAME="$name" STEP_PAYLOAD="$payload_json" python3 - <<'PY'
+import json
+import os
+
+payload = json.loads(os.environ["STEP_PAYLOAD"])
+line = f"{os.environ['STEP_NAME']}: {payload['status']} - {payload['message']}"
+print(line)
+PY
 }
 
 array_json() {

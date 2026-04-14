@@ -8,6 +8,8 @@ from typing import Any
 
 def build_schema_in_clause(schemas: list[str], *, uppercase: bool = False) -> str:
     """Build a SQL IN clause literal from validated schema names."""
+    if not schemas:
+        raise ValueError("schemas list must be non-empty")
     values: list[str] = []
     for schema in schemas:
         if "'" in schema or ";" in schema:
@@ -23,9 +25,9 @@ def write_staging_json(
     rows: list[Any],
     *,
     logger: logging.Logger,
-    event: str,
+    event_name: str,
 ) -> None:
     """Write staging rows as JSON and log a per-file completion event."""
     path = staging_dir / filename
     path.write_text(json.dumps(rows, default=str), encoding="utf-8")
-    logger.info("%s file=%s rows=%d", event, filename, len(rows))
+    logger.info("event=%s file=%s rows=%d", event_name, filename, len(rows))

@@ -25,6 +25,11 @@ def _oracle_type_to_class_desc(oracle_type: str) -> str:
     return mapping.get(oracle_type.upper(), oracle_type.upper())
 
 
+def _write(staging_dir: Path, filename: str, rows: list[Any]) -> None:
+    """Write rows as JSON to staging_dir / filename."""
+    write_staging_json(staging_dir, filename, rows, logger=logger, event_name="oracle_query")
+
+
 # ── Extraction functions ──────────────────────────────────────────────────────
 
 
@@ -427,23 +432,23 @@ def run_oracle_extraction(
     try:
         proc_func_defs = _extract_definitions(conn, schemas)
         view_defs = _extract_view_ddl(conn, schemas)
-        write_staging_json(staging_dir, "definitions.json", proc_func_defs + view_defs, logger=logger, event="event=oracle_query")
-        write_staging_json(staging_dir, "table_columns.json", _extract_table_columns(conn, schemas), logger=logger, event="event=oracle_query")
-        write_staging_json(staging_dir, "pk_unique.json", _extract_pk_unique(conn, schemas), logger=logger, event="event=oracle_query")
-        write_staging_json(staging_dir, "foreign_keys.json", _extract_foreign_keys(conn, schemas), logger=logger, event="event=oracle_query")
-        write_staging_json(staging_dir, "identity_columns.json", _extract_identity_columns(conn, schemas), logger=logger, event="event=oracle_query")
+        _write(staging_dir, "definitions.json", proc_func_defs + view_defs)
+        _write(staging_dir, "table_columns.json", _extract_table_columns(conn, schemas))
+        _write(staging_dir, "pk_unique.json", _extract_pk_unique(conn, schemas))
+        _write(staging_dir, "foreign_keys.json", _extract_foreign_keys(conn, schemas))
+        _write(staging_dir, "identity_columns.json", _extract_identity_columns(conn, schemas))
         object_types_rows, mv_fqns = _extract_object_types(conn, schemas)
-        write_staging_json(staging_dir, "object_types.json", object_types_rows, logger=logger, event="event=oracle_query")
+        _write(staging_dir, "object_types.json", object_types_rows)
         if mv_fqns:
-            write_staging_json(staging_dir, "mv_fqns.json", mv_fqns, logger=logger, event="event=oracle_query")
-        write_staging_json(staging_dir, "proc_dmf.json", _extract_dmf(conn, schemas, "PROCEDURE"), logger=logger, event="event=oracle_query")
-        write_staging_json(staging_dir, "view_dmf.json", _extract_dmf(conn, schemas, "VIEW"), logger=logger, event="event=oracle_query")
-        write_staging_json(staging_dir, "func_dmf.json", _extract_dmf(conn, schemas, "FUNCTION"), logger=logger, event="event=oracle_query")
-        write_staging_json(staging_dir, "proc_params.json", _extract_proc_params(conn, schemas), logger=logger, event="event=oracle_query")
-        write_staging_json(staging_dir, "packages.json", _extract_packages(conn, schemas), logger=logger, event="event=oracle_query")
+            _write(staging_dir, "mv_fqns.json", mv_fqns)
+        _write(staging_dir, "proc_dmf.json", _extract_dmf(conn, schemas, "PROCEDURE"))
+        _write(staging_dir, "view_dmf.json", _extract_dmf(conn, schemas, "VIEW"))
+        _write(staging_dir, "func_dmf.json", _extract_dmf(conn, schemas, "FUNCTION"))
+        _write(staging_dir, "proc_params.json", _extract_proc_params(conn, schemas))
+        _write(staging_dir, "packages.json", _extract_packages(conn, schemas))
         # Oracle does not support these signals — write empty lists for pipeline compatibility
-        write_staging_json(staging_dir, "cdc.json", [], logger=logger, event="event=oracle_query")
-        write_staging_json(staging_dir, "change_tracking.json", [], logger=logger, event="event=oracle_query")
-        write_staging_json(staging_dir, "sensitivity.json", [], logger=logger, event="event=oracle_query")
+        _write(staging_dir, "cdc.json", [])
+        _write(staging_dir, "change_tracking.json", [])
+        _write(staging_dir, "sensitivity.json", [])
     finally:
         conn.close()

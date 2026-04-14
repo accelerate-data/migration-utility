@@ -53,6 +53,13 @@ def test_schema_clause_helpers_normalize_dialect_specific_names() -> None:
     assert build_schema_in_clause(["sh"], uppercase=True) == "'SH'"
 
 
+def test_schema_clause_helpers_reject_empty_schema_lists() -> None:
+    from shared.setup_ddl_support.db_helpers import build_schema_in_clause
+
+    with pytest.raises(ValueError, match="schemas list must be non-empty"):
+        build_schema_in_clause([], uppercase=False)
+
+
 class _FakeSqlCursor:
     def __init__(self, failure_map: dict[str, Exception] | None = None) -> None:
         self.failure_map = failure_map or {}
