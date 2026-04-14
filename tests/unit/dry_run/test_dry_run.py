@@ -1391,6 +1391,9 @@ def test_run_reset_migration_mixed_valid_and_missing_resets_valid_targets(tmp_pa
 
 def test_reset_migration_global_output_contract_serializes_deleted_paths(tmp_path: Path) -> None:
     dst = _make_reset_project(tmp_path)
+    (dst / "CLAUDE.md").write_text("# local scaffold\n", encoding="utf-8")
+    (dst / ".envrc").write_text("export TEST=1\n", encoding="utf-8")
+    (dst / "repo-map.json").write_text("{\"name\": \"fixture\"}\n", encoding="utf-8")
     manifest = json.loads((dst / "manifest.json").read_text(encoding="utf-8"))
     manifest["runtime"] = {
         "source": {"technology": "sql_server"},
@@ -1449,6 +1452,9 @@ def test_reset_migration_global_output_contract_serializes_deleted_paths(tmp_pat
     assert not (dst / ".staging").exists()
     assert not (dst / "test-specs").exists()
     assert not (dst / "dbt").exists()
+    assert (dst / "CLAUDE.md").exists()
+    assert (dst / ".envrc").exists()
+    assert (dst / "repo-map.json").exists()
 
 
 def test_run_reset_migration_all_reports_missing_paths_as_noop(tmp_path: Path) -> None:
