@@ -123,26 +123,33 @@ function runPromptfooInvocation(argv) {
   return 1;
 }
 
-function main(argv = process.argv.slice(2)) {
-  const before = collectGitSnapshot();
-  let status = 0;
+function main(
+  argv = process.argv.slice(2),
+  {
+    collectGitSnapshot: collectSnapshot = collectGitSnapshot,
+    detectCleanupViolations: detectViolations = detectCleanupViolations,
+    formatViolationMessage: formatViolations = formatViolationMessage,
+    runPromptfooInvocation: runInvocation = runPromptfooInvocation,
+    splitPromptfooInvocations: splitInvocations = splitPromptfooInvocations,
+  } = {},
+) {
+  for (const invocation of splitInvocations(argv)) {
+    const before = collectSnapshot();
+    const status = runInvocation(invocation);
+    const after = collectSnapshot();
+    const violations = detectViolations(before, after);
 
-  for (const invocation of splitPromptfooInvocations(argv)) {
-    status = runPromptfooInvocation(invocation);
+    if (violations.length > 0) {
+      console.error(formatViolations(violations));
+      return 1;
+    }
+
     if (status !== 0) {
-      break;
+      return status;
     }
   }
 
-  const after = collectGitSnapshot();
-  const violations = detectCleanupViolations(before, after);
-
-  if (violations.length > 0) {
-    console.error(formatViolationMessage(violations));
-    return 1;
-  }
-
-  return status;
+  return 0;
 }
 
 if (require.main === module) {
