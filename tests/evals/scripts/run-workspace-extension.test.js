@@ -4,11 +4,10 @@ const os = require('node:os');
 const path = require('node:path');
 const test = require('node:test');
 
-const { extensionHook, pruneOldRuns } = require('./run-workspace-extension');
-
 const REPO_ROOT = path.resolve(__dirname, '..', '..', '..');
 const ROOT_GITIGNORE = path.join(REPO_ROOT, '.gitignore');
 const EVAL_PACKAGE_JSON = path.join(REPO_ROOT, 'tests', 'evals', 'package.json');
+const EXTENSION_MODULE_PATH = require.resolve('./run-workspace-extension');
 
 function makeRunDir(root, relativePath) {
   const target = path.join(root, relativePath);
@@ -30,6 +29,11 @@ function buildContext(testDescription = 'Creates a workspace copy') {
 
 function makePruneState() {
   return { hasPrunedRuns: false };
+}
+
+function loadExtensionModule() {
+  delete require.cache[EXTENSION_MODULE_PATH];
+  return require('./run-workspace-extension');
 }
 
 function readJson(filePath) {
@@ -70,6 +74,7 @@ test('workspace extension entrypoint is wired into eval scripts and ignores run 
 });
 
 test('pruneOldRuns removes run directories older than the cutoff', () => {
+  const { pruneOldRuns } = loadExtensionModule();
   const tempRoot = fs.mkdtempSync(path.join(os.tmpdir(), 'eval-runs-'));
   try {
     const staleRun = makeRunDir(tempRoot, 'suite-a/stale-run');
@@ -89,6 +94,7 @@ test('pruneOldRuns removes run directories older than the cutoff', () => {
 });
 
 test('pruneOldRuns is a no-op when the runs root is missing', () => {
+  const { pruneOldRuns } = loadExtensionModule();
   const missingRoot = path.join(os.tmpdir(), `missing-${Date.now()}`);
 
   assert.doesNotThrow(() => {
@@ -96,7 +102,47 @@ test('pruneOldRuns is a no-op when the runs root is missing', () => {
   });
 });
 
+test('pruneOldRuns retains run directories exactly at the cutoff boundary', () => {
+  const { pruneOldRuns } = loadExtensionModule();
+  const tempRoot = fs.mkdtempSync(path.join(os.tmpdir(), 'eval-runs-'));
+  try {
+    const boundaryRun = makeRunDir(tempRoot, 'suite-a/boundary-run');
+    const now = Date.now();
+
+    touchMtime(boundaryRun, now - (24 * 60 * 60 * 1000));
+
+    pruneOldRuns(tempRoot, { cutoffMs: now - (24 * 60 * 60 * 1000) });
+
+    assert.equal(fs.existsSync(boundaryRun), true);
+  } finally {
+    fs.rmSync(tempRoot, { recursive: true, force: true });
+  }
+});
+
+test('pruneOldRuns retains runs with recent nested activity even when the run root mtime is old', () => {
+  const { pruneOldRuns } = loadExtensionModule();
+  const tempRoot = fs.mkdtempSync(path.join(os.tmpdir(), 'eval-runs-'));
+  try {
+    const activeRun = makeRunDir(tempRoot, 'suite-a/active-run');
+    const nestedDir = makeRunDir(tempRoot, 'suite-a/active-run/logs');
+    const nestedFile = path.join(nestedDir, 'heartbeat.log');
+    const now = Date.now();
+
+    fs.writeFileSync(nestedFile, 'still running\n', 'utf8');
+    touchMtime(activeRun, now - (26 * 60 * 60 * 1000));
+    touchMtime(nestedDir, now - (5 * 60 * 1000));
+    touchMtime(nestedFile, now - (5 * 60 * 1000));
+
+    pruneOldRuns(tempRoot, { cutoffMs: now - (24 * 60 * 60 * 1000) });
+
+    assert.equal(fs.existsSync(activeRun), true);
+  } finally {
+    fs.rmSync(tempRoot, { recursive: true, force: true });
+  }
+});
+
 test('extensionHook creates a fresh run_path after pruning stale runs', async () => {
+  const { extensionHook } = loadExtensionModule();
   const tempRunsRoot = fs.mkdtempSync(path.join(os.tmpdir(), 'eval-runs-'));
   const staleRun = makeRunDir(tempRunsRoot, 'task1-cleanup/stale-run');
   const now = Date.now();
@@ -130,6 +176,7 @@ test('extensionHook creates a fresh run_path after pruning stale runs', async ()
 });
 
 test('extensionHook prunes once per process across runs roots', async () => {
+  const { extensionHook } = loadExtensionModule();
   const now = Date.now();
   const firstRunsRoot = fs.mkdtempSync(path.join(os.tmpdir(), 'eval-runs-a-'));
   const secondRunsRoot = fs.mkdtempSync(path.join(os.tmpdir(), 'eval-runs-b-'));
@@ -181,6 +228,7 @@ test('extensionHook prunes once per process across runs roots', async () => {
 });
 
 test('extensionHook rejects an empty runsRoot override', async () => {
+  const { extensionHook } = loadExtensionModule();
   await assert.rejects(
     () => extensionHook('beforeEach', buildContext('Invalid root'), {
       nowMs: Date.now(),
@@ -189,4 +237,66 @@ test('extensionHook rejects an empty runsRoot override', async () => {
     }),
     /runsRoot must be a non-empty string when provided/,
   );
+});
+
+test('pruneOldRuns tolerates ENOENT when a run disappears after readdirSync', () => {
+  const extensionModule = loadExtensionModule();
+  const { pruneOldRuns } = extensionModule;
+  const tempRoot = fs.mkdtempSync(path.join(os.tmpdir(), 'eval-runs-'));
+  const originalStatSync = fs.statSync;
+
+  try {
+    const vanishingRun = makeRunDir(tempRoot, 'suite-a/vanishing-run');
+    const steadyRun = makeRunDir(tempRoot, 'suite-a/steady-run');
+    const cutoffMs = Date.now() - (24 * 60 * 60 * 1000);
+
+    fs.statSync = (targetPath, ...args) => {
+      if (targetPath === vanishingRun) {
+        const error = new Error(`ENOENT: no such file or directory, stat '${targetPath}'`);
+        error.code = 'ENOENT';
+        throw error;
+      }
+      return originalStatSync.call(fs, targetPath, ...args);
+    };
+
+    assert.doesNotThrow(() => {
+      pruneOldRuns(tempRoot, { cutoffMs });
+    });
+    assert.equal(fs.existsSync(steadyRun), true);
+  } finally {
+    fs.statSync = originalStatSync;
+    fs.rmSync(tempRoot, { recursive: true, force: true });
+  }
+});
+
+test('extensionHook uses the default module prune state when pruneState is not provided', async () => {
+  const firstModule = loadExtensionModule();
+  const now = Date.now();
+  const firstRunsRoot = fs.mkdtempSync(path.join(os.tmpdir(), 'eval-runs-a-'));
+  const secondRunsRoot = fs.mkdtempSync(path.join(os.tmpdir(), 'eval-runs-b-'));
+
+  try {
+    const firstStaleRun = makeRunDir(firstRunsRoot, 'listing-objects/stale-run-1');
+    touchMtime(firstStaleRun, now - (26 * 60 * 60 * 1000));
+
+    await firstModule.extensionHook('beforeEach', buildContext('Default state first run'), {
+      nowMs: now,
+      runsRoot: firstRunsRoot,
+    });
+
+    assert.equal(fs.existsSync(firstStaleRun), false);
+
+    const secondStaleRun = makeRunDir(secondRunsRoot, 'listing-objects/stale-run-2');
+    touchMtime(secondStaleRun, now - (26 * 60 * 60 * 1000));
+
+    await firstModule.extensionHook('beforeEach', buildContext('Default state second run'), {
+      nowMs: now + 1000,
+      runsRoot: secondRunsRoot,
+    });
+
+    assert.equal(fs.existsSync(secondStaleRun), true);
+  } finally {
+    fs.rmSync(firstRunsRoot, { recursive: true, force: true });
+    fs.rmSync(secondRunsRoot, { recursive: true, force: true });
+  }
 });

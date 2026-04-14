@@ -109,24 +109,66 @@ function pinFixtureDatabase(projectRoot, manifest) {
   }
 }
 
+function isMissingPathError(error) {
+  return error && typeof error === 'object' && error.code === 'ENOENT';
+}
+
+function readDirectoryEntries(dirPath) {
+  try {
+    return fs.readdirSync(dirPath, { withFileTypes: true });
+  } catch (error) {
+    if (isMissingPathError(error)) {
+      return [];
+    }
+    throw error;
+  }
+}
+
+function latestActivityMs(targetPath) {
+  let stats;
+  try {
+    stats = fs.statSync(targetPath);
+  } catch (error) {
+    if (isMissingPathError(error)) {
+      return null;
+    }
+    throw error;
+  }
+
+  let latestMs = stats.mtimeMs;
+  if (!stats.isDirectory()) {
+    return latestMs;
+  }
+
+  for (const entry of readDirectoryEntries(targetPath)) {
+    const childActivityMs = latestActivityMs(path.join(targetPath, entry.name));
+    if (childActivityMs !== null && childActivityMs > latestMs) {
+      latestMs = childActivityMs;
+    }
+  }
+
+  return latestMs;
+}
+
 function pruneOldRuns(root, { cutoffMs }) {
   if (!fs.existsSync(root)) {
     return;
   }
 
-  for (const suiteEntry of fs.readdirSync(root, { withFileTypes: true })) {
+  for (const suiteEntry of readDirectoryEntries(root)) {
     if (!suiteEntry.isDirectory()) {
       continue;
     }
 
     const suiteRoot = path.join(root, suiteEntry.name);
-    for (const runEntry of fs.readdirSync(suiteRoot, { withFileTypes: true })) {
+    for (const runEntry of readDirectoryEntries(suiteRoot)) {
       if (!runEntry.isDirectory()) {
         continue;
       }
 
       const runRoot = path.join(suiteRoot, runEntry.name);
-      if (fs.statSync(runRoot).mtimeMs < cutoffMs) {
+      const runActivityMs = latestActivityMs(runRoot);
+      if (runActivityMs !== null && runActivityMs < cutoffMs) {
         fs.rmSync(runRoot, { force: true, recursive: true });
       }
     }
