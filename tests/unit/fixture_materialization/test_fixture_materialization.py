@@ -157,7 +157,7 @@ def test_sql_server_materializer_pyodbc_fallback_uses_shared_connection_builder(
 def test_oracle_materializer_avoids_dropping_the_target_schema_user() -> None:
     script_path = (
         Path(__file__).resolve().parents[3]
-        / "scripts/sql/oracle/materialize-migration-test.sh"
+        / "tests/integration/oracle/fixtures/materialize.sh"
     )
     script_text = script_path.read_text(encoding="utf-8")
 
@@ -170,7 +170,7 @@ def test_oracle_materializer_avoids_dropping_the_target_schema_user() -> None:
 def test_oracle_materializer_exits_cleanly_when_no_cli_and_no_oracledb() -> None:
     script_path = (
         Path(__file__).resolve().parents[3]
-        / "scripts/sql/oracle/materialize-migration-test.sh"
+        / "tests/integration/oracle/fixtures/materialize.sh"
     )
     script_text = script_path.read_text(encoding="utf-8")
 
