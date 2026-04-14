@@ -42,8 +42,9 @@ def setup_target(
         f"{len(result.created_tables)} new, {len(result.existing_tables)} existing"
     )
 
-    if no_commit or not is_git_repo(root):
-        if not is_git_repo(root):
+    in_git_repo = is_git_repo(root)
+    if no_commit or not in_git_repo:
+        if not in_git_repo:
             warn("Not a git repository — skipping commit.")
         return
 
