@@ -11,9 +11,12 @@ from pathlib import Path
 
 import pytest
 
-from shared.loader import load_directory
+from ddl_mcp_support.loader import load_directory
 
 import server as ddl_server
+
+
+REPO_ROOT = Path(__file__).resolve().parents[4]
 
 # ── Fixtures ──────────────────────────────────────────────────────────────────
 
@@ -114,8 +117,8 @@ def ddl_dir_no_functions(tmp_path: Path) -> Path:
 def test_get_dependencies_includes_writers(ddl_dir: Path) -> None:
     """Procedure that INSERTs into the target table is returned."""
     catalog = load_directory(ddl_dir)
-    from shared.loader import DdlParseError, extract_refs
-    from shared.name_resolver import normalize
+    from ddl_mcp_support.loader import DdlParseError, extract_refs
+    from ddl_mcp_support.name_resolver import normalize
 
     target = normalize("silver.DimProduct")
     matches = []
@@ -133,8 +136,8 @@ def test_get_dependencies_includes_writers(ddl_dir: Path) -> None:
 def test_get_dependencies_includes_readers(ddl_dir: Path) -> None:
     """Procedure that SELECTs from the target table is returned."""
     catalog = load_directory(ddl_dir)
-    from shared.loader import DdlParseError, extract_refs
-    from shared.name_resolver import normalize
+    from ddl_mcp_support.loader import DdlParseError, extract_refs
+    from ddl_mcp_support.name_resolver import normalize
 
     target = normalize("silver.DimProduct")
     matches = []
@@ -155,8 +158,8 @@ def test_get_dependencies_ast_excludes_comment_only(ddl_dir: Path) -> None:
     Text grep would match this proc; AST walk correctly excludes it.
     """
     catalog = load_directory(ddl_dir)
-    from shared.loader import DdlParseError, extract_refs
-    from shared.name_resolver import normalize
+    from ddl_mcp_support.loader import DdlParseError, extract_refs
+    from ddl_mcp_support.name_resolver import normalize
 
     target = normalize("silver.DimProduct")
     matches = []
@@ -174,8 +177,8 @@ def test_get_dependencies_ast_excludes_comment_only(ddl_dir: Path) -> None:
 def test_get_dependencies_exec_procs_need_enrich(ddl_dir: Path) -> None:
     """Procedures with static EXEC stay deterministic and request enrichment."""
     catalog = load_directory(ddl_dir)
-    from shared.loader import extract_refs
-    from shared.name_resolver import normalize
+    from ddl_mcp_support.loader import extract_refs
+    from ddl_mcp_support.name_resolver import normalize
 
     exec_proc = normalize("silver.usp_exec")
     entry = catalog.procedures.get(exec_proc)
@@ -564,3 +567,17 @@ def test_oracle_double_quoted_name_lookup(oracle_ddl_dir: Path) -> None:
     entry = catalog.get_procedure("SH.GET_PRODUCT_COUNT")
     assert entry is not None
     assert "GET_PRODUCT_COUNT" in entry.raw_ddl
+
+
+def test_ddl_mcp_pyproject_does_not_depend_on_shared_package() -> None:
+    pyproject = (REPO_ROOT / "mcp/ddl/pyproject.toml").read_text(encoding="utf-8")
+
+    assert '"shared"' not in pyproject
+    assert 'shared = { path = "../../lib", editable = true }' not in pyproject
+
+
+def test_ddl_server_imports_local_support_package() -> None:
+    text = (REPO_ROOT / "mcp/ddl/server.py").read_text(encoding="utf-8")
+
+    assert "from ddl_mcp_support" in text
+    assert "from shared." not in text

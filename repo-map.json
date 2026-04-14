@@ -81,7 +81,7 @@
     },
     "ddl_mcp": {
       "path": "mcp/ddl/",
-      "description": "MCP server for structured DDL parsing. server.py exposes list_tables, get_table_schema, list_procedures, get_procedure_body, get_dependencies, list_views, get_view_body, list_functions, get_function_body."
+      "description": "MCP server for structured DDL parsing. server.py exposes list_tables, get_table_schema, list_procedures, get_procedure_body, get_dependencies, list_views, get_view_body, list_functions, get_function_body. ddl_mcp_support/ contains the standalone loader/env/name-resolution support slice copied into the MCP package so its lockfile no longer depends on the broader editable shared runtime package."
     },
     "mssql_mcp": {
       "path": "mcp/mssql/",
@@ -97,7 +97,7 @@
     },
     "tests_migration": {
       "path": "tests/unit/",
-      "description": "Shared-library unit pytest suite organized by module under tests/unit/<module>/. Shared fixtures that support multiple modules remain under tests/unit/fixtures/. Shared pytest plumbing lives in tests/conftest.py."
+      "description": "Shared-library unit pytest suite organized by module under tests/unit/<module>/. Shared fixtures that support multiple modules remain under tests/unit/fixtures/. Shared pytest plumbing lives in tests/conftest.py. oracle_mcp_config/ locks the repository Oracle MCP config and install-doc fallback contract."
     },
     "tests_migration_integration": {
       "path": "tests/integration/",
@@ -139,6 +139,7 @@
     "tests/integration/scoping-inputs/": "JSON fixture inputs for scoping-logic tests and regressions.",
     "tests/evals/": "Promptfoo eval harness for skill and command testing (skill packages include listing-objects, profiling-table, generating-model, generating-tests, reviewing-tests, reviewing-model, analyzing-table, analyzing-table-readiness; command packages include cmd-scope, cmd-profile, cmd-generate-model, cmd-generate-tests, cmd-refactor, cmd-status, cmd-reset-migration, cmd-commit-push-pr)",
     "mcp/ddl/tests/": "DDL MCP pytest suite split into tests/unit/ plus shared top-level backend coverage under tests/integration/<technology>/ddl_mcp/ executed from the ddl-mcp project env.",
+    "mcp/ddl/ddl_mcp_support/": "Standalone support slice for the DDL MCP package: local env/path helpers, name normalization, and DDL loader/parser logic copied from the shared runtime to keep the MCP dependency boundary narrow.",
     "scripts/demo-warehouse/": "Cross-dialect Kimball DW fixture: schema DDL, baseline seed data, and delta scenarios for SQL Server, Oracle, PostgreSQL",
     "docs/design/": "Durable agent-facing design notes only; keep criteria are documented in docs/design/README.md",
     ".claude/rules/": "Shared agent rules such as coding-conventions, git-workflow, logging-policy, and codex-execution-policy",
