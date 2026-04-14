@@ -7,7 +7,12 @@ const test = require('node:test');
 const REPO_ROOT = path.resolve(__dirname, '..', '..', '..');
 const ROOT_GITIGNORE = path.join(REPO_ROOT, '.gitignore');
 const EVAL_PACKAGE_JSON = path.join(REPO_ROOT, 'tests', 'evals', 'package.json');
+const EVAL_PACKAGES_DIR = path.join(REPO_ROOT, 'tests', 'evals', 'packages');
 const EXTENSION_MODULE_PATH = require.resolve('./run-workspace-extension');
+const LIVE_PACKAGE_CONFIGS = [
+  'oracle-live/promptfooconfig.yaml',
+  'mssql-live/promptfooconfig.yaml',
+];
 
 function makeRunDir(root, relativePath) {
   const target = path.join(root, relativePath);
@@ -49,9 +54,46 @@ function hasWhitespaceSeparatedTokens(command, tokens) {
   return tokens.every((token) => parts.includes(token));
 }
 
+function hasMaxConcurrencyOne(command) {
+  return hasWhitespaceSeparatedTokens(command, ['--max-concurrency', '1']);
+}
+
+function readEvalPackageConfigs() {
+  return fs.readdirSync(EVAL_PACKAGES_DIR, { withFileTypes: true })
+    .filter((entry) => entry.isDirectory())
+    .flatMap((entry) => {
+      const packageDir = path.join(EVAL_PACKAGES_DIR, entry.name);
+      return fs.readdirSync(packageDir, { withFileTypes: true })
+        .filter((file) => file.isFile() && file.name.endsWith('.yaml'))
+        .map((file) => path.posix.join('packages', entry.name, file.name));
+    })
+    .sort();
+}
+
+function extractEvalConfigs(command) {
+  const configs = [];
+  const configPattern = /(?:^|\s)-c\s+([^\s]+)/g;
+  let match;
+
+  while ((match = configPattern.exec(command)) !== null) {
+    configs.push(match[1]);
+  }
+
+  return configs;
+}
+
 function touchMtime(target, mtimeMs) {
   const mtime = new Date(mtimeMs);
   fs.utimesSync(target, mtime, mtime);
+}
+
+function countSmokeDescriptions(packageConfigPath) {
+  const relativePath = packageConfigPath.startsWith('packages/')
+    ? packageConfigPath.slice('packages/'.length)
+    : packageConfigPath;
+  const configText = readText(path.join(EVAL_PACKAGES_DIR, relativePath));
+  const matches = configText.match(/^\s*-\s+description:\s*["']?\[smoke\]/gm);
+  return matches === null ? 0 : matches.length;
 }
 
 test('workspace extension entrypoint is wired into eval scripts and ignores run output', () => {
@@ -71,6 +113,49 @@ test('workspace extension entrypoint is wired into eval scripts and ignores run 
     true,
   );
   assert.equal(gitignoreEntries.includes('tests/evals/output/runs/'), true);
+});
+
+test('smoke eval script exists and live suites remain standalone', () => {
+  const packageJson = readJson(EVAL_PACKAGE_JSON);
+  const scripts = packageJson.scripts;
+
+  assert.equal(Boolean(scripts['eval:smoke']), true);
+  assert.equal(Boolean(scripts['eval:skills']), false);
+  assert.equal(Boolean(scripts['eval:commands']), false);
+
+  assert.equal(
+    hasWhitespaceSeparatedTokens(scripts['eval:smoke'], ['./scripts/promptfoo.sh', 'eval', '--no-cache']),
+    true,
+  );
+  assert.equal(
+    scripts['eval:smoke'].includes("--filter-pattern '^\\[smoke\\]'"),
+    true,
+  );
+  assert.deepEqual(extractEvalConfigs(scripts['eval:smoke']), readEvalPackageConfigs());
+  assert.equal(Boolean(scripts['eval:full']), false);
+  assert.equal(hasMaxConcurrencyOne(scripts['eval:cmd-reset-migration']), true);
+  assert.equal(Boolean(scripts['eval:oracle-regression']), false);
+  assert.equal(Boolean(scripts['eval:oracle-live']), true);
+  assert.equal(Boolean(scripts['eval:mssql-live']), true);
+  assert.deepEqual(extractEvalConfigs(scripts['eval:oracle-live']), ['oracle-live/promptfooconfig.yaml']);
+  assert.deepEqual(extractEvalConfigs(scripts['eval:mssql-live']), ['mssql-live/promptfooconfig.yaml']);
+
+  const smokeConfigs = extractEvalConfigs(scripts['eval:smoke']);
+  if (smokeConfigs.includes('packages/cmd-reset-migration/cmd-reset-migration.yaml')) {
+    assert.equal(hasMaxConcurrencyOne(scripts['eval:smoke']), true);
+  }
+  for (const liveConfig of LIVE_PACKAGE_CONFIGS) {
+    assert.equal(smokeConfigs.includes(liveConfig), false);
+  }
+});
+
+test('each eval package config has exactly one smoke scenario', () => {
+  const packageJson = readJson(EVAL_PACKAGE_JSON);
+  const smokePackageConfigs = extractEvalConfigs(packageJson.scripts['eval:smoke']);
+
+  for (const packageConfigPath of smokePackageConfigs) {
+    assert.equal(countSmokeDescriptions(packageConfigPath), 1, packageConfigPath);
+  }
 });
 
 test('pruneOldRuns removes run directories older than the cutoff', () => {

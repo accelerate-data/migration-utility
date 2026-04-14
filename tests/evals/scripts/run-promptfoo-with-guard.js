@@ -69,8 +69,34 @@ function formatViolationMessage(paths) {
   ].join('\n');
 }
 
-function main(argv = process.argv.slice(2)) {
-  const before = collectGitSnapshot();
+function splitPromptfooInvocations(argv) {
+  const sharedArgs = [];
+  const configArgs = [];
+
+  for (let index = 0; index < argv.length; index += 1) {
+    const token = argv[index];
+    if (token === '-c') {
+      const configPath = argv[index + 1];
+      if (!configPath) {
+        throw new Error('Missing config path after -c');
+      }
+
+      configArgs.push(configPath);
+      index += 1;
+      continue;
+    }
+
+    sharedArgs.push(token);
+  }
+
+  if (configArgs.length === 0) {
+    return [sharedArgs];
+  }
+
+  return configArgs.map((configPath) => [...sharedArgs, '-c', configPath]);
+}
+
+function runPromptfooInvocation(argv) {
   const result = spawnSync(
     process.execPath,
     [PROMPTFOO_ENTRYPOINT, ...argv],
@@ -80,16 +106,9 @@ function main(argv = process.argv.slice(2)) {
       stdio: 'inherit',
     },
   );
-  const after = collectGitSnapshot();
-  const violations = detectCleanupViolations(before, after);
 
   if (result.error) {
     throw result.error;
-  }
-
-  if (violations.length > 0) {
-    console.error(formatViolationMessage(violations));
-    return 1;
   }
 
   if (result.status !== null) {
@@ -104,6 +123,35 @@ function main(argv = process.argv.slice(2)) {
   return 1;
 }
 
+function main(
+  argv = process.argv.slice(2),
+  {
+    collectGitSnapshot: collectSnapshot = collectGitSnapshot,
+    detectCleanupViolations: detectViolations = detectCleanupViolations,
+    formatViolationMessage: formatViolations = formatViolationMessage,
+    runPromptfooInvocation: runInvocation = runPromptfooInvocation,
+    splitPromptfooInvocations: splitInvocations = splitPromptfooInvocations,
+  } = {},
+) {
+  for (const invocation of splitInvocations(argv)) {
+    const before = collectSnapshot();
+    const status = runInvocation(invocation);
+    const after = collectSnapshot();
+    const violations = detectViolations(before, after);
+
+    if (violations.length > 0) {
+      console.error(formatViolations(violations));
+      return 1;
+    }
+
+    if (status !== 0) {
+      return status;
+    }
+  }
+
+  return 0;
+}
+
 if (require.main === module) {
   process.exitCode = main();
 }
@@ -115,4 +163,6 @@ module.exports = {
   formatViolationMessage,
   isAllowedArtifactPath,
   main,
+  runPromptfooInvocation,
+  splitPromptfooInvocations,
 };

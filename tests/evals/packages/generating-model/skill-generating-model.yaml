@@ -13,7 +13,7 @@ providers:
   - file://../../providers/haiku-60.yaml
 
 tests:
-  - description: "select-into — SelectIntoTarget writes single model artifact"
+  - description: "[smoke] select-into — SelectIntoTarget writes single model artifact"
     vars:
       fixture_path: "tests/evals/fixtures/generating-model/select-into"
       target_table: "silver.SelectIntoTarget"

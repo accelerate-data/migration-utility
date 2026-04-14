@@ -105,6 +105,40 @@
   "refactor": {
     "status": "ok",
     "extracted_sql": "WITH channel_totals AS (\n    SELECT\n        c.CHANNEL_ID,\n        c.CHANNEL_DESC,\n        SUM(s.AMOUNT_SOLD) AS TOTAL_AMOUNT\n    FROM   SH.CHANNELS c\n    JOIN   SH.SALES    s ON s.CHANNEL_ID = c.CHANNEL_ID\n    GROUP BY c.CHANNEL_ID, c.CHANNEL_DESC\n)\nSELECT\n    CHANNEL_ID,\n    CHANNEL_DESC,\n    TOTAL_AMOUNT,\n    CASE\n        WHEN TOTAL_AMOUNT >= 500000 THEN 'HIGH'\n        WHEN TOTAL_AMOUNT >= 100000 THEN 'MEDIUM'\n        ELSE 'LOW'\n    END AS TIER,\n    SYSDATE AS UPDATED_AT\nFROM channel_totals",
-    "refactored_sql": "WITH channels AS (\n    SELECT * FROM SH.CHANNELS\n),\n\nsales AS (\n    SELECT * FROM SH.SALES\n),\n\nchannel_totals AS (\n    SELECT\n        c.CHANNEL_ID,\n        c.CHANNEL_DESC,\n        SUM(s.AMOUNT_SOLD) AS TOTAL_AMOUNT\n    FROM channels c\n    JOIN sales s ON s.CHANNEL_ID = c.CHANNEL_ID\n    GROUP BY c.CHANNEL_ID, c.CHANNEL_DESC\n),\n\nchannel_tiers AS (\n    SELECT\n        CHANNEL_ID,\n        CHANNEL_DESC,\n        TOTAL_AMOUNT,\n        CASE\n            WHEN TOTAL_AMOUNT >= 500000 THEN 'HIGH'\n            WHEN TOTAL_AMOUNT >= 100000 THEN 'MEDIUM'\n            ELSE 'LOW'\n        END AS TIER\n    FROM channel_totals\n),\n\nfinal AS (\n    SELECT\n        CHANNEL_ID,\n        CHANNEL_DESC,\n        TOTAL_AMOUNT,\n        TIER,\n        SYSDATE AS UPDATED_AT\n    FROM channel_tiers\n)\n\nSELECT * FROM final"
+    "refactored_sql": "WITH channels AS (\n    SELECT * FROM SH.CHANNELS\n),\n\nsales AS (\n    SELECT * FROM SH.SALES\n),\n\nchannel_totals AS (\n    SELECT\n        c.CHANNEL_ID,\n        c.CHANNEL_DESC,\n        SUM(s.AMOUNT_SOLD) AS TOTAL_AMOUNT\n    FROM channels c\n    JOIN sales s ON s.CHANNEL_ID = c.CHANNEL_ID\n    GROUP BY c.CHANNEL_ID, c.CHANNEL_DESC\n),\n\nchannel_tiers AS (\n    SELECT\n        CHANNEL_ID,\n        CHANNEL_DESC,\n        TOTAL_AMOUNT,\n        CASE\n            WHEN TOTAL_AMOUNT >= 500000 THEN 'HIGH'\n            WHEN TOTAL_AMOUNT >= 100000 THEN 'MEDIUM'\n            ELSE 'LOW'\n        END AS TIER\n    FROM channel_totals\n),\n\nfinal AS (\n    SELECT\n        CHANNEL_ID,\n        CHANNEL_DESC,\n        TOTAL_AMOUNT,\n        TIER,\n        SYSDATE AS UPDATED_AT\n    FROM channel_tiers\n)\n\nSELECT * FROM final",
+    "semantic_review": {
+      "passed": true,
+      "checks": {
+        "source_tables": {
+          "passed": true,
+          "summary": "Both extracted and refactored SQL read from the same Oracle source tables: SH.CHANNELS and SH.SALES."
+        },
+        "output_columns": {
+          "passed": true,
+          "summary": "Both SQL forms produce CHANNEL_ID, CHANNEL_DESC, TOTAL_AMOUNT, TIER, and UPDATED_AT for SH.CHANNEL_SALES_SUMMARY."
+        },
+        "joins": {
+          "passed": true,
+          "summary": "Both implementations preserve the CHANNELS to SALES join on CHANNEL_ID before aggregation."
+        },
+        "filters": {
+          "passed": true,
+          "summary": "Neither version adds extra row filters; both apply only the channel sales aggregation and tier classification logic from the source procedure."
+        },
+        "aggregation_grain": {
+          "passed": true,
+          "summary": "Both operate at one row per channel after summing AMOUNT_SOLD by CHANNEL_ID and CHANNEL_DESC."
+        }
+      },
+      "issues": []
+    },
+    "compare_sql": {
+      "required": false,
+      "executed": false,
+      "passed": false,
+      "scenarios_total": 0,
+      "scenarios_passed": 0,
+      "failed_scenarios": []
+    }
   }
 }

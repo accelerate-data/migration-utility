@@ -22,7 +22,7 @@ defaultTest:
 
 tests:
   # ── classification-fact-transaction — FactInternetSales rich catalog signals
-  - description: "classification-fact-transaction — FactInternetSales rich catalog signals"
+  - description: "[smoke] classification-fact-transaction — FactInternetSales rich catalog signals"
     prompts: ["profiling-table"]
     vars:
       fixture_path: "tests/evals/fixtures/profiling-table/classification-fact-transaction"

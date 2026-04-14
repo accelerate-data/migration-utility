@@ -18,7 +18,7 @@ defaultTest:
       value: file://../../assertions/check-listing-output.js
 
 tests:
-  - description: "list-tables — reads catalog object names"
+  - description: "[smoke] list-tables — reads catalog object names"
     vars:
       fixture_path: "tests/evals/fixtures/listing-objects/source-table-guard"
       request_text: "list tables"

@@ -21,7 +21,7 @@ defaultTest:
 
 tests:
   # ── happy path: 2 tables, both generate dbt models ──────────
-  - description: "happy-path — InsertSelectTarget + UpdateJoinTarget both generate models"
+  - description: "[smoke] happy-path — InsertSelectTarget + UpdateJoinTarget both generate models"
     vars:
       fixture_path: "tests/evals/fixtures/cmd-generate-model/happy-path"
       target_tables: "silver.InsertSelectTarget silver.UpdateJoinTarget"
@@ -172,6 +172,23 @@ tests:
       target_table: "silver.vw_activecustomers"
       expected_item_statuses: '{"silver.vw_activecustomers": "ok,partial"}'
       expected_model_terms: "materialized='view',source("
+    assert:
+      - type: javascript
+        value: file://../../assertions/check-dbt-model.js
+
+  # ── oracle regression ────────────────────────────────────────
+  # Verifies that the generate-model command produces a valid dbt model from the
+  # refactored CTE SQL in the pre-committed catalog. Pre-committed scoping, profile,
+  # and refactor sections allow all guards to pass.
+  - description: "oracle — generate-model — CHANNEL_SALES_SUMMARY generates CTE dbt model"
+    provider: file://../../providers/sonnet-120.yaml
+    vars:
+      fixture_path: "tests/evals/fixtures/oracle-regression"
+      target_tables: "sh.CHANNEL_SALES_SUMMARY"
+      target_table: "sh.channel_sales_summary"
+      expected_item_statuses: '{"sh.CHANNEL_SALES_SUMMARY": "ok,partial"}'
+      expected_model_terms: "with,select,channel_id,channel_desc"
+      expected_output_terms: "ok"
     assert:
       - type: javascript
         value: file://../../assertions/check-dbt-model.js

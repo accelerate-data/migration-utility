@@ -26,7 +26,7 @@ tests:
   # Reviewer may flag NOT NULL source columns (e.g. ProductNumber, MakeFlag) missing
   # from given[] even though the proc never SELECTs them — these are irrelevant to dbt
   # unit tests and the fixtures correctly include all proc-used columns.
-  - description: "review-approved — DimProduct complete branch coverage"
+  - description: "[smoke] review-approved — DimProduct complete branch coverage"
     prompts: ["reviewing-tests"]
     vars:
       fixture_path: "tests/evals/fixtures/reviewing-tests/review-approved"

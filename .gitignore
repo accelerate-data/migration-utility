@@ -30,6 +30,7 @@ tests/evals/.tmp/
 tests/evals/results/
 tests/evals/output/
 tests/evals/output/runs/
+tests/evals/.promptfoo
 tests/evals/.promptfoo/
 tests/evals/fixtures/**/.staging/
 tests/evals/fixtures/**/.migration-runs/*.json

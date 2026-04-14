@@ -39,7 +39,7 @@
     },
     {
       "name": "promptfoo",
-      "scope": "LLM eval harness in tests/evals/ for migration skills and command testing. Run via: cd tests/evals && npm run eval"
+      "scope": "LLM eval harness in tests/evals/ for migration skills and command testing. Run the curated offline smoke pass via: cd tests/evals && npm run eval:smoke"
     }
   ],
   "applications": [
@@ -105,7 +105,7 @@
     },
     "tests_evals": {
       "path": "tests/evals/",
-      "description": "Promptfoo eval harness for skill and command testing against MigrationTest schema. Per-scenario fixtures live under fixtures/<package>/<scenario-slug>/; runnable configs live in packages/ plus the oracle-regression/, oracle-live/, and mssql-live/ package roots. Assertions live under tests/evals/assertions/, including schema-helpers.js for shared path and term handling. No top-level Promptfoo config — npm run eval chains the package configs."
+      "description": "Promptfoo eval harness for skill and command testing against MigrationTest schema. Per-scenario fixtures live under fixtures/<package>/<scenario-slug>/; runnable configs live in packages/ plus the standalone oracle-live/ and mssql-live/ live suites, while Oracle regression fixtures live under fixtures/oracle-regression/ and are consumed by the owning package configs. Assertions live under tests/evals/assertions/, including schema-helpers.js for shared path and term handling. No top-level Promptfoo config — use npm run eval:smoke for the curated offline pass."
     },
     "tests_ddl_mcp": {
       "path": "mcp/ddl/tests/",
@@ -171,6 +171,7 @@
     "lint_md": "markdownlint <file>",
     "eval_listing_objects": "cd tests/evals && npm run eval:listing-objects",
     "eval_profiling_table": "cd tests/evals && npm run eval:profiling-table",
+    "eval_smoke": "cd tests/evals && npm run eval:smoke",
     "eval_generating_model": "cd tests/evals && npm run eval:generating-model",
     "eval_generating_tests": "cd tests/evals && npm run eval:generating-tests",
     "eval_reviewing_tests": "cd tests/evals && npm run eval:reviewing-tests",
@@ -186,7 +187,6 @@
     "eval_refactoring_sql": "cd tests/evals && npm run eval:refactoring-sql",
     "eval_cmd_refactor": "cd tests/evals && npm run eval:cmd-refactor",
     "eval_cmd_commit_push_pr": "cd tests/evals && npm run eval:cmd-commit-push-pr",
-    "eval_oracle_regression": "cd tests/evals && npm run eval:oracle-regression",
     "eval_oracle_live": "cd tests/evals && npm run eval:oracle-live",
     "eval_mssql_live": "cd tests/evals && npm run eval:mssql-live"
   },

@@ -19,11 +19,11 @@ defaultTest:
 
 tests:
   # ── happy path: single table generates spec cleanly ─────────
-  - description: "happy-path — InsertSelectTarget generates spec"
+  - description: "[smoke] happy-path — InsertSelectTarget generates spec"
     vars:
       fixture_path: "tests/evals/fixtures/cmd-generate-tests/happy-path"
       target_tables: "silver.InsertSelectTarget"
-      expected_item_statuses: '{"silver.InsertSelectTarget": "partial"}'
+      expected_item_statuses: '{"silver.InsertSelectTarget": "ok"}'
 
   # ── review-cycle: single table triggers review cycle ─────────
   - description: "review-cycle — CorrelatedSubqueryTarget review loop"
@@ -102,3 +102,23 @@ tests:
       fixture_path: "tests/evals/fixtures/cmd-generate-tests/error-clean"
       target_tables: "silver.DimProduct silver.InsertSelectTarget"
       expected_item_statuses: '{"silver.DimProduct": "ok", "silver.InsertSelectTarget": "ok"}'
+
+  # ── oracle regression ────────────────────────────────────────
+  # Verifies that the generate-tests command enumerates branches from the PL/SQL
+  # procedure body covering all 5 patterns: INSERT+CTE, MERGE, IF/ELSIF, EXCEPTION.
+  # Pre-committed scoping and profile sections allow guards to pass.
+  - description: "oracle — generate-tests — SUMMARIZE_CHANNEL_SALES enumerates PL/SQL branches"
+    provider: file://../../providers/sonnet-120.yaml
+    vars:
+      fixture_path: "tests/evals/fixtures/oracle-regression"
+      target_tables: "sh.CHANNEL_SALES_SUMMARY"
+      target_table: "sh.channel_sales_summary"
+      writer: "sh.summarize_channel_sales"
+      expected_item_statuses: '{"sh.CHANNEL_SALES_SUMMARY": "ok"}'
+      expected_status: "ok,partial"
+      expected_coverage: "complete,partial"
+      min_branch_count: 3
+      expected_output_terms: "ok"
+    assert:
+      - type: javascript
+        value: file://../../assertions/check-test-spec.js

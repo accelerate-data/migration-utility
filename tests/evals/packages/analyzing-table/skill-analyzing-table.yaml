@@ -24,7 +24,7 @@ defaultTest:
 
 tests:
   # ── truncate-insert: DimCustomer multi-writer resolution ────
-  - description: "truncate-insert — DimCustomer multi-writer resolution"
+  - description: "[smoke] truncate-insert — DimCustomer multi-writer resolution"
     prompts: ["analyzing-table"]
     vars:
       fixture_path: "tests/evals/fixtures/analyzing-table/truncate-insert"

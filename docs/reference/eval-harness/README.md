@@ -43,13 +43,11 @@ npm install
 
 Common runs:
 
-- broad offline pass: `npm run eval`
-- one skill package: `npm run eval:<package>`
-- one command package: `npm run eval:<package>`
-- Oracle offline regression: `npm run eval:oracle-regression`
+- curated offline smoke pass across all package configs: `npm run eval:smoke`
 - live SQL Server extract → scope → profile: `npm run eval:mssql-live`
 - live Oracle extract → scope → profile: `npm run eval:oracle-live`
 - inspect results in the browser: `npm run view`
+- Oracle post-extract command coverage lives in the owning command package configs, so there is no standalone `oracle-regression` run.
 
 ### Common choices
 
@@ -68,7 +66,6 @@ Common runs:
 | `/generate-tests` command orchestration | `npm run eval:cmd-generate-tests` |
 | `/status` command output | `npm run eval:cmd-status` |
 | `/commit-push-pr` failure handling | `npm run eval:cmd-commit-push-pr` |
-| Oracle-specific offline behavior | `npm run eval:oracle-regression` |
 | Live database extraction flow | `npm run eval:oracle-live` or `npm run eval:mssql-live` |
 
 ### Narrowing to one targeted eval
@@ -77,7 +74,7 @@ Start with the smallest package that owns the behavior you changed.
 
 - skill behavior: run the owning skill package first
 - command orchestration: run the owning command package first
-- Oracle-specific handling: run `oracle-regression`
+- Oracle post-extract command handling: run the smallest owning command package config that covers the behavior; Oracle coverage now lives in specific command package YAMLs, not a standalone `oracle-regression` suite
 - live extraction/runtime behavior: run `oracle-live` or `mssql-live`
 
 If you need one subset inside a package, run Promptfoo directly with `--filter-pattern`:
@@ -130,7 +127,8 @@ Check in this order:
 High-level map:
 
 - `tests/evals/packages/` holds the main offline package YAMLs
-- `tests/evals/oracle-regression/`, `tests/evals/oracle-live/`, and `tests/evals/mssql-live/` hold dialect-specific packages
+- `tests/evals/fixtures/oracle-regression/` holds Oracle regression fixtures consumed by the owning package configs
+- `tests/evals/oracle-live/` and `tests/evals/mssql-live/` hold the standalone live suites
 - `tests/evals/fixtures/` and package-local `fixtures/` hold input state
 - `tests/evals/assertions/` decides pass/fail from written artifacts
 - `tests/evals/prompts/` shapes agent behavior

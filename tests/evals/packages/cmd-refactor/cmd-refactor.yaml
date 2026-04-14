@@ -19,7 +19,7 @@ defaultTest:
 
 tests:
   # ── happy path: 2 tables both refactor ────────────────────────
-  - description: "happy-path — InsertSelectTarget + UpdateJoinTarget both refactor"
+  - description: "[smoke] happy-path — InsertSelectTarget + UpdateJoinTarget both refactor"
     vars:
       fixture_path: "tests/evals/fixtures/cmd-refactor/happy-path"
       target_tables: "silver.InsertSelectTarget silver.UpdateJoinTarget"
@@ -47,3 +47,21 @@ tests:
       fixture_path: "tests/evals/fixtures/cmd-refactor/partial"
       target_tables: "silver.DimCurrency"
       expected_item_statuses: '{"silver.DimCurrency": "ok,partial,error"}'
+
+  # ── oracle regression ────────────────────────────────────────
+  # Verifies that the refactor command restructures the INSERT+CTE body into dbt
+  # import/logical/final CTE form. Pre-committed scoping and profile sections allow
+  # guards to pass.
+  - description: "oracle — refactor — CHANNEL_SALES_SUMMARY CTE restructured with final"
+    provider: file://../../providers/sonnet-120.yaml
+    vars:
+      fixture_path: "tests/evals/fixtures/oracle-regression"
+      target_tables: "sh.CHANNEL_SALES_SUMMARY"
+      target_table: "sh.channel_sales_summary"
+      expected_item_statuses: '{"sh.CHANNEL_SALES_SUMMARY": "ok,partial"}'
+      expected_extracted_terms: "channel_totals,amount_sold"
+      expected_refactored_terms: "with,final"
+      expected_output_terms: "ok"
+    assert:
+      - type: javascript
+        value: file://../../assertions/check-refactored-sql.js

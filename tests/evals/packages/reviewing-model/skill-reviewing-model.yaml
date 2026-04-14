@@ -20,7 +20,7 @@ defaultTest:
 tests:
   # --- VU-869: pattern-specific code review cases ---
 
-  - description: "review-approved — SelectIntoTarget ephemeral staging"
+  - description: "[smoke] review-approved — SelectIntoTarget ephemeral staging"
     vars:
       fixture_path: "tests/evals/fixtures/reviewing-model/review-approved"
       target_table: "silver.SelectIntoTarget"

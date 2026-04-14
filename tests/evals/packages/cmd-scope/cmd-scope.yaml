@@ -19,7 +19,7 @@ defaultTest:
 
 tests:
   # ── happy path: 2 tables, both resolve ──────────────────────
-  - description: "happy-path — DimProduct + DimCustomer both resolve"
+  - description: "[smoke] happy-path — DimProduct + DimCustomer both resolve"
     vars:
       fixture_path: "tests/evals/fixtures/cmd-scope/happy-path"
       target_tables: "silver.DimProduct silver.DimCustomer"
@@ -67,3 +67,23 @@ tests:
     assert:
       - type: javascript
         value: file://../../assertions/check-table-scoping.js
+
+  # ── oracle regression ────────────────────────────────────────
+  # Verifies that the scope command resolves the writer for SH.CHANNEL_SALES_SUMMARY
+  # using Oracle catalog conventions (uppercase identifiers, oracle dialect).
+  - description: "oracle — scope — CHANNEL_SALES_SUMMARY resolves to SUMMARIZE_CHANNEL_SALES"
+    provider: file://../../providers/sonnet-120.yaml
+    vars:
+      fixture_path: "tests/evals/fixtures/oracle-regression"
+      target_tables: "sh.CHANNEL_SALES_SUMMARY"
+      target_table: "sh.channel_sales_summary"
+      target_procedure: "sh.summarize_channel_sales"
+      expected_item_statuses: '{"sh.CHANNEL_SALES_SUMMARY": "resolved"}'
+      expected_status: "resolved"
+      expected_writer: "summarize_channel_sales"
+      expected_output_terms: "resolved"
+    assert:
+      - type: javascript
+        value: file://../../assertions/check-table-scoping.js
+      - type: javascript
+        value: file://../../assertions/check-procedure-catalog.js

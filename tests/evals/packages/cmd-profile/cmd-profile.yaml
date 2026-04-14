@@ -19,7 +19,7 @@ defaultTest:
 
 tests:
   # ── happy path: 2 tables with scoping set, both profile ok ──
-  - description: "happy-path — InsertSelectTarget + UpdateJoinTarget both profile ok"
+  - description: "[smoke] happy-path — InsertSelectTarget + UpdateJoinTarget both profile ok"
     vars:
       fixture_path: "tests/evals/fixtures/cmd-profile/happy-path"
       target_tables: "silver.InsertSelectTarget silver.UpdateJoinTarget"
@@ -58,3 +58,19 @@ tests:
           credit card fields (card_type, exp_month, exp_year, credit_card_id) as the target table logic.
           The response acknowledges the proc is a multi-table writer but correctly scopes analysis
           to dim_address only.
+
+  # ── oracle regression ────────────────────────────────────────
+  # Verifies that the profile command produces a valid profile for an Oracle target
+  # table. Pre-committed scoping section allows the guard to pass without running scope.
+  - description: "oracle — profile — CHANNEL_SALES_SUMMARY profiles as fact_aggregate"
+    provider: file://../../providers/sonnet-120.yaml
+    vars:
+      fixture_path: "tests/evals/fixtures/oracle-regression"
+      target_tables: "sh.CHANNEL_SALES_SUMMARY"
+      target_table: "sh.channel_sales_summary"
+      expected_item_statuses: '{"sh.CHANNEL_SALES_SUMMARY": "ok"}'
+      expected_status: "ok"
+      expected_output_terms: "ok"
+    assert:
+      - type: javascript
+        value: file://../../assertions/check-table-profile.js

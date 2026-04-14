@@ -4,6 +4,8 @@ const test = require('node:test');
 const {
   ALLOWED_ARTIFACT_PREFIXES,
   detectCleanupViolations,
+  main,
+  splitPromptfooInvocations,
 } = require('./run-promptfoo-with-guard');
 
 test('detectCleanupViolations ignores new files under approved eval artifact directories', () => {
@@ -79,4 +81,197 @@ test('allowed artifact prefixes stay limited to the dedicated eval output roots'
     'tests/evals/output/',
     'tests/evals/results/',
   ]);
+});
+
+test('splitPromptfooInvocations preserves shared args and runs each config separately', () => {
+  const invocations = splitPromptfooInvocations([
+    'eval',
+    '--no-cache',
+    '--max-concurrency',
+    '1',
+    '--filter-pattern',
+    '^\\[smoke\\]',
+    '-c',
+    'packages/analyzing-table/skill-analyzing-table.yaml',
+    '-c',
+    'packages/cmd-profile/cmd-profile.yaml',
+  ]);
+
+  assert.deepEqual(invocations, [
+    [
+      'eval',
+      '--no-cache',
+      '--max-concurrency',
+      '1',
+      '--filter-pattern',
+      '^\\[smoke\\]',
+      '-c',
+      'packages/analyzing-table/skill-analyzing-table.yaml',
+    ],
+    [
+      'eval',
+      '--no-cache',
+      '--max-concurrency',
+      '1',
+      '--filter-pattern',
+      '^\\[smoke\\]',
+      '-c',
+      'packages/cmd-profile/cmd-profile.yaml',
+    ],
+  ]);
+});
+
+test('splitPromptfooInvocations keeps single-config and no-config argv unchanged', () => {
+  assert.deepEqual(
+    splitPromptfooInvocations([
+      'view',
+      '-c',
+      'packages/listing-objects/skill-listing-objects.yaml',
+    ]),
+    [[
+      'view',
+      '-c',
+      'packages/listing-objects/skill-listing-objects.yaml',
+    ]],
+  );
+
+  assert.deepEqual(
+    splitPromptfooInvocations(['list']),
+    [['list']],
+  );
+});
+
+test('splitPromptfooInvocations rejects a dangling -c flag', () => {
+  assert.throws(
+    () => splitPromptfooInvocations(['eval', '-c']),
+    /Missing config path after -c/,
+  );
+});
+
+test('main runs split promptfoo invocations sequentially and returns success when clean', () => {
+  const invocations = [];
+  const snapshots = [
+    { tracked: new Set(), untracked: new Set() },
+    { tracked: new Set(), untracked: new Set() },
+    { tracked: new Set(), untracked: new Set() },
+    { tracked: new Set(), untracked: new Set() },
+  ];
+
+  const status = main(
+    ['eval', '--filter-pattern', '^\\[smoke\\]', '-c', 'a.yaml', '-c', 'b.yaml'],
+    {
+      collectGitSnapshot: () => snapshots.shift(),
+      detectCleanupViolations: () => [],
+      formatViolationMessage: () => 'unused',
+      runPromptfooInvocation: (argv) => {
+        invocations.push(argv);
+        return 0;
+      },
+    },
+  );
+
+  assert.equal(status, 0);
+  assert.deepEqual(invocations, [
+    ['eval', '--filter-pattern', '^\\[smoke\\]', '-c', 'a.yaml'],
+    ['eval', '--filter-pattern', '^\\[smoke\\]', '-c', 'b.yaml'],
+  ]);
+});
+
+test('main stops after the first failing split invocation', () => {
+  const invocations = [];
+  const snapshots = [
+    { tracked: new Set(), untracked: new Set() },
+    { tracked: new Set(), untracked: new Set() },
+    { tracked: new Set(), untracked: new Set() },
+    { tracked: new Set(), untracked: new Set() },
+  ];
+
+  const status = main(
+    ['eval', '--filter-pattern', '^\\[smoke\\]', '-c', 'a.yaml', '-c', 'b.yaml', '-c', 'c.yaml'],
+    {
+      collectGitSnapshot: () => snapshots.shift(),
+      detectCleanupViolations: () => [],
+      formatViolationMessage: () => 'unused',
+      runPromptfooInvocation: (argv) => {
+        invocations.push(argv);
+        return invocations.length === 2 ? 100 : 0;
+      },
+    },
+  );
+
+  assert.equal(status, 100);
+  assert.deepEqual(invocations, [
+    ['eval', '--filter-pattern', '^\\[smoke\\]', '-c', 'a.yaml'],
+    ['eval', '--filter-pattern', '^\\[smoke\\]', '-c', 'b.yaml'],
+  ]);
+});
+
+test('main reports cleanup violations even after successful invocations', () => {
+  const errors = [];
+  const originalError = console.error;
+  const snapshots = [
+    { tracked: new Set(), untracked: new Set() },
+    { tracked: new Set(['tests/evals/fixtures/x.json']), untracked: new Set() },
+  ];
+
+  console.error = (message) => {
+    errors.push(message);
+  };
+
+  try {
+    const status = main(
+      ['eval', '-c', 'a.yaml', '-c', 'b.yaml'],
+      {
+        collectGitSnapshot: () => snapshots.shift(),
+        detectCleanupViolations: () => ['tests/evals/fixtures/x.json'],
+        formatViolationMessage: (paths) => `violations:${paths.join(',')}`,
+        runPromptfooInvocation: () => 0,
+      },
+    );
+
+    assert.equal(status, 1);
+    assert.deepEqual(errors, ['violations:tests/evals/fixtures/x.json']);
+  } finally {
+    console.error = originalError;
+  }
+});
+
+test('main checks cleanup violations after each split invocation', () => {
+  const errors = [];
+  const originalError = console.error;
+  const invocations = [];
+  const snapshots = [
+    { tracked: new Set(), untracked: new Set() },
+    { tracked: new Set(['tests/evals/fixtures/dirty.json']), untracked: new Set() },
+  ];
+
+  console.error = (message) => {
+    errors.push(message);
+  };
+
+  try {
+    const status = main(
+      ['eval', '-c', 'a.yaml', '-c', 'b.yaml'],
+      {
+        collectGitSnapshot: () => snapshots.shift(),
+        detectCleanupViolations: (before, after) => {
+          if (before.tracked.size === 0 && after.tracked.size === 1) {
+            return ['tests/evals/fixtures/dirty.json'];
+          }
+          return [];
+        },
+        formatViolationMessage: (paths) => `violations:${paths.join(',')}`,
+        runPromptfooInvocation: (argv) => {
+          invocations.push(argv);
+          return 0;
+        },
+      },
+    );
+
+    assert.equal(status, 1);
+    assert.deepEqual(invocations, [['eval', '-c', 'a.yaml']]);
+    assert.deepEqual(errors, ['violations:tests/evals/fixtures/dirty.json']);
+  } finally {
+    console.error = originalError;
+  }
 });
