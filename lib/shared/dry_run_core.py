@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import json
 import logging
+import shutil
 from pathlib import Path
 from typing import Any
 
@@ -42,6 +43,14 @@ VALID_STAGES = frozenset(
     {"setup-ddl", "scope", "profile", "test-gen", "refactor", "generate"}
 )
 RESETTABLE_STAGES = frozenset({"scope", "profile", "generate-tests", "refactor"})
+RESET_GLOBAL_PATHS = ("catalog", "ddl", ".staging", "test-specs", "dbt")
+RESET_GLOBAL_MANIFEST_SECTIONS = (
+    "runtime.source",
+    "runtime.target",
+    "runtime.sandbox",
+    "extraction",
+    "init_handoff",
+)
 
 _RESET_STAGE_SECTIONS: dict[str, tuple[str, ...]] = {
     "scope": ("scoping", "profile", "test_gen"),
@@ -460,6 +469,16 @@ def _delete_if_present(path: Path) -> bool:
     return True
 
 
+def _delete_tree_if_present(path: Path) -> bool:
+    if not path.exists():
+        return False
+    if path.is_dir():
+        shutil.rmtree(path)
+    else:
+        path.unlink()
+    return True
+
+
 def _reset_table_sections(
     project_root: Path,
     norm: str,
@@ -511,6 +530,86 @@ def _reset_writer_refactor(
     return [f"procedure:{writer_norm}.refactor"]
 
 
+def _prepare_reset_migration_all_manifest(project_root: Path) -> tuple[dict[str, Any] | None, list[str]]:
+    """Load manifest cleanup up front; sandbox teardown stays in the command layer."""
+    manifest_path = project_root / "manifest.json"
+    if not manifest_path.exists():
+        logger.warning(
+            "event=reset_migration_global_manifest_missing component=reset_migration "
+            "operation=run_reset_migration path=%s",
+            manifest_path,
+        )
+        return None, []
+
+    manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
+    cleared_sections: list[str] = []
+
+    runtime = manifest.get("runtime")
+    for section in RESET_GLOBAL_MANIFEST_SECTIONS:
+        if section.startswith("runtime."):
+            if not isinstance(runtime, dict):
+                continue
+            runtime_key = section.split(".", 1)[1]
+            if runtime_key in runtime:
+                del runtime[runtime_key]
+                cleared_sections.append(section)
+        elif section in manifest:
+            del manifest[section]
+            cleared_sections.append(section)
+
+    if isinstance(runtime, dict) and not runtime and "runtime" in manifest:
+        del manifest["runtime"]
+
+    return manifest, cleared_sections
+
+
+def _run_reset_migration_all(project_root: Path) -> ResetMigrationOutput:
+    deleted_paths: list[str] = []
+    missing_paths: list[str] = []
+    manifest, cleared_manifest_sections = _prepare_reset_migration_all_manifest(project_root)
+
+    for relative_path in RESET_GLOBAL_PATHS:
+        path = project_root / relative_path
+        if _delete_tree_if_present(path):
+            deleted_paths.append(relative_path)
+            logger.info(
+                "event=reset_migration_global_path_deleted component=reset_migration "
+                "operation=run_reset_migration path=%s",
+                relative_path,
+            )
+        else:
+            missing_paths.append(relative_path)
+            logger.warning(
+                "event=reset_migration_global_path_missing component=reset_migration "
+                "operation=run_reset_migration path=%s",
+                relative_path,
+            )
+
+    if manifest is not None and cleared_manifest_sections:
+        write_json(project_root / "manifest.json", manifest)
+
+    logger.info(
+        "event=reset_migration_global_complete component=reset_migration "
+        "operation=run_reset_migration deleted_paths=%s missing_paths=%s "
+        "cleared_manifest_sections=%s",
+        deleted_paths,
+        missing_paths,
+        cleared_manifest_sections,
+    )
+
+    return ResetMigrationOutput(
+        stage="all",
+        targets=[],
+        reset=[],
+        noop=[],
+        blocked=[],
+        not_found=[],
+        deleted_paths=deleted_paths,
+        missing_paths=missing_paths,
+        cleared_manifest_sections=cleared_manifest_sections,
+    )
+
+
 def run_reset_migration(project_root: Path, stage: str, fqns: list[str]) -> ResetMigrationOutput:
     """Reset pre-model migration state for one or more selected tables.
 
@@ -518,8 +617,15 @@ def run_reset_migration(project_root: Path, stage: str, fqns: list[str]) -> Rese
     table already has model generation complete, the entire run is blocked
     before any mutation occurs.
     """
+    if stage == "all":
+        if fqns:
+            raise ValueError("global reset stage 'all' does not accept table arguments")
+        return _run_reset_migration_all(project_root)
+
     if stage not in RESETTABLE_STAGES:
         raise ValueError(f"Unsupported reset stage: {stage}")
+    if not fqns:
+        raise ValueError("reset-migration requires at least one FQN for staged resets")
 
     normalized = [normalize(fqn) for fqn in fqns]
     targets: list[ResetTargetResult] = []

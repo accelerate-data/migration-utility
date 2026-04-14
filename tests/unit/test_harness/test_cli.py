@@ -381,6 +381,34 @@ class TestCLISandboxDownClears:
         assert result.exit_code == 0
         backend_mock.sandbox_down.assert_called_once_with(sandbox_db="__test_manifest_run")
 
+    def test_sandbox_down_error_exits_1_and_preserves_manifest(self, tmp_path: Path) -> None:
+        from typer.testing import CliRunner
+
+        from shared.test_harness import app
+
+        _write_fixture_manifest(tmp_path)
+        write_manifest_sandbox(tmp_path, "__test_manifest_run")
+        runner = CliRunner()
+
+        backend_mock = MagicMock()
+        backend_mock.sandbox_down.return_value = SandboxDownOutput(
+            sandbox_database="__test_manifest_run",
+            status="error",
+            errors=[ErrorEntry(code="SANDBOX_DROP_FAILED", message="drop failed")],
+        )
+
+        with (
+            patch("shared.test_harness.resolve_project_root", return_value=tmp_path),
+            patch("shared.test_harness._create_backend", return_value=backend_mock),
+            patch.dict(os.environ, _cli_env(tmp_path)),
+        ):
+            result = runner.invoke(app, ["sandbox-down", "--project-root", str(tmp_path)])
+
+        assert result.exit_code == 1
+        backend_mock.sandbox_down.assert_called_once_with(sandbox_db="__test_manifest_run")
+        manifest = json.loads((tmp_path / "manifest.json").read_text())
+        assert manifest["runtime"]["sandbox"]["connection"]["database"] == "__test_manifest_run"
+
 
 class TestCLIStatusFallback:
     """E2E: invoke sandbox-status, verify manifest-based sandbox_db resolution."""

@@ -1,5 +1,5 @@
 # yaml-language-server: $schema=https://promptfoo.dev/config-schema.json
-description: "reset-migration command — pre-model stage reset orchestration"
+description: "reset-migration command — pre-model stage and global reset orchestration"
 
 prompts:
   - id: cmd-reset-migration
@@ -51,7 +51,7 @@ tests:
       fixture_path: "tests/evals/fixtures/cmd-reset-migration/base"
       instruction: "Run `/reset-migration refactor silver.DimCustomer` twice in sequence and report the final result."
       expected_item_statuses: '{"silver.DimCustomer": "noop"}'
-      expected_output_terms: "reset-migration,dimcustomer,no-op,refactor"
+      expected_output_terms: "reset-migration,dimcustomer,noop,refactor"
 
   - description: "blocked — refuse when model generation is already complete"
     vars:
@@ -59,3 +59,22 @@ tests:
       instruction: "Run `/reset-migration profile silver.DimCustomer`."
       expected_item_statuses: '{"silver.DimCustomer": "blocked"}'
       expected_output_terms: "reset-migration,dimcustomer,blocked,model"
+
+  - description: "all — global reset inventories and removes existing artifacts"
+    vars:
+      fixture_path: "tests/evals/fixtures/cmd-reset-migration/global-full"
+      instruction: "Run `/reset-migration all`."
+      expected_output_terms: "reset-migration,all,runtime.sandbox: configured,sandbox teardown runs first,destructive confirmation required,catalog,absent,ddl,absent,.staging,absent,test-specs,absent,dbt,absent,deleted paths,missing paths,cleared manifest sections,runtime.source,runtime.target,runtime.sandbox,extraction,init_handoff,setup-ddl"
+
+  - description: "all — global reset reports already-absent paths"
+    vars:
+      fixture_path: "tests/evals/fixtures/cmd-reset-migration/global-sparse"
+      instruction: "Run `/reset-migration all`."
+      expected_output_terms: "reset-migration,all,runtime.sandbox: configured,sandbox teardown runs first,destructive confirmation required,deleted paths,missing paths,cleared manifest sections,catalog,dbt,ddl,.staging,test-specs,runtime.source,runtime.target,runtime.sandbox,extraction,init_handoff,setup-ddl"
+
+  - description: "all — sandbox teardown failure stops reset before cleanup"
+    vars:
+      fixture_path: "tests/evals/fixtures/cmd-reset-migration/global-full"
+      instruction: "Run `/reset-migration all`, but simulate a sandbox teardown failure before cleanup. Report the failure and stop without running the reset CLI."
+      expected_output_terms: "reset-migration,all,runtime.sandbox: configured,failed"
+      expected_present_paths: "catalog,ddl,test-specs,dbt"

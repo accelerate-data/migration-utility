@@ -14,6 +14,7 @@
 //   expected_error_codes?     — comma-separated error codes that must appear in per-item artifacts or output text
 //   expected_item_review_iterations?, — JSON string: {"silver.Table": 2}
 //   expected_item_review_verdicts?    — JSON string: {"silver.Table": "approved"}
+//   expected_present_paths?     — comma-separated repo-relative paths that must still exist after the command
 // }
 const fs = require('fs');
 const path = require('path');
@@ -105,6 +106,7 @@ module.exports = (output, context) => {
       : null;
   const expectedOutputTerms = normalizeTerms(context.vars.expected_output_terms);
   const expectedErrorCodes = normalizeTerms(context.vars.expected_error_codes);
+  const expectedPresentPaths = normalizeTerms(context.vars.expected_present_paths);
   let expectedItemReviewIterations = {};
   let expectedItemReviewVerdicts = {};
 
@@ -253,6 +255,17 @@ module.exports = (output, context) => {
         pass: false,
         score: 0,
         reason: `Expected error code '${code}' not found in artifacts or output`,
+      };
+    }
+  }
+
+  for (const relPath of expectedPresentPaths) {
+    const absPath = path.resolve(repoRoot, fixturePath, relPath);
+    if (!fs.existsSync(absPath)) {
+      return {
+        pass: false,
+        score: 0,
+        reason: `Expected path to remain present after command: ${relPath}`,
       };
     }
   }

@@ -1389,11 +1389,198 @@ def test_run_reset_migration_mixed_valid_and_missing_resets_valid_targets(tmp_pa
     assert not (dst / "test-specs" / "silver.dimcustomer.json").exists()
 
 
+def test_reset_migration_global_output_contract_serializes_deleted_paths(tmp_path: Path) -> None:
+    dst = _make_reset_project(tmp_path)
+    (dst / "CLAUDE.md").write_text("# local scaffold\n", encoding="utf-8")
+    (dst / ".envrc").write_text("export TEST=1\n", encoding="utf-8")
+    (dst / "repo-map.json").write_text("{\"name\": \"fixture\"}\n", encoding="utf-8")
+    manifest = json.loads((dst / "manifest.json").read_text(encoding="utf-8"))
+    manifest["runtime"] = {
+        "source": {"technology": "sql_server"},
+        "target": {"technology": "sql_server"},
+        "sandbox": {"technology": "sql_server"},
+    }
+    manifest["extraction"] = {"schemas": ["silver"]}
+    manifest["init_handoff"] = {"timestamp": "2026-04-01T00:00:00Z"}
+    (dst / "manifest.json").write_text(json.dumps(manifest), encoding="utf-8")
+    (dst / "ddl").mkdir()
+    (dst / "ddl" / "legacy.sql").write_text("select 1;", encoding="utf-8")
+    (dst / ".staging").mkdir()
+    (dst / ".staging" / "state.json").write_text("{}", encoding="utf-8")
+    (dst / "dbt" / "models" / "marts").mkdir(parents=True)
+    (dst / "dbt" / "models" / "marts" / "dim_customer.sql").write_text(
+        "select 1;", encoding="utf-8"
+    )
+    (dst / "dbt" / "target").mkdir(parents=True)
+    (dst / "dbt" / "target" / "compiled.json").write_text("{}", encoding="utf-8")
+
+    result = dry_run.run_reset_migration(dst, "all", [])
+    payload = result.model_dump(mode="json", exclude_none=True)
+
+    assert result.stage == "all"
+    assert result.targets == []
+    assert result.reset == []
+    assert result.noop == []
+    assert result.blocked == []
+    assert result.not_found == []
+    assert result.deleted_paths == ["catalog", "ddl", ".staging", "test-specs", "dbt"]
+    assert result.missing_paths == []
+    assert result.cleared_manifest_sections == [
+        "runtime.source",
+        "runtime.target",
+        "runtime.sandbox",
+        "extraction",
+        "init_handoff",
+    ]
+    assert payload["stage"] == "all"
+    assert payload["deleted_paths"] == ["catalog", "ddl", ".staging", "test-specs", "dbt"]
+    assert payload["missing_paths"] == []
+    assert payload["cleared_manifest_sections"] == [
+        "runtime.source",
+        "runtime.target",
+        "runtime.sandbox",
+        "extraction",
+        "init_handoff",
+    ]
+    manifest = json.loads((dst / "manifest.json").read_text(encoding="utf-8"))
+    assert "runtime" not in manifest
+    assert "extraction" not in manifest
+    assert "init_handoff" not in manifest
+    assert (dst / "manifest.json").exists()
+    assert not (dst / "catalog").exists()
+    assert not (dst / "ddl").exists()
+    assert not (dst / ".staging").exists()
+    assert not (dst / "test-specs").exists()
+    assert not (dst / "dbt").exists()
+    assert (dst / "CLAUDE.md").exists()
+    assert (dst / ".envrc").exists()
+    assert (dst / "repo-map.json").exists()
+
+
+def test_run_reset_migration_all_reports_missing_paths_as_noop(tmp_path: Path) -> None:
+    dst = _make_reset_project(tmp_path)
+    manifest = json.loads((dst / "manifest.json").read_text(encoding="utf-8"))
+    manifest["runtime"] = {
+        "source": {"technology": "sql_server"},
+        "target": {"technology": "sql_server"},
+        "sandbox": {"technology": "sql_server"},
+    }
+    manifest["extraction"] = {"schemas": ["silver"]}
+    manifest["init_handoff"] = {"timestamp": "2026-04-01T00:00:00Z"}
+    (dst / "manifest.json").write_text(json.dumps(manifest), encoding="utf-8")
+    (dst / "ddl").mkdir()
+    (dst / ".staging").mkdir()
+
+    result = dry_run.run_reset_migration(dst, "all", [])
+
+    assert result.deleted_paths == ["catalog", "ddl", ".staging", "test-specs"]
+    assert result.missing_paths == ["dbt"]
+    assert result.cleared_manifest_sections == [
+        "runtime.source",
+        "runtime.target",
+        "runtime.sandbox",
+        "extraction",
+        "init_handoff",
+    ]
+    assert (dst / "ddl").exists() is False
+    assert (dst / ".staging").exists() is False
+    assert (dst / "dbt").exists() is False
+
+
+def test_run_reset_migration_all_invalid_manifest_preserves_directories(tmp_path: Path) -> None:
+    dst = _make_reset_project(tmp_path)
+    (dst / "ddl").mkdir()
+    (dst / "ddl" / "legacy.sql").write_text("select 1;", encoding="utf-8")
+    (dst / "dbt" / "models").mkdir(parents=True)
+    (dst / "dbt" / "models" / "model.sql").write_text("select 1;", encoding="utf-8")
+    (dst / ".staging").mkdir()
+    (dst / "test-specs").mkdir(exist_ok=True)
+    (dst / "manifest.json").write_text("{not valid json", encoding="utf-8")
+
+    with pytest.raises(json.JSONDecodeError):
+        dry_run.run_reset_migration(dst, "all", [])
+
+    assert (dst / "catalog").exists()
+    assert (dst / "ddl").exists()
+    assert (dst / ".staging").exists()
+    assert (dst / "test-specs").exists()
+    assert (dst / "dbt").exists()
+
+
+def test_run_reset_migration_all_rejects_extra_table_arguments(tmp_path: Path) -> None:
+    dst = _make_reset_project(tmp_path)
+
+    with pytest.raises(ValueError, match="global reset stage 'all' does not accept table arguments"):
+        dry_run.run_reset_migration(dst, "all", ["silver.DimCustomer"])
+
+
+def test_reset_migration_requires_at_least_one_fqn(tmp_path: Path) -> None:
+    dst = _make_reset_project(tmp_path)
+
+    with pytest.raises(ValueError, match="reset-migration requires at least one FQN for staged resets"):
+        dry_run.run_reset_migration(dst, "profile", [])
+
+
+def test_reset_migration_cli_all_succeeds_without_fqns(tmp_path: Path) -> None:
+    dst = _make_reset_project(tmp_path)
+    manifest = json.loads((dst / "manifest.json").read_text(encoding="utf-8"))
+    manifest["runtime"] = {
+        "source": {"technology": "sql_server"},
+        "target": {"technology": "sql_server"},
+        "sandbox": {"technology": "sql_server"},
+    }
+    manifest["extraction"] = {"schemas": ["silver"]}
+    manifest["init_handoff"] = {"timestamp": "2026-04-01T00:00:00Z"}
+    (dst / "manifest.json").write_text(json.dumps(manifest), encoding="utf-8")
+    (dst / "ddl").mkdir()
+    (dst / ".staging").mkdir()
+    (dst / "dbt" / "models").mkdir(parents=True)
+
+    result = _cli_runner.invoke(dry_run.app, ["reset-migration", "all", "--project-root", str(dst)])
+
+    assert result.exit_code == 0, result.output
+    output = json.loads(result.stdout)
+    assert output["stage"] == "all"
+    assert output["deleted_paths"] == ["catalog", "ddl", ".staging", "test-specs", "dbt"]
+    assert not (dst / "catalog").exists()
+    assert not (dst / "ddl").exists()
+    assert not (dst / ".staging").exists()
+    assert not (dst / "test-specs").exists()
+    assert not (dst / "dbt").exists()
+
+
+def test_reset_migration_cli_all_rejects_extra_fqns(tmp_path: Path) -> None:
+    dst = _make_reset_project(tmp_path)
+
+    result = _cli_runner.invoke(
+        dry_run.app,
+        [
+            "reset-migration",
+            "all",
+            "--fqn",
+            "silver.DimCustomer",
+            "--project-root",
+            str(dst),
+        ],
+    )
+
+    assert result.exit_code == 1, result.output
+    output = json.loads(result.stdout)
+    assert "global reset stage 'all' does not accept table arguments" in output["error"]
+
+
 def test_reset_migration_cli_subcommand(tmp_path: Path) -> None:
     dst = _make_reset_project(tmp_path)
     result = _cli_runner.invoke(
         dry_run.app,
-        ["reset-migration", "generate-tests", "silver.DimCustomer", "--project-root", str(dst)],
+        [
+            "reset-migration",
+            "generate-tests",
+            "--fqn",
+            "silver.DimCustomer",
+            "--project-root",
+            str(dst),
+        ],
     )
 
     assert result.exit_code == 0, result.output
@@ -1410,7 +1597,14 @@ def test_reset_migration_cli_corrupt_catalog_exits_2(tmp_path: Path) -> None:
 
     result = _cli_runner.invoke(
         dry_run.app,
-        ["reset-migration", "profile", "silver.DimCustomer", "--project-root", str(dst)],
+        [
+            "reset-migration",
+            "profile",
+            "--fqn",
+            "silver.DimCustomer",
+            "--project-root",
+            str(dst),
+        ],
     )
 
     assert result.exit_code == 2

@@ -1,0 +1,9 @@
+{
+  "item_id": "silver.dimcustomer",
+  "status": "ok",
+  "scenarios": [
+    {
+      "name": "basic"
+    }
+  ]
+}
