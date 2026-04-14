@@ -22,7 +22,7 @@
       }
     },
     "oracle": {
-      "command": "sql",
+      "command": "${SQLCL_BIN}",
       "args": [
         "-mcp"
       ]
