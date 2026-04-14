@@ -22,7 +22,8 @@
 **Commands**
 
 - [[Command Reference]]
-- [[Command Setup DDL]]
+- [[Command-Setup-Source]]
+- [[Testing-the-CLI]]
 
 **Skills**
 
