@@ -6,7 +6,7 @@ user-invocable: true
 
 # Initialize ad-migration plugin
 
-Verify and set up all prerequisites before using `listing-objects`, `analyzing-table`, or `/setup-ddl`. Then scaffold the project directory for both agents and human developers.
+Verify and set up all prerequisites before using `listing-objects`, `analyzing-table`, or `ad-migration setup-source`. Then scaffold the project directory for both agents and human developers.
 
 ## Progress Tracking
 
@@ -143,7 +143,7 @@ Common prerequisites:
 ```text
 Source runtime (SQL Server):
   freetds:                ✓ installed + registered  /  ✗ not installed  /  ✗ unixODBC missing  /  ✗ not registered
-  toolbox:                ✓ installed (x.y.z)  /  — not found (optional until /setup-ddl)
+  toolbox:                ✓ installed (x.y.z)  /  — not found (optional until ad-migration setup-source)
   mssql_driver_override:  ✓ resolved  /  — default FreeTDS  /  ✗ manual override needed
 ```
 
@@ -172,15 +172,15 @@ Target runtime (Oracle):
   oracledb:  ✓ importable  /  ✗ missing
 ```
 
-`toolbox` and `direnv` are marked `—` (not `✗`) when missing. `toolbox` is optional for DDL file mode but required later for SQL Server `/setup-ddl`.
+`toolbox` and `direnv` are marked `—` (not `✗`) when missing. `toolbox` is optional for DDL file mode but required later for SQL Server `ad-migration setup-source`.
 
-For SQL Server, `freetds` is only green after both installation and unixODBC registration pass. If `brew` reports FreeTDS installed but `odbcinst` is missing, treat that as a failed prerequisite because `/setup-ddl` will not work with the default `MSSQL_DRIVER="FreeTDS"` path.
+For SQL Server, `freetds` is only green after both installation and unixODBC registration pass. If `brew` reports FreeTDS installed but `odbcinst` is missing, treat that as a failed prerequisite because `ad-migration setup-source` will not work with the default `MSSQL_DRIVER="FreeTDS"` path.
 
 If any local override is discovered or required, explain that init will write only non-secret machine-specific overrides into `.env`, while `.envrc` remains the shared repo-local scaffold:
 
 > **Recommended: keep machine-local overrides in `.env`.** The scaffolding step writes repo-shared environment scaffolding to `.envrc` and loads `.env` when present. Use `.env` only for non-secret local overrides such as `MSSQL_DRIVER` or `SQLCL_BIN`. Connection details are collected later in the stage-specific setup commands.
 
-Do not ask the user for source, target, or sandbox connection details during init. Those belong to `/setup-ddl`, `/setup-target`, and `/setup-sandbox`.
+Do not ask the user for source, target, or sandbox connection details during init. Those belong to `ad-migration setup-source`, `ad-migration setup-target`, and `ad-migration setup-sandbox`.
 
 If everything is already validated (all items `true` in the existing handoff and no new gaps found), say "All prerequisites validated" and proceed directly to Step 6 without asking for confirmation. Otherwise, ask the user to confirm before proceeding with Step 5.
 
