@@ -1,9 +1,0 @@
-{
-  "schema": "dbo",
-  "name": "usp_load_dimcustomer",
-  "type": "procedure",
-  "referenced_tables": {
-    "in_scope": ["silver.DimCustomer"],
-    "out_of_scope": []
-  }
-}
