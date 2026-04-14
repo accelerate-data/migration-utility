@@ -11,7 +11,7 @@ dependencies = [
 ]
 
 [project.optional-dependencies]
-dev = ["pytest>=8.0", "jsonschema>=4.18", "pyodbc>=5.0", "oracledb>=2.0"]
+dev = ["pytest>=9.0.3", "jsonschema>=4.18", "pyodbc>=5.0", "oracledb>=2.0"]
 export = ["pyodbc>=5.0"]
 oracle = ["oracledb>=2.0"]
 
