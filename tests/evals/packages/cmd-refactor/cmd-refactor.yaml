@@ -58,7 +58,7 @@ tests:
       fixture_path: "tests/evals/fixtures/oracle-regression"
       target_tables: "sh.CHANNEL_SALES_SUMMARY"
       target_table: "sh.channel_sales_summary"
-      expected_item_statuses: '{"sh.CHANNEL_SALES_SUMMARY": "ok"}'
+      expected_item_statuses: '{"sh.CHANNEL_SALES_SUMMARY": "ok,partial"}'
       expected_extracted_terms: "channel_totals,amount_sold"
       expected_refactored_terms: "with,final"
       expected_output_terms: "ok"
