@@ -1,14 +1,14 @@
 # Cleanup and Teardown
 
-Two cleanup commands remove resources created during the migration pipeline: `/cleanup-worktrees` for git worktrees and branches, and `/teardown-sandbox` for the throwaway test database.
+Two cleanup operations remove resources created during the migration pipeline: `scripts/cleanup-worktrees.sh` for git worktrees and branches, and `ad-migration teardown-sandbox` for the throwaway test database.
 
-## `/teardown-sandbox`
+## ad-migration teardown-sandbox
 
-Drops the active sandbox endpoint that was created by `/setup-sandbox` during test generation.
+Drops the active sandbox endpoint that was created by `ad-migration setup-sandbox` during test generation.
 
 ### When to run
 
-Run `/teardown-sandbox` after test generation is complete for all tables in the current batch. The sandbox is only needed while `/generate-tests` or `/generating-tests` is actively executing stored procedures to capture ground truth. Once all test specs are written to `test-specs/`, the sandbox can be safely dropped.
+Run `ad-migration teardown-sandbox` after test generation is complete for all tables in the current batch. The sandbox is only needed while `/generate-tests` or `/generating-tests` is actively executing stored procedures to capture ground truth. Once all test specs are written to `test-specs/`, the sandbox can be safely dropped.
 
 ### How it works
 
@@ -32,18 +32,20 @@ Run `/teardown-sandbox` after test generation is complete for all tables in the 
 | Connection error or permissions failure | Reports `SANDBOX_DOWN_FAILED` error with details |
 | No sandbox metadata in manifest | Stops with message that no sandbox exists |
 
-## `/cleanup-worktrees`
+## scripts/cleanup-worktrees.sh
 
 Scans git worktrees and local branches for merged PRs and removes them. Runs three passes in sequence.
 
 ### When to run
 
-Run `/cleanup-worktrees` after PRs have been merged. Batch commands create a worktree per invocation, and these accumulate over time. Periodic cleanup keeps the workspace tidy.
+Run `scripts/cleanup-worktrees.sh` after PRs have been merged. Batch commands create a worktree per invocation, and these accumulate over time. Periodic cleanup keeps the workspace tidy.
 
 ### Usage
 
-- **All worktrees:** `/cleanup-worktrees` -- scans every worktree except the main working tree
-- **Single branch:** `/cleanup-worktrees <branch-name>` -- targets only the specified branch
+```bash
+bash scripts/cleanup-worktrees.sh             # scan all worktrees
+bash scripts/cleanup-worktrees.sh <branch>    # single branch
+```
 
 ### How it works
 

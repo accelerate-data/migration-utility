@@ -8,13 +8,13 @@ Happy-path walkthrough for migrating two tables, `silver.DimCustomer` and `silve
 - A git repo for the migration project
 - Access to the source database
 
-## 1. Scaffold the project
+## 1. Scaffold the project and install the CLI
 
 ```text
 /init-ad-migration
 ```
 
-This checks prerequisites, writes the project starter files, and scaffolds `scripts/worktree.sh` plus the repo-local git-workflow guidance.
+This installs the `ad-migration` CLI via Homebrew, checks prerequisites, writes the project starter files, and scaffolds `scripts/worktree.sh` plus the repo-local git-workflow guidance.
 
 Generated files include:
 
@@ -30,11 +30,13 @@ See [[Stage 1 Project Init]].
 
 ## 2. Extract DDL and build the catalog
 
-```text
-/setup-ddl
+```bash
+ad-migration setup-source --technology sql_server --schemas silver,gold
 ```
 
-This creates `manifest.json`, writes extracted DDL into `ddl/`, and builds per-object catalog files in `catalog/`.
+This validates credentials, extracts DDL, and builds catalog files. It creates `manifest.json`, writes extracted DDL into `ddl/`, and builds per-object catalog files in `catalog/`.
+
+For Oracle use `--technology oracle`.
 
 See [[Stage 2 DDL Extraction]].
 
@@ -47,8 +49,8 @@ See [[Stage 2 DDL Extraction]].
 Before `/setup-target` can proceed, every extracted table needs one of these outcomes:
 
 - scoped to a writer via `/scope` or `/analyzing-table`
-- excluded from the migration via `/exclude-table`
-- confirmed as a source via `/add-source-tables`
+- excluded from the migration via `ad-migration exclude-table <fqn>`
+- confirmed as a source via `ad-migration add-source-table <fqn>`
 
 Tables with `scoping.status == "no_writer_found"` are not automatically included in `sources.yml`; they stay pending until you explicitly confirm them as sources.
 
@@ -56,11 +58,11 @@ See [[Stage 1 Scoping]].
 
 ## 4. Set up the target
 
-```text
-/setup-target
+```bash
+ad-migration setup-target --technology fabric
 ```
 
-This asks for the target adapter and connection details, scaffolds `dbt/`, persists `runtime.target`, and generates `models/staging/sources.yml`.
+This scaffolds `dbt/`, persists `runtime.target`, and generates `models/staging/sources.yml`.
 
 `sources.yml` includes only tables explicitly marked `is_source: true`. Writerless tables that have not been confirmed yet are shown as pending so you can decide whether to add them as sources.
 
@@ -78,8 +80,8 @@ See [[Stage 2 Profiling]].
 
 ## 6. Create the sandbox
 
-```text
-/setup-sandbox
+```bash
+ad-migration setup-sandbox
 ```
 
 This creates the active sandbox endpoint used for ground-truth capture and SQL equivalence checks and persists it as `runtime.sandbox`.
@@ -128,16 +130,16 @@ See [[Status Dashboard]].
 
 ## 11. Tear down the sandbox when finished
 
-```text
-/teardown-sandbox
+```bash
+ad-migration teardown-sandbox
 ```
 
 Run this after all test generation and refactor work that depends on the sandbox is complete.
 
 ## 12. Clean up merged worktrees later
 
-```text
-/cleanup-worktrees
+```bash
+bash scripts/cleanup-worktrees.sh
 ```
 
 After PRs are merged, use this to remove stale worktrees and merged branches.
