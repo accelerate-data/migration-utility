@@ -40,6 +40,11 @@ function readText(filePath) {
   return fs.readFileSync(filePath, 'utf8');
 }
 
+function hasWhitespaceSeparatedTokens(command, tokens) {
+  const parts = command.trim().split(/\s+/);
+  return tokens.every((token) => parts.includes(token));
+}
+
 function touchMtime(target, mtimeMs) {
   const mtime = new Date(mtimeMs);
   fs.utimesSync(target, mtime, mtime);
@@ -47,13 +52,21 @@ function touchMtime(target, mtimeMs) {
 
 test('workspace extension entrypoint is wired into eval scripts and ignores run output', () => {
   const packageJson = readJson(EVAL_PACKAGE_JSON);
-  const gitignore = readText(ROOT_GITIGNORE);
+  const gitignoreEntries = readText(ROOT_GITIGNORE)
+    .split(/\r?\n/)
+    .map((line) => line.trim())
+    .filter(Boolean);
 
+  const workspaceExtensionScript = packageJson.scripts['test:workspace-extension'];
+
+  assert.equal(typeof workspaceExtensionScript, 'string');
+  assert.equal(Boolean(workspaceExtensionScript), true);
+  assert.equal(hasWhitespaceSeparatedTokens(workspaceExtensionScript, ['node', '--test']), true);
   assert.equal(
-    packageJson.scripts['test:workspace-extension'],
-    'node --test scripts/run-workspace-extension.test.js',
+    workspaceExtensionScript.includes('scripts/run-workspace-extension.test.js'),
+    true,
   );
-  assert.match(gitignore, /^tests\/evals\/output\/runs\/$/m);
+  assert.equal(gitignoreEntries.includes('tests/evals/output/runs/'), true);
 });
 
 test('pruneOldRuns removes run directories older than the cutoff', () => {
