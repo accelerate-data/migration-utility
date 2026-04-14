@@ -1,0 +1,76 @@
+{
+  "schema": "sh",
+  "name": "channels",
+  "columns": [
+    {
+      "name": "CHANNEL_ID",
+      "sql_type": "NUMBER",
+      "is_nullable": false,
+      "is_identity": false
+    },
+    {
+      "name": "CHANNEL_DESC",
+      "sql_type": "VARCHAR2(20)",
+      "is_nullable": false,
+      "is_identity": false
+    },
+    {
+      "name": "CHANNEL_CLASS",
+      "sql_type": "VARCHAR2(20)",
+      "is_nullable": false,
+      "is_identity": false
+    },
+    {
+      "name": "CHANNEL_CLASS_ID",
+      "sql_type": "NUMBER",
+      "is_nullable": false,
+      "is_identity": false
+    },
+    {
+      "name": "CHANNEL_TOTAL",
+      "sql_type": "VARCHAR2(13)",
+      "is_nullable": false,
+      "is_identity": false
+    },
+    {
+      "name": "CHANNEL_TOTAL_ID",
+      "sql_type": "NUMBER",
+      "is_nullable": false,
+      "is_identity": false
+    }
+  ],
+  "primary_keys": [
+    {
+      "constraint_name": "CHANNELS_PK",
+      "columns": [
+        "CHANNEL_ID"
+      ]
+    }
+  ],
+  "unique_indexes": [],
+  "foreign_keys": [],
+  "auto_increment_columns": [],
+  "change_capture": null,
+  "sensitivity_classifications": [],
+  "referenced_by": {
+    "procedures": {
+      "in_scope": [
+        {
+          "schema": "sh",
+          "name": "summarize_channel_sales",
+          "is_selected": true,
+          "is_updated": false
+        }
+      ],
+      "out_of_scope": []
+    },
+    "views": {
+      "in_scope": [],
+      "out_of_scope": []
+    },
+    "functions": {
+      "in_scope": [],
+      "out_of_scope": []
+    }
+  }
+}
