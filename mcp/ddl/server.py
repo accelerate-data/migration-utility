@@ -2,11 +2,8 @@
 # requires-python = ">=3.11"
 # dependencies = [
 #   "mcp>=1.0",
-#   "shared",
+#   "sqlglot>=25.0,<26",
 # ]
-#
-# [tool.uv.sources]
-# shared = { path = "../../lib" }
 # ///
 """DDL file MCP server.
 
@@ -32,12 +29,19 @@ import os
 from pathlib import Path
 
 import sqlglot.expressions as exp
+from ddl_mcp_support.env_config import assert_git_repo
+from ddl_mcp_support.loader import (
+    DdlCatalog,
+    DdlEntry,
+    DdlParseError,
+    extract_refs,
+    load_directory,
+    read_manifest,
+)
+from ddl_mcp_support.name_resolver import normalize
 from mcp import types
 from mcp.server import Server
 from mcp.server.stdio import stdio_server
-from shared.env_config import assert_git_repo
-from shared.loader import DdlCatalog, DdlEntry, DdlParseError, extract_refs, load_directory, read_manifest
-from shared.name_resolver import normalize
 
 server = Server("ddl-mcp")
 

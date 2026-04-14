@@ -6,15 +6,11 @@ dependencies = [
     "mcp>=1.0",
     "oracledb>=3.0",
     "pytest>=9.0.3",
-    "shared",
     "sqlglot>=25.0,<26",
 ]
 
 [dependency-groups]
 dev = []
-
-[tool.uv.sources]
-shared = { path = "../../lib", editable = true }
 
 [tool.pytest.ini_options]
 testpaths = ["tests/unit"]
