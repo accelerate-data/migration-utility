@@ -86,9 +86,9 @@ Human-readable `rich` output to stdout. Spinners for long-running steps (extract
 
 ## Plugin evolution
 
-Remove plugin commands whose logic now lives in the CLI:
+Remove plugin commands whose logic now lives in the CLI or in scripts:
 
-- `init-ad-migration`, `setup-ddl`, `setup-target`, `setup-sandbox`, `teardown-sandbox`, `reset-migration`, `exclude-table`, `add-source-tables`, `commit-push-pr`
+- `init-ad-migration`, `setup-ddl`, `setup-target`, `setup-sandbox`, `teardown-sandbox`, `reset-migration`, `exclude-table`, `add-source-tables`, `commit`, `commit-push-pr`
 
 Plugin retains only LLM-driven commands: `scope`, `profile`, `generate-model`, `generate-tests`, `refactor`, `status`, plus a thin `install-cli` command that checks if `ad-migration` is on PATH and prints Homebrew install instructions if not.
 
@@ -99,6 +99,7 @@ When a skill or rule needs to invoke a deterministic step mid-workflow, it calls
 Git workflow helpers stay as shell scripts, not CLI commands — same pattern as `scripts/worktree.sh`:
 
 - `scripts/cleanup-worktrees.sh` — scans worktrees, checks merged PRs via `gh`, removes merged ones.
+- `scripts/commit.sh` — stage specified files and commit with a provided message.
 - `scripts/commit-push-pr.sh` — stage, commit, push, open PR via `gh pr create`.
 
 Claude rules reference these directly.
