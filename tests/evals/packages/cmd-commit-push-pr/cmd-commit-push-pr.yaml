@@ -7,16 +7,7 @@ prompts:
     raw: file://../../prompts/cmd-commit-push-pr.txt
 
 providers:
-  - id: anthropic:claude-agent-sdk
-    config:
-      model: claude-haiku-4-5-20251001
-      working_dir: ../..
-      max_turns: 20
-      permission_mode: auto
-      append_allowed_tools:
-        - Read
-        - Glob
-        - Grep
+  - file://../../providers/haiku-60.yaml
 
 defaultTest:
   assert:

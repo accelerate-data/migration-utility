@@ -1,0 +1,11 @@
+id: anthropic:claude-agent-sdk
+config:
+  model: claude-haiku-4-5-20251001
+  working_dir: ../..
+  max_turns: 120
+  permission_mode: auto
+  append_allowed_tools:
+    - Read
+    - Bash
+    - Glob
+    - Grep

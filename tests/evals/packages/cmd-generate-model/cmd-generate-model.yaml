@@ -10,18 +10,7 @@ extensions:
   - file://../../scripts/run-workspace-extension.js:extensionHook
 
 providers:
-  - id: anthropic:claude-agent-sdk
-    config:
-      model: claude-sonnet-4-6
-      working_dir: ../..
-      max_turns: 120
-      permission_mode: auto
-      append_allowed_tools:
-        - Read
-        - Write
-        - Bash
-        - Glob
-        - Grep
+  - file://../../providers/sonnet-120.yaml
 
 defaultTest:
   assert:
