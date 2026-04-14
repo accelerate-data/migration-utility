@@ -22,9 +22,10 @@
       }
     },
     "oracle": {
-      "command": "${SQLCL_BIN}",
+      "command": "sh",
       "args": [
-        "-mcp"
+        "-lc",
+        "exec \"${SQLCL_BIN:-$(command -v sql || command -v sqlcl || printf sql)}\" -mcp"
       ]
     }
   }
