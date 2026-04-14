@@ -7,6 +7,8 @@ const test = require('node:test');
 const { extensionHook, pruneOldRuns } = require('./run-workspace-extension');
 
 const REPO_ROOT = path.resolve(__dirname, '..', '..', '..');
+const ROOT_GITIGNORE = path.join(REPO_ROOT, '.gitignore');
+const EVAL_PACKAGE_JSON = path.join(REPO_ROOT, 'tests', 'evals', 'package.json');
 
 function makeRunDir(root, relativePath) {
   const target = path.join(root, relativePath);
@@ -30,10 +32,29 @@ function makePruneState() {
   return { hasPrunedRuns: false };
 }
 
+function readJson(filePath) {
+  return JSON.parse(fs.readFileSync(filePath, 'utf8'));
+}
+
+function readText(filePath) {
+  return fs.readFileSync(filePath, 'utf8');
+}
+
 function touchMtime(target, mtimeMs) {
   const mtime = new Date(mtimeMs);
   fs.utimesSync(target, mtime, mtime);
 }
+
+test('workspace extension entrypoint is wired into eval scripts and ignores run output', () => {
+  const packageJson = readJson(EVAL_PACKAGE_JSON);
+  const gitignore = readText(ROOT_GITIGNORE);
+
+  assert.equal(
+    packageJson.scripts['test:workspace-extension'],
+    'node --test scripts/run-workspace-extension.test.js',
+  );
+  assert.match(gitignore, /^tests\/evals\/output\/runs\/$/m);
+});
 
 test('pruneOldRuns removes run directories older than the cutoff', () => {
   const tempRoot = fs.mkdtempSync(path.join(os.tmpdir(), 'eval-runs-'));
