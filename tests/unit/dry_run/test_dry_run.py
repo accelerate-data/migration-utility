@@ -20,7 +20,6 @@ from shared import dry_run
 from shared import dry_run_core
 from shared import generate_sources as gen_src
 from shared.output_models.dry_run import DryRunOutput
-from shared.output_models.dry_run import ResetMigrationOutput
 
 _cli_runner = CliRunner()
 
@@ -1390,32 +1389,103 @@ def test_run_reset_migration_mixed_valid_and_missing_resets_valid_targets(tmp_pa
     assert not (dst / "test-specs" / "silver.dimcustomer.json").exists()
 
 
-def test_reset_migration_global_output_contract_serializes_deleted_paths() -> None:
-    result = ResetMigrationOutput.model_validate(
-        {
-            "stage": "all",
-            "targets": [],
-            "reset": [],
-            "noop": [],
-            "blocked": [],
-            "not_found": [],
-            "deleted_paths": [
-                "catalog/tables/silver.dimcustomer.json",
-                "dbt/models/marts/dim_customer.sql",
-            ],
-            "missing_paths": ["test-specs/silver.dimcustomer.json"],
-            "cleared_manifest_sections": ["runtime.target", "runtime.sandbox"],
-        }
+def test_reset_migration_global_output_contract_serializes_deleted_paths(tmp_path: Path) -> None:
+    dst = _make_reset_project(tmp_path)
+    manifest = json.loads((dst / "manifest.json").read_text(encoding="utf-8"))
+    manifest["runtime"] = {
+        "source": {"technology": "sql_server"},
+        "target": {"technology": "sql_server"},
+        "sandbox": {"technology": "sql_server"},
+    }
+    manifest["extraction"] = {"schemas": ["silver"]}
+    manifest["init_handoff"] = {"timestamp": "2026-04-01T00:00:00Z"}
+    (dst / "manifest.json").write_text(json.dumps(manifest), encoding="utf-8")
+    (dst / "ddl").mkdir()
+    (dst / "ddl" / "legacy.sql").write_text("select 1;", encoding="utf-8")
+    (dst / ".staging").mkdir()
+    (dst / ".staging" / "state.json").write_text("{}", encoding="utf-8")
+    (dst / "dbt" / "models" / "marts").mkdir(parents=True)
+    (dst / "dbt" / "models" / "marts" / "dim_customer.sql").write_text(
+        "select 1;", encoding="utf-8"
     )
+    (dst / "dbt" / "target").mkdir(parents=True)
+    (dst / "dbt" / "target" / "compiled.json").write_text("{}", encoding="utf-8")
 
+    result = dry_run.run_reset_migration(dst, "all", [])
     payload = result.model_dump(mode="json", exclude_none=True)
-    assert payload["stage"] == "all"
-    assert payload["deleted_paths"] == [
-        "catalog/tables/silver.dimcustomer.json",
-        "dbt/models/marts/dim_customer.sql",
+
+    assert result.stage == "all"
+    assert result.targets == []
+    assert result.reset == []
+    assert result.noop == []
+    assert result.blocked == []
+    assert result.not_found == []
+    assert result.deleted_paths == ["catalog", "ddl", ".staging", "test-specs", "dbt"]
+    assert result.missing_paths == []
+    assert result.cleared_manifest_sections == [
+        "runtime.source",
+        "runtime.target",
+        "runtime.sandbox",
+        "extraction",
+        "init_handoff",
     ]
-    assert payload["missing_paths"] == ["test-specs/silver.dimcustomer.json"]
-    assert payload["cleared_manifest_sections"] == ["runtime.target", "runtime.sandbox"]
+    assert payload["stage"] == "all"
+    assert payload["deleted_paths"] == ["catalog", "ddl", ".staging", "test-specs", "dbt"]
+    assert payload["missing_paths"] == []
+    assert payload["cleared_manifest_sections"] == [
+        "runtime.source",
+        "runtime.target",
+        "runtime.sandbox",
+        "extraction",
+        "init_handoff",
+    ]
+    manifest = json.loads((dst / "manifest.json").read_text(encoding="utf-8"))
+    assert "runtime" not in manifest
+    assert "extraction" not in manifest
+    assert "init_handoff" not in manifest
+    assert (dst / "manifest.json").exists()
+    assert not (dst / "catalog").exists()
+    assert not (dst / "ddl").exists()
+    assert not (dst / ".staging").exists()
+    assert not (dst / "test-specs").exists()
+    assert not (dst / "dbt").exists()
+
+
+def test_run_reset_migration_all_reports_missing_paths_as_noop(tmp_path: Path) -> None:
+    dst = _make_reset_project(tmp_path)
+    manifest = json.loads((dst / "manifest.json").read_text(encoding="utf-8"))
+    manifest["runtime"] = {
+        "source": {"technology": "sql_server"},
+        "target": {"technology": "sql_server"},
+        "sandbox": {"technology": "sql_server"},
+    }
+    manifest["extraction"] = {"schemas": ["silver"]}
+    manifest["init_handoff"] = {"timestamp": "2026-04-01T00:00:00Z"}
+    (dst / "manifest.json").write_text(json.dumps(manifest), encoding="utf-8")
+    (dst / "ddl").mkdir()
+    (dst / ".staging").mkdir()
+
+    result = dry_run.run_reset_migration(dst, "all", [])
+
+    assert result.deleted_paths == ["catalog", "ddl", ".staging", "test-specs"]
+    assert result.missing_paths == ["dbt"]
+    assert result.cleared_manifest_sections == [
+        "runtime.source",
+        "runtime.target",
+        "runtime.sandbox",
+        "extraction",
+        "init_handoff",
+    ]
+    assert (dst / "ddl").exists() is False
+    assert (dst / ".staging").exists() is False
+    assert (dst / "dbt").exists() is False
+
+
+def test_run_reset_migration_all_rejects_extra_table_arguments(tmp_path: Path) -> None:
+    dst = _make_reset_project(tmp_path)
+
+    with pytest.raises(ValueError, match="global reset stage 'all' does not accept table arguments"):
+        dry_run.run_reset_migration(dst, "all", ["silver.DimCustomer"])
 
 
 def test_reset_migration_cli_subcommand(tmp_path: Path) -> None:
