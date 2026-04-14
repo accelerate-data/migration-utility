@@ -91,6 +91,14 @@ bootstrap_worktree() {
     echo "ENV: skipped (no .env in $repo_root)"
   fi
 
+  local promptfoo_src="$repo_root/tests/evals/.promptfoo"
+  local promptfoo_dst="$worktree_path/tests/evals/.promptfoo"
+
+  mkdir -p "$promptfoo_src"
+  rm -rf "$promptfoo_dst"
+  ln -s "$promptfoo_src" "$promptfoo_dst"
+  echo "PROMPTFOO_DB: symlink $promptfoo_dst -> $promptfoo_src"
+
   if command -v direnv &>/dev/null && [[ -f "$worktree_path/.envrc" ]]; then
     direnv allow "$worktree_path" || json_error \
       "WORKTREE_DIRENV_ALLOW_FAILED" \
