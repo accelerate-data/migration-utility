@@ -1,0 +1,9 @@
+reset_global_sparse:
+  target: dev
+  outputs:
+    dev:
+      type: sqlserver
+      server: localhost
+      database: Placeholder
+      schema: dbo
+      driver: ODBC Driver 18 for SQL Server

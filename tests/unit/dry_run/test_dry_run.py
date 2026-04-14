@@ -1548,7 +1548,14 @@ def test_reset_migration_cli_all_rejects_extra_fqns(tmp_path: Path) -> None:
 
     result = _cli_runner.invoke(
         dry_run.app,
-        ["reset-migration", "all", "silver.DimCustomer", "--project-root", str(dst)],
+        [
+            "reset-migration",
+            "all",
+            "--fqn",
+            "silver.DimCustomer",
+            "--project-root",
+            str(dst),
+        ],
     )
 
     assert result.exit_code == 1, result.output
@@ -1560,7 +1567,14 @@ def test_reset_migration_cli_subcommand(tmp_path: Path) -> None:
     dst = _make_reset_project(tmp_path)
     result = _cli_runner.invoke(
         dry_run.app,
-        ["reset-migration", "generate-tests", "silver.DimCustomer", "--project-root", str(dst)],
+        [
+            "reset-migration",
+            "generate-tests",
+            "--fqn",
+            "silver.DimCustomer",
+            "--project-root",
+            str(dst),
+        ],
     )
 
     assert result.exit_code == 0, result.output
@@ -1577,7 +1591,14 @@ def test_reset_migration_cli_corrupt_catalog_exits_2(tmp_path: Path) -> None:
 
     result = _cli_runner.invoke(
         dry_run.app,
-        ["reset-migration", "profile", "silver.DimCustomer", "--project-root", str(dst)],
+        [
+            "reset-migration",
+            "profile",
+            "--fqn",
+            "silver.DimCustomer",
+            "--project-root",
+            str(dst),
+        ],
     )
 
     assert result.exit_code == 2

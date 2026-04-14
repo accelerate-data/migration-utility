@@ -1,0 +1,65 @@
+{
+  "schema_version": "1.0",
+  "technology": "sql_server",
+  "dialect": "tsql",
+  "runtime": {
+    "source": {
+      "technology": "sql_server",
+      "dialect": "tsql",
+      "connection": {
+        "database": "TestDB",
+        "host": "localhost",
+        "port": "1433",
+        "user": "sa",
+        "password_env": "SA_PASSWORD",
+        "driver": "ODBC Driver 18 for SQL Server",
+        "schema": "MigrationTest"
+      }
+    },
+    "target": {
+      "technology": "sql_server",
+      "dialect": "tsql",
+      "connection": {
+        "database": "TargetDB",
+        "host": "localhost",
+        "port": "1433",
+        "user": "sa",
+        "password_env": "SA_PASSWORD",
+        "driver": "ODBC Driver 18 for SQL Server"
+      }
+    },
+    "sandbox": {
+      "technology": "sql_server",
+      "dialect": "tsql",
+      "connection": {
+        "database": "__test_reset_migration",
+        "host": "localhost",
+        "port": "1433",
+        "user": "sa",
+        "password_env": "SA_PASSWORD",
+        "driver": "ODBC Driver 18 for SQL Server"
+      }
+    }
+  },
+  "extraction": {
+    "schemas": [
+      "silver"
+    ]
+  },
+  "init_handoff": {
+    "timestamp": "2026-04-01T00:00:00+00:00",
+    "env_vars": {
+      "MSSQL_HOST": true,
+      "MSSQL_PORT": true,
+      "MSSQL_DB": true,
+      "SA_PASSWORD": true
+    },
+    "tools": {
+      "uv": true,
+      "python": true,
+      "shared_deps": true,
+      "ddl_mcp": true,
+      "freetds": true
+    }
+  }
+}

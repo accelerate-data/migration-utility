@@ -155,9 +155,10 @@ def exclude_cmd(
 def reset_migration_cmd(
     stage: str = typer.Argument(..., help="Pre-model stage to reset"),
     # Optional so `all` can run without positional FQNs; core handles mode rules.
-    fqns: List[str] | None = typer.Argument(
-        None,
-        help="Fully-qualified table names to reset",
+    fqns: List[str] = typer.Option(
+        [],
+        "--fqn",
+        help="Fully-qualified table names to reset (can be specified multiple times)",
     ),
     project_root: Optional[Path] = typer.Option(
         None, "--project-root", help="Project root directory",
