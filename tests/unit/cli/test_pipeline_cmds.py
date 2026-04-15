@@ -1,11 +1,12 @@
 import json
 from pathlib import Path
-from unittest.mock import patch
+from unittest.mock import MagicMock, patch
 
 from typer.testing import CliRunner
 
 from shared.cli.main import app
 from shared.output_models.dry_run import DryRunOutput, ExcludeOutput, ObjectReadiness, ReadinessDetail, ResetMigrationOutput
+from shared.output_models.sandbox import SandboxDownOutput
 
 runner = CliRunner()
 
@@ -68,6 +69,81 @@ def test_reset_exits_1_on_blocked(tmp_path):
     out = ResetMigrationOutput(stage="scope", targets=[], reset=[], noop=[], blocked=["silver.Locked"], not_found=[])
     with patch("shared.cli.reset_cmd.run_reset_migration", return_value=out):
         result = runner.invoke(app, ["reset", "scope", "silver.Locked", "--yes", "--project-root", str(tmp_path)])
+    assert result.exit_code == 1
+
+
+# ── reset all (global) ───────────────────────────────────────────────────────
+
+_GLOBAL_RESET_OUT = ResetMigrationOutput(
+    stage="all",
+    targets=[],
+    reset=[],
+    noop=[],
+    blocked=[],
+    not_found=[],
+    deleted_paths=["catalog", "ddl", ".staging"],
+    missing_paths=["test-specs", "dbt"],
+    cleared_manifest_sections=["runtime.source", "runtime.target"],
+)
+
+
+def test_reset_all_no_sandbox_delegates_to_core(tmp_path):
+    _write_manifest(tmp_path)
+    with (
+        patch("shared.cli.reset_cmd._load_manifest", return_value={}),
+        patch("shared.cli.reset_cmd._get_sandbox_name", return_value=None),
+        patch("shared.cli.reset_cmd.run_reset_migration", return_value=_GLOBAL_RESET_OUT) as mock_reset,
+    ):
+        result = runner.invoke(app, ["reset", "all", "--yes", "--project-root", str(tmp_path)])
+    assert result.exit_code == 0, result.output
+    mock_reset.assert_called_once_with(tmp_path, "all", [])
+
+
+def test_reset_all_with_sandbox_tears_down_before_reset(tmp_path):
+    _write_manifest(tmp_path)
+    mock_backend = MagicMock()
+    mock_backend.sandbox_down.return_value = SandboxDownOutput(sandbox_database="__test_abc", status="ok")
+
+    with (
+        patch("shared.cli.reset_cmd._load_manifest", return_value={}),
+        patch("shared.cli.reset_cmd._get_sandbox_name", return_value="__test_abc"),
+        patch("shared.cli.reset_cmd._create_backend", return_value=mock_backend),
+        patch("shared.cli.reset_cmd.clear_manifest_sandbox"),
+        patch("shared.cli.reset_cmd.run_reset_migration", return_value=_GLOBAL_RESET_OUT) as mock_reset,
+    ):
+        result = runner.invoke(app, ["reset", "all", "--yes", "--project-root", str(tmp_path)])
+    assert result.exit_code == 0, result.output
+    mock_backend.sandbox_down.assert_called_once_with("__test_abc")
+    mock_reset.assert_called_once_with(tmp_path, "all", [])
+
+
+def test_reset_all_sandbox_teardown_failure_aborts_before_reset(tmp_path):
+    _write_manifest(tmp_path)
+    mock_backend = MagicMock()
+    mock_backend.sandbox_down.return_value = SandboxDownOutput(sandbox_database="__test_abc", status="error")
+
+    with (
+        patch("shared.cli.reset_cmd._load_manifest", return_value={}),
+        patch("shared.cli.reset_cmd._get_sandbox_name", return_value="__test_abc"),
+        patch("shared.cli.reset_cmd._create_backend", return_value=mock_backend),
+        patch("shared.cli.reset_cmd.run_reset_migration") as mock_reset,
+    ):
+        result = runner.invoke(app, ["reset", "all", "--yes", "--project-root", str(tmp_path)])
+    assert result.exit_code == 1
+    mock_reset.assert_not_called()
+
+
+def test_reset_all_aborts_without_confirmation(tmp_path):
+    _write_manifest(tmp_path)
+    with patch("shared.cli.reset_cmd.run_reset_migration") as mock_reset:
+        result = runner.invoke(app, ["reset", "all", "--project-root", str(tmp_path)], input="n\n")
+    mock_reset.assert_not_called()
+    assert result.exit_code == 0, result.output
+
+
+def test_reset_all_rejects_fqn_arguments(tmp_path):
+    _write_manifest(tmp_path)
+    result = runner.invoke(app, ["reset", "all", "silver.Foo", "--yes", "--project-root", str(tmp_path)])
     assert result.exit_code == 1
 
 
