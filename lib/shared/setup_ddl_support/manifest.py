@@ -108,11 +108,11 @@ def get_connection_identity(technology: str, database: str) -> dict[str, Any]:
             technology=technology,
             dialect=dialect_for_technology(technology),
             connection=RuntimeConnection(
-                host=os.environ.get("MSSQL_HOST", "") or None,
-                port=os.environ.get("MSSQL_PORT", "") or None,
+                host=os.environ.get("SOURCE_MSSQL_HOST", "") or None,
+                port=os.environ.get("SOURCE_MSSQL_PORT", "") or None,
                 database=database or None,
-                user=os.environ.get("MSSQL_USER", "sa") or None,
-                password_env="SA_PASSWORD",
+                user=os.environ.get("SOURCE_MSSQL_USER", "") or None,
+                password_env="SOURCE_MSSQL_PASSWORD",
                 driver=os.environ.get("MSSQL_DRIVER", "FreeTDS") or None,
             ),
         )
@@ -123,12 +123,12 @@ def get_connection_identity(technology: str, database: str) -> dict[str, Any]:
             dialect=dialect_for_technology(technology),
             connection=RuntimeConnection(
                 dsn=os.environ.get("ORACLE_DSN", "") or None,
-                host=os.environ.get("ORACLE_HOST", "") or None,
-                port=os.environ.get("ORACLE_PORT", "") or None,
-                service=os.environ.get("ORACLE_SERVICE", "") or None,
-                user=os.environ.get("ORACLE_USER", "") or None,
-                schema=database or os.environ.get("ORACLE_SCHEMA", "") or None,
-                password_env="ORACLE_PASSWORD",
+                host=os.environ.get("SOURCE_ORACLE_HOST", "") or None,
+                port=os.environ.get("SOURCE_ORACLE_PORT", "") or None,
+                service=os.environ.get("SOURCE_ORACLE_SERVICE", "") or None,
+                user=os.environ.get("SOURCE_ORACLE_USER", "") or None,
+                schema=database or os.environ.get("SOURCE_ORACLE_SCHEMA", "") or None,
+                password_env="SOURCE_ORACLE_PASSWORD",
             ),
         )
         return role.model_dump(mode="json", by_alias=True, exclude_none=True)

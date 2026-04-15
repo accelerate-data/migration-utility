@@ -42,16 +42,16 @@ def _classify(exc: BaseException) -> tuple[int, str, str | None]:
         )
     if _PYODBC_PROGRAMMING_ERROR and isinstance(exc, _PYODBC_PROGRAMMING_ERROR):
         return 2, str(exc), (
-            "Verify MSSQL_DB is set to a valid database name and SA_PASSWORD grants access"
+            "Verify SOURCE_MSSQL_DB is set to a valid database name and SOURCE_MSSQL_PASSWORD grants access"
         )
     if _PYODBC_OPERATIONAL_ERROR and isinstance(exc, _PYODBC_OPERATIONAL_ERROR):
-        return 2, str(exc), "Check MSSQL_HOST, MSSQL_PORT, and network connectivity"
+        return 2, str(exc), "Check SOURCE_MSSQL_HOST, SOURCE_MSSQL_PORT, and network connectivity"
     if _PYODBC_ERROR and isinstance(exc, _PYODBC_ERROR):
         return 2, str(exc), "Check SQL Server connection environment variables"
     if _ORACLE_DATABASE_ERROR and isinstance(exc, _ORACLE_DATABASE_ERROR):
         return 2, str(exc), (
             "Check Oracle connection environment variables "
-            "(ORACLE_HOST, ORACLE_PORT, ORACLE_USER, ORACLE_PASSWORD)"
+            "(SOURCE_ORACLE_HOST, SOURCE_ORACLE_PORT, SOURCE_ORACLE_USER, SOURCE_ORACLE_PASSWORD)"
         )
     if isinstance(exc, ConnectionError):
         return 2, str(exc), "Check host, port, and network access"

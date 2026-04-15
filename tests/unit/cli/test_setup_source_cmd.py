@@ -14,10 +14,11 @@ _EXTRACT_OUT = {"tables": 5, "procedures": 3, "views": 2, "functions": 0}
 
 
 def test_setup_source_sql_server_runs_extraction(tmp_path, monkeypatch):
-    monkeypatch.setenv("MSSQL_HOST", "localhost")
-    monkeypatch.setenv("MSSQL_PORT", "1433")
-    monkeypatch.setenv("MSSQL_DB", "AdventureWorks2022")
-    monkeypatch.setenv("SA_PASSWORD", "secret")
+    monkeypatch.setenv("SOURCE_MSSQL_HOST", "localhost")
+    monkeypatch.setenv("SOURCE_MSSQL_PORT", "1433")
+    monkeypatch.setenv("SOURCE_MSSQL_DB", "AdventureWorks2022")
+    monkeypatch.setenv("SOURCE_MSSQL_USER", "sa")
+    monkeypatch.setenv("SOURCE_MSSQL_PASSWORD", "secret")
 
     with (
         patch("shared.cli.setup_source_cmd._check_source_prereqs"),
@@ -36,7 +37,8 @@ def test_setup_source_sql_server_runs_extraction(tmp_path, monkeypatch):
 
 
 def test_setup_source_fails_fast_on_missing_env(tmp_path, monkeypatch):
-    for var in ("MSSQL_HOST", "MSSQL_PORT", "MSSQL_DB", "SA_PASSWORD"):
+    for var in ("SOURCE_MSSQL_HOST", "SOURCE_MSSQL_PORT", "SOURCE_MSSQL_DB",
+                "SOURCE_MSSQL_USER", "SOURCE_MSSQL_PASSWORD"):
         monkeypatch.delenv(var, raising=False)
 
     result = runner.invoke(
@@ -48,10 +50,11 @@ def test_setup_source_fails_fast_on_missing_env(tmp_path, monkeypatch):
 
 
 def test_setup_source_all_schemas_requires_confirmation(tmp_path, monkeypatch):
-    monkeypatch.setenv("MSSQL_HOST", "localhost")
-    monkeypatch.setenv("MSSQL_PORT", "1433")
-    monkeypatch.setenv("MSSQL_DB", "db")
-    monkeypatch.setenv("SA_PASSWORD", "pw")
+    monkeypatch.setenv("SOURCE_MSSQL_HOST", "localhost")
+    monkeypatch.setenv("SOURCE_MSSQL_PORT", "1433")
+    monkeypatch.setenv("SOURCE_MSSQL_DB", "db")
+    monkeypatch.setenv("SOURCE_MSSQL_USER", "sa")
+    monkeypatch.setenv("SOURCE_MSSQL_PASSWORD", "pw")
 
     list_out = {"schemas": [{"schema": "silver"}, {"schema": "gold"}]}
 
@@ -74,10 +77,11 @@ def test_setup_source_all_schemas_requires_confirmation(tmp_path, monkeypatch):
 
 
 def test_setup_source_all_schemas_yes_flag_skips_confirmation(tmp_path, monkeypatch):
-    monkeypatch.setenv("MSSQL_HOST", "localhost")
-    monkeypatch.setenv("MSSQL_PORT", "1433")
-    monkeypatch.setenv("MSSQL_DB", "db")
-    monkeypatch.setenv("SA_PASSWORD", "pw")
+    monkeypatch.setenv("SOURCE_MSSQL_HOST", "localhost")
+    monkeypatch.setenv("SOURCE_MSSQL_PORT", "1433")
+    monkeypatch.setenv("SOURCE_MSSQL_DB", "db")
+    monkeypatch.setenv("SOURCE_MSSQL_USER", "sa")
+    monkeypatch.setenv("SOURCE_MSSQL_PASSWORD", "pw")
 
     list_out = {"schemas": [{"schema": "silver"}]}
 
@@ -99,10 +103,11 @@ def test_setup_source_all_schemas_yes_flag_skips_confirmation(tmp_path, monkeypa
 
 
 def test_setup_source_all_schemas_discovers_and_extracts(tmp_path, monkeypatch):
-    monkeypatch.setenv("MSSQL_HOST", "localhost")
-    monkeypatch.setenv("MSSQL_PORT", "1433")
-    monkeypatch.setenv("MSSQL_DB", "AdventureWorks2022")
-    monkeypatch.setenv("SA_PASSWORD", "secret")
+    monkeypatch.setenv("SOURCE_MSSQL_HOST", "localhost")
+    monkeypatch.setenv("SOURCE_MSSQL_PORT", "1433")
+    monkeypatch.setenv("SOURCE_MSSQL_DB", "AdventureWorks2022")
+    monkeypatch.setenv("SOURCE_MSSQL_USER", "sa")
+    monkeypatch.setenv("SOURCE_MSSQL_PASSWORD", "secret")
 
     list_out = {"schemas": [{"schema": "silver"}, {"schema": "gold"}, {"schema": "bronze"}]}
 
@@ -125,10 +130,11 @@ def test_setup_source_all_schemas_discovers_and_extracts(tmp_path, monkeypatch):
 
 
 def test_setup_source_all_schemas_prints_discovered_schemas(tmp_path, monkeypatch):
-    monkeypatch.setenv("MSSQL_HOST", "localhost")
-    monkeypatch.setenv("MSSQL_PORT", "1433")
-    monkeypatch.setenv("MSSQL_DB", "db")
-    monkeypatch.setenv("SA_PASSWORD", "pw")
+    monkeypatch.setenv("SOURCE_MSSQL_HOST", "localhost")
+    monkeypatch.setenv("SOURCE_MSSQL_PORT", "1433")
+    monkeypatch.setenv("SOURCE_MSSQL_DB", "db")
+    monkeypatch.setenv("SOURCE_MSSQL_USER", "sa")
+    monkeypatch.setenv("SOURCE_MSSQL_PASSWORD", "pw")
 
     list_out = {"schemas": [{"schema": "silver"}, {"schema": "gold"}]}
 
@@ -150,10 +156,11 @@ def test_setup_source_all_schemas_prints_discovered_schemas(tmp_path, monkeypatc
 
 
 def test_setup_source_all_schemas_empty_discovery_exits_1(tmp_path, monkeypatch):
-    monkeypatch.setenv("MSSQL_HOST", "localhost")
-    monkeypatch.setenv("MSSQL_PORT", "1433")
-    monkeypatch.setenv("MSSQL_DB", "db")
-    monkeypatch.setenv("SA_PASSWORD", "pw")
+    monkeypatch.setenv("SOURCE_MSSQL_HOST", "localhost")
+    monkeypatch.setenv("SOURCE_MSSQL_PORT", "1433")
+    monkeypatch.setenv("SOURCE_MSSQL_DB", "db")
+    monkeypatch.setenv("SOURCE_MSSQL_USER", "sa")
+    monkeypatch.setenv("SOURCE_MSSQL_PASSWORD", "pw")
 
     with (
         patch("shared.cli.setup_source_cmd._check_source_prereqs"),
@@ -173,10 +180,11 @@ def test_setup_source_all_schemas_empty_discovery_exits_1(tmp_path, monkeypatch)
 
 
 def test_setup_source_all_schemas_and_schemas_are_mutually_exclusive(tmp_path, monkeypatch):
-    monkeypatch.setenv("MSSQL_HOST", "localhost")
-    monkeypatch.setenv("MSSQL_PORT", "1433")
-    monkeypatch.setenv("MSSQL_DB", "db")
-    monkeypatch.setenv("SA_PASSWORD", "pw")
+    monkeypatch.setenv("SOURCE_MSSQL_HOST", "localhost")
+    monkeypatch.setenv("SOURCE_MSSQL_PORT", "1433")
+    monkeypatch.setenv("SOURCE_MSSQL_DB", "db")
+    monkeypatch.setenv("SOURCE_MSSQL_USER", "sa")
+    monkeypatch.setenv("SOURCE_MSSQL_PASSWORD", "pw")
 
     result = runner.invoke(
         app,
@@ -187,10 +195,11 @@ def test_setup_source_all_schemas_and_schemas_are_mutually_exclusive(tmp_path, m
 
 
 def test_setup_source_neither_schemas_nor_all_schemas_exits_1(tmp_path, monkeypatch):
-    monkeypatch.setenv("MSSQL_HOST", "localhost")
-    monkeypatch.setenv("MSSQL_PORT", "1433")
-    monkeypatch.setenv("MSSQL_DB", "db")
-    monkeypatch.setenv("SA_PASSWORD", "pw")
+    monkeypatch.setenv("SOURCE_MSSQL_HOST", "localhost")
+    monkeypatch.setenv("SOURCE_MSSQL_PORT", "1433")
+    monkeypatch.setenv("SOURCE_MSSQL_DB", "db")
+    monkeypatch.setenv("SOURCE_MSSQL_USER", "sa")
+    monkeypatch.setenv("SOURCE_MSSQL_PASSWORD", "pw")
 
     with patch("shared.cli.setup_source_cmd._check_source_prereqs"):
         result = runner.invoke(
@@ -201,10 +210,11 @@ def test_setup_source_neither_schemas_nor_all_schemas_exits_1(tmp_path, monkeypa
 
 
 def test_setup_source_shows_clean_error_on_db_failure(tmp_path, monkeypatch):
-    monkeypatch.setenv("MSSQL_HOST", "localhost")
-    monkeypatch.setenv("MSSQL_PORT", "1433")
-    monkeypatch.setenv("MSSQL_DB", "BadDB")
-    monkeypatch.setenv("SA_PASSWORD", "pw")
+    monkeypatch.setenv("SOURCE_MSSQL_HOST", "localhost")
+    monkeypatch.setenv("SOURCE_MSSQL_PORT", "1433")
+    monkeypatch.setenv("SOURCE_MSSQL_DB", "BadDB")
+    monkeypatch.setenv("SOURCE_MSSQL_USER", "sa")
+    monkeypatch.setenv("SOURCE_MSSQL_PASSWORD", "pw")
 
     import shared.cli.error_handler as _mod
     class _FakePyodbcProgramming(Exception): pass
@@ -228,15 +238,15 @@ def test_setup_source_shows_clean_error_on_db_failure(tmp_path, monkeypatch):
 
     assert result.exit_code == 2
     assert "Hint:" in result.output
-    assert "MSSQL_DB" in result.output
+    assert "SOURCE_MSSQL_DB" in result.output
 
 
 def test_setup_source_oracle_passes_none_database(tmp_path, monkeypatch):
-    monkeypatch.setenv("ORACLE_HOST", "localhost")
-    monkeypatch.setenv("ORACLE_PORT", "1521")
-    monkeypatch.setenv("ORACLE_SERVICE", "FREEPDB1")
-    monkeypatch.setenv("ORACLE_USER", "sh")
-    monkeypatch.setenv("ORACLE_PASSWORD", "pw")
+    monkeypatch.setenv("SOURCE_ORACLE_HOST", "localhost")
+    monkeypatch.setenv("SOURCE_ORACLE_PORT", "1521")
+    monkeypatch.setenv("SOURCE_ORACLE_SERVICE", "FREEPDB1")
+    monkeypatch.setenv("SOURCE_ORACLE_USER", "sh")
+    monkeypatch.setenv("SOURCE_ORACLE_PASSWORD", "pw")
 
     with (
         patch("shared.cli.setup_source_cmd._check_source_prereqs"),

@@ -56,7 +56,7 @@ def setup_source(
         hooks_result.hook_created,
     )
 
-    database = os.environ.get("MSSQL_DB") if technology == "sql_server" else None
+    database = os.environ.get("SOURCE_MSSQL_DB") if technology == "sql_server" else None
 
     if all_schemas:
         with cli_error_handler("discovering schemas in database"):

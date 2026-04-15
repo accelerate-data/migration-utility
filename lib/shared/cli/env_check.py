@@ -13,38 +13,51 @@ logger = logging.getLogger(__name__)
 
 _SOURCE_VARS: dict[str, dict[str, str]] = {
     "sql_server": {
-        "MSSQL_HOST": "SQL Server hostname",
-        "MSSQL_PORT": "SQL Server port",
-        "MSSQL_DB": "SQL Server database name",
-        "SA_PASSWORD": "SQL Server SA password",
+        "SOURCE_MSSQL_HOST": "SQL Server hostname",
+        "SOURCE_MSSQL_PORT": "SQL Server port",
+        "SOURCE_MSSQL_DB": "SQL Server database name",
+        "SOURCE_MSSQL_USER": "SQL Server username",
+        "SOURCE_MSSQL_PASSWORD": "SQL Server password",
     },
     "oracle": {
-        "ORACLE_HOST": "Oracle hostname",
-        "ORACLE_PORT": "Oracle port",
-        "ORACLE_SERVICE": "Oracle service name",
-        "ORACLE_USER": "Oracle username",
-        "ORACLE_PASSWORD": "Oracle password",
+        "SOURCE_ORACLE_HOST": "Oracle hostname",
+        "SOURCE_ORACLE_PORT": "Oracle port",
+        "SOURCE_ORACLE_SERVICE": "Oracle service name",
+        "SOURCE_ORACLE_USER": "Oracle username",
+        "SOURCE_ORACLE_PASSWORD": "Oracle password",
+    },
+}
+
+_SANDBOX_VARS: dict[str, dict[str, str]] = {
+    "sql_server": {
+        "SANDBOX_MSSQL_HOST": "Sandbox SQL Server hostname",
+        "SANDBOX_MSSQL_PORT": "Sandbox SQL Server port",
+        "SANDBOX_MSSQL_USER": "Sandbox SQL Server username",
+        "SANDBOX_MSSQL_PASSWORD": "Sandbox SQL Server password",
+    },
+    "oracle": {
+        "SANDBOX_ORACLE_HOST": "Sandbox Oracle hostname",
+        "SANDBOX_ORACLE_PORT": "Sandbox Oracle port",
+        "SANDBOX_ORACLE_SERVICE": "Sandbox Oracle service name",
+        "SANDBOX_ORACLE_USER": "Sandbox Oracle admin username",
+        "SANDBOX_ORACLE_PASSWORD": "Sandbox Oracle admin password",
     },
 }
 
 _TARGET_VARS: dict[str, dict[str, str]] = {
-    "fabric": {
-        "TARGET_WORKSPACE": "Microsoft Fabric workspace name",
-        "TARGET_LAKEHOUSE": "Microsoft Fabric lakehouse name",
-        "TARGET_CLIENT_ID": "Azure service principal client ID",
-        "TARGET_CLIENT_SECRET": "Azure service principal client secret",
-        "TARGET_TENANT_ID": "Azure tenant ID",
+    "sql_server": {
+        "TARGET_MSSQL_HOST": "Target SQL Server hostname",
+        "TARGET_MSSQL_PORT": "Target SQL Server port",
+        "TARGET_MSSQL_DB": "Target SQL Server database name",
+        "TARGET_MSSQL_USER": "Target SQL Server username",
+        "TARGET_MSSQL_PASSWORD": "Target SQL Server password",
     },
-    "snowflake": {
-        "TARGET_ACCOUNT": "Snowflake account identifier",
-        "TARGET_DATABASE": "Snowflake target database",
-        "TARGET_SCHEMA": "Snowflake target schema",
-        "TARGET_WAREHOUSE": "Snowflake virtual warehouse",
-        "TARGET_USER": "Snowflake username",
-        "TARGET_PASSWORD": "Snowflake password",
-    },
-    "duckdb": {
-        "TARGET_PATH": "DuckDB file path (e.g. /path/to/warehouse.duckdb)",
+    "oracle": {
+        "TARGET_ORACLE_HOST": "Target Oracle hostname",
+        "TARGET_ORACLE_PORT": "Target Oracle port",
+        "TARGET_ORACLE_SERVICE": "Target Oracle service name",
+        "TARGET_ORACLE_USER": "Target Oracle username",
+        "TARGET_ORACLE_PASSWORD": "Target Oracle password",
     },
 }
 
@@ -62,6 +75,21 @@ def require_source_vars(technology: str) -> None:
         )
         sys.exit(1)
     _check(_SOURCE_VARS[technology], technology, "setup-source")
+
+
+def require_sandbox_vars(technology: str) -> None:
+    """Validate sandbox env vars. Exits 1 if any are missing or technology unknown."""
+    if technology not in _SANDBOX_VARS:
+        print(
+            f"Error: unknown sandbox technology '{technology}'. Valid: {list(_SANDBOX_VARS)}",
+            file=sys.stderr,
+        )
+        logger.error(
+            "event=env_check status=failure component=env_check technology=%s reason=unknown_technology",
+            technology,
+        )
+        sys.exit(1)
+    _check(_SANDBOX_VARS[technology], technology, "setup-sandbox")
 
 
 def require_target_vars(technology: str) -> None:
