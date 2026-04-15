@@ -37,7 +37,7 @@ Typical outcomes:
 
 If a table ends up `no_writer_found`, it is not automatically treated as a source table. Use `ad-migration add-source-table` if that table should become a dbt source.
 
-Once source decisions are written, use `/status` to verify which writerless tables are still pending confirmation versus already treated as sources.
+Once source decisions are written, use `/listing-objects list sources` to list the confirmed source tables without mixing them into the migration workflow dashboard.
 
 ## Next step
 

@@ -284,7 +284,7 @@ Confirm tables as dbt sources (`is_source: true`).
 
 Use this before `ad-migration setup-target` for any writerless table that should stay as a dbt source. `setup-target` reads the existing `is_source` decisions when generating `sources.yml` and creating target-side source tables.
 
-To review source-confirmation progress later, run `/status` and check which writerless tables are still pending versus already confirmed as sources.
+To review the currently confirmed source tables later, run `/listing-objects list sources`.
 
 If you add more source tables later, rerun `ad-migration setup-target`. It is idempotent and will apply only the newly required source-table changes.
 
