@@ -52,17 +52,39 @@ jobs:
             lib/dist/*
             packages/ad-migration-cli/dist/*
 
+      - name: Resolve release version from pyproject metadata
+        id: version
+        run: |
+          set -euo pipefail
+          project_version="$(python - <<'PY'
+          import tomllib
+          from pathlib import Path
+
+          shared = tomllib.loads(Path("lib/pyproject.toml").read_text())["project"]["version"]
+          cli = tomllib.loads(Path("packages/ad-migration-cli/pyproject.toml").read_text())["project"]["version"]
+          if shared != cli:
+              raise SystemExit(f"Version mismatch: lib={shared} packages/ad-migration-cli={cli}")
+          print(shared)
+          PY
+          )"
+          tag_version="${GITHUB_REF_NAME#v}"
+          if [ "$project_version" != "$tag_version" ]; then
+            echo "::error::Tag version ${tag_version} does not match pyproject version ${project_version}"
+            exit 1
+          fi
+          echo "project_version=${project_version}" >> "$GITHUB_OUTPUT"
+
       - name: Compute Homebrew artifact metadata
         id: artifacts
         run: |
           set -euo pipefail
-          tag="${GITHUB_REF_NAME#v}"
-          cli_sdist="$(basename packages/ad-migration-cli/dist/ad_migration_cli-"${tag}".tar.gz)"
-          shared_sdist="$(basename lib/dist/ad_migration_shared-"${tag}".tar.gz)"
+          version="${{ steps.version.outputs.project_version }}"
+          cli_sdist="$(basename packages/ad-migration-cli/dist/ad_migration_cli-"${version}".tar.gz)"
+          shared_sdist="$(basename lib/dist/ad_migration_shared-"${version}".tar.gz)"
           cli_sha="$(shasum -a 256 "packages/ad-migration-cli/dist/${cli_sdist}" | awk '{print $1}')"
           shared_sha="$(shasum -a 256 "lib/dist/${shared_sdist}" | awk '{print $1}')"
           release_base="https://github.com/${GITHUB_REPOSITORY}/releases/download/${GITHUB_REF_NAME}"
-          echo "version=${tag}" >> "$GITHUB_OUTPUT"
+          echo "version=${version}" >> "$GITHUB_OUTPUT"
           echo "cli_url=${release_base}/${cli_sdist}" >> "$GITHUB_OUTPUT"
           echo "cli_sha256=${cli_sha}" >> "$GITHUB_OUTPUT"
           echo "shared_url=${release_base}/${shared_sdist}" >> "$GITHUB_OUTPUT"

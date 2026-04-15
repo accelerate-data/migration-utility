@@ -3,22 +3,36 @@
 from __future__ import annotations
 
 import argparse
+import logging
 import tomllib
+import uuid
 from pathlib import Path
 
 
 REPO_ROOT = Path(__file__).resolve().parents[1]
 TEMPLATE_PATH = REPO_ROOT / "scripts" / "templates" / "homebrew" / "Formula" / "ad-migration.rb.tmpl"
 LOCK_PATH = REPO_ROOT / "lib" / "uv.lock"
+logger = logging.getLogger(__name__)
 
 
-def _load_lock() -> dict[str, object]:
+def _load_lock(*, run_id: str = "-") -> dict[str, object]:
+    logger.info(
+        "event=homebrew_lock_load component=homebrew_tap operation=load_lock status=start run_id=%s lock_path=%s",
+        run_id,
+        LOCK_PATH,
+    )
     with LOCK_PATH.open("rb") as handle:
-        return tomllib.load(handle)
+        lock = tomllib.load(handle)
+    logger.info(
+        "event=homebrew_lock_load component=homebrew_tap operation=load_lock status=success run_id=%s package_count=%s",
+        run_id,
+        len(lock.get("package", [])),
+    )
+    return lock
 
 
-def _runtime_resource_packages() -> list[dict[str, str]]:
-    lock = _load_lock()
+def _runtime_resource_packages(*, run_id: str = "-") -> list[dict[str, str]]:
+    lock = _load_lock(run_id=run_id)
     packages = {pkg["name"]: pkg for pkg in lock["package"]}
     resources: list[dict[str, str]] = []
     seen = {"ad-migration-shared"}
@@ -45,12 +59,18 @@ def _runtime_resource_packages() -> list[dict[str, str]]:
                 }
             )
 
-    return sorted(resources, key=lambda resource: resource["name"])
+    resources = sorted(resources, key=lambda resource: resource["name"])
+    logger.info(
+        "event=homebrew_resource_resolution component=homebrew_tap operation=resolve_resources status=success run_id=%s resource_count=%s",
+        run_id,
+        len(resources),
+    )
+    return resources
 
 
-def _render_python_resources() -> str:
+def _render_python_resources(resources: list[dict[str, str]]) -> str:
     blocks = []
-    for resource in _runtime_resource_packages():
+    for resource in resources:
         blocks.append(
             (
                 f'resource "{resource["name"]}" do\n'
@@ -69,15 +89,17 @@ def render_formula(
     cli_sha256: str,
     shared_url: str,
     shared_sha256: str,
+    resources: list[dict[str, str]] | None = None,
 ) -> str:
     template = TEMPLATE_PATH.read_text(encoding="utf-8")
+    resolved_resources = resources if resources is not None else _runtime_resource_packages()
     return (
         template.replace("<%= version %>", version)
         .replace("<%= cli_url %>", cli_url)
         .replace("<%= cli_sha256 %>", cli_sha256)
         .replace("<%= shared_url %>", shared_url)
         .replace("<%= shared_sha256 %>", shared_sha256)
-        .replace("<%= python_resources %>", _render_python_resources())
+        .replace("<%= python_resources %>", _render_python_resources(resolved_resources))
     )
 
 
@@ -93,16 +115,41 @@ def parse_args() -> argparse.Namespace:
 
 
 def main() -> int:
+    logging.basicConfig(level=logging.INFO, format="%(levelname)s %(message)s")
     args = parse_args()
+    run_id = uuid.uuid4().hex[:12]
+    logger.info(
+        "event=homebrew_formula_render component=homebrew_tap operation=main status=start run_id=%s output=%s",
+        run_id,
+        args.output,
+    )
+    resources = _runtime_resource_packages(run_id=run_id)
     formula = render_formula(
         version=args.version,
         cli_url=args.cli_url,
         cli_sha256=args.cli_sha256,
         shared_url=args.shared_url,
         shared_sha256=args.shared_sha256,
+        resources=resources,
     )
     args.output.parent.mkdir(parents=True, exist_ok=True)
+    logger.info(
+        "event=homebrew_formula_write component=homebrew_tap operation=write_formula status=start run_id=%s output=%s",
+        run_id,
+        args.output,
+    )
     args.output.write_text(formula, encoding="utf-8")
+    logger.info(
+        "event=homebrew_formula_write component=homebrew_tap operation=write_formula status=success run_id=%s output=%s resource_count=%s",
+        run_id,
+        args.output,
+        len(resources),
+    )
+    logger.info(
+        "event=homebrew_formula_render component=homebrew_tap operation=main status=success run_id=%s output=%s",
+        run_id,
+        args.output,
+    )
     return 0
 
 
