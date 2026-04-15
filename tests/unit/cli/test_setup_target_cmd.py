@@ -19,14 +19,21 @@ _SETUP_TARGET_OUT = SetupTargetOutput(
 )
 
 
-def _write_manifest(tmp_path: Path) -> None:
+def _write_manifest(tmp_path: Path, target_technology: str | None = "sql_server") -> None:
+    runtime: dict[str, object] = {}
+    if target_technology is not None:
+        runtime["target"] = {
+            "technology": target_technology,
+            "dialect": "tsql" if target_technology == "sql_server" else "oracle",
+        }
     (tmp_path / "manifest.json").write_text(
-        json.dumps({"schema_version": "1", "technology": "sql_server"}), encoding="utf-8"
+        json.dumps({"schema_version": "1.0", "runtime": runtime}),
+        encoding="utf-8",
     )
 
 
-def test_setup_target_sql_server_writes_runtime_and_runs_orchestrator(tmp_path):
-    _write_manifest(tmp_path)
+def test_setup_target_sql_server_uses_manifest_runtime_target(tmp_path):
+    _write_manifest(tmp_path, "sql_server")
     with (
         patch("shared.cli.setup_target_cmd.require_target_vars"),
         patch("shared.cli.setup_target_cmd.write_target_runtime_from_env") as mock_write,
@@ -34,14 +41,14 @@ def test_setup_target_sql_server_writes_runtime_and_runs_orchestrator(tmp_path):
     ):
         result = runner.invoke(
             app,
-            ["setup-target", "--technology", "sql_server", "--project-root", str(tmp_path)],
+            ["setup-target", "--project-root", str(tmp_path)],
         )
     assert result.exit_code == 0, result.output
     mock_write.assert_called_once_with(tmp_path, "sql_server", "bronze")
 
 
-def test_setup_target_oracle_writes_runtime_and_runs_orchestrator(tmp_path):
-    _write_manifest(tmp_path)
+def test_setup_target_oracle_uses_manifest_runtime_target(tmp_path):
+    _write_manifest(tmp_path, "oracle")
     with (
         patch("shared.cli.setup_target_cmd.require_target_vars"),
         patch("shared.cli.setup_target_cmd.write_target_runtime_from_env") as mock_write,
@@ -49,31 +56,29 @@ def test_setup_target_oracle_writes_runtime_and_runs_orchestrator(tmp_path):
     ):
         result = runner.invoke(
             app,
-            ["setup-target", "--technology", "oracle", "--project-root", str(tmp_path)],
+            ["setup-target", "--project-root", str(tmp_path)],
         )
     assert result.exit_code == 0, result.output
     mock_write.assert_called_once_with(tmp_path, "oracle", "bronze")
 
 
 def test_setup_target_exits_1_on_missing_manifest(tmp_path):
-    with (
-        patch("shared.cli.setup_target_cmd.require_target_vars"),
-        patch(
-            "shared.cli.setup_target_cmd.write_target_runtime_from_env",
-            side_effect=ValueError("manifest.json not found"),
-        ),
-    ):
-        result = runner.invoke(
-            app,
-            ["setup-target", "--technology", "sql_server", "--project-root", str(tmp_path)],
-        )
-    assert result.exit_code == 1
-
-
-def test_setup_target_rejects_snowflake(tmp_path):
-    """Snowflake has no backend — must be rejected."""
     result = runner.invoke(
         app,
-        ["setup-target", "--technology", "snowflake", "--project-root", str(tmp_path)],
+        ["setup-target", "--project-root", str(tmp_path)],
     )
     assert result.exit_code == 1
+    assert "Run init-ad-migration first" in result.output
+
+
+def test_setup_target_exits_1_when_runtime_target_missing(tmp_path):
+    _write_manifest(tmp_path, target_technology=None)
+
+    result = runner.invoke(
+        app,
+        ["setup-target", "--project-root", str(tmp_path)],
+    )
+
+    assert result.exit_code == 1
+    assert "runtime.target" in result.output
+    assert "Run init-ad-migration first" in result.output

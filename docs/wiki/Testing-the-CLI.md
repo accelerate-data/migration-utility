@@ -36,7 +36,7 @@ Test that the CLI exits 1 with a clear message when credentials are missing:
 ```bash
 # Unset all SQL Server vars and run setup-source
 env -i HOME=$HOME uv run --project lib ad-migration setup-source \
-  --technology sql_server --schemas silver
+  --schemas silver
 echo "exit: $?"
 # Expected: exit 1; stderr lists SOURCE_MSSQL_HOST, SOURCE_MSSQL_PORT, SOURCE_MSSQL_DB, SOURCE_MSSQL_PASSWORD
 ```
@@ -67,7 +67,7 @@ SOURCE_MSSQL_HOST=localhost SOURCE_MSSQL_PORT=1433 SOURCE_MSSQL_DB=AdventureWork
 ### setup-source
 
 ```bash
-ad-migration setup-source --technology sql_server --schemas silver,gold
+ad-migration setup-source --schemas silver,gold
 
 # Verify artifacts written
 ls -la ddl/ catalog/tables/ manifest.json
@@ -77,7 +77,7 @@ ls -la ddl/ catalog/tables/ manifest.json
 
 ```bash
 # Set TARGET_* vars for your technology first
-ad-migration setup-target --technology fabric
+ad-migration setup-target
 ls dbt/dbt_project.yml dbt/models/staging/sources.yml
 ```
 
@@ -132,7 +132,7 @@ Quick verification:
 
 ```bash
 # Should exit 1 (missing env vars)
-ad-migration setup-source --technology sql_server --schemas silver 2>/dev/null
+ad-migration setup-source --schemas silver 2>/dev/null
 echo "exit: $?"
 ```
 

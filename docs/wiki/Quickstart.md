@@ -31,12 +31,10 @@ See [[Stage 1 Project Init]].
 ## 2. Extract DDL and build the catalog
 
 ```bash
-ad-migration setup-source --technology sql_server --schemas silver,gold
+ad-migration setup-source --schemas silver,gold
 ```
 
 This validates credentials, extracts DDL, and builds catalog files. It creates `manifest.json`, writes extracted DDL into `ddl/`, and builds per-object catalog files in `catalog/`.
-
-For Oracle use `--technology oracle`.
 
 See [[Stage 2 DDL Extraction]].
 
@@ -59,7 +57,7 @@ See [[Stage 1 Scoping]].
 ## 4. Set up the target
 
 ```bash
-ad-migration setup-target --technology fabric
+ad-migration setup-target
 ```
 
 This scaffolds `dbt/`, persists `runtime.target`, and generates `models/staging/sources.yml`.

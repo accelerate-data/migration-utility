@@ -6,7 +6,7 @@ user-invocable: true
 
 # Initialize ad-migration plugin
 
-Verify and set up all prerequisites before using `listing-objects`, `analyzing-table`, or `ad-migration setup-source`. Then scaffold the project directory for both agents and human developers.
+Verify and set up all prerequisites before using `ad-migration setup-source`. This command scaffolds the project directory for both agents and human developers.
 
 ## Progress Tracking
 
@@ -314,12 +314,12 @@ Tell the user:
 
 **For source = SQL Server:**
 
-- **SOURCE_MSSQL_* vars set**: ready to run `ad-migration setup-source --technology sql_server --schemas <schema>` to extract DDL from the live database.
+- **SOURCE_MSSQL_* vars set**: ready to run `ad-migration setup-source --schemas <schema>` to extract DDL from the live database.
 - **SOURCE_MSSQL_* vars unset**: Set `SOURCE_MSSQL_HOST/PORT/DB/USER` in `.envrc`, set `SOURCE_MSSQL_PASSWORD` in `.env`, run `direnv allow`, then run `ad-migration setup-source`.
 
 **For source = Oracle:**
 
-- **SOURCE_ORACLE_* vars set**: ready to run `ad-migration setup-source --technology oracle --schemas <schema>` to extract DDL from the live database.
+- **SOURCE_ORACLE_* vars set**: ready to run `ad-migration setup-source --schemas <schema>` to extract DDL from the live database.
 - **SOURCE_ORACLE_* vars unset**: Set `SOURCE_ORACLE_HOST/PORT/SERVICE/USER` in `.envrc`, set `SOURCE_ORACLE_PASSWORD` in `.env`, run `direnv allow`, then run `ad-migration setup-source`.
 
 **For target setup:**

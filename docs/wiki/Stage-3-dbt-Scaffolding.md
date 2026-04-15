@@ -5,13 +5,15 @@
 ## Invocation
 
 ```bash
-ad-migration setup-target --technology fabric
+ad-migration setup-target
 ```
 
 | Option | Required | Description |
 |---|---|---|
-| `--technology` | yes | `fabric`, `snowflake`, or `duckdb` |
 | `--source-schema` | no | Source schema for `sources.yml` (defaults to `bronze`) |
+| `--project-root` | no | Defaults to current working directory |
+
+`setup-target` reads the target technology from `manifest.json` as `runtime.target`, which is seeded by `/init-ad-migration`.
 
 ## Prerequisites
 
@@ -24,10 +26,6 @@ Before `/setup-target` can proceed, extracted tables need to be in one of these 
 - resolved to a writer
 - excluded from the migration
 - writerless and explicitly confirmed as a source
-
-## Target selection
-
-The command prompts for the target adapter. Current options include SQL Server and Oracle.
 
 ## What it writes
 

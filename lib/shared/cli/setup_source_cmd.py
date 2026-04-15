@@ -1,6 +1,7 @@
 """setup-source command — extract DDL from source database."""
 from __future__ import annotations
 
+import json
 import logging
 import os
 import shutil
@@ -15,13 +16,31 @@ from shared.cli.env_check import require_source_vars
 from shared.cli.error_handler import cli_error_handler
 from shared.cli.output import console, error, print_table, success
 from shared.init import run_scaffold_hooks, run_scaffold_project
+from shared.runtime_config import get_runtime_role
 from shared.setup_ddl_support.extract import run_extract, run_list_schemas
 
 logger = logging.getLogger(__name__)
 
 
+def _get_source_technology(root: Path) -> str:
+    manifest_path = root / "manifest.json"
+    if not manifest_path.exists():
+        error("manifest.json not found. Run init-ad-migration first.")
+        raise typer.Exit(code=1)
+    try:
+        manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
+    except json.JSONDecodeError:
+        error("manifest.json is not valid JSON. Run init-ad-migration again.")
+        raise typer.Exit(code=1)
+
+    source_role = get_runtime_role(manifest, "source")
+    if source_role is None:
+        error("manifest.json is missing runtime.source. Run init-ad-migration first.")
+        raise typer.Exit(code=1)
+    return source_role.technology
+
+
 def setup_source(
-    technology: str = typer.Option(..., "--technology", help="Source technology: sql_server or oracle"),
     schemas: str | None = typer.Option(None, "--schemas", help="Comma-separated schema names to extract (e.g. silver,gold)"),
     all_schemas: bool = typer.Option(False, "--all-schemas", help="Discover and extract all schemas in the database"),
     yes: bool = typer.Option(False, "--yes", "-y", help="Skip confirmation prompt (only applies to --all-schemas)"),
@@ -32,6 +51,7 @@ def setup_source(
     Run /init-ad-migration (plugin command) first to install the CLI, check prerequisites, and scaffold project files.
     """
     root = project_root if project_root is not None else Path.cwd()
+    technology = _get_source_technology(root)
 
     if schemas and all_schemas:
         error("--schemas and --all-schemas are mutually exclusive. Use one or the other.")

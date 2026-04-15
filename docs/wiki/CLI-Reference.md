@@ -37,20 +37,21 @@ uv run --project lib ad-migration <command>
 Extract DDL and catalog from a live source database.
 
 ```bash
-ad-migration setup-source --technology sql_server --schemas silver,gold
-ad-migration setup-source --technology oracle --schemas SH,HR
-ad-migration setup-source --technology sql_server --all-schemas --yes
+ad-migration setup-source --schemas silver,gold
+ad-migration setup-source --schemas SH,HR
+ad-migration setup-source --all-schemas --yes
 ```
 
 | Option | Required | Description |
 |---|---|---|
-| `--technology` | yes | `sql_server` or `oracle` |
 | `--schemas` | yes* | Comma-separated schema names |
 | `--all-schemas` | yes* | Discover and extract all schemas |
 | `--yes` | no | Skip confirmation for `--all-schemas` |
 | `--project-root` | no | Defaults to current directory |
 
 *One of `--schemas` or `--all-schemas` is required.
+
+Technology comes from `manifest.json` as `runtime.source`, seeded by `/init-ad-migration`.
 
 **Environment variables — SQL Server:**
 
@@ -91,15 +92,16 @@ catalog/procedures/<schema>.<proc>.json
 Scaffold the dbt project and generate `sources.yml` from the catalog.
 
 ```bash
-ad-migration setup-target --technology sql_server
-ad-migration setup-target --technology oracle --source-schema bronze
+ad-migration setup-target
+ad-migration setup-target --source-schema bronze
 ```
 
 | Option | Required | Description |
 |---|---|---|
-| `--technology` | yes | `sql_server` or `oracle` |
 | `--source-schema` | no | Source schema for `sources.yml` (default: `bronze`) |
 | `--project-root` | no | Defaults to current directory |
+
+Technology comes from `manifest.json` as `runtime.target`, seeded by `/init-ad-migration`.
 
 **Environment variables — SQL Server:**
 

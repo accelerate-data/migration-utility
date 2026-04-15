@@ -5,18 +5,16 @@
 ## Invocation
 
 ```bash
-# SQL Server
-ad-migration setup-source --technology sql_server --schemas silver,gold
-
-# Oracle
-ad-migration setup-source --technology oracle --schemas SH,HR
+ad-migration setup-source --schemas silver,gold
+ad-migration setup-source --schemas SH,HR
 ```
 
 | Option | Required | Description |
 |---|---|---|
-| `--technology` | yes | `sql_server` or `oracle` |
 | `--schemas` | yes | Comma-separated list of schemas to extract |
 | `--project-root` | no | Defaults to current working directory |
+
+`setup-source` reads the source technology from `manifest.json` as `runtime.source`, which is seeded by `/init-ad-migration`.
 
 ## What it produces
 

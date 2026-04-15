@@ -1,3 +1,4 @@
+import json
 from pathlib import Path
 from unittest.mock import patch
 
@@ -13,7 +14,21 @@ _HOOKS_OUT = ScaffoldHooksOutput(hook_created=True, hooks_path_configured=True)
 _EXTRACT_OUT = {"tables": 5, "procedures": 3, "views": 2, "functions": 0}
 
 
+def _write_manifest(tmp_path: Path, source_technology: str | None = "sql_server") -> None:
+    runtime: dict[str, object] = {}
+    if source_technology is not None:
+        runtime["source"] = {
+            "technology": source_technology,
+            "dialect": "tsql" if source_technology == "sql_server" else "oracle",
+        }
+    (tmp_path / "manifest.json").write_text(
+        json.dumps({"schema_version": "1.0", "runtime": runtime}),
+        encoding="utf-8",
+    )
+
+
 def test_setup_source_sql_server_runs_extraction(tmp_path, monkeypatch):
+    _write_manifest(tmp_path, "sql_server")
     monkeypatch.setenv("SOURCE_MSSQL_HOST", "localhost")
     monkeypatch.setenv("SOURCE_MSSQL_PORT", "1433")
     monkeypatch.setenv("SOURCE_MSSQL_DB", "AdventureWorks2022")
@@ -28,7 +43,7 @@ def test_setup_source_sql_server_runs_extraction(tmp_path, monkeypatch):
     ):
         result = runner.invoke(
             app,
-            ["setup-source", "--technology", "sql_server", "--schemas", "silver,gold",
+            ["setup-source", "--schemas", "silver,gold",
              "--project-root", str(tmp_path)],
         )
 
@@ -37,19 +52,21 @@ def test_setup_source_sql_server_runs_extraction(tmp_path, monkeypatch):
 
 
 def test_setup_source_fails_fast_on_missing_env(tmp_path, monkeypatch):
+    _write_manifest(tmp_path, "sql_server")
     for var in ("SOURCE_MSSQL_HOST", "SOURCE_MSSQL_PORT", "SOURCE_MSSQL_DB",
                 "SOURCE_MSSQL_USER", "SOURCE_MSSQL_PASSWORD"):
         monkeypatch.delenv(var, raising=False)
 
     result = runner.invoke(
         app,
-        ["setup-source", "--technology", "sql_server", "--schemas", "silver",
+        ["setup-source", "--schemas", "silver",
          "--project-root", str(tmp_path)],
     )
     assert result.exit_code == 1
 
 
 def test_setup_source_all_schemas_requires_confirmation(tmp_path, monkeypatch):
+    _write_manifest(tmp_path, "sql_server")
     monkeypatch.setenv("SOURCE_MSSQL_HOST", "localhost")
     monkeypatch.setenv("SOURCE_MSSQL_PORT", "1433")
     monkeypatch.setenv("SOURCE_MSSQL_DB", "db")
@@ -67,7 +84,7 @@ def test_setup_source_all_schemas_requires_confirmation(tmp_path, monkeypatch):
     ):
         result = runner.invoke(
             app,
-            ["setup-source", "--technology", "sql_server", "--all-schemas",
+            ["setup-source", "--all-schemas",
              "--project-root", str(tmp_path)],
             input="n\n",
         )
@@ -77,6 +94,7 @@ def test_setup_source_all_schemas_requires_confirmation(tmp_path, monkeypatch):
 
 
 def test_setup_source_all_schemas_yes_flag_skips_confirmation(tmp_path, monkeypatch):
+    _write_manifest(tmp_path, "sql_server")
     monkeypatch.setenv("SOURCE_MSSQL_HOST", "localhost")
     monkeypatch.setenv("SOURCE_MSSQL_PORT", "1433")
     monkeypatch.setenv("SOURCE_MSSQL_DB", "db")
@@ -94,7 +112,7 @@ def test_setup_source_all_schemas_yes_flag_skips_confirmation(tmp_path, monkeypa
     ):
         result = runner.invoke(
             app,
-            ["setup-source", "--technology", "sql_server", "--all-schemas", "--yes",
+            ["setup-source", "--all-schemas", "--yes",
              "--project-root", str(tmp_path)],
         )
 
@@ -103,6 +121,7 @@ def test_setup_source_all_schemas_yes_flag_skips_confirmation(tmp_path, monkeypa
 
 
 def test_setup_source_all_schemas_discovers_and_extracts(tmp_path, monkeypatch):
+    _write_manifest(tmp_path, "sql_server")
     monkeypatch.setenv("SOURCE_MSSQL_HOST", "localhost")
     monkeypatch.setenv("SOURCE_MSSQL_PORT", "1433")
     monkeypatch.setenv("SOURCE_MSSQL_DB", "AdventureWorks2022")
@@ -120,7 +139,7 @@ def test_setup_source_all_schemas_discovers_and_extracts(tmp_path, monkeypatch):
     ):
         result = runner.invoke(
             app,
-            ["setup-source", "--technology", "sql_server", "--all-schemas", "--yes",
+            ["setup-source", "--all-schemas", "--yes",
              "--project-root", str(tmp_path)],
         )
 
@@ -130,6 +149,7 @@ def test_setup_source_all_schemas_discovers_and_extracts(tmp_path, monkeypatch):
 
 
 def test_setup_source_all_schemas_prints_discovered_schemas(tmp_path, monkeypatch):
+    _write_manifest(tmp_path, "sql_server")
     monkeypatch.setenv("SOURCE_MSSQL_HOST", "localhost")
     monkeypatch.setenv("SOURCE_MSSQL_PORT", "1433")
     monkeypatch.setenv("SOURCE_MSSQL_DB", "db")
@@ -147,7 +167,7 @@ def test_setup_source_all_schemas_prints_discovered_schemas(tmp_path, monkeypatc
     ):
         result = runner.invoke(
             app,
-            ["setup-source", "--technology", "sql_server", "--all-schemas", "--yes",
+            ["setup-source", "--all-schemas", "--yes",
              "--project-root", str(tmp_path)],
         )
 
@@ -156,6 +176,7 @@ def test_setup_source_all_schemas_prints_discovered_schemas(tmp_path, monkeypatc
 
 
 def test_setup_source_all_schemas_empty_discovery_exits_1(tmp_path, monkeypatch):
+    _write_manifest(tmp_path, "sql_server")
     monkeypatch.setenv("SOURCE_MSSQL_HOST", "localhost")
     monkeypatch.setenv("SOURCE_MSSQL_PORT", "1433")
     monkeypatch.setenv("SOURCE_MSSQL_DB", "db")
@@ -171,7 +192,7 @@ def test_setup_source_all_schemas_empty_discovery_exits_1(tmp_path, monkeypatch)
     ):
         result = runner.invoke(
             app,
-            ["setup-source", "--technology", "sql_server", "--all-schemas",
+            ["setup-source", "--all-schemas",
              "--project-root", str(tmp_path)],
         )
 
@@ -180,6 +201,7 @@ def test_setup_source_all_schemas_empty_discovery_exits_1(tmp_path, monkeypatch)
 
 
 def test_setup_source_all_schemas_and_schemas_are_mutually_exclusive(tmp_path, monkeypatch):
+    _write_manifest(tmp_path, "sql_server")
     monkeypatch.setenv("SOURCE_MSSQL_HOST", "localhost")
     monkeypatch.setenv("SOURCE_MSSQL_PORT", "1433")
     monkeypatch.setenv("SOURCE_MSSQL_DB", "db")
@@ -188,13 +210,14 @@ def test_setup_source_all_schemas_and_schemas_are_mutually_exclusive(tmp_path, m
 
     result = runner.invoke(
         app,
-        ["setup-source", "--technology", "sql_server", "--schemas", "silver", "--all-schemas",
+        ["setup-source", "--schemas", "silver", "--all-schemas",
          "--project-root", str(tmp_path)],
     )
     assert result.exit_code == 1
 
 
 def test_setup_source_neither_schemas_nor_all_schemas_exits_1(tmp_path, monkeypatch):
+    _write_manifest(tmp_path, "sql_server")
     monkeypatch.setenv("SOURCE_MSSQL_HOST", "localhost")
     monkeypatch.setenv("SOURCE_MSSQL_PORT", "1433")
     monkeypatch.setenv("SOURCE_MSSQL_DB", "db")
@@ -204,12 +227,13 @@ def test_setup_source_neither_schemas_nor_all_schemas_exits_1(tmp_path, monkeypa
     with patch("shared.cli.setup_source_cmd._check_source_prereqs"):
         result = runner.invoke(
             app,
-            ["setup-source", "--technology", "sql_server", "--project-root", str(tmp_path)],
+            ["setup-source", "--project-root", str(tmp_path)],
         )
     assert result.exit_code == 1
 
 
 def test_setup_source_shows_clean_error_on_db_failure(tmp_path, monkeypatch):
+    _write_manifest(tmp_path, "sql_server")
     monkeypatch.setenv("SOURCE_MSSQL_HOST", "localhost")
     monkeypatch.setenv("SOURCE_MSSQL_PORT", "1433")
     monkeypatch.setenv("SOURCE_MSSQL_DB", "BadDB")
@@ -232,7 +256,7 @@ def test_setup_source_shows_clean_error_on_db_failure(tmp_path, monkeypatch):
     ):
         result = runner.invoke(
             app,
-            ["setup-source", "--technology", "sql_server", "--schemas", "silver",
+            ["setup-source", "--schemas", "silver",
              "--project-root", str(tmp_path)],
         )
 
@@ -242,6 +266,7 @@ def test_setup_source_shows_clean_error_on_db_failure(tmp_path, monkeypatch):
 
 
 def test_setup_source_oracle_passes_none_database(tmp_path, monkeypatch):
+    _write_manifest(tmp_path, "oracle")
     monkeypatch.setenv("SOURCE_ORACLE_HOST", "localhost")
     monkeypatch.setenv("SOURCE_ORACLE_PORT", "1521")
     monkeypatch.setenv("SOURCE_ORACLE_SERVICE", "FREEPDB1")
@@ -256,9 +281,32 @@ def test_setup_source_oracle_passes_none_database(tmp_path, monkeypatch):
     ):
         result = runner.invoke(
             app,
-            ["setup-source", "--technology", "oracle", "--schemas", "sh",
+            ["setup-source", "--schemas", "sh",
              "--project-root", str(tmp_path)],
         )
 
     assert result.exit_code == 0, result.output
     mock_extract.assert_called_once_with(tmp_path, None, ["sh"])
+
+
+def test_setup_source_exits_1_on_missing_manifest(tmp_path):
+    result = runner.invoke(
+        app,
+        ["setup-source", "--schemas", "silver", "--project-root", str(tmp_path)],
+    )
+
+    assert result.exit_code == 1
+    assert "Run init-ad-migration first" in result.output
+
+
+def test_setup_source_exits_1_when_runtime_source_missing(tmp_path):
+    _write_manifest(tmp_path, source_technology=None)
+
+    result = runner.invoke(
+        app,
+        ["setup-source", "--schemas", "silver", "--project-root", str(tmp_path)],
+    )
+
+    assert result.exit_code == 1
+    assert "runtime.source" in result.output
+    assert "Run init-ad-migration first" in result.output
