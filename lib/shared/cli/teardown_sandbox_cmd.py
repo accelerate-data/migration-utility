@@ -8,7 +8,7 @@ from typing import Any
 import typer
 
 from shared.cli.error_handler import cli_error_handler
-from shared.cli.git_ops import is_git_repo, stage_and_commit
+from shared.cli.git_ops import git_push, is_git_repo, stage_and_commit
 from shared.cli.output import console, error, print_table, success, warn
 from shared.loader_io import clear_manifest_sandbox
 from shared.runtime_config import get_sandbox_name
@@ -37,6 +37,7 @@ def _get_sandbox_name(manifest: dict[str, Any]) -> str | None:
 def teardown_sandbox(
     yes: bool = typer.Option(False, "--yes", "-y", help="Skip confirmation prompt"),
     no_commit: bool = typer.Option(False, "--no-commit", help="Skip git commit after teardown"),
+    push: bool = typer.Option(False, "--push", help="Push to remote after commit"),
     project_root: Path | None = typer.Option(None, "--project-root", help="Project root directory"),
 ) -> None:
     """Tear down sandbox schema from manifest runtime.sandbox configuration."""
@@ -91,6 +92,8 @@ def teardown_sandbox(
             error(f"Git commit failed: {exc}")
             raise typer.Exit(code=1) from exc
         success("Sandbox teardown committed.")
+        if push and not git_push(root):
+            warn("git push failed — changes committed locally.")
     else:
         error(f"Sandbox teardown failed: {result.status}")
         for entry in (result.errors or []):

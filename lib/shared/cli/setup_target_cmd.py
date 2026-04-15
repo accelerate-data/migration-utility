@@ -8,7 +8,7 @@ import typer
 
 from shared.cli.env_check import require_target_vars
 from shared.cli.error_handler import cli_error_handler
-from shared.cli.git_ops import is_git_repo, stage_and_commit
+from shared.cli.git_ops import git_push, is_git_repo, stage_and_commit
 from shared.cli.output import console, error, success, warn
 from shared.target_setup import run_setup_target, write_target_runtime_from_env
 
@@ -19,6 +19,7 @@ def setup_target(
     technology: str = typer.Option(..., "--technology", help="Target technology: fabric, snowflake, or duckdb"),
     source_schema: str = typer.Option("bronze", "--source-schema", help="Target source schema (default: bronze)"),
     no_commit: bool = typer.Option(False, "--no-commit"),
+    push: bool = typer.Option(False, "--push", help="Push to remote after commit"),
     project_root: Path | None = typer.Option(None, "--project-root"),
 ) -> None:
     """Configure target runtime, scaffold dbt project, and generate sources.yml."""
@@ -70,3 +71,5 @@ def setup_target(
         error(f"Git commit failed: {exc}")
         raise typer.Exit(code=1) from exc
     success("Target setup committed.")
+    if push and not git_push(root):
+        warn("git push failed — changes committed locally.")

@@ -13,7 +13,7 @@ import typer
 
 from shared.cli.env_check import require_source_vars
 from shared.cli.error_handler import cli_error_handler
-from shared.cli.git_ops import is_git_repo, stage_and_commit
+from shared.cli.git_ops import git_push, is_git_repo, stage_and_commit
 from shared.cli.output import console, error, print_table, success, warn
 from shared.init import run_scaffold_hooks, run_scaffold_project
 from shared.setup_ddl_support.extract import run_extract, run_list_schemas
@@ -27,6 +27,7 @@ def setup_source(
     all_schemas: bool = typer.Option(False, "--all-schemas", help="Discover and extract all schemas in the database"),
     yes: bool = typer.Option(False, "--yes", "-y", help="Skip confirmation prompt (only applies to --all-schemas)"),
     no_commit: bool = typer.Option(False, "--no-commit", help="Skip git commit after extraction"),
+    push: bool = typer.Option(False, "--push", help="Push to remote after commit"),
     project_root: Path | None = typer.Option(None, "--project-root"),
 ) -> None:
     """Validate source env vars and extract DDL from the source database.
@@ -104,6 +105,8 @@ def setup_source(
         error(f"Git commit failed: {exc}")
         raise typer.Exit(code=1) from exc
     success("Extraction committed.")
+    if push and not git_push(root):
+        warn("git push failed — changes committed locally.")
 
 
 def _check_source_prereqs(technology: str) -> None:

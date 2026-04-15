@@ -7,7 +7,7 @@ from pathlib import Path
 import typer
 
 from shared.cli.error_handler import cli_error_handler
-from shared.cli.git_ops import is_git_repo, stage_and_commit
+from shared.cli.git_ops import git_push, is_git_repo, stage_and_commit
 from shared.cli.output import console, error, success, warn
 from shared.dry_run_core import run_exclude
 from shared.name_resolver import normalize
@@ -18,6 +18,7 @@ logger = logging.getLogger(__name__)
 def exclude_table(
     fqns: list[str] = typer.Argument(default=None, help="One or more fully-qualified table names to exclude"),
     no_commit: bool = typer.Option(False, "--no-commit", help="Skip git commit after update"),
+    push: bool = typer.Option(False, "--push", help="Push to remote after commit"),
     project_root: Path | None = typer.Option(None, "--project-root", help="Project root directory"),
 ) -> None:
     """Mark one or more source tables as excluded from migration."""
@@ -70,3 +71,5 @@ def exclude_table(
         error(f"Git commit failed: {exc}")
         raise typer.Exit(code=1) from exc
     console.print("Changes committed.")
+    if push and not git_push(root):
+        warn("git push failed — changes committed locally.")

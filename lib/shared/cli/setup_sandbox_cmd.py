@@ -8,7 +8,7 @@ from typing import Any
 import typer
 
 from shared.cli.error_handler import cli_error_handler
-from shared.cli.git_ops import is_git_repo, stage_and_commit
+from shared.cli.git_ops import git_push, is_git_repo, stage_and_commit
 from shared.cli.output import console, error, print_table, success, warn
 from shared.loader_io import write_manifest_sandbox
 from shared.runtime_config import get_extracted_schemas
@@ -42,6 +42,7 @@ def _write_sandbox_to_manifest(project_root: Path, sandbox_database: str) -> Non
 def setup_sandbox(
     yes: bool = typer.Option(False, "--yes", "-y", help="Skip confirmation prompt"),
     no_commit: bool = typer.Option(False, "--no-commit", help="Skip git commit after setup"),
+    push: bool = typer.Option(False, "--push", help="Push to remote after commit"),
     project_root: Path | None = typer.Option(None, "--project-root", help="Project root directory"),
 ) -> None:
     """Provision sandbox schema from manifest runtime.sandbox configuration."""
@@ -110,3 +111,5 @@ def setup_sandbox(
         error(f"Git commit failed: {exc}")
         raise typer.Exit(code=1) from exc
     success("Sandbox setup committed.")
+    if push and not git_push(root):
+        warn("git push failed — changes committed locally.")

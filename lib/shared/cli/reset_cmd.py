@@ -9,7 +9,7 @@ import typer
 
 from shared.dry_run_core import RESET_GLOBAL_MANIFEST_SECTIONS, RESET_GLOBAL_PATHS, RESETTABLE_STAGES, run_reset_migration
 from shared.cli.error_handler import cli_error_handler
-from shared.cli.git_ops import is_git_repo, stage_and_commit
+from shared.cli.git_ops import git_push, is_git_repo, stage_and_commit
 from shared.cli.output import console, error, print_table, success, warn
 from shared.loader_io import clear_manifest_sandbox
 from shared.name_resolver import normalize
@@ -94,6 +94,7 @@ def reset(
     fqns: list[str] = typer.Argument(default=None, help="Fully-qualified table names (not used for 'all')"),
     yes: bool = typer.Option(False, "--yes", "-y", help="Skip confirmation prompt"),
     no_commit: bool = typer.Option(False, "--no-commit", help="Skip git commit after reset"),
+    push: bool = typer.Option(False, "--push", help="Push to remote after commit"),
     project_root: Path | None = typer.Option(None, "--project-root", help="Project root directory"),
 ) -> None:
     """Reset pipeline state for the given stage and objects.
@@ -150,6 +151,8 @@ def reset(
             error(f"Git commit failed: {exc}")
             raise typer.Exit(code=1) from exc
         success("Reset committed.")
+        if push and not git_push(root):
+            warn("git push failed — changes committed locally.")
         return
 
     if stage not in RESETTABLE_STAGES:
@@ -203,6 +206,8 @@ def reset(
                 error(f"Git commit failed: {exc}")
                 raise typer.Exit(code=1) from exc
             success("Reset committed.")
+            if push and not git_push(root):
+                warn("git push failed — changes committed locally.")
 
     if result.blocked:
         error(f"Blocked: {', '.join(result.blocked)}")

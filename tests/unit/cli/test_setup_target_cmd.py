@@ -68,6 +68,26 @@ def test_setup_target_exits_1_on_missing_manifest(tmp_path):
     assert result.exit_code == 1
 
 
+def test_setup_target_push_flag_calls_git_push(tmp_path):
+    _write_manifest(tmp_path)
+
+    with (
+        patch("shared.cli.setup_target_cmd.require_target_vars"),
+        patch("shared.cli.setup_target_cmd.write_target_runtime_from_env"),
+        patch("shared.cli.setup_target_cmd.run_setup_target", return_value=_SETUP_TARGET_OUT),
+        patch("shared.cli.setup_target_cmd.is_git_repo", return_value=True),
+        patch("shared.cli.setup_target_cmd.stage_and_commit", return_value=True),
+        patch("shared.cli.setup_target_cmd.git_push", return_value=True) as mock_push,
+    ):
+        result = runner.invoke(
+            app,
+            ["setup-target", "--technology", "snowflake", "--push", "--project-root", str(tmp_path)],
+        )
+
+    assert result.exit_code == 0, result.output
+    mock_push.assert_called_once()
+
+
 def test_setup_target_no_commit(tmp_path, monkeypatch):
     _write_manifest(tmp_path)
     monkeypatch.setenv("TARGET_PATH", "/tmp/warehouse.duckdb")

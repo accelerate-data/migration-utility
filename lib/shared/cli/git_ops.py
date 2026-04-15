@@ -50,6 +50,31 @@ def stage_and_commit(files: list[Path], message: str, project_root: Path) -> boo
         raise RuntimeError(f"git operation failed: {exc.stderr or exc}") from exc
 
 
+def git_push(project_root: Path) -> bool:
+    """Push current branch to remote. Returns True on success, False on failure.
+
+    Never raises — push failures are soft errors that the caller handles with a warning.
+    """
+    result = subprocess.run(
+        ["git", "push"],
+        cwd=project_root,
+        capture_output=True,
+        text=True,
+    )
+    if result.returncode == 0:
+        logger.debug(
+            "event=git_push status=success component=git_ops project_root=%s",
+            project_root,
+        )
+        return True
+    logger.warning(
+        "event=git_push status=failure component=git_ops project_root=%s stderr=%s",
+        project_root,
+        result.stderr,
+    )
+    return False
+
+
 def is_git_repo(project_root: Path) -> bool:
     result = subprocess.run(
         ["git", "rev-parse", "--is-inside-work-tree"],

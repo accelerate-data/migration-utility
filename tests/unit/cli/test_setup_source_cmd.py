@@ -230,6 +230,31 @@ def test_setup_source_neither_schemas_nor_all_schemas_exits_1(tmp_path, monkeypa
     assert result.exit_code == 1
 
 
+def test_setup_source_push_flag_calls_git_push(tmp_path, monkeypatch):
+    monkeypatch.setenv("MSSQL_HOST", "localhost")
+    monkeypatch.setenv("MSSQL_PORT", "1433")
+    monkeypatch.setenv("MSSQL_DB", "db")
+    monkeypatch.setenv("SA_PASSWORD", "pw")
+
+    with (
+        patch("shared.cli.setup_source_cmd._check_source_prereqs"),
+        patch("shared.cli.setup_source_cmd.run_scaffold_project", return_value=_SCAFFOLD_OUT),
+        patch("shared.cli.setup_source_cmd.run_scaffold_hooks", return_value=_HOOKS_OUT),
+        patch("shared.cli.setup_source_cmd.run_extract", return_value=_EXTRACT_OUT),
+        patch("shared.cli.setup_source_cmd.is_git_repo", return_value=True),
+        patch("shared.cli.setup_source_cmd.stage_and_commit", return_value=True),
+        patch("shared.cli.setup_source_cmd.git_push", return_value=True) as mock_push,
+    ):
+        result = runner.invoke(
+            app,
+            ["setup-source", "--technology", "sql_server", "--schemas", "silver",
+             "--push", "--project-root", str(tmp_path)],
+        )
+
+    assert result.exit_code == 0, result.output
+    mock_push.assert_called_once()
+
+
 def test_setup_source_shows_clean_error_on_db_failure(tmp_path, monkeypatch):
     monkeypatch.setenv("MSSQL_HOST", "localhost")
     monkeypatch.setenv("MSSQL_PORT", "1433")
