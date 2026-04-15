@@ -35,7 +35,7 @@ argument-hint: "<args>"        # shown in skill picker UI
 
 ## Schema discipline                          # if skill writes to catalog
 
-Use the canonical `/<stage>` surfaced code list in `../../lib/shared/<stage>_error_codes.md`.
+Use the canonical `/<stage>` surfaced code list in `../lib/shared/<stage>_error_codes.md`.
 Do not define a competing public error-code list in this skill.
 
 ## Before invoking                            # stage guard

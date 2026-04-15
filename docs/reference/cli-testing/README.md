@@ -5,13 +5,14 @@ Developer-only reference for validating the `ad-migration` CLI locally.
 ## Unit tests
 
 All CLI unit tests live in `tests/unit/cli/`. They use `typer.testing.CliRunner` and mock the
-underlying `run_*` functions, so no database is required.
+underlying `run_*` functions, so no database is required. Run them from the shared `lib` project
+environment, which actually has pytest available:
 
 ```bash
-cd packages/ad-migration-cli && uv run pytest ../../tests/unit/cli/ -v
-cd packages/ad-migration-cli && uv run pytest ../../tests/unit/cli/test_setup_source_cmd.py -v
-cd packages/ad-migration-cli && uv run pytest ../../tests/unit/cli/test_env_check.py -v
-cd packages/ad-migration-cli && uv run pytest
+cd lib && uv run pytest ../tests/unit/cli/ -v
+cd lib && uv run pytest ../tests/unit/cli/test_setup_source_cmd.py -v
+cd lib && uv run pytest ../tests/unit/cli/test_env_check.py -v
+cd lib && uv run pytest
 ```
 
 ## Dev smoke testing

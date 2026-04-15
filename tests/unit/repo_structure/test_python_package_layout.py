@@ -33,16 +33,48 @@ def test_repo_map_points_commands_at_the_split_projects() -> None:
     }
 
     internal_cli_commands = {
+        "catalog_enrich": f"cd {INTERNAL_PROJECT_PATH} && uv run catalog-enrich",
+        "discover_list": f"cd {INTERNAL_PROJECT_PATH} && uv run discover list",
+        "discover_show": f"cd {INTERNAL_PROJECT_PATH} && uv run discover show",
+        "discover_refs": f"cd {INTERNAL_PROJECT_PATH} && uv run discover refs",
+        "discover_write_scoping": f"cd {INTERNAL_PROJECT_PATH} && uv run discover write-scoping",
+        "discover_write_slice": f"cd {INTERNAL_PROJECT_PATH} && uv run discover write-slice",
+        "discover_write_statements": f"cd {INTERNAL_PROJECT_PATH} && uv run discover write-statements",
         "init_check_freetds": f"cd {INTERNAL_PROJECT_PATH} && uv run init check-freetds",
+        "init_discover_mssql_driver_override": f"cd {INTERNAL_PROJECT_PATH} && uv run init discover-mssql-driver-override",
+        "init_scaffold_project": f"cd {INTERNAL_PROJECT_PATH} && uv run init scaffold-project",
+        "init_scaffold_hooks": f"cd {INTERNAL_PROJECT_PATH} && uv run init scaffold-hooks",
+        "init_write_local_env_overrides": f"cd {INTERNAL_PROJECT_PATH} && uv run init write-local-env-overrides",
         "generate_sources": f"cd {INTERNAL_PROJECT_PATH} && uv run generate-sources",
+        "migrate_context": f"cd {INTERNAL_PROJECT_PATH} && uv run migrate context",
+        "migrate_render_unit_tests": f"cd {INTERNAL_PROJECT_PATH} && uv run migrate render-unit-tests",
+        "migrate_write": f"cd {INTERNAL_PROJECT_PATH} && uv run migrate write",
+        "migrate_write_catalog": f"cd {INTERNAL_PROJECT_PATH} && uv run migrate write-catalog",
         "migrate_util_status": f"cd {INTERNAL_PROJECT_PATH} && uv run migrate-util status",
         "migrate_util_ready": f"cd {INTERNAL_PROJECT_PATH} && uv run migrate-util ready",
+        "migrate_util_exclude": f"cd {INTERNAL_PROJECT_PATH} && uv run migrate-util exclude",
+        "migrate_util_reset_migration": f"cd {INTERNAL_PROJECT_PATH} && uv run migrate-util reset-migration",
+        "migrate_util_sync_excluded_warnings": f"cd {INTERNAL_PROJECT_PATH} && uv run migrate-util sync-excluded-warnings",
         "refactor_context": f"cd {INTERNAL_PROJECT_PATH} && uv run refactor context",
         "refactor_write": f"cd {INTERNAL_PROJECT_PATH} && uv run refactor write",
+        "profile_view_context": f"cd {INTERNAL_PROJECT_PATH} && uv run profile view-context",
+        "profile_context": f"cd {INTERNAL_PROJECT_PATH} && uv run profile context",
+        "profile_write": f"cd {INTERNAL_PROJECT_PATH} && uv run profile write",
+        "setup_ddl_write_partial_manifest": f"cd {INTERNAL_PROJECT_PATH} && uv run setup-ddl write-partial-manifest",
         "test_harness_help": f"cd {INTERNAL_PROJECT_PATH} && uv run test-harness --help",
         "test_harness_execute_spec": f"cd {INTERNAL_PROJECT_PATH} && uv run test-harness execute-spec",
+        "test_harness_sandbox_status": f"cd {INTERNAL_PROJECT_PATH} && uv run test-harness sandbox-status",
+        "test_harness_validate_review": f"cd {INTERNAL_PROJECT_PATH} && uv run test-harness validate-review",
+        "test_harness_write": f"cd {INTERNAL_PROJECT_PATH} && uv run test-harness write",
         "compare_sql": f"cd {INTERNAL_PROJECT_PATH} && uv run test-harness compare-sql",
+        "test_harness_compare_sql": f"cd {INTERNAL_PROJECT_PATH} && uv run test-harness compare-sql",
     }
+
+    expected_public_command_names = set(public_cli_commands)
+    expected_internal_command_names = set(internal_cli_commands)
+
+    assert expected_public_command_names.issubset(repo_map["commands"])
+    assert expected_internal_command_names.issubset(repo_map["commands"])
 
     for command_name, expected_prefix in public_cli_commands.items():
         assert repo_map["commands"][command_name].startswith(expected_prefix)
