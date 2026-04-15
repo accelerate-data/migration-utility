@@ -6,6 +6,8 @@ The `ad-migration` CLI manages migration state — DDL extraction, catalog, sand
 
 Git is your responsibility. The CLI writes files; you decide when to commit them.
 
+When a CLI command successfully mutates durable repo state, it ends with a reminder to review and commit those changes before continuing.
+
 The CLI does **not**:
 
 - create branches or worktrees

@@ -7,7 +7,7 @@ from pathlib import Path
 import typer
 
 from shared.cli.error_handler import cli_error_handler
-from shared.cli.output import error, success
+from shared.cli.output import error, remind_review_and_commit, success
 from shared.dry_run_core import run_exclude
 
 logger = logging.getLogger(__name__)
@@ -40,6 +40,6 @@ def exclude_table(
 
     if result.marked:
         success(f"Excluded ({len(result.marked)}): {', '.join(result.marked)}")
+        remind_review_and_commit()
     if result.not_found:
         error(f"Not found ({len(result.not_found)}): {', '.join(result.not_found)}")
-

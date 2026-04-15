@@ -45,6 +45,7 @@ def test_setup_target_sql_server_uses_manifest_runtime_target(tmp_path):
         )
     assert result.exit_code == 0, result.output
     mock_write.assert_called_once_with(tmp_path, "sql_server", "bronze")
+    assert "Review and commit the repo changes before continuing" in result.output
 
 
 def test_setup_target_oracle_uses_manifest_runtime_target(tmp_path):
@@ -69,6 +70,7 @@ def test_setup_target_exits_1_on_missing_manifest(tmp_path):
     )
     assert result.exit_code == 1
     assert "Run init-ad-migration first" in result.output
+    assert "Review and commit the repo changes before continuing" not in result.output
 
 
 def test_setup_target_exits_1_when_runtime_target_missing(tmp_path):

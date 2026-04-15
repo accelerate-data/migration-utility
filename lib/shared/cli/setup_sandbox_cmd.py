@@ -11,7 +11,7 @@ import typer
 
 from shared.cli.env_check import require_sandbox_vars
 from shared.cli.error_handler import cli_error_handler
-from shared.cli.output import console, error, print_table, success
+from shared.cli.output import console, error, print_table, remind_review_and_commit, success
 from shared.loader_io import write_manifest_sandbox
 from shared.runtime_config import get_extracted_schemas, get_runtime_role, set_runtime_role
 from shared.runtime_config_models import RuntimeConnection, RuntimeRole
@@ -155,3 +155,4 @@ def setup_sandbox(
         ],
         columns=("", ""),
     )
+    remind_review_and_commit()

@@ -8,7 +8,7 @@ import typer
 
 from shared.catalog_writer import run_write_source
 from shared.cli.error_handler import cli_error_handler
-from shared.cli.output import success, warn
+from shared.cli.output import remind_review_and_commit, success, warn
 from shared.dry_run_core import run_ready
 from shared.loader_data import CatalogFileMissingError
 from shared.output_models.dry_run import DryRunOutput
@@ -75,3 +75,4 @@ def add_source_table(
 
     if not written_pairs:
         return
+    remind_review_and_commit()

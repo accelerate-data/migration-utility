@@ -9,7 +9,7 @@ import typer
 
 from shared.dry_run_core import RESET_GLOBAL_MANIFEST_SECTIONS, RESET_GLOBAL_PATHS, RESETTABLE_STAGES, run_reset_migration
 from shared.cli.error_handler import cli_error_handler
-from shared.cli.output import console, error, print_table, success, warn
+from shared.cli.output import console, error, print_table, remind_review_and_commit, success, warn
 from shared.loader_io import clear_manifest_sandbox
 from shared.runtime_config import get_sandbox_name
 from shared.test_harness_support.manifest import _create_backend as _th_create_backend
@@ -134,6 +134,7 @@ def reset(
             columns=("", ""),
         )
         success("Project reset to post-init state. Run setup-source to restart the pipeline.")
+        remind_review_and_commit()
         return
 
     if stage not in RESETTABLE_STAGES:
@@ -175,3 +176,4 @@ def reset(
         error(f"Not found: {', '.join(result.not_found)}")
     if result.blocked or result.not_found:
         raise typer.Exit(code=1)
+    remind_review_and_commit()

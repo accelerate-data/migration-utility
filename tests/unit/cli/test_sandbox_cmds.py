@@ -52,6 +52,7 @@ def test_setup_sandbox_runs_sandbox_up(tmp_path):
 
     assert result.exit_code == 0, result.output
     mock_backend.sandbox_up.assert_called_once()
+    assert "Review and commit the repo changes before continuing" in result.output
 
 
 def test_teardown_sandbox_requires_confirmation(tmp_path):
@@ -65,6 +66,7 @@ def test_teardown_sandbox_requires_confirmation(tmp_path):
         result = runner.invoke(app, ["teardown-sandbox", "--project-root", str(tmp_path)], input="n\n")
 
     assert result.exit_code == 0
+    assert "Review and commit the repo changes before continuing" not in result.output
 
 
 def test_teardown_sandbox_yes_flag_skips_prompt(tmp_path):
@@ -81,6 +83,7 @@ def test_teardown_sandbox_yes_flag_skips_prompt(tmp_path):
 
     assert result.exit_code == 0
     mock_backend.sandbox_down.assert_called_once_with("__test_abc123")
+    assert "Review and commit the repo changes before continuing" in result.output
 
 
 def test_teardown_sandbox_no_sandbox_exits_1(tmp_path):
@@ -91,6 +94,7 @@ def test_teardown_sandbox_no_sandbox_exits_1(tmp_path):
         result = runner.invoke(app, ["teardown-sandbox", "--yes", "--project-root", str(tmp_path)])
 
     assert result.exit_code == 1
+    assert "Review and commit the repo changes before continuing" not in result.output
 
 
 def test_teardown_sandbox_error_exits_nonzero(tmp_path):
@@ -138,6 +142,7 @@ def test_setup_sandbox_shows_clean_error_on_db_failure(tmp_path):
 
     assert result.exit_code == 2
     assert "Hint:" in result.output
+    assert "Review and commit the repo changes before continuing" not in result.output
 
 
 def test_setup_sandbox_calls_require_sandbox_vars(tmp_path):

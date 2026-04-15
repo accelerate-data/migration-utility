@@ -49,6 +49,7 @@ def test_setup_source_sql_server_runs_extraction(tmp_path, monkeypatch):
 
     assert result.exit_code == 0, result.output
     mock_extract.assert_called_once_with(tmp_path, "AdventureWorks2022", ["silver", "gold"])
+    assert "Review and commit the repo changes before continuing" in result.output
 
 
 def test_setup_source_fails_fast_on_missing_env(tmp_path, monkeypatch):
@@ -91,6 +92,7 @@ def test_setup_source_all_schemas_requires_confirmation(tmp_path, monkeypatch):
 
     assert result.exit_code == 0
     mock_extract.assert_not_called()
+    assert "Review and commit the repo changes before continuing" not in result.output
 
 
 def test_setup_source_all_schemas_yes_flag_skips_confirmation(tmp_path, monkeypatch):
@@ -262,6 +264,7 @@ def test_setup_source_shows_clean_error_on_db_failure(tmp_path, monkeypatch):
 
     assert result.exit_code == 2
     assert "Hint:" in result.output
+    assert "Review and commit the repo changes before continuing" not in result.output
     assert "SOURCE_MSSQL_DB" in result.output
 
 

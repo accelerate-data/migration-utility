@@ -54,3 +54,11 @@ def print_table(title: str, rows: list[tuple[str, str]], columns: tuple[str, str
     console.print(table)
 
 
+def remind_review_and_commit() -> None:
+    if _quiet:
+        return
+    console.print("\n[bold]Next step:[/bold] Review and commit the repo changes before continuing.")
+    console.print("  git status")
+    console.print("  git add <files>")
+    console.print('  git commit -m "<describe the change>"')
+

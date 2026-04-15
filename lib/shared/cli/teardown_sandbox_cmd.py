@@ -8,7 +8,7 @@ from typing import Any
 import typer
 
 from shared.cli.error_handler import cli_error_handler
-from shared.cli.output import console, error, print_table, success
+from shared.cli.output import console, error, print_table, remind_review_and_commit, success
 from shared.loader_io import clear_manifest_sandbox
 from shared.runtime_config import get_sandbox_name
 from shared.sandbox.base import SandboxBackend
@@ -75,6 +75,7 @@ def teardown_sandbox(
         )
 
         success("Sandbox teardown complete.")
+        remind_review_and_commit()
     else:
         error(f"Sandbox teardown failed: {result.status}")
         for entry in (result.errors or []):

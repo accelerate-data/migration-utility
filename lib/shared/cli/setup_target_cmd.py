@@ -9,7 +9,7 @@ import typer
 
 from shared.cli.env_check import require_target_vars
 from shared.cli.error_handler import cli_error_handler
-from shared.cli.output import console, error, success
+from shared.cli.output import console, error, remind_review_and_commit, success
 from shared.runtime_config import get_runtime_role
 from shared.target_setup import run_setup_target, write_target_runtime_from_env
 
@@ -69,3 +69,4 @@ def setup_target(
         f"\n  tables in sources.yml: {len(result.desired_tables)} desired, "
         f"{len(result.created_tables)} new, {len(result.existing_tables)} existing"
     )
+    remind_review_and_commit()

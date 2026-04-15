@@ -14,7 +14,7 @@ import typer
 
 from shared.cli.env_check import require_source_vars
 from shared.cli.error_handler import cli_error_handler
-from shared.cli.output import console, error, print_table, success
+from shared.cli.output import console, error, print_table, remind_review_and_commit, success
 from shared.init import run_scaffold_hooks, run_scaffold_project
 from shared.runtime_config import get_runtime_role
 from shared.setup_ddl_support.extract import run_extract, run_list_schemas
@@ -103,6 +103,7 @@ def setup_source(
             result = run_extract(root, database, schema_list)
 
     _report_extract(result)
+    remind_review_and_commit()
 
 
 def _check_source_prereqs(technology: str) -> None:

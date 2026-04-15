@@ -36,6 +36,7 @@ def test_reset_runs_after_confirmation(tmp_path):
         )
     assert result.exit_code == 0, result.output
     mock_reset.assert_called_once_with(tmp_path, "scope", ["silver.DimCustomer"])
+    assert "Review and commit the repo changes before continuing" in result.output
 
 
 def test_reset_aborts_on_no(tmp_path):
@@ -48,6 +49,7 @@ def test_reset_aborts_on_no(tmp_path):
         )
     mock_reset.assert_not_called()
     assert result.exit_code == 0, result.output
+    assert "Review and commit the repo changes before continuing" not in result.output
 
 
 def test_reset_rejects_invalid_stage(tmp_path):
@@ -62,6 +64,7 @@ def test_reset_exits_1_on_not_found(tmp_path):
     with patch("shared.cli.reset_cmd.run_reset_migration", return_value=out):
         result = runner.invoke(app, ["reset", "scope", "silver.Missing", "--yes", "--project-root", str(tmp_path)])
     assert result.exit_code == 1
+    assert "Review and commit the repo changes before continuing" not in result.output
 
 
 def test_reset_exits_1_on_blocked(tmp_path):
@@ -97,6 +100,7 @@ def test_reset_all_no_sandbox_delegates_to_core(tmp_path):
         result = runner.invoke(app, ["reset", "all", "--yes", "--project-root", str(tmp_path)])
     assert result.exit_code == 0, result.output
     mock_reset.assert_called_once_with(tmp_path, "all", [])
+    assert "Review and commit the repo changes before continuing" in result.output
 
 
 def test_reset_all_with_sandbox_tears_down_before_reset(tmp_path):
@@ -172,6 +176,7 @@ def test_reset_all_aborts_without_confirmation(tmp_path):
         result = runner.invoke(app, ["reset", "all", "--project-root", str(tmp_path)], input="n\n")
     mock_reset.assert_not_called()
     assert result.exit_code == 0, result.output
+    assert "Review and commit the repo changes before continuing" not in result.output
 
 
 def test_reset_all_rejects_fqn_arguments(tmp_path):
@@ -205,6 +210,7 @@ def test_reset_all_sandbox_db_error_warns_and_continues(tmp_path):
         result = runner.invoke(app, ["reset", "all", "--yes", "--project-root", str(tmp_path)])
 
     assert result.exit_code == 0, result.output
+    assert "Review and commit the repo changes before continuing" in result.output
     mock_reset.assert_called_once_with(tmp_path, "all", [])
 
 
@@ -223,6 +229,7 @@ def test_exclude_table_marks_tables(tmp_path):
         )
 
     assert result.exit_code == 0, result.output
+    assert "Review and commit the repo changes before continuing" in result.output
 
 
 # ── add-source-table ─────────────────────────────────────────────────────────
@@ -270,3 +277,4 @@ def test_add_source_table_skips_tables_that_fail_guard(tmp_path):
 
     assert result.exit_code == 0
     mock_write.assert_not_called()
+    assert "Review and commit the repo changes before continuing" not in result.output
