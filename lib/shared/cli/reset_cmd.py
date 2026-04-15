@@ -9,10 +9,8 @@ import typer
 
 from shared.dry_run_core import RESET_GLOBAL_MANIFEST_SECTIONS, RESET_GLOBAL_PATHS, RESETTABLE_STAGES, run_reset_migration
 from shared.cli.error_handler import cli_error_handler
-from shared.cli.git_ops import git_push, is_git_repo, stage_and_commit
 from shared.cli.output import console, error, print_table, success, warn
 from shared.loader_io import clear_manifest_sandbox
-from shared.name_resolver import normalize
 from shared.runtime_config import get_sandbox_name
 from shared.test_harness_support.manifest import _create_backend as _th_create_backend
 from shared.test_harness_support.manifest import _load_manifest as _th_load_manifest
@@ -93,8 +91,6 @@ def reset(
     stage: str = typer.Argument(..., help="Pipeline stage to reset (scope|profile|generate-tests|refactor|all)"),
     fqns: list[str] = typer.Argument(default=None, help="Fully-qualified table names (not used for 'all')"),
     yes: bool = typer.Option(False, "--yes", "-y", help="Skip confirmation prompt"),
-    no_commit: bool = typer.Option(False, "--no-commit", help="Skip git commit after reset"),
-    push: bool = typer.Option(False, "--push", help="Push to remote after commit"),
     project_root: Path | None = typer.Option(None, "--project-root", help="Project root directory"),
 ) -> None:
     """Reset pipeline state for the given stage and objects.
@@ -138,21 +134,6 @@ def reset(
             columns=("", ""),
         )
         success("Project reset to post-init state. Run setup-source to restart the pipeline.")
-
-        if no_commit:
-            return
-        if not is_git_repo(root):
-            warn("Not a git repository — skipping commit.")
-            return
-        commit_paths = [root / p for p in result.deleted_paths] + [root / "manifest.json"]
-        try:
-            stage_and_commit(commit_paths, "reset: global reset (all stages)", root)
-        except RuntimeError as exc:
-            error(f"Git commit failed: {exc}")
-            raise typer.Exit(code=1) from exc
-        success("Reset committed.")
-        if push and not git_push(root):
-            warn("git push failed — changes committed locally.")
         return
 
     if stage not in RESETTABLE_STAGES:
@@ -188,27 +169,6 @@ def reset(
         ],
         columns=("Category", "Count"),
     )
-    if result.reset and not no_commit:
-        if not is_git_repo(root):
-            warn("Not a git repository — skipping commit.")
-        else:
-            catalog_files = [
-                root / "catalog" / "tables" / f"{normalize(fqn)}.json"
-                for fqn in result.reset
-            ]
-            try:
-                stage_and_commit(
-                    [f for f in catalog_files if f.exists()] + [root / "manifest.json"],
-                    f"reset {stage}: {', '.join(result.reset)}",
-                    root,
-                )
-            except RuntimeError as exc:
-                error(f"Git commit failed: {exc}")
-                raise typer.Exit(code=1) from exc
-            success("Reset committed.")
-            if push and not git_push(root):
-                warn("git push failed — changes committed locally.")
-
     if result.blocked:
         error(f"Blocked: {', '.join(result.blocked)}")
     if result.not_found:
