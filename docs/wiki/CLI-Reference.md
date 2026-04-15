@@ -261,6 +261,10 @@ catalog/tables/<schema>.<table>.json  (is_excluded: true)
 
 Confirm tables as dbt sources (`is_source: true`).
 
+Use this before `ad-migration setup-target` for any writerless table that should stay as a dbt source. `setup-target` reads the existing `is_source` decisions when generating `sources.yml` and creating target-side source tables.
+
+If you add more source tables later, rerun `ad-migration setup-target`. It is idempotent and will apply only the newly required source-table changes.
+
 ```bash
 ad-migration add-source-table silver.DimGeography silver.DimCurrency
 ```
