@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import shutil
 import subprocess
+import sys
 import tomllib
 import zipfile
 from pathlib import Path
@@ -45,6 +46,15 @@ def _wheel_members(wheel_path: Path) -> set[str]:
         return set(archive.namelist())
 
 
+def _run_installed_version_check(tmp_path: Path, shared_wheel: Path, public_wheel: Path) -> str:
+    venv_dir = tmp_path / "venv"
+    subprocess.run([sys.executable, "-m", "venv", str(venv_dir)], check=True, capture_output=True, text=True)
+    python = venv_dir / "bin" / "python"
+    subprocess.run([str(python), "-m", "pip", "install", str(shared_wheel), str(public_wheel)], check=True, capture_output=True, text=True)
+    result = subprocess.run([str(venv_dir / "bin" / "ad-migration"), "--version"], check=True, capture_output=True, text=True)
+    return result.stdout.strip()
+
+
 def test_packaging_contract_matches_the_split_distribution_layout(tmp_path: Path) -> None:
     shared = _read_pyproject("lib/pyproject.toml")
     public = _read_pyproject("packages/ad-migration-cli/pyproject.toml")
@@ -67,6 +77,7 @@ def test_packaging_contract_matches_the_split_distribution_layout(tmp_path: Path
 
     repo_root = _copy_packaging_tree(tmp_path)
     public_wheel = _build_wheel(repo_root / "packages" / "ad-migration-cli")
+    shared_wheel = _build_wheel(repo_root / "lib")
     internal_wheel = _build_wheel(repo_root / "packages" / "ad-migration-internal")
 
     public_members = _wheel_members(public_wheel)
@@ -78,3 +89,5 @@ def test_packaging_contract_matches_the_split_distribution_layout(tmp_path: Path
     assert "ad_migration_internal/__init__.py" in internal_members
     assert "ad_migration_internal/entrypoints.py" in internal_members
     assert "ad_migration_internal-0.1.0.dist-info/entry_points.txt" in internal_members
+
+    assert _run_installed_version_check(tmp_path, shared_wheel, public_wheel) == "0.1.0"
