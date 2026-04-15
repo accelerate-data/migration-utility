@@ -41,6 +41,9 @@ def test_setup_sandbox_runs_sandbox_up(tmp_path):
 
     with (
         patch("shared.cli.setup_sandbox_cmd._load_manifest", return_value={}),
+        patch("shared.cli.setup_sandbox_cmd._get_sandbox_technology", return_value="sql_server"),
+        patch("shared.cli.setup_sandbox_cmd.require_sandbox_vars"),
+        patch("shared.cli.setup_sandbox_cmd._write_sandbox_connection_to_manifest", return_value={}),
         patch("shared.cli.setup_sandbox_cmd._create_backend", return_value=mock_backend),
         patch("shared.cli.setup_sandbox_cmd._get_schemas", return_value=["silver"]),
         patch("shared.cli.setup_sandbox_cmd._write_sandbox_to_manifest"),
@@ -125,6 +128,9 @@ def test_setup_sandbox_shows_clean_error_on_db_failure(tmp_path):
     with (
         driver_patch,
         patch("shared.cli.setup_sandbox_cmd._load_manifest", return_value={}),
+        patch("shared.cli.setup_sandbox_cmd._get_sandbox_technology", return_value="sql_server"),
+        patch("shared.cli.setup_sandbox_cmd.require_sandbox_vars"),
+        patch("shared.cli.setup_sandbox_cmd._write_sandbox_connection_to_manifest", return_value={}),
         patch("shared.cli.setup_sandbox_cmd._create_backend", return_value=mock_backend),
         patch("shared.cli.setup_sandbox_cmd._get_schemas", return_value=["silver"]),
     ):
@@ -132,6 +138,61 @@ def test_setup_sandbox_shows_clean_error_on_db_failure(tmp_path):
 
     assert result.exit_code == 2
     assert "Hint:" in result.output
+
+
+def test_setup_sandbox_calls_require_sandbox_vars(tmp_path):
+    """setup-sandbox must call require_sandbox_vars with the sandbox technology."""
+    _write_manifest(tmp_path)
+    mock_backend = MagicMock()
+    mock_backend.sandbox_up.return_value = _SANDBOX_UP_OUT
+
+    with (
+        patch("shared.cli.setup_sandbox_cmd._load_manifest", return_value={}),
+        patch("shared.cli.setup_sandbox_cmd._get_sandbox_technology", return_value="sql_server"),
+        patch("shared.cli.setup_sandbox_cmd.require_sandbox_vars") as mock_require,
+        patch("shared.cli.setup_sandbox_cmd._write_sandbox_connection_to_manifest", return_value={}),
+        patch("shared.cli.setup_sandbox_cmd._create_backend", return_value=mock_backend),
+        patch("shared.cli.setup_sandbox_cmd._get_schemas", return_value=["silver"]),
+        patch("shared.cli.setup_sandbox_cmd._write_sandbox_to_manifest"),
+    ):
+        result = runner.invoke(app, ["setup-sandbox", "--yes", "--project-root", str(tmp_path)])
+
+    assert result.exit_code == 0, result.output
+    mock_require.assert_called_once_with("sql_server")
+
+
+def test_setup_sandbox_writes_connection_to_manifest(tmp_path):
+    """setup-sandbox must write sandbox connection to manifest before creating backend."""
+    _write_manifest(tmp_path)
+    mock_backend = MagicMock()
+    mock_backend.sandbox_up.return_value = _SANDBOX_UP_OUT
+
+    with (
+        patch("shared.cli.setup_sandbox_cmd._load_manifest", return_value={}),
+        patch("shared.cli.setup_sandbox_cmd._get_sandbox_technology", return_value="sql_server"),
+        patch("shared.cli.setup_sandbox_cmd.require_sandbox_vars"),
+        patch("shared.cli.setup_sandbox_cmd._write_sandbox_connection_to_manifest", return_value={}) as mock_write,
+        patch("shared.cli.setup_sandbox_cmd._create_backend", return_value=mock_backend),
+        patch("shared.cli.setup_sandbox_cmd._get_schemas", return_value=["silver"]),
+        patch("shared.cli.setup_sandbox_cmd._write_sandbox_to_manifest"),
+    ):
+        result = runner.invoke(app, ["setup-sandbox", "--yes", "--project-root", str(tmp_path)])
+
+    assert result.exit_code == 0, result.output
+    mock_write.assert_called_once()
+
+
+def test_setup_sandbox_exits_1_when_sandbox_role_missing(tmp_path):
+    """setup-sandbox exits 1 if manifest has no runtime.sandbox technology."""
+    _write_manifest(tmp_path)
+
+    with (
+        patch("shared.cli.setup_sandbox_cmd._load_manifest", return_value={}),
+        patch("shared.cli.setup_sandbox_cmd._get_sandbox_technology", side_effect=SystemExit(1)),
+    ):
+        result = runner.invoke(app, ["setup-sandbox", "--yes", "--project-root", str(tmp_path)])
+
+    assert result.exit_code == 1
 
 
 def test_teardown_sandbox_shows_clean_error_on_db_failure(tmp_path):
