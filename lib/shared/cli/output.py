@@ -12,11 +12,21 @@ console = Console()
 err_console = Console(stderr=True)
 
 _quiet: bool = False
+_verbose: bool = False
 
 
 def set_quiet(value: bool) -> None:
     global _quiet
     _quiet = value
+
+
+def set_verbose(value: bool) -> None:
+    global _verbose
+    _verbose = value
+
+
+def is_verbose() -> bool:
+    return _verbose
 
 
 def success(message: str) -> None:

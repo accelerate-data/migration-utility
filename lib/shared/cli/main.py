@@ -1,5 +1,6 @@
 """Top-level ad-migration Typer app."""
 import logging
+import sys
 
 import typer
 
@@ -26,9 +27,17 @@ app = typer.Typer(
 @app.callback()
 def _main(
     quiet: bool = typer.Option(False, "--quiet", help="Suppress all output except errors, for CI use."),
+    verbose: bool = typer.Option(False, "--verbose", "-v", help="Show warnings and log output on stderr."),
 ) -> None:
     if quiet:
         output.set_quiet(True)
+    if verbose:
+        output.set_verbose(True)
+        _handler = logging.StreamHandler(sys.stderr)
+        _handler.setLevel(logging.WARNING)
+        _handler.setFormatter(logging.Formatter("%(levelname)s %(name)s: %(message)s"))
+        logging.getLogger().addHandler(_handler)
+        logging.captureWarnings(True)
 
 
 app.command("setup-source")(setup_source)

@@ -2,12 +2,16 @@
 
 from __future__ import annotations
 
+import logging
+from collections.abc import Callable
+
 import sqlglot
 import sqlglot.expressions as exp
 
 from shared.loader_parse import (
     _strip_trailing_sql_comments,
     classify_statement,
+    parse_block,
     parse_body_statements,
 )
 
@@ -428,3 +432,82 @@ def test_parse_body_nested_control_flow_all_branches() -> None:
     assert "Insert" in types
     assert "Merge" in types
     assert needs_llm is False
+
+
+# ── warning suppression ───────────────────────────────────────────────────────
+
+
+def _capture_sqlglot_log_records(fn: Callable[[], object]) -> list[logging.LogRecord]:
+    """Run *fn* and return all log records emitted by the sqlglot logger."""
+    records: list[logging.LogRecord] = []
+
+    class _Capture(logging.Handler):
+        def emit(self, record: logging.LogRecord) -> None:
+            records.append(record)
+
+    sqlglot_logger = logging.getLogger("sqlglot")
+    handler = _Capture()
+    old_level = sqlglot_logger.level
+    sqlglot_logger.addHandler(handler)
+    sqlglot_logger.setLevel(logging.DEBUG)
+    try:
+        fn()
+    finally:
+        sqlglot_logger.removeHandler(handler)
+        sqlglot_logger.setLevel(old_level)
+    return records
+
+
+def test_parse_block_emits_no_error_logs_for_unparseable_tsql() -> None:
+    """parse_block must not emit ERROR-level sqlglot log records for unsupported T-SQL.
+
+    A procedure body that contains a WITH clause sqlglot misparses as a CTE
+    (e.g. WITH ENCRYPTION inside BEGIN...END) triggers logger.error() calls via
+    check_errors() when error_level=WARN. Switching to IGNORE eliminates this
+    noise — the parse result is identical, only the log spam is suppressed.
+    """
+    # WITH ENCRYPTION inside the body triggers parse error log records because
+    # sqlglot tries to interpret the WITH as a CTE prefix.
+    ddl = (
+        "CREATE PROCEDURE dbo.usp_load_dim\n"
+        "AS\n"
+        "BEGIN\n"
+        "    WITH ENCRYPTION\n"
+        "    INSERT INTO silver.T (C) SELECT C FROM bronze.S;\n"
+        "END"
+    )
+
+    def _call() -> None:
+        try:
+            parse_block(ddl)
+        except Exception:
+            pass  # DdlParseError is acceptable; we only care about log noise
+
+    records = _capture_sqlglot_log_records(_call)
+    error_records = [r for r in records if r.levelno >= 40]  # logging.ERROR = 40
+    assert len(error_records) == 0, (
+        f"parse_block emitted {len(error_records)} ERROR-level sqlglot log record(s); "
+        f"expected none. First: {error_records[0].getMessage()[:120] if error_records else ''}"
+    )
+
+
+def test_parse_body_statements_emits_no_error_logs_for_unparseable_body() -> None:
+    """parse_body_statements must not emit ERROR-level sqlglot log records.
+
+    Leaf SQL with partially unsupported syntax triggers logger.error() calls via
+    check_errors() when error_level=WARN. Switching to IGNORE eliminates this
+    noise without changing the parse result.
+    """
+    # A WITH clause that sqlglot misparses triggers check_errors() ERROR records.
+    ddl = _wrap_proc(
+        "WITH ENCRYPTION\n"
+        "INSERT INTO silver.T (C) SELECT C FROM bronze.S;"
+    )
+
+    records = _capture_sqlglot_log_records(lambda: parse_body_statements(ddl))
+    error_records = [r for r in records if r.levelno >= 40]
+    assert len(error_records) == 0, (
+        f"parse_body_statements emitted {len(error_records)} ERROR-level sqlglot log "
+        f"record(s); expected none. "
+        f"First: {error_records[0].getMessage()[:120] if error_records else ''}"
+    )
