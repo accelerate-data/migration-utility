@@ -143,6 +143,7 @@
     "mcp/ddl/ddl_mcp_support/": "Standalone support slice for the DDL MCP package: local env/path helpers, name normalization, and DDL loader/parser logic copied from the shared runtime to keep the MCP dependency boundary narrow.",
     "scripts/demo-warehouse/": "Cross-dialect Kimball DW fixture: schema DDL, baseline seed data, and delta scenarios for SQL Server, Oracle, PostgreSQL",
     "docs/design/": "Durable agent-facing design notes only; keep criteria are documented in docs/design/README.md",
+    "docs/superpowers/plans/": "Implementation plans written from approved designs before execution begins.",
     ".claude/rules/": "Shared agent rules such as coding-conventions, git-workflow, logging-policy, and codex-execution-policy",
     ".claude/skills/": "Workflow playbooks for repo-local Claude Code skills"
   },
