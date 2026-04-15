@@ -333,13 +333,13 @@ Tell the user:
 
 **For source = SQL Server:**
 
-- **toolbox installed and all MSSQL vars set**: ready to run `ad-migration setup-source --technology sql_server --schemas <schema>` to extract DDL from the live database.
-- **toolbox missing or MSSQL vars unset**: Set credentials in `.envrc`, run `direnv allow`, install `toolbox`, then run `ad-migration setup-source`.
+- **toolbox installed and SOURCE_MSSQL_* vars set**: ready to run `ad-migration setup-source --technology sql_server --schemas <schema>` to extract DDL from the live database.
+- **toolbox missing or SOURCE_MSSQL_* vars unset**: Set `SOURCE_MSSQL_HOST/PORT/DB/USER/PASSWORD` in `.envrc`, run `direnv allow`, install `toolbox`, then run `ad-migration setup-source`.
 
 **For source = Oracle:**
 
-- **SQLcl + Java installed and all Oracle vars set**: ready to run `ad-migration setup-source --technology oracle --schemas <schema>` to extract DDL from the live database.
-- **SQLcl/Java missing or Oracle vars unset**: Set credentials in `.envrc`, run `direnv allow`, ensure SQLcl and Java 11+ are installed, then run `ad-migration setup-source`.
+- **SQLcl + Java installed and SOURCE_ORACLE_* vars set**: ready to run `ad-migration setup-source --technology oracle --schemas <schema>` to extract DDL from the live database.
+- **SQLcl/Java missing or SOURCE_ORACLE_* vars unset**: Set `SOURCE_ORACLE_HOST/PORT/SERVICE/USER/PASSWORD` in `.envrc`, run `direnv allow`, ensure SQLcl and Java 11+ are installed, then run `ad-migration setup-source`.
 
 **For target setup:**
 

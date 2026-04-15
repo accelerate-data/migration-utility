@@ -56,20 +56,21 @@ ad-migration setup-source --technology sql_server --all-schemas --yes
 
 | Variable | Description |
 |---|---|
-| `MSSQL_HOST` | Hostname or IP |
-| `MSSQL_PORT` | Port (usually `1433`) |
-| `MSSQL_DB` | Database name |
-| `SA_PASSWORD` | Password |
+| `SOURCE_MSSQL_HOST` | Hostname or IP |
+| `SOURCE_MSSQL_PORT` | Port (usually `1433`) |
+| `SOURCE_MSSQL_DB` | Database name |
+| `SOURCE_MSSQL_USER` | Username |
+| `SOURCE_MSSQL_PASSWORD` | Password |
 
 **Environment variables — Oracle:**
 
 | Variable | Description |
 |---|---|
-| `ORACLE_HOST` | Hostname or IP |
-| `ORACLE_PORT` | Port (usually `1521`) |
-| `ORACLE_SERVICE` | Service name |
-| `ORACLE_USER` | Username |
-| `ORACLE_PASSWORD` | Password |
+| `SOURCE_ORACLE_HOST` | Hostname or IP |
+| `SOURCE_ORACLE_PORT` | Port (usually `1521`) |
+| `SOURCE_ORACLE_SERVICE` | Service name |
+| `SOURCE_ORACLE_USER` | Username |
+| `SOURCE_ORACLE_PASSWORD` | Password |
 
 **Files written:**
 
@@ -90,15 +91,35 @@ catalog/procedures/<schema>.<proc>.json
 Scaffold the dbt project and generate `sources.yml` from the catalog.
 
 ```bash
-ad-migration setup-target --technology snowflake
-ad-migration setup-target --technology fabric --source-schema bronze
+ad-migration setup-target --technology sql_server
+ad-migration setup-target --technology oracle --source-schema bronze
 ```
 
 | Option | Required | Description |
 |---|---|---|
-| `--technology` | yes | `fabric`, `snowflake`, or `duckdb` |
+| `--technology` | yes | `sql_server` or `oracle` |
 | `--source-schema` | no | Source schema for `sources.yml` (default: `bronze`) |
 | `--project-root` | no | Defaults to current directory |
+
+**Environment variables — SQL Server:**
+
+| Variable | Description |
+|---|---|
+| `TARGET_MSSQL_HOST` | Hostname or IP |
+| `TARGET_MSSQL_PORT` | Port (usually `1433`) |
+| `TARGET_MSSQL_DB` | Database name |
+| `TARGET_MSSQL_USER` | Username |
+| `TARGET_MSSQL_PASSWORD` | Password |
+
+**Environment variables — Oracle:**
+
+| Variable | Description |
+|---|---|
+| `TARGET_ORACLE_HOST` | Hostname or IP |
+| `TARGET_ORACLE_PORT` | Port (usually `1521`) |
+| `TARGET_ORACLE_SERVICE` | Service name |
+| `TARGET_ORACLE_USER` | Username |
+| `TARGET_ORACLE_PASSWORD` | Password |
 
 **Files written:**
 
@@ -124,6 +145,25 @@ ad-migration setup-sandbox --yes
 |---|---|---|
 | `--yes` | no | Skip confirmation prompt |
 | `--project-root` | no | Defaults to current directory |
+
+**Environment variables — SQL Server sandbox:**
+
+| Variable | Description |
+|---|---|
+| `SANDBOX_MSSQL_HOST` | Hostname or IP |
+| `SANDBOX_MSSQL_PORT` | Port (usually `1433`) |
+| `SANDBOX_MSSQL_USER` | Username |
+| `SANDBOX_MSSQL_PASSWORD` | Password |
+
+**Environment variables — Oracle sandbox:**
+
+| Variable | Description |
+|---|---|
+| `SANDBOX_ORACLE_HOST` | Hostname or IP |
+| `SANDBOX_ORACLE_PORT` | Port (usually `1521`) |
+| `SANDBOX_ORACLE_SERVICE` | Service name |
+| `SANDBOX_ORACLE_USER` | Admin username |
+| `SANDBOX_ORACLE_PASSWORD` | Admin password |
 
 **Files written:**
 
