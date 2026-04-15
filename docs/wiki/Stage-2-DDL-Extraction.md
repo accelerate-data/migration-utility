@@ -11,8 +11,12 @@ ad-migration setup-source --schemas SH,HR
 
 | Option | Required | Description |
 |---|---|---|
-| `--schemas` | yes | Comma-separated list of schemas to extract |
+| `--schemas` | yes* | Comma-separated list of schemas to extract |
+| `--all-schemas` | yes* | Discover and extract every schema in the source database |
+| `--yes` | no | Skip the confirmation prompt used with `--all-schemas` |
 | `--project-root` | no | Defaults to current working directory |
+
+*Use one of `--schemas` or `--all-schemas`.
 
 `setup-source` reads the source technology from `manifest.json` as `runtime.source`, which is seeded by `/init-ad-migration`.
 
@@ -25,9 +29,10 @@ ad-migration setup-source --schemas SH,HR
 ## How it works
 
 1. Validates required environment variables (exits 1 with a list of missing vars if absent)
-2. Runs extraction via `run_extract`
-3. Writes `manifest.json`, `ddl/`, and `catalog/`
-4. Runs AST enrichment
+2. Verifies live extraction prerequisites for the configured technology
+3. Refreshes scaffolded project files and git hooks when needed
+4. Runs extraction via `run_extract`
+5. Writes `manifest.json`, `ddl/`, and `catalog/`
 
 ## Prerequisites
 
@@ -35,12 +40,13 @@ The CLI validates all required environment variables before connecting. Missing 
 
 ### SQL Server
 
-- `toolbox` on `PATH`
+- FreeTDS installed and available to the CLI
 - `SOURCE_MSSQL_HOST`
 - `SOURCE_MSSQL_PORT`
 - `SOURCE_MSSQL_DB`
 - `SOURCE_MSSQL_USER`
 - `SOURCE_MSSQL_PASSWORD`
+- optional `MSSQL_DRIVER` override if you are not using the default `FreeTDS` driver
 
 These are bootstrap inputs for the initial source connection. Once `ad-migration setup-source` completes, the active source endpoint is persisted in `manifest.json` as `runtime.source`.
 

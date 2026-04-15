@@ -1,4 +1,4 @@
-# Skill: Listing Objects
+# Listing Objects
 
 ## Purpose
 
@@ -170,7 +170,7 @@ None. This skill is strictly read-only.
 | Field | Type | Description |
 |---|---|---|
 | `name` | string | Normalized FQN of the target object |
-| `source` | string | Always `"catalog"` -- data comes from setup-ddl catalog files |
+| `source` | string | Always `"catalog"` -- data comes from the local catalog built by `ad-migration setup-source` |
 | `readers` | string[] | Normalized FQNs of procedures/views that SELECT from the target |
 | `writers` | array | Procedures/views that write to the target |
 

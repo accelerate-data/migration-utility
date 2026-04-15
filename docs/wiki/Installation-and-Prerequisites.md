@@ -1,6 +1,6 @@
 # Installation and Prerequisites
 
-This page covers the tools, environment variables, and verification steps needed before running the migration utility.
+This page covers the tools, installation steps, and verification flow needed before running the migration utility.
 
 ## Platform Support
 
@@ -28,36 +28,14 @@ Local execution is supported on macOS and Linux. Windows is not supported for th
 |---|---|---|
 | [direnv](https://direnv.net) | Recommended for all projects | Auto-loads `.envrc` credentials when you enter the project directory; keeps secrets out of shell history |
 
-## Environment Variables
+## Connection Variables
 
-The variables required depend on your source technology. The `/init-ad-migration` command scaffolds a `.envrc` with only the variables for the selected source. These bootstrap the first live connection; the canonical runtime contract is then persisted in `manifest.json` under `runtime.source`, `runtime.target`, and `runtime.sandbox`.
+`/init-ad-migration` scaffolds a `.envrc` with the non-secret variables for the selected technology. The repo then uses role-specific variables for `runtime.source`, `runtime.target`, and `runtime.sandbox`.
 
-### SQL Server
+Use the dedicated reference pages for the full variable lists:
 
-| Variable | Description | Example |
-|---|---|---|
-| `SOURCE_MSSQL_HOST` | SQL Server hostname or IP | `localhost` |
-| `SOURCE_MSSQL_PORT` | SQL Server port | `1433` |
-| `SOURCE_MSSQL_DB` | Configured source database that contains the runtime `MigrationTest` schema fixture | `AdventureWorks2022` |
-| `SOURCE_MSSQL_USER` | SQL login username | `sa` |
-| `SOURCE_MSSQL_PASSWORD` | SQL login password | _(from env)_ |
-| `MSSQL_DRIVER` | _(optional)_ ODBC driver override | `FreeTDS` _(default)_ |
-
-`MSSQL_DRIVER` defaults to `FreeTDS`. Set it to `ODBC Driver 18 for SQL Server` if you prefer the Microsoft driver (requires `brew install msodbcsql18` with interactive EULA acceptance).
-
-When using the default `FreeTDS` path, `/init-ad-migration` now verifies both the Homebrew package and the unixODBC driver registration. A plain `brew install freetds` is not considered sufficient if `FreeTDS` does not appear in `odbcinst -q -d`.
-
-All connection variables are required for `ad-migration setup-source`, `ad-migration setup-sandbox`, `/generate-tests`, `/refactor`, and any other live-database skill.
-
-### Oracle
-
-| Variable | Description | Example |
-|---|---|---|
-| `SOURCE_ORACLE_HOST` | Oracle hostname or IP | `localhost` |
-| `SOURCE_ORACLE_PORT` | Oracle listener port | `1521` |
-| `SOURCE_ORACLE_SERVICE` | Oracle service name | `FREEPDB1` |
-| `SOURCE_ORACLE_USER` | Oracle username | `sh` |
-| `SOURCE_ORACLE_PASSWORD` | Oracle password | _(from env)_ |
+- [[SQL Server Connection Variables]]
+- [[Oracle Connection Variables]]
 
 ### Setting variables with direnv (recommended)
 
@@ -86,6 +64,8 @@ export SOURCE_ORACLE_SERVICE=FREEPDB1
 export SOURCE_ORACLE_USER=sh
 export SOURCE_ORACLE_PASSWORD=<your-password>
 ```
+
+Add target and sandbox variables from the corresponding technology reference page before running `ad-migration setup-target` or `ad-migration setup-sandbox`.
 
 ## Python Dependencies
 

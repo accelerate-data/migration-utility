@@ -31,6 +31,8 @@ Plugin commands run inside Claude Code and handle LLM-driven pipeline stages.
 
 Deterministic setup and pipeline state commands, usable from a terminal or CI without Claude Code.
 
+Use this page as the one-page command summary. For flags, environment variables, files written, and exit-code behavior, use [[CLI Reference]].
+
 Install via `/init-ad-migration` (automatic) or manually:
 
 ```bash

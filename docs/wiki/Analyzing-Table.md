@@ -1,4 +1,4 @@
-# Skill: Analyzing Table
+# Analyzing Table
 
 ## Purpose
 

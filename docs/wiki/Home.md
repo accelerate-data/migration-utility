@@ -82,6 +82,7 @@ Internal skills such as `generating-tests`, `generating-model`, `git-checkpoints
 - New repo: [[Installation and Prerequisites]] then [[Quickstart]]
 - Specific stage: use the sidebar stage pages
 - Troubleshooting: [[Troubleshooting and Error Codes]]
+- Connection setup: [[SQL Server Connection Variables]] or [[Oracle Connection Variables]]
 
 ## Repository layout
 

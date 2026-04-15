@@ -39,6 +39,7 @@ Domain terms used across the migration utility wiki.
 - **ground truth** -- actual output rows produced by executing a stored procedure in the sandbox with test fixtures. These rows are the expected results that the generated dbt model must reproduce. Captured during test generation and stored in the test spec.
 
 - **sandbox** -- a throwaway database (`__test_<random_hex>`) created by `ad-migration setup-sandbox` for executing stored procedures during test generation. Cloned from the source SQL Server's schema and procedures. Torn down via `ad-migration teardown-sandbox` after test generation is complete.
+- **sandbox** -- the temporary execution environment created by `ad-migration setup-sandbox` for ground-truth capture and proof-backed SQL checks. Its concrete form depends on the configured technology. Torn down via `ad-migration teardown-sandbox` when sandbox-backed work is complete.
 
 ## Migration
 
@@ -54,4 +55,6 @@ Domain terms used across the migration utility wiki.
 
 - [[Status Dashboard]] -- how guard checks use these concepts
 - [[Browsing the Catalog]] -- exploring catalog contents interactively
+- [[SQL Server Connection Variables]] -- SQL Server runtime variable reference
+- [[Oracle Connection Variables]] -- Oracle runtime variable reference
 - [[Troubleshooting and Error Codes]] -- full error code reference

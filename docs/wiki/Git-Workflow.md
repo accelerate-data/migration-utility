@@ -118,9 +118,9 @@ The `.migration-runs/` directory contains per-command execution metadata (timing
 
 ## Cleaning up worktrees
 
-After a PR is merged, the worktree and its branches are no longer needed. Run `/cleanup-worktrees` to remove them. See [[Cleanup and Teardown]] for details.
+After a PR is merged, the worktree and its branches are no longer needed. Run `/cleanup-worktrees` to remove them.
 
 ## Related pages
 
-- [[Cleanup and Teardown]] -- worktree and sandbox cleanup
+- [[Sandbox Operations]] -- sandbox lifecycle commands
 - [[Status Dashboard]] -- checking pipeline progress
