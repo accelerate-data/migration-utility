@@ -107,7 +107,7 @@ def parse_block(block: str, dialect: str = "tsql") -> Any:
             parse the block as structured DDL).
     """
     try:
-        result = sqlglot.parse_one(block, dialect=dialect, error_level=sqlglot.ErrorLevel.WARN)
+        result = sqlglot.parse_one(block, dialect=dialect, error_level=sqlglot.ErrorLevel.IGNORE)
     except (sqlglot.errors.ParseError, sqlglot.errors.UnsupportedError, ValueError) as exc:
         name = extract_name(block) or "<unknown>"
         raise DdlParseError(f"sqlglot raised an exception parsing '{name}': {exc}") from exc
@@ -233,7 +233,7 @@ def parse_body_statements(raw_ddl: str, dialect: str = "tsql") -> tuple[list[Any
                 needs_llm = True
             continue
 
-        stmts = sqlglot.parse(leaf_sql, dialect=dialect, error_level=sqlglot.ErrorLevel.WARN)
+        stmts = sqlglot.parse(leaf_sql, dialect=dialect, error_level=sqlglot.ErrorLevel.IGNORE)
         for stmt in stmts:
             if stmt is None:
                 continue
