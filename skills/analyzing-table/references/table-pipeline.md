@@ -34,18 +34,7 @@ uv run --project "${CLAUDE_PLUGIN_ROOT}/lib" discover write-scoping \
   --name <table> --scoping '{"selected_writer": null, "selected_writer_rationale": "No procedures found that write to this table."}'
 ```
 
-Then ask the user:
-
-> No writer found for `<table>`. Mark as a dbt source? (y/n)
-
-If **y**, run:
-
-```bash
-uv run --project "${CLAUDE_PLUGIN_ROOT}/lib" discover write-source \
-  --name <table> --value
-```
-
-If **n**, stop. The table will remain pending source confirmation.
+Then stop. The table remains pending source confirmation and can be handled later via the explicit source-table workflow.
 
 ## Step 3 -- Analyze each writer candidate
 
@@ -95,14 +84,18 @@ Open [table-writer-resolution.md](table-writer-resolution.md) for:
 
 ## Step 6 -- Persist scoping
 
-Write the scoping JSON to a temp file:
+Create the temp file first, then persist it to the catalog:
 
 ```bash
 mkdir -p .staging
-# Write scoping JSON to .staging/scoping.json
+cat > .staging/scoping.json <<'EOF'
+<scoping JSON>
+EOF
 uv run --project "${CLAUDE_PLUGIN_ROOT}/lib" discover write-scoping \
   --name <table> --scoping-file .staging/scoping.json && rm -rf .staging
 ```
+
+`discover write-scoping` reads `.staging/scoping.json` and persists that scoping payload into the catalog.
 
 The payload must include `selected_writer_rationale`, even when no writer is selected.
 
