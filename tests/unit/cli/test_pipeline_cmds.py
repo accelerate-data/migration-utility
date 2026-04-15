@@ -117,7 +117,7 @@ def test_reset_all_with_sandbox_tears_down_before_reset(tmp_path):
     mock_reset.assert_called_once_with(tmp_path, "all", [])
 
 
-def test_reset_all_sandbox_teardown_failure_aborts_before_reset(tmp_path):
+def test_reset_all_sandbox_teardown_failure_warns_and_continues(tmp_path):
     _write_manifest(tmp_path)
     mock_backend = MagicMock()
     mock_backend.sandbox_down.return_value = SandboxDownOutput(sandbox_database="__test_abc", status="error")
@@ -126,11 +126,44 @@ def test_reset_all_sandbox_teardown_failure_aborts_before_reset(tmp_path):
         patch("shared.cli.reset_cmd._load_manifest", return_value={}),
         patch("shared.cli.reset_cmd._get_sandbox_name", return_value="__test_abc"),
         patch("shared.cli.reset_cmd._create_backend", return_value=mock_backend),
-        patch("shared.cli.reset_cmd.run_reset_migration") as mock_reset,
+        patch("shared.cli.reset_cmd.clear_manifest_sandbox"),
+        patch("shared.cli.reset_cmd.run_reset_migration", return_value=_GLOBAL_RESET_OUT) as mock_reset,
     ):
         result = runner.invoke(app, ["reset", "all", "--yes", "--project-root", str(tmp_path)])
-    assert result.exit_code == 1
-    mock_reset.assert_not_called()
+    assert result.exit_code == 0, result.output
+    mock_reset.assert_called_once_with(tmp_path, "all", [])
+
+
+def test_reset_all_sandbox_teardown_failure_prints_manual_instructions(tmp_path):
+    _write_manifest(tmp_path)
+    mock_backend = MagicMock()
+    mock_backend.sandbox_down.return_value = SandboxDownOutput(sandbox_database="__test_abc", status="error")
+
+    with (
+        patch("shared.cli.reset_cmd._load_manifest", return_value={}),
+        patch("shared.cli.reset_cmd._get_sandbox_name", return_value="__test_abc"),
+        patch("shared.cli.reset_cmd._create_backend", return_value=mock_backend),
+        patch("shared.cli.reset_cmd.clear_manifest_sandbox"),
+        patch("shared.cli.reset_cmd.run_reset_migration", return_value=_GLOBAL_RESET_OUT),
+    ):
+        result = runner.invoke(app, ["reset", "all", "--yes", "--project-root", str(tmp_path)])
+    assert "__test_abc" in result.output
+
+
+def test_reset_all_sandbox_teardown_failure_clears_manifest_sandbox(tmp_path):
+    _write_manifest(tmp_path)
+    mock_backend = MagicMock()
+    mock_backend.sandbox_down.return_value = SandboxDownOutput(sandbox_database="__test_abc", status="error")
+
+    with (
+        patch("shared.cli.reset_cmd._load_manifest", return_value={}),
+        patch("shared.cli.reset_cmd._get_sandbox_name", return_value="__test_abc"),
+        patch("shared.cli.reset_cmd._create_backend", return_value=mock_backend),
+        patch("shared.cli.reset_cmd.clear_manifest_sandbox") as mock_clear,
+        patch("shared.cli.reset_cmd.run_reset_migration", return_value=_GLOBAL_RESET_OUT),
+    ):
+        runner.invoke(app, ["reset", "all", "--yes", "--project-root", str(tmp_path)])
+    mock_clear.assert_called_once()
 
 
 def test_reset_all_aborts_without_confirmation(tmp_path):
