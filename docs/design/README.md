@@ -22,6 +22,7 @@ If information is mainly operational or contributor-facing, put it in `docs/refe
 - [Coverage Matrix](coverage-matrix/README.md) — statement-by-statement coverage by phase and by test layer
 - [Catalog Enrichment Diagnostics](catalog-enrich/README.md) — exhaustive warning/error scenarios for view, function, and procedure catalog entries
 - [Init ad-migration Prereqs](init-ad-migration-prereqs/README.md) — separates MCP startup readiness from live connection readiness and assigns repo-wide vs machine-local env ownership
+- [Homebrew CLI Publishing](homebrew-cli-publishing/README.md) — public CLI packaging split, Homebrew tap scope, and init-driven install contract for macOS
 - [Reset Migration Global Mode](reset-migration-global/README.md) — full-project migration-state reset that preserves init scaffolding and requires destructive confirmation
 
 When adding one, use `docs/design/<topic>/README.md` and record only the durable decision and the reason it matters to agents.
