@@ -106,6 +106,82 @@ def test_teardown_sandbox_error_exits_nonzero(tmp_path):
     assert result.exit_code == 1
 
 
+def test_setup_sandbox_commits_manifest(tmp_path):
+    mock_backend = MagicMock()
+    mock_backend.sandbox_up.return_value = _SANDBOX_UP_OUT
+
+    with (
+        patch("shared.cli.setup_sandbox_cmd._load_manifest", return_value={}),
+        patch("shared.cli.setup_sandbox_cmd._create_backend", return_value=mock_backend),
+        patch("shared.cli.setup_sandbox_cmd._get_schemas", return_value=["silver"]),
+        patch("shared.cli.setup_sandbox_cmd._write_sandbox_to_manifest"),
+        patch("shared.cli.setup_sandbox_cmd.is_git_repo", return_value=True),
+        patch("shared.cli.setup_sandbox_cmd.stage_and_commit", return_value=True) as mock_commit,
+    ):
+        result = runner.invoke(app, ["setup-sandbox", "--yes", "--project-root", str(tmp_path)])
+
+    assert result.exit_code == 0, result.output
+    mock_commit.assert_called_once()
+
+
+def test_setup_sandbox_no_commit_skips_commit(tmp_path):
+    mock_backend = MagicMock()
+    mock_backend.sandbox_up.return_value = _SANDBOX_UP_OUT
+
+    with (
+        patch("shared.cli.setup_sandbox_cmd._load_manifest", return_value={}),
+        patch("shared.cli.setup_sandbox_cmd._create_backend", return_value=mock_backend),
+        patch("shared.cli.setup_sandbox_cmd._get_schemas", return_value=["silver"]),
+        patch("shared.cli.setup_sandbox_cmd._write_sandbox_to_manifest"),
+        patch("shared.cli.setup_sandbox_cmd.is_git_repo", return_value=True),
+        patch("shared.cli.setup_sandbox_cmd.stage_and_commit") as mock_commit,
+    ):
+        result = runner.invoke(
+            app, ["setup-sandbox", "--yes", "--no-commit", "--project-root", str(tmp_path)]
+        )
+
+    assert result.exit_code == 0, result.output
+    mock_commit.assert_not_called()
+
+
+def test_teardown_sandbox_commits_manifest(tmp_path):
+    mock_backend = MagicMock()
+    mock_backend.sandbox_down.return_value = _SANDBOX_DOWN_OUT
+
+    with (
+        patch("shared.cli.teardown_sandbox_cmd._load_manifest", return_value={}),
+        patch("shared.cli.teardown_sandbox_cmd._create_backend", return_value=mock_backend),
+        patch("shared.cli.teardown_sandbox_cmd._get_sandbox_name", return_value="__test_abc123"),
+        patch("shared.cli.teardown_sandbox_cmd.clear_manifest_sandbox"),
+        patch("shared.cli.teardown_sandbox_cmd.is_git_repo", return_value=True),
+        patch("shared.cli.teardown_sandbox_cmd.stage_and_commit", return_value=True) as mock_commit,
+    ):
+        result = runner.invoke(app, ["teardown-sandbox", "--yes", "--project-root", str(tmp_path)])
+
+    assert result.exit_code == 0, result.output
+    mock_commit.assert_called_once()
+
+
+def test_teardown_sandbox_no_commit_skips_commit(tmp_path):
+    mock_backend = MagicMock()
+    mock_backend.sandbox_down.return_value = _SANDBOX_DOWN_OUT
+
+    with (
+        patch("shared.cli.teardown_sandbox_cmd._load_manifest", return_value={}),
+        patch("shared.cli.teardown_sandbox_cmd._create_backend", return_value=mock_backend),
+        patch("shared.cli.teardown_sandbox_cmd._get_sandbox_name", return_value="__test_abc123"),
+        patch("shared.cli.teardown_sandbox_cmd.clear_manifest_sandbox"),
+        patch("shared.cli.teardown_sandbox_cmd.is_git_repo", return_value=True),
+        patch("shared.cli.teardown_sandbox_cmd.stage_and_commit") as mock_commit,
+    ):
+        result = runner.invoke(
+            app, ["teardown-sandbox", "--yes", "--no-commit", "--project-root", str(tmp_path)]
+        )
+
+    assert result.exit_code == 0, result.output
+    mock_commit.assert_not_called()
+
+
 def _patch_pyodbc_programming():
     class _FakePyodbcProgramming(Exception): pass
     return _FakePyodbcProgramming, patch.multiple(
