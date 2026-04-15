@@ -253,7 +253,12 @@ If there are no diagnostics, omit this section entirely.
 
 ### Step 7 — Sources staleness check
 
-If `dbt/models/staging/sources.yml` exists and any table has `scope_needed` status, show: "sources.yml may be stale — N tables have incomplete scoping. Re-run `/setup-target` after scoping is complete."
+If `dbt/models/staging/sources.yml` exists and any table has `scope_needed` status, show:
+
+```text
+sources.yml may be stale — N tables have incomplete scoping.
+!ad-migration setup-target
+```
 
 ### Step 8 — Source tables note
 
@@ -266,7 +271,9 @@ N source tables hidden — see sources.yml
 If `source_pending` is non-empty AND `summary.source_tables == 0`, instead show:
 
 ```text
-No source tables confirmed yet. Run /add-source-tables or confirm during /setup-target.
+No source tables confirmed yet. Mark them first, then refresh target scaffolding:
+!ad-migration add-source-table <fqn>
+!ad-migration setup-target
 ```
 
 ### Step 9 — setup-target readiness hint
@@ -274,7 +281,8 @@ No source tables confirmed yet. Run /add-source-tables or confirm during /setup-
 If `dbt/dbt_project.yml` does **not** exist AND the batch-plan `scope_phase` is empty (all in-scope objects have completed scope), show:
 
 ```text
-ready to initialise dbt  — all tables are scoped. Run /setup-target to scaffold your dbt project.
+ready to initialise dbt — all tables are scoped.
+!ad-migration setup-target
 ```
 
 If there are still tables in the scope phase, omit this hint entirely. Do not show the hint if `dbt/dbt_project.yml` already exists.
@@ -389,6 +397,13 @@ For completed stages, show the key signals from the status detail content:
 ### Step 3 — Recommend next action
 
 Based on the first incomplete stage, recommend the specific command to run next for this table.
+
+If the first incomplete stage is `test-gen` and the status detail or diagnostic indicates the sandbox is missing or not running, recommend the CLI setup command explicitly before any plugin command:
+
+```text
+Sandbox is not ready for test generation.
+!ad-migration setup-sandbox
+```
 
 For all object types (tables, views, MVs), route through the same stage commands: `profile_needed` → `/profile <fqn>`, `test_gen_needed` → `/generate-tests <fqn>`, `refactor_needed` → `/refactor <fqn>`, `migrate_needed` → `/generate-model <fqn>`.
 

@@ -314,13 +314,31 @@ Tell the user:
 
 **For source = SQL Server:**
 
-- **SOURCE_MSSQL_* vars set**: ready to run `ad-migration setup-source --schemas <schema>` to extract DDL from the live database.
-- **SOURCE_MSSQL_* vars unset**: Set `SOURCE_MSSQL_HOST/PORT/DB/USER` in `.envrc`, set `SOURCE_MSSQL_PASSWORD` in `.env`, run `direnv allow`, then run `ad-migration setup-source`.
+- **SOURCE_MSSQL_* vars set**: ready to extract DDL from the live database:
+
+  ```text
+  !ad-migration setup-source --schemas <schema>
+  ```
+
+- **SOURCE_MSSQL_* vars unset**: Set `SOURCE_MSSQL_HOST/PORT/DB/USER` in `.envrc`, set `SOURCE_MSSQL_PASSWORD` in `.env`, run `direnv allow`, then run:
+
+  ```text
+  !ad-migration setup-source --schemas <schema>
+  ```
 
 **For source = Oracle:**
 
-- **SOURCE_ORACLE_* vars set**: ready to run `ad-migration setup-source --schemas <schema>` to extract DDL from the live database.
-- **SOURCE_ORACLE_* vars unset**: Set `SOURCE_ORACLE_HOST/PORT/SERVICE/USER` in `.envrc`, set `SOURCE_ORACLE_PASSWORD` in `.env`, run `direnv allow`, then run `ad-migration setup-source`.
+- **SOURCE_ORACLE_* vars set**: ready to extract DDL from the live database:
+
+  ```text
+  !ad-migration setup-source --schemas <schema>
+  ```
+
+- **SOURCE_ORACLE_* vars unset**: Set `SOURCE_ORACLE_HOST/PORT/SERVICE/USER` in `.envrc`, set `SOURCE_ORACLE_PASSWORD` in `.env`, run `direnv allow`, then run:
+
+  ```text
+  !ad-migration setup-source --schemas <schema>
+  ```
 
 **For target setup:**
 
