@@ -7,6 +7,7 @@ from typing import Any
 
 import typer
 
+from shared.cli.error_handler import cli_error_handler
 from shared.cli.output import console, error, print_table
 from shared.loader_io import clear_manifest_sandbox
 from shared.runtime_config import get_sandbox_name
@@ -56,11 +57,8 @@ def teardown_sandbox(
 
     console.print(f"Tearing down sandbox database: [bold]{sandbox_db}[/bold]...")
     with console.status("Running sandbox_down..."):
-        try:
+        with cli_error_handler("tearing down sandbox database"):
             result = backend.sandbox_down(sandbox_db)
-        except (OSError, ConnectionError) as exc:
-            error(f"Connection error: {exc}")
-            raise typer.Exit(code=2) from exc
 
     logger.info(
         "event=sandbox_down status=%s sandbox_database=%s",

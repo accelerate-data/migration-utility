@@ -7,6 +7,7 @@ from typing import Any
 
 import typer
 
+from shared.cli.error_handler import cli_error_handler
 from shared.cli.output import console, error, print_table, success
 from shared.loader_io import write_manifest_sandbox
 from shared.runtime_config import get_extracted_schemas
@@ -59,11 +60,8 @@ def setup_sandbox(
 
     console.print(f"Provisioning sandbox for schemas: [bold]{', '.join(schemas)}[/bold]...")
     with console.status("Running sandbox_up..."):
-        try:
+        with cli_error_handler("provisioning sandbox database"):
             result = backend.sandbox_up(schemas=schemas)
-        except (OSError, ConnectionError) as exc:
-            error(f"Connection error: {exc}")
-            raise typer.Exit(code=2) from exc
 
     logger.info(
         "event=sandbox_up status=%s sandbox_database=%s tables=%d views=%d procedures=%d errors=%d",
