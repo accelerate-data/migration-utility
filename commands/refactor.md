@@ -35,7 +35,7 @@ Per-item readiness is checked by the skill via `migrate-util ready`.
 **Sandbox hint:** Before processing any items, check sandbox availability:
 
 ```bash
-uv run --project "${CLAUDE_PLUGIN_ROOT}/lib" test-harness sandbox-status
+uv run --project "${CLAUDE_PLUGIN_ROOT}/packages/ad-migration-internal" test-harness sandbox-status
 ```
 
 If the sandbox is not found (`status: "not_found"` or non-zero exit), warn the user upfront:

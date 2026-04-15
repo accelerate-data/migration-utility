@@ -66,7 +66,7 @@ If distinct MERGE/INSERT/UPDATE blocks handle each target table:
    cat > .staging/slice.sql <<'EOF'
    <slice SQL>
    EOF
-   uv run --project "${CLAUDE_PLUGIN_ROOT}/lib" discover write-slice \
+   uv run --project "${CLAUDE_PLUGIN_ROOT}/packages/ad-migration-internal" discover write-slice \
      --proc <proc_fqn> --table <target_table_fqn> --slice-file .staging/slice.sql
    rm -rf .staging
    ```
@@ -103,7 +103,7 @@ mkdir -p .staging
 cat > .staging/scoping.json <<'EOF'
 <scoping JSON>
 EOF
-uv run --project "${CLAUDE_PLUGIN_ROOT}/lib" discover write-scoping \
+uv run --project "${CLAUDE_PLUGIN_ROOT}/packages/ad-migration-internal" discover write-scoping \
   --name <table> --scoping-file .staging/scoping.json && rm -rf .staging
 ```
 

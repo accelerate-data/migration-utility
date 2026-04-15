@@ -8,10 +8,10 @@ All CLI unit tests live in `tests/unit/cli/`. They use `typer.testing.CliRunner`
 underlying `run_*` functions, so no database is required.
 
 ```bash
-cd lib && uv run pytest ../tests/unit/cli/ -v
-cd lib && uv run pytest ../tests/unit/cli/test_setup_source_cmd.py -v
-cd lib && uv run pytest ../tests/unit/cli/test_env_check.py -v
-cd lib && uv run pytest
+cd packages/ad-migration-cli && uv run pytest ../../tests/unit/cli/ -v
+cd packages/ad-migration-cli && uv run pytest ../../tests/unit/cli/test_setup_source_cmd.py -v
+cd packages/ad-migration-cli && uv run pytest ../../tests/unit/cli/test_env_check.py -v
+cd packages/ad-migration-cli && uv run pytest
 ```
 
 ## Dev smoke testing
@@ -19,9 +19,9 @@ cd lib && uv run pytest
 Run the CLI without installing it:
 
 ```bash
-cd lib && uv run ad-migration --help
-cd lib && uv run ad-migration setup-source --help
-cd lib && uv run ad-migration reset --help
+cd packages/ad-migration-cli && uv run ad-migration --help
+cd packages/ad-migration-cli && uv run ad-migration setup-source --help
+cd packages/ad-migration-cli && uv run ad-migration reset --help
 ```
 
 Expected: each command prints usage, options, and description.
@@ -31,7 +31,7 @@ Expected: each command prints usage, options, and description.
 Check that `setup-source` fails cleanly when required variables are missing:
 
 ```bash
-env -i HOME=$HOME uv run --project lib ad-migration setup-source \
+env -i HOME=$HOME uv run --project packages/ad-migration-cli ad-migration setup-source \
   --schemas silver
 echo "exit: $?"
 ```
@@ -42,7 +42,7 @@ With variables set, the command should pass env validation and show help:
 
 ```bash
 SOURCE_MSSQL_HOST=localhost SOURCE_MSSQL_PORT=1433 SOURCE_MSSQL_DB=AdventureWorks2022 SOURCE_MSSQL_PASSWORD=test \
-  uv run --project lib ad-migration setup-source --help
+  uv run --project packages/ad-migration-cli ad-migration setup-source --help
 ```
 
 ## Manual command checks

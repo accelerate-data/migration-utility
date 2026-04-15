@@ -21,7 +21,7 @@ silver.DimCustomer (table, 3 columns)
 ## Step 2 -- Discover writer candidates
 
 ```bash
-uv run --project "${CLAUDE_PLUGIN_ROOT}/lib" discover refs \
+uv run --project "${CLAUDE_PLUGIN_ROOT}/packages/ad-migration-internal" discover refs \
   --name <table>
 ```
 
@@ -30,7 +30,7 @@ Extract the `writers` array from the output.
 If no writers are found, persist `no_writer_found`:
 
 ```bash
-uv run --project "${CLAUDE_PLUGIN_ROOT}/lib" discover write-scoping \
+uv run --project "${CLAUDE_PLUGIN_ROOT}/packages/ad-migration-internal" discover write-scoping \
   --name <table> --scoping '{"selected_writer": null, "selected_writer_rationale": "No procedures found that write to this table."}'
 ```
 
@@ -91,7 +91,7 @@ mkdir -p .staging
 cat > .staging/scoping.json <<'EOF'
 <scoping JSON>
 EOF
-uv run --project "${CLAUDE_PLUGIN_ROOT}/lib" discover write-scoping \
+uv run --project "${CLAUDE_PLUGIN_ROOT}/packages/ad-migration-internal" discover write-scoping \
   --name <table> --scoping-file .staging/scoping.json && rm -rf .staging
 ```
 

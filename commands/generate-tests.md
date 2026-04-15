@@ -18,7 +18,7 @@ Generate test scenarios, review for coverage, then bulk-execute approved scenari
 - For each FQN argument: if `catalog/tables/<fqn>.json` has `"is_source": true`, skip that table and print:
   > `<fqn>` is marked as a dbt source — no migration needed. Use `ad-migration add-source-table` to manage source tables.
 - `manifest.json` must have `runtime.sandbox`. If missing, fail all items with `SANDBOX_NOT_CONFIGURED` and tell user to run `ad-migration setup-sandbox`. The command executes against the active sandbox endpoint, not against the source or target runtime.
-- Check sandbox exists via `uv run --project "${CLAUDE_PLUGIN_ROOT}/lib" test-harness sandbox-status`. If not found, fail all items with `SANDBOX_NOT_RUNNING` and tell user to check the sandbox with `ad-migration setup-sandbox` (it may have been torn down or the database dropped).
+- Check sandbox exists via `uv run --project "${CLAUDE_PLUGIN_ROOT}/packages/ad-migration-internal" test-harness sandbox-status`. If not found, fail all items with `SANDBOX_NOT_RUNNING` and tell user to check the sandbox with `ad-migration setup-sandbox` (it may have been torn down or the database dropped).
 
 Per-item readiness is checked by the skill via `migrate-util ready`.
 
@@ -75,7 +75,7 @@ Parse the returned TestReviewResult JSON:
 For each item with approved scenarios:
 
 ```bash
-uv run --project "${CLAUDE_PLUGIN_ROOT}/lib" test-harness execute-spec \
+uv run --project "${CLAUDE_PLUGIN_ROOT}/packages/ad-migration-internal" test-harness execute-spec \
   --spec test-specs/<item_id>.json
 ```
 

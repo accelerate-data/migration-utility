@@ -70,6 +70,6 @@ Example:
 Always validate with:
 
 ```bash
-uv run --project "${CLAUDE_PLUGIN_ROOT}/lib" test-harness validate-review \
+uv run --project "${CLAUDE_PLUGIN_ROOT}/packages/ad-migration-internal" test-harness validate-review \
   --review-file .staging/review.json
 ```

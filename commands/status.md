@@ -40,7 +40,7 @@ Do not reuse any JSON or summary from an earlier `/status` invocation in this se
 Run a single status call for all objects:
 
 ```bash
-uv run --project "${CLAUDE_PLUGIN_ROOT}/lib" migrate-util status
+uv run --project "${CLAUDE_PLUGIN_ROOT}/packages/ad-migration-internal" migrate-util status
 ```
 
 All-objects mode shape:
@@ -101,13 +101,13 @@ Do not reuse a prior `batch-plan` result from the same conversation. Execute bot
 First, sync EXCLUDED_DEP catalog warnings so that any active objects depending on excluded objects have up-to-date warnings, and any stale warnings are cleared:
 
 ```bash
-uv run --project "${CLAUDE_PLUGIN_ROOT}/lib" migrate-util sync-excluded-warnings
+uv run --project "${CLAUDE_PLUGIN_ROOT}/packages/ad-migration-internal" migrate-util sync-excluded-warnings
 ```
 
 Then run the batch planner to get the full dependency-aware execution plan and per-object diagnostics:
 
 ```bash
-uv run --project "${CLAUDE_PLUGIN_ROOT}/lib" migrate-util batch-plan
+uv run --project "${CLAUDE_PLUGIN_ROOT}/packages/ad-migration-internal" migrate-util batch-plan
 ```
 
 Parse the JSON output. You will use it for: the diagnostic overlay in Step 4, the "What to do next" section in Step 5, and the catalog diagnostics section in Step 6.
@@ -329,13 +329,13 @@ Do not reuse any JSON or stage summary from an earlier `/status` invocation in t
 Run the batch planner to get the node for this specific table (for diagnostics):
 
 ```bash
-uv run --project "${CLAUDE_PLUGIN_ROOT}/lib" migrate-util batch-plan
+uv run --project "${CLAUDE_PLUGIN_ROOT}/packages/ad-migration-internal" migrate-util batch-plan
 ```
 
 Run the single-object status call:
 
 ```bash
-uv run --project "${CLAUDE_PLUGIN_ROOT}/lib" migrate-util status <table>
+uv run --project "${CLAUDE_PLUGIN_ROOT}/packages/ad-migration-internal" migrate-util status <table>
 ```
 
 This returns a single object's stage statuses. For each stage, the status value and the actual catalog section content are included for the detail view.

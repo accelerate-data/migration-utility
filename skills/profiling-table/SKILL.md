@@ -19,7 +19,7 @@ Persist a fresh profile for one table, view, or materialized view. Treat any exi
 1. Check readiness:
 
    ```bash
-   uv run --project "${CLAUDE_PLUGIN_ROOT}/lib" migrate-util ready profile --object <fqn>
+   uv run --project "${CLAUDE_PLUGIN_ROOT}/packages/ad-migration-internal" migrate-util ready profile --object <fqn>
    ```
 
    If `ready` is `false`, report the failing `code` and `reason` and stop.
@@ -40,7 +40,7 @@ Persist a fresh profile for one table, view, or materialized view. Treat any exi
 ### 1. Assemble Context
 
 ```bash
-uv run --project "${CLAUDE_PLUGIN_ROOT}/lib" profile view-context \
+uv run --project "${CLAUDE_PLUGIN_ROOT}/packages/ad-migration-internal" profile view-context \
   --view <view_fqn>
 ```
 
@@ -55,7 +55,7 @@ Use this order:
 1. Check `references.views.in_scope`. For each dependency view, run:
 
    ```bash
-   uv run --project "${CLAUDE_PLUGIN_ROOT}/lib" discover show --name <dependency_view_fqn>
+   uv run --project "${CLAUDE_PLUGIN_ROOT}/packages/ad-migration-internal" discover show --name <dependency_view_fqn>
    ```
 
    If any dependency view is already classified `mart`, inherit `mart`.
@@ -81,7 +81,7 @@ mkdir -p .staging
 cat > .staging/view_profile.json <<'EOF'
 <profile JSON>
 EOF
-uv run --project "${CLAUDE_PLUGIN_ROOT}/lib" profile write \
+uv run --project "${CLAUDE_PLUGIN_ROOT}/packages/ad-migration-internal" profile write \
   --table <view_fqn> \
   --profile-file .staging/view_profile.json && rm -rf .staging
 ```
@@ -106,7 +106,7 @@ After a successful write, report:
 ### 1. Assemble Context
 
 ```bash
-uv run --project "${CLAUDE_PLUGIN_ROOT}/lib" profile context \
+uv run --project "${CLAUDE_PLUGIN_ROOT}/packages/ad-migration-internal" profile context \
   --table <table>
 ```
 
@@ -152,7 +152,7 @@ mkdir -p .staging
 cat > .staging/profile.json <<'EOF'
 <profile JSON>
 EOF
-uv run --project "${CLAUDE_PLUGIN_ROOT}/lib" profile write \
+uv run --project "${CLAUDE_PLUGIN_ROOT}/packages/ad-migration-internal" profile write \
   --table <table> \
   --profile-file .staging/profile.json && rm -rf .staging
 ```

@@ -34,13 +34,13 @@ Do not use this skill for batch orchestration. `/generate-model` owns batching, 
 1. Check readiness.
 
    ```bash
-   uv run --project "${CLAUDE_PLUGIN_ROOT}/lib" migrate-util ready generate --object <table_fqn>
+   uv run --project "${CLAUDE_PLUGIN_ROOT}/packages/ad-migration-internal" migrate-util ready generate --object <table_fqn>
    ```
 
 2. Assemble deterministic context.
 
    ```bash
-   uv run --project "${CLAUDE_PLUGIN_ROOT}/lib" migrate context \
+   uv run --project "${CLAUDE_PLUGIN_ROOT}/packages/ad-migration-internal" migrate context \
      --table <table_fqn>
    ```
 
@@ -68,7 +68,7 @@ Do not use this skill for batch orchestration. `/generate-model` owns batching, 
 6. Render canonical unit tests from the approved test spec.
 
    ```bash
-   uv run --project "${CLAUDE_PLUGIN_ROOT}/lib" migrate render-unit-tests \
+   uv run --project "${CLAUDE_PLUGIN_ROOT}/packages/ad-migration-internal" migrate render-unit-tests \
      --table <table_fqn> \
      --model-name <model_name> \
      --spec test-specs/<item_id>.json \
@@ -88,7 +88,7 @@ Do not use this skill for batch orchestration. `/generate-model` owns batching, 
 
    ```bash
    mkdir -p .staging
-   uv run --project "${CLAUDE_PLUGIN_ROOT}/lib" migrate write \
+   uv run --project "${CLAUDE_PLUGIN_ROOT}/packages/ad-migration-internal" migrate write \
      --table <table_fqn> \
      --model-sql-file .staging/model.sql \
      --schema-yml-file .staging/schema.yml \
@@ -119,7 +119,7 @@ Do not use this skill for batch orchestration. `/generate-model` owns batching, 
 10. Write generation status to catalog.
 
    ```bash
-   uv run --project "${CLAUDE_PLUGIN_ROOT}/lib" migrate write-catalog \
+   uv run --project "${CLAUDE_PLUGIN_ROOT}/packages/ad-migration-internal" migrate write-catalog \
      --table <table_fqn> \
      --model-path <relative_model_sql_path> \
      --compiled <true|false> \

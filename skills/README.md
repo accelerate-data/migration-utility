@@ -78,7 +78,7 @@ Skill directories use gerund naming: `generating-tests`, `profiling-table`, `ana
 All skills check readiness before proceeding:
 
 ```bash
-uv run --project "${CLAUDE_PLUGIN_ROOT}/lib" migrate-util ready <stage> --object <fqn>
+uv run --project "${CLAUDE_PLUGIN_ROOT}/packages/ad-migration-internal" migrate-util ready <stage> --object <fqn>
 ```
 
 If `ready` is `false`, report the failing check and stop.

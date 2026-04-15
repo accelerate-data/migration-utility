@@ -5,7 +5,7 @@ Exact command flow for `skills/generating-tests`.
 ## Guard
 
 ```bash
-uv run --project "${CLAUDE_PLUGIN_ROOT}/lib" migrate-util ready test-gen --object <fqn>
+uv run --project "${CLAUDE_PLUGIN_ROOT}/packages/ad-migration-internal" migrate-util ready test-gen --object <fqn>
 ```
 
 Stop if readiness fails.
@@ -15,7 +15,7 @@ Stop if readiness fails.
 For tables:
 
 ```bash
-uv run --project "${CLAUDE_PLUGIN_ROOT}/lib" migrate context --table <fqn>
+uv run --project "${CLAUDE_PLUGIN_ROOT}/packages/ad-migration-internal" migrate context --table <fqn>
 ```
 
 Use the selected writer from catalog scoping when the command output does not already provide it.
@@ -23,7 +23,7 @@ Use the selected writer from catalog scoping when the command output does not al
 For views and materialized views:
 
 ```bash
-uv run --project "${CLAUDE_PLUGIN_ROOT}/lib" discover show --name <fqn>
+uv run --project "${CLAUDE_PLUGIN_ROOT}/packages/ad-migration-internal" discover show --name <fqn>
 ```
 
 Also read `catalog/views/<fqn>.json` for:
@@ -40,7 +40,7 @@ For all source tables, read `catalog/tables/<schema>.<table>.json` to get column
 Run only after the spec is valid:
 
 ```bash
-uv run --project "${CLAUDE_PLUGIN_ROOT}/lib" test-harness write \
+uv run --project "${CLAUDE_PLUGIN_ROOT}/packages/ad-migration-internal" test-harness write \
   --table <fqn> \
   --branches <branch_count> \
   --unit-tests <scenario_count> \
