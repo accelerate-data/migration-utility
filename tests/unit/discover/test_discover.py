@@ -49,6 +49,91 @@ def test_list_tables_includes_source_tables_unchanged() -> None:
     assert result.objects == ["silver.dimsource"]
 
 
+def test_list_sources_filters_out_non_source_tables() -> None:
+    with tempfile.TemporaryDirectory() as tmp:
+        root = Path(tmp)
+        ddl_dir = root / "ddl"
+        ddl_dir.mkdir()
+        (ddl_dir / "tables.sql").write_text(
+            "CREATE TABLE silver.DimSource (SourceKey INT NOT NULL)\nGO\n"
+            "CREATE TABLE silver.DimTarget (TargetKey INT NOT NULL)\nGO\n",
+            encoding="utf-8",
+        )
+        _make_table_cat(
+            root,
+            "silver.dimsource",
+            {"status": "no_writer_found"},
+            {"is_source": True, "columns": [{"name": "SourceKey", "sql_type": "INT"}]},
+        )
+        _make_table_cat(
+            root,
+            "silver.dimtarget",
+            {"status": "resolved", "selected_writer": "dbo.usp_load_dimtarget"},
+            {"columns": [{"name": "TargetKey", "sql_type": "INT"}]},
+        )
+
+        result = discover.run_list(root, discover.ObjectType.sources)
+
+    assert result.objects == ["silver.dimsource"]
+
+
+def test_list_sources_skips_excluded_source_tables() -> None:
+    with tempfile.TemporaryDirectory() as tmp:
+        root = Path(tmp)
+        ddl_dir = root / "ddl"
+        ddl_dir.mkdir()
+        (ddl_dir / "tables.sql").write_text(
+            "CREATE TABLE silver.DimSource (SourceKey INT NOT NULL)\nGO\n"
+            "CREATE TABLE silver.DimExcluded (ExcludedKey INT NOT NULL)\nGO\n",
+            encoding="utf-8",
+        )
+        _make_table_cat(
+            root,
+            "silver.dimsource",
+            {"status": "no_writer_found"},
+            {"is_source": True, "columns": [{"name": "SourceKey", "sql_type": "INT"}]},
+        )
+        _make_table_cat(
+            root,
+            "silver.dimexcluded",
+            {"status": "no_writer_found"},
+            {
+                "is_source": True,
+                "excluded": True,
+                "columns": [{"name": "ExcludedKey", "sql_type": "INT"}],
+            },
+        )
+
+        result = discover.run_list(root, discover.ObjectType.sources)
+
+    assert result.objects == ["silver.dimsource"]
+
+
+def test_list_sources_skips_corrupt_catalog_files() -> None:
+    with tempfile.TemporaryDirectory() as tmp:
+        root = Path(tmp)
+        ddl_dir = root / "ddl"
+        ddl_dir.mkdir()
+        (ddl_dir / "tables.sql").write_text(
+            "CREATE TABLE silver.DimSource (SourceKey INT NOT NULL)\nGO\n"
+            "CREATE TABLE silver.DimBroken (BrokenKey INT NOT NULL)\nGO\n",
+            encoding="utf-8",
+        )
+        _make_table_cat(
+            root,
+            "silver.dimsource",
+            {"status": "no_writer_found"},
+            {"is_source": True, "columns": [{"name": "SourceKey", "sql_type": "INT"}]},
+        )
+        broken_path = root / "catalog" / "tables" / "silver.dimbroken.json"
+        broken_path.parent.mkdir(parents=True, exist_ok=True)
+        broken_path.write_text("{broken", encoding="utf-8")
+
+        result = discover.run_list(root, discover.ObjectType.sources)
+
+    assert result.objects == ["silver.dimsource"]
+
+
 # ── test_list_flat_procedures ─────────────────────────────────────────────
 
 

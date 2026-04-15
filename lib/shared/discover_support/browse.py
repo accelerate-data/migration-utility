@@ -24,6 +24,7 @@ from shared.loader import (
     extract_refs,
     load_ddl,
 )
+from shared.generate_sources import list_confirmed_source_tables
 from shared.name_resolver import normalize
 from shared.output_models.discover import (
     BasicRefs,
@@ -76,14 +77,9 @@ def _catalog_error(type_label: str, norm: str) -> NoReturn:
 
 def run_list(project_root: Path, object_type: ObjectType) -> DiscoverListOutput:
     """Return the list subcommand result."""
-    catalog, _ = _load(project_root)
     if object_type == ObjectType.sources:
-        source_tables: list[str] = []
-        for fqn in sorted(catalog.tables.keys()):
-            table_cat = load_table_catalog(project_root, fqn)
-            if table_cat is not None and table_cat.is_source:
-                source_tables.append(fqn)
-        return DiscoverListOutput(objects=source_tables)
+        return DiscoverListOutput(objects=list_confirmed_source_tables(project_root))
+    catalog, _ = _load(project_root)
     return DiscoverListOutput(objects=sorted(_bucket(catalog, object_type).keys()))
 
 
