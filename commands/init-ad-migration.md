@@ -1,12 +1,12 @@
 ---
 name: init-ad-migration
-description: Checks environment prerequisites for the chosen source and target technologies, installs missing deps, scaffolds project files (CLAUDE.md, README.md, repo-map.json, .gitignore, .envrc, .githooks), writes a partial manifest, and hands off to later setup stages.
+description: Bootstraps a migration project and validates local prerequisites before source, target, and sandbox CLI setup.
 user-invocable: true
 ---
 
 # Initialize ad-migration plugin
 
-Verify and set up all prerequisites before using `ad-migration setup-source`. This command scaffolds the project directory for both agents and human developers.
+Bootstrap the project and validate local prerequisites before running the `ad-migration` setup commands.
 
 ## Progress Tracking
 
@@ -71,7 +71,7 @@ Validate both chosen slugs against the source registry in `init.py`. If either s
 
 Store the chosen slugs as `$SOURCE` and `$TARGET` for the remaining steps.
 
-Do **not** ask a separate sandbox question during init. The partial manifest persists `runtime.sandbox` as a separate role, initialized from `$SOURCE`, so later commands can still manage sandbox explicitly.
+Do not prompt for sandbox separately. Initialize `runtime.sandbox` from `$SOURCE`.
 
 ## Step 3: Gather evidence
 
@@ -96,7 +96,7 @@ Do NOT install or change anything yet — only gather evidence for items not alr
 
 ### Source runtime prerequisites
 
-Run the source-stack checks for `$SOURCE`. These checks validate that the local machine can support the selected source technology. Do **not** ask for or validate hostnames, database names, usernames, passwords, or other connection details during init.
+Run the source-stack checks for `$SOURCE`. These checks validate only local machine readiness for the selected source technology.
 
 #### When `$SOURCE` is `sql_server`
 
@@ -109,7 +109,7 @@ No additional source runtime prerequisites beyond common checks. Oracle extracti
 
 ### Target runtime prerequisites
 
-Run the target-stack checks for `$TARGET`. These checks validate that the local machine has the client libraries needed by `/setup-target` and later dbops-backed flows. Do **not** ask for or validate target connection details during init.
+Run the target-stack checks for `$TARGET`. These checks validate only local machine readiness for the selected target technology.
 
 #### When `$TARGET` is `sql_server`
 
@@ -161,11 +161,9 @@ Target runtime (Oracle):
 
 For SQL Server, `freetds` is only green after both installation and unixODBC registration pass. If `brew` reports FreeTDS installed but `odbcinst` is missing, treat that as a failed prerequisite because `ad-migration setup-source` will not work with the default `MSSQL_DRIVER="FreeTDS"` path.
 
-If any local override is discovered or required, explain that init will write only non-secret machine-specific overrides into `.env`, while `.envrc` remains the shared repo-local scaffold:
+If any local override is discovered or required, explain that init writes only non-secret machine-specific overrides into `.env`, while `.envrc` remains the shared repo-local scaffold:
 
 > **Recommended: keep machine-local overrides in `.env`.** The scaffolding step writes repo-shared environment scaffolding to `.envrc` and loads `.env` when present. Use `.env` only for non-secret local overrides such as `MSSQL_DRIVER`. Connection details are collected later in the stage-specific setup commands.
-
-Do not ask the user for source, target, or sandbox connection details during init. Those belong to `ad-migration setup-source`, `ad-migration setup-target`, and `ad-migration setup-sandbox`.
 
 If everything is already validated (all items `true` in the existing handoff and no new gaps found), say "All prerequisites validated" and proceed directly to Step 6 without asking for confirmation. Otherwise, ask the user to confirm before proceeding with Step 5.
 
@@ -250,7 +248,7 @@ Parse the JSON output and report to the user which files were created, updated, 
 
 If `scaffold-project` reports missing CLAUDE.md sections (in `files_skipped`), tell the user which sections are missing and recommend adding them.
 
-Maintain a JSON object `$OVERRIDES` while gathering evidence. Add only non-secret machine-specific resolved overrides such as `MSSQL_DRIVER`. Do not add connection details during init.
+Maintain a JSON object `$OVERRIDES` while gathering evidence. Add only non-secret machine-specific resolved overrides such as `MSSQL_DRIVER`.
 
 If `$OVERRIDES` is non-empty, write it to `.env` in the project root:
 
@@ -324,8 +322,13 @@ Tell the user:
 
 **For target setup:**
 
-- **target toolchain ready**: proceed to `/setup-target` when ready to collect target connection/runtime details.
-- **target toolchain not ready**: install the missing client library or local override first, then run `/setup-target`.
+- **TARGET_* vars set**: ready to run `ad-migration setup-target`.
+- **TARGET_* vars unset**: Set the required target vars in `.envrc`, set the password var in `.env`, run `direnv allow`, then run `ad-migration setup-target`.
+
+**For sandbox setup:**
+
+- **SANDBOX_* vars set**: ready to run `ad-migration setup-sandbox`.
+- **SANDBOX_* vars unset**: Set the required sandbox vars in `.envrc`, set the password var in `.env`, run `direnv allow`, then run `ad-migration setup-sandbox`.
 
 ## Error handling
 
