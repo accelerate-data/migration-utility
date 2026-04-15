@@ -8,7 +8,7 @@ from typing import Any
 import typer
 
 from shared.dry_run_core import RESET_GLOBAL_MANIFEST_SECTIONS, RESET_GLOBAL_PATHS, RESETTABLE_STAGES, run_reset_migration
-from shared.cli.output import console, error, print_table, success
+from shared.cli.output import console, error, print_table, success, warn
 from shared.loader_io import clear_manifest_sandbox
 from shared.runtime_config import get_sandbox_name
 from shared.test_harness_support.manifest import _create_backend as _th_create_backend
@@ -34,38 +34,52 @@ def _get_sandbox_name(manifest: dict[str, Any]) -> str | None:
     return get_sandbox_name(manifest)
 
 
-def _teardown_sandbox_if_configured(root: Path) -> bool:
-    """Tear down sandbox if configured. Returns False if teardown fails."""
+def _manual_cleanup_instructions(sandbox_db: str) -> str:
+    return (
+        f"  SQL Server:  DROP DATABASE [{sandbox_db}]\n"
+        f"  Oracle:      DROP USER {sandbox_db} CASCADE"
+    )
+
+
+def _teardown_sandbox_if_configured(root: Path) -> None:
+    """Tear down sandbox if configured. On failure, warns and continues — never blocks the reset."""
     try:
         manifest = _load_manifest(root)
     except Exception:
-        return True
+        return
 
     sandbox_db = _get_sandbox_name(manifest)
     if not sandbox_db:
-        return True
+        return
 
     console.print(f"Sandbox configured: [bold]{sandbox_db}[/bold] — tearing down first...")
     logger.info("event=global_reset_sandbox_teardown component=reset_cmd sandbox=%s", sandbox_db)
 
+    teardown_ok = False
     try:
         backend = _create_backend(manifest)
         result = backend.sandbox_down(sandbox_db)
+        teardown_ok = result.status == "ok"
+        if not teardown_ok:
+            logger.warning(
+                "event=global_reset_sandbox_teardown_failed component=reset_cmd sandbox=%s status=%s",
+                sandbox_db, result.status,
+            )
     except (OSError, ConnectionError) as exc:
-        error(f"Sandbox teardown connection error: {exc}")
-        logger.error("event=global_reset_sandbox_teardown_failed component=reset_cmd sandbox=%s error=%s", sandbox_db, exc)
-        return False
+        logger.warning(
+            "event=global_reset_sandbox_teardown_failed component=reset_cmd sandbox=%s error=%s",
+            sandbox_db, exc,
+        )
 
-    if result.status != "ok":
-        error(f"Sandbox teardown failed (status={result.status}) — aborting global reset.")
-        for entry in (result.errors or []):
-            error(f"[{entry.code}] {entry.message}")
-        logger.error("event=global_reset_sandbox_teardown_failed component=reset_cmd sandbox=%s status=%s", sandbox_db, result.status)
-        return False
+    if not teardown_ok:
+        warn(
+            f"Sandbox teardown failed for [bold]{sandbox_db}[/bold] — continuing reset.\n"
+            f"Clean up the database manually:\n{_manual_cleanup_instructions(sandbox_db)}"
+        )
 
     clear_manifest_sandbox(root)
-    logger.info("event=global_reset_sandbox_teardown_ok component=reset_cmd sandbox=%s", sandbox_db)
-    return True
+    if teardown_ok:
+        logger.info("event=global_reset_sandbox_teardown_ok component=reset_cmd sandbox=%s", sandbox_db)
 
 
 def reset(
@@ -96,8 +110,7 @@ def reset(
 
         logger.info("event=global_reset_start component=reset_cmd stage=all")
 
-        if not _teardown_sandbox_if_configured(root):
-            raise typer.Exit(code=1)
+        _teardown_sandbox_if_configured(root)
 
         result = run_reset_migration(root, "all", [])
 
