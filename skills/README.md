@@ -85,7 +85,7 @@ If `ready` is `false`, report the failing check and stop.
 
 ### Error codes
 
-Each skill references its canonical error codes file at `../../lib/shared/<stage>_error_codes.md`. Skills must not define competing error-code lists.
+Each skill references its canonical error codes file at `../lib/shared/<stage>_error_codes.md`. Skills must not define competing error-code lists.
 
 ### Staging directory
 

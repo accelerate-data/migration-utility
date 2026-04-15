@@ -19,6 +19,35 @@ PUBLIC_PROJECT_PATH = "packages/ad-migration-cli"
 ROOT_PLUGIN_PATH = "${CLAUDE_PLUGIN_ROOT}/lib"
 
 
+def test_repo_map_declares_the_split_python_projects() -> None:
+    repo_map = json.loads((REPO_ROOT / "repo-map.json").read_text(encoding="utf-8"))
+
+    package_managers = {
+        entry["name"]: {
+            "lockfile": entry["lockfile"],
+            "manifest": entry["manifest"],
+        }
+        for entry in repo_map["package_managers"]
+    }
+
+    assert package_managers["uv (shared)"] == {
+        "lockfile": "lib/uv.lock",
+        "manifest": "lib/pyproject.toml",
+    }
+    assert package_managers["uv (public cli)"] == {
+        "lockfile": "packages/ad-migration-cli/uv.lock",
+        "manifest": "packages/ad-migration-cli/pyproject.toml",
+    }
+    assert package_managers["uv (internal cli)"] == {
+        "lockfile": "packages/ad-migration-internal/uv.lock",
+        "manifest": "packages/ad-migration-internal/pyproject.toml",
+    }
+    assert package_managers["uv (ddl-mcp)"] == {
+        "lockfile": "mcp/ddl/uv.lock",
+        "manifest": "mcp/ddl/pyproject.toml",
+    }
+
+
 def test_repo_map_points_commands_at_the_split_projects() -> None:
     repo_map = json.loads((REPO_ROOT / "repo-map.json").read_text(encoding="utf-8"))
 
