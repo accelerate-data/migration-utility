@@ -60,7 +60,9 @@ Determine which source and target technologies to configure:
 > 1. `sql_server` — Microsoft SQL Server (T-SQL)
 > 2. `oracle` — Oracle Database (PL/SQL)
 
-1. Ask the user which target technology they want to generate dbt assets for:
+If an existing `manifest.json` already suggests a source technology, present that as the default in this source-only question. Do not combine the target question with it.
+
+Resolve the source selection first. Only after source is resolved, ask the user which target technology they want to generate dbt assets for:
 
 > **Which target database technology are you writing dbt assets for?**
 >
@@ -69,7 +71,7 @@ Determine which source and target technologies to configure:
 
 Validate both chosen slugs against the source registry in `init.py`. If either slug is unknown, list the valid options and ask again.
 
-Store the chosen slugs as `$SOURCE` and `$TARGET` for the remaining steps.
+Store the chosen slugs as `$SOURCE` and `$TARGET` for the remaining steps. Ask these questions one at a time; never present source and target selection in the same prompt.
 
 Do not prompt for sandbox separately. Initialize `runtime.sandbox` from `$SOURCE`.
 
