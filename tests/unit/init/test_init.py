@@ -177,8 +177,8 @@ class TestScaffoldHooks:
     def test_oracle_hook_blocks_oracle_creds(self, tmp_path: Path) -> None:
         run_scaffold_hooks(tmp_path, technology="oracle")
         hook_content = (tmp_path / ".githooks" / "pre-commit").read_text()
-        assert "ORACLE_PASSWORD" in hook_content
-        assert "ORACLE_HOST" in hook_content
+        assert "SOURCE_ORACLE_" in hook_content
+        assert "SANDBOX_ORACLE_" in hook_content
         # Oracle hook should NOT check for MSSQL patterns
         assert "SA_PASSWORD" not in hook_content
         assert "MSSQL" not in hook_content

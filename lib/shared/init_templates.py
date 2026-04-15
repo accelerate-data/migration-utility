@@ -115,11 +115,12 @@ Data warehouse migration from Microsoft SQL Server to Vibedata Managed Warehouse
 1. Copy the `.envrc` template and fill in your values:
 
    ```bash
-   # .envrc (gitignored)
-   export MSSQL_HOST=localhost
-   export MSSQL_PORT=1433
-   export MSSQL_DB=YourDatabase
-   export SA_PASSWORD=YourPassword
+   # .envrc (gitignored) — source database
+   export SOURCE_MSSQL_HOST=localhost
+   export SOURCE_MSSQL_PORT=1433
+   export SOURCE_MSSQL_DB=YourDatabase
+   export SOURCE_MSSQL_USER=sa
+   export SOURCE_MSSQL_PASSWORD=YourPassword
    ```
 
 2. Run `direnv allow` to load the variables.
@@ -155,8 +156,7 @@ These values are passed to the `mssql` MCP server at startup via environment inh
 A pre-commit hook in `.githooks/` blocks commits containing:
 
 - Anthropic API keys (`sk-ant` prefix)
-- `SA_PASSWORD` in `.mcp.json`
-- MSSQL credentials in `.env` or `.envrc` files
+- SQL Server credentials (`SOURCE_MSSQL_*`, `SANDBOX_MSSQL_*`, `TARGET_MSSQL_*`) in `.env` or `.envrc` files
 
 The hook is a safety net — `.env`, `.envrc`, and `.mcp.json` are also in `.gitignore`.
 
@@ -170,16 +170,31 @@ Examples: `feat: extract DDL from AdventureWorks`, `fix: correct column type map
 
 def _envrc_sql_server() -> str:
     return """\
-# SQL Server credentials for the mssql MCP server.
+# SQL Server credentials for the ad-migration CLI.
 # Fill in your values and run `direnv allow`.
 # This file is gitignored — do not commit it.
 
 source_env_if_exists .env
 
-export MSSQL_HOST=localhost
-export MSSQL_PORT=1433
-export MSSQL_DB=
-export SA_PASSWORD=
+# Source database (used by setup-source)
+export SOURCE_MSSQL_HOST=localhost
+export SOURCE_MSSQL_PORT=1433
+export SOURCE_MSSQL_DB=
+export SOURCE_MSSQL_USER=sa
+export SOURCE_MSSQL_PASSWORD=
+
+# Sandbox database (used by setup-sandbox)
+export SANDBOX_MSSQL_HOST=localhost
+export SANDBOX_MSSQL_PORT=1433
+export SANDBOX_MSSQL_USER=sa
+export SANDBOX_MSSQL_PASSWORD=
+
+# Target database (used by setup-target)
+export TARGET_MSSQL_HOST=localhost
+export TARGET_MSSQL_PORT=1433
+export TARGET_MSSQL_DB=
+export TARGET_MSSQL_USER=sa
+export TARGET_MSSQL_PASSWORD=
 """
 
 
@@ -197,7 +212,7 @@ def _repo_map_sql_server() -> dict[str, Any]:
             "startup": "Read this file before exploring the project. It is the primary startup context for structure and conventions.",
             "catalog_mandatory": "discover and scoping tools require catalog/ files from setup-ddl. Errors if catalog is missing.",
             "ddl_filenames": "The loader auto-detects object types from CREATE statements — .sql filenames are not significant.",
-            "mssql_env_vars": "Live SQL Server access requires MSSQL_HOST, MSSQL_PORT, MSSQL_DB, SA_PASSWORD exported before launching claude.",
+            "mssql_env_vars": "CLI setup commands require SOURCE_MSSQL_HOST/PORT/DB/USER/PASSWORD (setup-source), SANDBOX_MSSQL_HOST/PORT/USER/PASSWORD (setup-sandbox), TARGET_MSSQL_HOST/PORT/DB/USER/PASSWORD (setup-target).",
         },
     }
 
@@ -217,18 +232,10 @@ if git diff --cached --diff-filter=ACMR -z -- . | xargs -0 grep -lE "${ANT_KEY_P
     exit 1
 fi
 
-# 2. SA_PASSWORD in .mcp.json
-if git diff --cached --name-only | grep -q '\\.mcp\\.json$'; then
-    if git show :".mcp.json" 2>/dev/null | grep -q 'SA_PASSWORD'; then
-        echo "ERROR: .mcp.json contains SA_PASSWORD. This file should be in .gitignore." >&2
-        exit 1
-    fi
-fi
-
-# 3. MSSQL credentials in .env / .envrc files
+# 2. SQL Server credentials in .env / .envrc files
 for f in $(git diff --cached --name-only | grep -E '\\.(env|envrc)$' || true); do
-    if git show :"$f" 2>/dev/null | grep -qE '(MSSQL_HOST|MSSQL_PORT|MSSQL_DB|SA_PASSWORD)=.+'; then
-        echo "ERROR: $f contains MSSQL credentials. This file should be in .gitignore." >&2
+    if git show :"$f" 2>/dev/null | grep -qE '(SOURCE_MSSQL_|SANDBOX_MSSQL_|TARGET_MSSQL_)(HOST|PORT|DB|USER|PASSWORD)=.+'; then
+        echo "ERROR: $f contains SQL Server credentials. This file should be in .gitignore." >&2
         exit 1
     fi
 done
@@ -285,7 +292,7 @@ See `repo-map.json` for the full directory structure and agent notes.
 **Important:** The Oracle MCP server does **not** auto-connect on startup. At the beginning of each session, run:
 
 ```text
-mcp__oracle__run-sqlcl: connect $ORACLE_USER/$ORACLE_PASSWORD@$ORACLE_HOST:$ORACLE_PORT/$ORACLE_SERVICE
+mcp__oracle__run-sqlcl: connect $SOURCE_ORACLE_USER/$SOURCE_ORACLE_PASSWORD@$SOURCE_ORACLE_HOST:$SOURCE_ORACLE_PORT/$SOURCE_ORACLE_SERVICE
 ```
 
 After connecting, use `mcp__oracle__run-sql` for queries and `mcp__oracle__schema-information` for metadata.
@@ -350,12 +357,12 @@ Data warehouse migration from Oracle Database to Vibedata Managed Warehouse Plat
 1. Copy the `.envrc` template and fill in your values:
 
    ```bash
-   # .envrc (gitignored)
-   export ORACLE_HOST=localhost
-   export ORACLE_PORT=1521
-   export ORACLE_SERVICE=FREEPDB1
-   export ORACLE_USER=YourUser
-   export ORACLE_PASSWORD=YourPassword
+   # .envrc (gitignored) — source database
+   export SOURCE_ORACLE_HOST=localhost
+   export SOURCE_ORACLE_PORT=1521
+   export SOURCE_ORACLE_SERVICE=FREEPDB1
+   export SOURCE_ORACLE_USER=YourUser
+   export SOURCE_ORACLE_PASSWORD=YourPassword
    ```
 
 2. Run `direnv allow` to load the variables.
@@ -405,17 +412,32 @@ Examples: `feat: extract DDL from SH schema`, `fix: correct column type mapping`
 
 def _envrc_oracle() -> str:
     return """\
-# Oracle credentials for the Oracle MCP server (SQLcl).
+# Oracle credentials for the ad-migration CLI.
 # Fill in your values and run `direnv allow`.
 # This file is gitignored — do not commit it.
 
 source_env_if_exists .env
 
-export ORACLE_HOST=localhost
-export ORACLE_PORT=1521
-export ORACLE_SERVICE=FREEPDB1
-export ORACLE_USER=
-export ORACLE_PASSWORD=
+# Source database (used by setup-source)
+export SOURCE_ORACLE_HOST=localhost
+export SOURCE_ORACLE_PORT=1521
+export SOURCE_ORACLE_SERVICE=FREEPDB1
+export SOURCE_ORACLE_USER=
+export SOURCE_ORACLE_PASSWORD=
+
+# Sandbox database (used by setup-sandbox)
+export SANDBOX_ORACLE_HOST=localhost
+export SANDBOX_ORACLE_PORT=1521
+export SANDBOX_ORACLE_SERVICE=FREEPDB1
+export SANDBOX_ORACLE_USER=
+export SANDBOX_ORACLE_PASSWORD=
+
+# Target database (used by setup-target)
+export TARGET_ORACLE_HOST=localhost
+export TARGET_ORACLE_PORT=1521
+export TARGET_ORACLE_SERVICE=FREEPDB1
+export TARGET_ORACLE_USER=
+export TARGET_ORACLE_PASSWORD=
 """
 
 
@@ -433,7 +455,7 @@ def _repo_map_oracle() -> dict[str, Any]:
             "startup": "Read this file before exploring the project. It is the primary startup context for structure and conventions.",
             "catalog_mandatory": "discover and scoping tools require catalog/ files from setup-ddl. Errors if catalog is missing.",
             "ddl_filenames": "The loader auto-detects object types from CREATE statements — .sql filenames are not significant.",
-            "oracle_env_vars": "Live Oracle access requires ORACLE_HOST, ORACLE_PORT, ORACLE_SERVICE, ORACLE_USER, ORACLE_PASSWORD exported before launching claude.",
+            "oracle_env_vars": "CLI setup commands require SOURCE_ORACLE_HOST/PORT/SERVICE/USER/PASSWORD (setup-source), SANDBOX_ORACLE_HOST/PORT/SERVICE/USER/PASSWORD (setup-sandbox), TARGET_ORACLE_HOST/PORT/SERVICE/USER/PASSWORD (setup-target).",
         },
     }
 
@@ -455,7 +477,7 @@ fi
 
 # 2. Oracle credentials in .env / .envrc files
 for f in $(git diff --cached --name-only | grep -E '\\.(env|envrc)$' || true); do
-    if git show :"$f" 2>/dev/null | grep -qE '(ORACLE_HOST|ORACLE_PORT|ORACLE_SERVICE|ORACLE_USER|ORACLE_PASSWORD)=.+'; then
+    if git show :"$f" 2>/dev/null | grep -qE '(SOURCE_ORACLE_|SANDBOX_ORACLE_|TARGET_ORACLE_)(HOST|PORT|SERVICE|USER|PASSWORD)=.+'; then
         echo "ERROR: $f contains Oracle credentials. This file should be in .gitignore." >&2
         exit 1
     fi
