@@ -1,5 +1,5 @@
 ---
-name: refactor
+name: refactor-query
 description: >
   SQL refactoring command. Restructures stored procedure SQL into CTE pattern
   with equivalence audit. Delegates per-table refactoring to the
@@ -172,7 +172,7 @@ If one table fails, continue processing the remaining tables and then write the 
 
 ## Error and Warning Codes
 
-Use the canonical `/refactor` code list in [../lib/shared/refactor_error_codes.md](../lib/shared/refactor_error_codes.md).
+Use the canonical `/refactor-query` code list in [../lib/shared/refactor_error_codes.md](../lib/shared/refactor_error_codes.md).
 
 Each entry in `errors[]` or `warnings[]` uses this shape:
 

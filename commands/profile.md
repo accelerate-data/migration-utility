@@ -1,5 +1,5 @@
 ---
-name: profile
+name: profile-tables
 description: >
   Batch profiling command — produces migration profiles for each table, view, or materialized view.
   Delegates per-item profiling to the /profiling-table skill (auto-detects table vs view).
@@ -137,7 +137,7 @@ The actual profile data lives in the catalog file, not duplicated in the run log
 
 ## Error and Warning Codes
 
-Use the canonical `/profile` code list in [../lib/shared/profile_error_codes.md](../lib/shared/profile_error_codes.md).
+Use the canonical `/profile-tables` code list in [../lib/shared/profile_error_codes.md](../lib/shared/profile_error_codes.md).
 
 Each entry in `errors[]` or `warnings[]` uses this shape:
 

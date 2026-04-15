@@ -1,5 +1,5 @@
 ---
-name: scope
+name: scope-tables
 description: >
   Batch scoping command — identifies writer procedures for tables, analyzes SQL structure for views/MVs.
   Delegates per-item scoping to the /analyzing-table skill (auto-detects table vs view).
@@ -176,7 +176,7 @@ Written to `catalog/views/<fqn>.json` → `scoping` section:
 
 ## Error and Warning Codes
 
-Use the canonical `/scope` code list in [../lib/shared/scope_error_codes.md](../lib/shared/scope_error_codes.md).
+Use the canonical `/scope-tables` code list in [../lib/shared/scope_error_codes.md](../lib/shared/scope_error_codes.md).
 
 Each entry in `errors[]` or `warnings[]`:
 
