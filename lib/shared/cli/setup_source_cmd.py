@@ -101,17 +101,6 @@ def _check_source_prereqs(technology: str) -> None:
                 console.print("[red]✗[/red] FreeTDS not found. Install via your package manager (e.g. apt-get install freetds-dev).")
                 raise typer.Exit(code=1)
             success("freetds available")
-    elif technology == "oracle":
-        sqlcl_bin = shutil.which("sql") or shutil.which("sqlcl")
-        if sqlcl_bin is None:
-            console.print("[red]✗[/red] sqlcl not found. Install SQLcl and ensure it is on PATH.")
-            raise typer.Exit(code=1)
-        success(f"sqlcl available ({sqlcl_bin})")
-        r = subprocess.run(["java", "-version"], capture_output=True)
-        if r.returncode != 0:
-            console.print("[red]✗[/red] java not found. Install Java 11+.")
-            raise typer.Exit(code=1)
-        success("java available")
 
 
 def _report_extract(result: dict[str, Any]) -> None:

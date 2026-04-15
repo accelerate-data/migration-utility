@@ -27,7 +27,6 @@ Migration target: silver and gold dbt transformations on the managed warehouse p
 | Layer | Technology | Notes |
 |---|---|---|
 | Source DDL access | DDL file MCP (`ddl_mcp`) | Pre-extracted `.sql` files; no live DB required |
-| Live source DB access | `mssql` MCP via genai-toolbox | Requires `toolbox` binary on PATH |
 | Transformation target | **dbt** | SQL models on the configured target runtime |
 | Storage | Managed warehouse tables | Managed by the target platform |
 | Orchestration | dbt build pipeline | |
@@ -54,7 +53,6 @@ See `repo-map.json` for the full directory structure and agent notes.
 | Server | Transport | Purpose |
 |---|---|---|
 | `ddl_mcp` | stdio | Structured DDL parsing from local `.sql` files |
-| `mssql` | HTTP (genai-toolbox) | Live SQL Server queries |
 
 ## Git Workflow
 
@@ -108,7 +106,6 @@ Data warehouse migration from Microsoft SQL Server to Vibedata Managed Warehouse
 - **Python 3.11+**
 - **uv** — Python package manager ([install](https://astral.sh/uv))
 - **direnv** — credential management ([install](https://direnv.net)) — recommended
-- **genai-toolbox** — for live SQL Server access ([releases](https://github.com/googleapis/genai-toolbox/releases)) — optional
 
 ### Credential setup with direnv
 
@@ -124,8 +121,6 @@ Data warehouse migration from Microsoft SQL Server to Vibedata Managed Warehouse
    ```
 
 2. Run `direnv allow` to load the variables.
-
-These values are passed to the `mssql` MCP server at startup via environment inheritance — they must be set before launching `claude`.
 
 ## Workflow
 
@@ -260,7 +255,6 @@ Migration target: silver and gold dbt transformations on the managed warehouse p
 | Layer | Technology | Notes |
 |---|---|---|
 | Source DDL access | DDL file MCP (`ddl_mcp`) | Pre-extracted `.sql` files; no live DB required |
-| Live source DB access | Oracle MCP via SQLcl | Requires `sql` (SQLcl) binary and Java 11+ on PATH |
 | Transformation target | **dbt** | SQL models on the configured target runtime |
 | Storage | Managed warehouse tables | Managed by the target platform |
 | Orchestration | dbt build pipeline | |
@@ -287,15 +281,6 @@ See `repo-map.json` for the full directory structure and agent notes.
 | Server | Transport | Purpose |
 |---|---|---|
 | `ddl_mcp` | stdio | Structured DDL parsing from local `.sql` files |
-| `oracle` | stdio (SQLcl) | Live Oracle queries |
-
-**Important:** The Oracle MCP server does **not** auto-connect on startup. At the beginning of each session, run:
-
-```text
-mcp__oracle__run-sqlcl: connect $SOURCE_ORACLE_USER/$SOURCE_ORACLE_PASSWORD@$SOURCE_ORACLE_HOST:$SOURCE_ORACLE_PORT/$SOURCE_ORACLE_SERVICE
-```
-
-After connecting, use `mcp__oracle__run-sql` for queries and `mcp__oracle__schema-information` for metadata.
 
 ## Git Workflow
 
@@ -349,8 +334,6 @@ Data warehouse migration from Oracle Database to Vibedata Managed Warehouse Plat
 - **Python 3.11+**
 - **uv** — Python package manager ([install](https://astral.sh/uv))
 - **direnv** — credential management ([install](https://direnv.net)) — recommended
-- **SQLcl** — Oracle SQL Developer Command Line ([install](https://www.oracle.com/database/sqldeveloper/technologies/sqlcl/)) — required for live DB access
-- **Java 11+** — required by SQLcl
 
 ### Credential setup with direnv
 
@@ -366,8 +349,6 @@ Data warehouse migration from Oracle Database to Vibedata Managed Warehouse Plat
    ```
 
 2. Run `direnv allow` to load the variables.
-
-These values are used to connect the Oracle MCP server at session start — they must be set before launching `claude`.
 
 ## Workflow
 

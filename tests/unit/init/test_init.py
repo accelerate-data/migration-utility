@@ -20,7 +20,6 @@ from shared.init import (
     SOURCE_REGISTRY,
     get_source_config,
     run_discover_mssql_driver_override,
-    run_discover_sqlcl_bin_override,
     run_scaffold_hooks,
     run_scaffold_project,
     write_local_env_overrides,
@@ -129,13 +128,10 @@ class TestScaffoldProjectOracle:
 
         claude_md = (tmp_path / "CLAUDE.md").read_text()
         assert "Oracle" in claude_md
-        assert "SQLcl" in claude_md
-        assert "auto-connect" in claude_md
+        assert "ddl_mcp" in claude_md
 
         readme = (tmp_path / "README.md").read_text()
         assert "Oracle" in readme
-        assert "SQLcl" in readme
-        assert "Java 11+" in readme
 
         repo_map = json.loads((tmp_path / "repo-map.json").read_text())
         assert "oracle_env_vars" in repo_map["notes_for_agents"]
@@ -422,94 +418,3 @@ class TestDiscoverMssqlDriverOverride:
         payload = json.loads(result.stdout)
         assert payload["key"] == "MSSQL_DRIVER"
         assert payload["status"] == "resolved"
-
-
-class TestDiscoverSqlclBinOverride:
-    def test_uses_env_override(self, monkeypatch: pytest.MonkeyPatch) -> None:
-        monkeypatch.setenv("SQLCL_BIN", "/opt/sqlcl/bin/sql")
-        monkeypatch.setattr("shared.init._is_executable_file", lambda _path: True)
-        monkeypatch.setattr("shared.init._is_sqlcl_binary", lambda _path: True)
-
-        result = run_discover_sqlcl_bin_override()
-
-        assert result.status == "resolved"
-        assert result.value == "/opt/sqlcl/bin/sql"
-
-    def test_rejects_non_executable_env_override(self, monkeypatch: pytest.MonkeyPatch) -> None:
-        monkeypatch.setenv("SQLCL_BIN", "/missing/sql")
-        monkeypatch.setattr("shared.init._is_executable_file", lambda _path: False)
-
-        result = run_discover_sqlcl_bin_override()
-
-        assert result.status == "manual"
-        assert result.message == 'Set SQLCL_BIN="/absolute/path/to/sql" and ensure Java 11+ is on PATH.'
-
-    def test_rejects_non_sqlcl_env_override(self, monkeypatch: pytest.MonkeyPatch) -> None:
-        monkeypatch.setenv("SQLCL_BIN", "/usr/local/bin/sql")
-        monkeypatch.setattr("shared.init._is_executable_file", lambda _path: True)
-        monkeypatch.setattr("shared.init._is_sqlcl_binary", lambda _path: False)
-
-        result = run_discover_sqlcl_bin_override()
-
-        assert result.status == "manual"
-
-    def test_defaults_when_sql_on_path(self, monkeypatch: pytest.MonkeyPatch) -> None:
-        monkeypatch.delenv("SQLCL_BIN", raising=False)
-        monkeypatch.setattr("shared.init.which", lambda name: "/usr/local/bin/sql" if name == "sql" else None)
-        monkeypatch.setattr("shared.init._is_sqlcl_binary", lambda _path: True)
-
-        result = run_discover_sqlcl_bin_override()
-
-        assert result.status == "default"
-        assert result.value is None
-
-    def test_defaults_when_sqlcl_on_path(self, monkeypatch: pytest.MonkeyPatch) -> None:
-        monkeypatch.delenv("SQLCL_BIN", raising=False)
-        monkeypatch.setattr("shared.init.which", lambda name: "/usr/local/bin/sqlcl" if name == "sqlcl" else None)
-        monkeypatch.setattr("shared.init._is_sqlcl_binary", lambda _path: True)
-
-        result = run_discover_sqlcl_bin_override()
-
-        assert result.status == "default"
-        assert result.value is None
-
-    def test_reports_manual_override_when_sqlcl_not_found(
-        self,
-        monkeypatch: pytest.MonkeyPatch,
-    ) -> None:
-        monkeypatch.delenv("SQLCL_BIN", raising=False)
-        monkeypatch.setattr("shared.init.which", lambda _name: None)
-
-        result = run_discover_sqlcl_bin_override()
-
-        assert result.status == "manual"
-        assert result.message == 'Set SQLCL_BIN="/absolute/path/to/sql" and ensure Java 11+ is on PATH.'
-
-    def test_reports_manual_override_when_path_sql_is_not_sqlcl(
-        self,
-        monkeypatch: pytest.MonkeyPatch,
-    ) -> None:
-        monkeypatch.delenv("SQLCL_BIN", raising=False)
-        monkeypatch.setattr("shared.init.which", lambda name: "/usr/local/bin/sql" if name == "sql" else None)
-        monkeypatch.setattr("shared.init._is_sqlcl_binary", lambda _path: False)
-
-        result = run_discover_sqlcl_bin_override()
-
-        assert result.status == "manual"
-
-    def test_cli_returns_sqlcl_discovery_payload(self, monkeypatch: pytest.MonkeyPatch) -> None:
-        monkeypatch.setattr(
-            "shared.init.run_discover_sqlcl_bin_override",
-            lambda: LocalOverrideDiscoveryOutput(
-                key="SQLCL_BIN",
-                status="manual",
-                message='Set SQLCL_BIN="/absolute/path/to/sql" and ensure Java 11+ is on PATH.',
-            ),
-        )
-
-        result = RUNNER.invoke(app, ["discover-sqlcl-bin-override"])
-
-        assert result.exit_code == 0, result.stdout
-        payload = json.loads(result.stdout)
-        assert payload["key"] == "SQLCL_BIN"
-        assert payload["status"] == "manual"

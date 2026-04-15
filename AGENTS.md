@@ -116,23 +116,7 @@ Update stale entries in the same commit that introduced the structural change.
 
 ## MCP Servers
 
-### SQL Server (mssql)
-
-Configured in `.mcp.json` via genai-toolbox. Defaults `MSSQL_HOST=127.0.0.1`, `MSSQL_PORT=1433`, and `MSSQL_DB=AdventureWorks2022`; provide `SA_PASSWORD` in the environment before starting Claude. Tool: `mcp__mssql__mssql-execute-sql`.
-
-### Oracle
-
-Configured in `.mcp.json` via SQLcl `-mcp`. Requires Java 11+ and SQLcl installed locally (`brew install --cask sqlcl`).
-
-The Oracle MCP server does **not** auto-connect on startup. At the beginning of each session, run:
-
-```text
-mcp__oracle__run-sqlcl: connect sh/sh@localhost:1521/FREEPDB1
-```
-
-After connecting, use `mcp__oracle__run-sql` for queries and `mcp__oracle__schema-information` for metadata.
-
-Setup: see `docs/reference/setup-docker/README.md`.
+Only the `ddl` MCP server is bundled. It reads pre-extracted local `.sql` files and is used by skills for DDL analysis. No live-DB MCP servers are included — add your own if needed.
 
 ## Logging
 

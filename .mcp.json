@@ -6,27 +6,6 @@
         "run",
         "${CLAUDE_PLUGIN_ROOT}/mcp/ddl/server.py"
       ]
-    },
-    "mssql": {
-      "command": "toolbox",
-      "args": [
-        "--tools-file",
-        "${CLAUDE_PLUGIN_ROOT}/mcp/mssql/tools.yaml",
-        "--stdio"
-      ],
-      "env": {
-        "_comment": "Set SA_PASSWORD in your environment before running; direnv/.env may also provide MSSQL_HOST, MSSQL_PORT, and MSSQL_DB overrides.",
-        "MSSQL_HOST": "127.0.0.1",
-        "MSSQL_PORT": "1433",
-        "MSSQL_DB": "AdventureWorks2022"
-      }
-    },
-    "oracle": {
-      "command": "sh",
-      "args": [
-        "-lc",
-        "exec \"${SQLCL_BIN:-$(command -v sql || command -v sqlcl || printf sql)}\" -mcp"
-      ]
     }
   }
 }

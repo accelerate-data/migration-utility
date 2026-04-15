@@ -101,15 +101,11 @@ Run the source-stack checks for `$SOURCE`. These checks validate that the local 
 #### When `$SOURCE` is `sql_server`
 
 1. `uv run --project "${CLAUDE_PLUGIN_ROOT}/lib" init check-freetds` — verify that Homebrew FreeTDS is installed, `odbcinst` is available, and `FreeTDS` appears in `odbcinst -q -d`
-2. `toolbox --version` — is the genai-toolbox binary installed?
-3. `uv run --project "${CLAUDE_PLUGIN_ROOT}/lib" init discover-mssql-driver-override` — discover the effective local SQL Server driver override. If the result is `status="resolved"`, add `MSSQL_DRIVER` to `$OVERRIDES`. If the result is `status="manual"`, show the returned `message` verbatim.
+2. `uv run --project "${CLAUDE_PLUGIN_ROOT}/lib" init discover-mssql-driver-override` — discover the effective local SQL Server driver override. If the result is `status="resolved"`, add `MSSQL_DRIVER` to `$OVERRIDES`. If the result is `status="manual"`, show the returned `message` verbatim.
 
 #### When `$SOURCE` is `oracle`
 
-1. `sql -V` — is SQLcl installed?
-2. `java -version` — is Java 11+ installed?
-3. Verify the Oracle MCP server can start: test that `sql -mcp` or `"${SQLCL_BIN}" -mcp` exits cleanly. This is a startup check only and does **not** require a live DB connection.
-4. `uv run --project "${CLAUDE_PLUGIN_ROOT}/lib" init discover-sqlcl-bin-override` — discover the effective local SQLcl binary path. If the result is `status="resolved"`, add `SQLCL_BIN` to `$OVERRIDES`. If the result is `status="manual"`, show the returned `message` verbatim.
+No additional source runtime prerequisites beyond common checks. Oracle extraction uses the `oracledb` Python client (synced in Step 5).
 
 ### Target runtime prerequisites
 
@@ -143,18 +139,7 @@ Common prerequisites:
 ```text
 Source runtime (SQL Server):
   freetds:                ✓ installed + registered  /  ✗ not installed  /  ✗ unixODBC missing  /  ✗ not registered
-  toolbox:                ✓ installed (x.y.z)  /  — not found (optional until ad-migration setup-source)
   mssql_driver_override:  ✓ resolved  /  — default FreeTDS  /  ✗ manual override needed
-```
-
-**For source = Oracle:**
-
-```text
-Source runtime (Oracle):
-  sqlcl:               ✓ installed  /  ✗ not found
-  java:                ✓ 11+ (x.y.z)  /  ✗ not found or < 11
-  oracle_mcp:          ✓ starts  /  ✗ fails
-  sqlcl_bin_override:  ✓ resolved  /  — PATH default  /  ✗ manual override needed
 ```
 
 **For target = SQL Server:**
@@ -172,13 +157,13 @@ Target runtime (Oracle):
   oracledb:  ✓ importable  /  ✗ missing
 ```
 
-`toolbox` and `direnv` are marked `—` (not `✗`) when missing. `toolbox` is optional for DDL file mode but required later for SQL Server `ad-migration setup-source`.
+`direnv` is marked `—` (not `✗`) when missing — it is recommended but optional.
 
 For SQL Server, `freetds` is only green after both installation and unixODBC registration pass. If `brew` reports FreeTDS installed but `odbcinst` is missing, treat that as a failed prerequisite because `ad-migration setup-source` will not work with the default `MSSQL_DRIVER="FreeTDS"` path.
 
 If any local override is discovered or required, explain that init will write only non-secret machine-specific overrides into `.env`, while `.envrc` remains the shared repo-local scaffold:
 
-> **Recommended: keep machine-local overrides in `.env`.** The scaffolding step writes repo-shared environment scaffolding to `.envrc` and loads `.env` when present. Use `.env` only for non-secret local overrides such as `MSSQL_DRIVER` or `SQLCL_BIN`. Connection details are collected later in the stage-specific setup commands.
+> **Recommended: keep machine-local overrides in `.env`.** The scaffolding step writes repo-shared environment scaffolding to `.envrc` and loads `.env` when present. Use `.env` only for non-secret local overrides such as `MSSQL_DRIVER`. Connection details are collected later in the stage-specific setup commands.
 
 Do not ask the user for source, target, or sandbox connection details during init. Those belong to `ad-migration setup-source`, `ad-migration setup-target`, and `ad-migration setup-sandbox`.
 
@@ -250,10 +235,6 @@ uv run --project "${CLAUDE_PLUGIN_ROOT}/lib" python3 -c "import oracledb"
 
 **ddl_mcp fails** (after shared sync): re-run the ddl_mcp check. If it still fails, show the error output to the user and tell them to check their Python environment.
 
-**toolbox missing** (SQL Server, if the user asks how to install it): Direct the user to `https://github.com/googleapis/genai-toolbox/releases` to download the binary for their platform and add it to PATH. Do not attempt to install it automatically.
-
-**SQLcl or Java missing** (Oracle): Direct the user to install SQLcl from `https://www.oracle.com/database/sqldeveloper/technologies/sqlcl/` and ensure Java 11+ is on PATH. Do not attempt to install automatically.
-
 **direnv missing** (if the user asks how to install it): Direct them to `https://direnv.net` for install instructions. Do not attempt to install it automatically.
 
 ## Step 6: Scaffold project files
@@ -269,7 +250,7 @@ Parse the JSON output and report to the user which files were created, updated, 
 
 If `scaffold-project` reports missing CLAUDE.md sections (in `files_skipped`), tell the user which sections are missing and recommend adding them.
 
-Maintain a JSON object `$OVERRIDES` while gathering evidence. Add only non-secret machine-specific resolved overrides such as `MSSQL_DRIVER` or `SQLCL_BIN`. Do not add connection details during init.
+Maintain a JSON object `$OVERRIDES` while gathering evidence. Add only non-secret machine-specific resolved overrides such as `MSSQL_DRIVER`. Do not add connection details during init.
 
 If `$OVERRIDES` is non-empty, write it to `.env` in the project root:
 
@@ -287,7 +268,7 @@ Then write the partial manifest with prerequisite validation results. Build a JS
     "startup": {"uv": true, "python": true, "shared_deps": true, "ddl_mcp": true, "direnv": false}
   },
   "roles": {
-    "source": {"technology": "sql_server", "startup": {"freetds": true, "toolbox": false, "driver_override_resolved": true}},
+    "source": {"technology": "sql_server", "startup": {"freetds": true, "driver_override_resolved": true}},
     "sandbox": {"technology": "sql_server", "startup": {"freetds": true, "driver_override_resolved": true}},
     "target": {"technology": "oracle", "startup": {"oracledb": true}}
   }
@@ -333,13 +314,13 @@ Tell the user:
 
 **For source = SQL Server:**
 
-- **toolbox installed and SOURCE_MSSQL_* vars set**: ready to run `ad-migration setup-source --technology sql_server --schemas <schema>` to extract DDL from the live database.
-- **toolbox missing or SOURCE_MSSQL_* vars unset**: Set `SOURCE_MSSQL_HOST/PORT/DB/USER/PASSWORD` in `.envrc`, run `direnv allow`, install `toolbox`, then run `ad-migration setup-source`.
+- **SOURCE_MSSQL_* vars set**: ready to run `ad-migration setup-source --technology sql_server --schemas <schema>` to extract DDL from the live database.
+- **SOURCE_MSSQL_* vars unset**: Set `SOURCE_MSSQL_HOST/PORT/DB/USER/PASSWORD` in `.envrc` and run `direnv allow`, then run `ad-migration setup-source`.
 
 **For source = Oracle:**
 
-- **SQLcl + Java installed and SOURCE_ORACLE_* vars set**: ready to run `ad-migration setup-source --technology oracle --schemas <schema>` to extract DDL from the live database.
-- **SQLcl/Java missing or SOURCE_ORACLE_* vars unset**: Set `SOURCE_ORACLE_HOST/PORT/SERVICE/USER/PASSWORD` in `.envrc`, run `direnv allow`, ensure SQLcl and Java 11+ are installed, then run `ad-migration setup-source`.
+- **SOURCE_ORACLE_* vars set**: ready to run `ad-migration setup-source --technology oracle --schemas <schema>` to extract DDL from the live database.
+- **SOURCE_ORACLE_* vars unset**: Set `SOURCE_ORACLE_HOST/PORT/SERVICE/USER/PASSWORD` in `.envrc` and run `direnv allow`, then run `ad-migration setup-source`.
 
 **For target setup:**
 

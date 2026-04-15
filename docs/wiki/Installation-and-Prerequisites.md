@@ -26,19 +26,7 @@ Local execution is supported on macOS and Linux. Windows is not supported for th
 
 | Tool | When needed | Purpose |
 |---|---|---|
-| [genai-toolbox](https://github.com/googleapis/genai-toolbox/releases) (`toolbox`) | Live SQL Server extraction via `ad-migration setup-source` | HTTP-mode MCP server that bridges Claude Code to SQL Server |
-| [SQLcl](https://www.oracle.com/database/sqldeveloper/technologies/sqlcl/) (`sql`) | Oracle source projects | CLI tool that provides the Oracle MCP server via `sql -mcp`; requires Java 11+. The plugin launches Oracle via `exec "${SQLCL_BIN:-sql}" -mcp`, so `SQLCL_BIN` is the explicit override when SQLcl is not on `PATH` or another `sql` binary conflicts. |
-| Java 11+ | Oracle source projects | Runtime required by SQLcl |
 | [direnv](https://direnv.net) | Recommended for all projects | Auto-loads `.envrc` credentials when you enter the project directory; keeps secrets out of shell history |
-
-If you want `claude --plugin-dir .` to load every bundled MCP server locally,
-`toolbox` must already be on `PATH`, and Oracle must resolve through either
-`SQLCL_BIN` or `sql` on `PATH`. Without them, the plugin manifest still
-validates, but the corresponding `mssql` or `oracle` server will not start.
-
-If Oracle MCP fails because `sql` cannot be found or the wrong `sql` binary is
-picked up from `PATH`, set `SQLCL_BIN` to the SQLcl executable before launching
-Claude Code.
 
 ## Environment Variables
 
