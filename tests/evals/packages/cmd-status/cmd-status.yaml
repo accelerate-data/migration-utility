@@ -25,7 +25,7 @@ tests:
       target_table: "silver.InsertSelectTarget"
       expected_stage_statuses: '{"scope": "ok", "profile": "ok"}'
       expected_blocked_stage: "test-gen"
-      expected_output_terms: "scope,profile,test-gen,blocked"
+      expected_output_terms: "scope-tables,profile-tables,test-gen,blocked"
       expected_recommendation: "generate-tests"
 
   # ── status-single-dimcurrency: catalog only ─────────────────
@@ -34,8 +34,8 @@ tests:
       fixture_path: "tests/evals/fixtures/cmd-status/status-single-dimcurrency"
       target_table: "silver.DimCurrency"
       expected_blocked_stage: "profile"
-      expected_output_terms: "scope,pending"
-      expected_recommendation: "scope"
+      expected_output_terms: "scope-tables,pending"
+      expected_recommendation: "scope-tables"
 
   # ── status-single-dimproduct: profile exists, no scoping ────
   - description: "status-single-dimproduct — profile exists but no scoping"
@@ -43,13 +43,13 @@ tests:
       fixture_path: "tests/evals/fixtures/cmd-status/status-single-dimproduct"
       target_table: "silver.DimProduct"
       expected_blocked_stage: "profile"
-      expected_output_terms: "scope"
+      expected_output_terms: "scope-tables"
 
   # ── status-all-summary: mixed stages ────────────────────────
   - description: "status-all-summary — summary report across all catalog tables"
     vars:
       fixture_path: "tests/evals/fixtures/cmd-status/status-all-summary"
-      expected_output_terms: "scope,profile,test-gen,generate"
+      expected_output_terms: "scope-tables,profile-tables,test-gen,generate"
 
   # ── status-all-objects: views and writerless N/A ─────────────
   - description: "status-all-objects — views and writerless tables with type column and N/A"
@@ -78,12 +78,12 @@ tests:
       fixture_path: "tests/evals/fixtures/cmd-status/status-all-next-steps"
       expected_output_terms: "what to do next"
 
-  # ── status-single-view-profile: recommends /profile ─────────────
-  - description: "status-single-view-profile — view at profile_needed recommends /profile"
+  # ── status-single-view-profile: recommends /profile-tables ───────
+  - description: "status-single-view-profile — view at profile_needed recommends /profile-tables"
     vars:
       fixture_path: "tests/evals/fixtures/cmd-status/status-single-view-profile"
       target_table: "silver.vw_currency_ref"
-      expected_output_terms: "profile"
+      expected_output_terms: "profile-tables"
       unexpected_output_terms: "refactor-view"
 
   # ── status-all-migrate-recommend: recommends /generate-model ─────
@@ -96,6 +96,6 @@ tests:
   - description: "status-reinvoked-session — reruns status instead of reusing stale prior session output"
     vars:
       fixture_path: "tests/evals/fixtures/cmd-status/status-all-migrate-recommend"
-      prior_status_context: "Earlier `/status` incorrectly reported that `silver.DimCustomer` still needed `/scope`, but the catalog has changed since then."
+      prior_status_context: "Earlier `/status` incorrectly reported that `silver.DimCustomer` still needed `/scope-tables`, but the catalog has changed since then."
       expected_output_terms: "generate-model"
-      unexpected_output_terms: "/scope silver.dimcustomer"
+      unexpected_output_terms: "/scope-tables silver.dimcustomer"
