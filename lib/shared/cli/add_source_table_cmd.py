@@ -7,6 +7,7 @@ from pathlib import Path
 import typer
 
 from shared.catalog_writer import run_write_source
+from shared.cli.error_handler import cli_error_handler
 from shared.cli.git_ops import is_git_repo, stage_and_commit
 from shared.cli.output import console, error, success, warn
 from shared.dry_run_core import run_ready
@@ -58,7 +59,8 @@ def add_source_table(
             continue
 
         try:
-            write_result = run_write_source(root, fqn, value=True)
+            with cli_error_handler(f"marking {fqn} as source table"):
+                write_result = run_write_source(root, fqn, value=True)
             success(f"source   {fqn} → is_source: true")
             logger.info(
                 "event=add_source_table_written component=add_source_table_cmd "
@@ -67,6 +69,8 @@ def add_source_table(
                 write_result.written,
             )
             written_pairs.append((fqn, root / write_result.written))
+        except typer.Exit:
+            raise
         except CatalogFileMissingError:
             warn(f"missing  {fqn} (no catalog file — run setup-source first)")
         except ValueError as exc:

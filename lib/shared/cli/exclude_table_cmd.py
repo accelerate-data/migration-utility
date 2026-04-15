@@ -6,6 +6,7 @@ from pathlib import Path
 
 import typer
 
+from shared.cli.error_handler import cli_error_handler
 from shared.cli.git_ops import is_git_repo, stage_and_commit
 from shared.cli.output import console, error, success, warn
 from shared.dry_run_core import run_exclude
@@ -30,7 +31,8 @@ def exclude_table(
         fqns,
     )
 
-    result = run_exclude(root, list(fqns))
+    with cli_error_handler("excluding tables from catalog"):
+        result = run_exclude(root, list(fqns))
 
     logger.info(
         "event=exclude_table_complete component=exclude_table_cmd operation=exclude_table "
