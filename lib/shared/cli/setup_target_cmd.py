@@ -7,6 +7,7 @@ from pathlib import Path
 import typer
 
 from shared.cli.env_check import require_target_vars
+from shared.cli.error_handler import cli_error_handler
 from shared.cli.git_ops import is_git_repo, stage_and_commit
 from shared.cli.output import console, error, success, warn
 from shared.target_setup import run_setup_target, write_target_runtime_from_env
@@ -35,11 +36,12 @@ def setup_target(
 
     console.print("Running target setup...")
     with console.status("Scaffolding dbt project and generating sources.yml..."):
-        try:
-            result = run_setup_target(root)
-        except ValueError as exc:
-            error(str(exc))
-            raise typer.Exit(code=1) from exc
+        with cli_error_handler("running target setup"):
+            try:
+                result = run_setup_target(root)
+            except ValueError as exc:
+                error(str(exc))
+                raise typer.Exit(code=1) from exc
 
     for f in result.files:
         success(f"created  {f}")
