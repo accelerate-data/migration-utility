@@ -180,6 +180,34 @@ def test_reset_all_rejects_fqn_arguments(tmp_path):
     assert result.exit_code == 1
 
 
+def test_reset_all_sandbox_db_error_warns_and_continues(tmp_path):
+    """A pyodbc error from sandbox_down is treated as a teardown failure — warn, continue."""
+    import shared.cli.error_handler as _err_mod
+    class _FakePyodbcProgramming(Exception): pass
+
+    mock_backend = MagicMock()
+    mock_backend.sandbox_down.side_effect = _FakePyodbcProgramming("login failed")
+
+    with (
+        patch.multiple(
+            _err_mod,
+            _PYODBC_PROGRAMMING_ERROR=_FakePyodbcProgramming,
+            _PYODBC_INTERFACE_ERROR=None,
+            _PYODBC_OPERATIONAL_ERROR=None,
+            _PYODBC_ERROR=_FakePyodbcProgramming,
+        ),
+        patch("shared.cli.reset_cmd._load_manifest", return_value={}),
+        patch("shared.cli.reset_cmd._get_sandbox_name", return_value="__test_abc"),
+        patch("shared.cli.reset_cmd._create_backend", return_value=mock_backend),
+        patch("shared.cli.reset_cmd.clear_manifest_sandbox"),
+        patch("shared.cli.reset_cmd.run_reset_migration", return_value=_GLOBAL_RESET_OUT) as mock_reset,
+    ):
+        result = runner.invoke(app, ["reset", "all", "--yes", "--project-root", str(tmp_path)])
+
+    assert result.exit_code == 0, result.output
+    mock_reset.assert_called_once_with(tmp_path, "all", [])
+
+
 # ── exclude-table ────────────────────────────────────────────────────────────
 
 _EXCLUDE_OUT = ExcludeOutput(marked=["silver.AuditLog"], not_found=[])
