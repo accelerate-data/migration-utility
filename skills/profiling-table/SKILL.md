@@ -74,15 +74,19 @@ If classification is still ambiguous after dependency checks, `sql_elements`, an
 
 ### 3. Write and Present
 
-Write the profile JSON to a temp file, then persist it:
+Create the temp file first, then persist it to the catalog:
 
 ```bash
 mkdir -p .staging
-# Write profile JSON to .staging/view_profile.json
+cat > .staging/view_profile.json <<'EOF'
+<profile JSON>
+EOF
 uv run --project "${CLAUDE_PLUGIN_ROOT}/lib" profile write \
   --table <view_fqn> \
   --profile-file .staging/view_profile.json && rm -rf .staging
 ```
+
+`profile write` reads `.staging/view_profile.json` and persists that profile into the catalog.
 
 Required payload fields:
 
@@ -141,15 +145,19 @@ Required partial-friendly warning behavior:
 
 ### 4. Write the Table Profile
 
-Write the profile JSON to a temp file, then persist it:
+Create the temp file first, then persist it to the catalog:
 
 ```bash
 mkdir -p .staging
-# Write profile JSON to .staging/profile.json
+cat > .staging/profile.json <<'EOF'
+<profile JSON>
+EOF
 uv run --project "${CLAUDE_PLUGIN_ROOT}/lib" profile write \
   --table <table> \
   --profile-file .staging/profile.json && rm -rf .staging
 ```
+
+`profile write` reads `.staging/profile.json` and persists that profile into the catalog.
 
 Payload rules:
 
