@@ -42,8 +42,8 @@ See `repo-map.json` for the full directory structure and agent notes.
 |---|---|
 | `/setup-ddl` | Extract DDL from live SQL Server and write local artifact files |
 | `/listing-objects` | Browse the DDL catalog — list, show, refs |
-| `/scope-tables` | Public scoping command for writer discovery, procedure analysis, scope resolution, and catalog persistence |
-| `/profile-tables` | Public profiling command for table profiling with approval gates |
+| `/scope-tables` | Public scoping command for migration targets; discover writers for tables and analyze views/MVs |
+| `/profile-tables` | Public profiling command for migration targets; profile tables, views, and MVs with approval gates |
 | `/generating-tests` | Generate ground truth test fixtures for a table |
 | `/reviewing-tests` | Quality gate for test generation output |
 | `/generate-model` | Generate dbt models from stored procedures |
@@ -129,8 +129,9 @@ Data warehouse migration from Microsoft SQL Server to Vibedata Managed Warehouse
 1. **`/init-ad-migration`** — verify prerequisites and scaffold project files
 2. **`/setup-ddl`** — extract DDL from live SQL Server into local artifact files
 3. **`/listing-objects`** — browse the DDL catalog (list objects by type)
-4. **`/profile-tables`** — profile tables interactively
-5. **`/generate-model`** — generate dbt models from stored procedures
+4. **`/scope-tables`** — scope migration targets; discover table writers and analyze views/MVs
+5. **`/profile-tables`** — profile migration targets interactively
+6. **`/generate-model`** — generate dbt models from stored procedures
 
 ## Directory Structure
 
@@ -269,8 +270,8 @@ See `repo-map.json` for the full directory structure and agent notes.
 |---|---|
 | `/setup-ddl` | Extract DDL from live Oracle and write local artifact files |
 | `/listing-objects` | Browse the DDL catalog — list, show, refs |
-| `/scope-tables` | Public scoping command for writer discovery, procedure analysis, scope resolution, and catalog persistence |
-| `/profile-tables` | Public profiling command for table profiling with approval gates |
+| `/scope-tables` | Public scoping command for migration targets; discover writers for tables and analyze views/MVs |
+| `/profile-tables` | Public profiling command for migration targets; profile tables, views, and MVs with approval gates |
 | `/generating-tests` | Generate ground truth test fixtures for a table |
 | `/reviewing-tests` | Quality gate for test generation output |
 | `/generate-model` | Generate dbt models from stored procedures |
@@ -356,8 +357,9 @@ Data warehouse migration from Oracle Database to Vibedata Managed Warehouse Plat
 1. **`/init-ad-migration`** — verify prerequisites and scaffold project files
 2. **`/setup-ddl`** — extract DDL from live Oracle into local artifact files
 3. **`/listing-objects`** — browse the DDL catalog (list objects by type)
-4. **`/profile-tables`** — profile tables interactively
-5. **`/generate-model`** — generate dbt models from stored procedures
+4. **`/scope-tables`** — scope migration targets; discover table writers and analyze views/MVs
+5. **`/profile-tables`** — profile migration targets interactively
+6. **`/generate-model`** — generate dbt models from stored procedures
 
 ## Directory Structure
 
