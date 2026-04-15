@@ -25,7 +25,7 @@ tests:
       target_table: "silver.InsertSelectTarget"
       expected_stage_statuses: '{"scope": "ok", "profile": "ok"}'
       expected_blocked_stage: "test-gen"
-      expected_output_terms: "scope-tables,profile-tables,test-gen,blocked"
+      expected_output_terms: "scope,profile,test-gen,blocked"
       expected_recommendation: "generate-tests"
 
   # ── status-single-dimcurrency: catalog only ─────────────────
@@ -34,7 +34,7 @@ tests:
       fixture_path: "tests/evals/fixtures/cmd-status/status-single-dimcurrency"
       target_table: "silver.DimCurrency"
       expected_blocked_stage: "profile"
-      expected_output_terms: "scope-tables,pending"
+      expected_output_terms: "scope,pending"
       expected_recommendation: "scope-tables"
 
   # ── status-single-dimproduct: profile exists, no scoping ────
@@ -43,13 +43,13 @@ tests:
       fixture_path: "tests/evals/fixtures/cmd-status/status-single-dimproduct"
       target_table: "silver.DimProduct"
       expected_blocked_stage: "profile"
-      expected_output_terms: "scope-tables"
+      expected_output_terms: "scope"
 
   # ── status-all-summary: mixed stages ────────────────────────
   - description: "status-all-summary — summary report across all catalog tables"
     vars:
       fixture_path: "tests/evals/fixtures/cmd-status/status-all-summary"
-      expected_output_terms: "scope-tables,profile-tables,test-gen,generate"
+      expected_output_terms: "scope,profile,test-gen,generate"
 
   # ── status-all-objects: views and writerless N/A ─────────────
   - description: "status-all-objects — views and writerless tables with type column and N/A"
