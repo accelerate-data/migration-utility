@@ -38,6 +38,11 @@ def _main(
         _handler.setFormatter(logging.Formatter("%(levelname)s %(name)s: %(message)s"))
         logging.getLogger().addHandler(_handler)
         logging.captureWarnings(True)
+        logging.getLogger("sqlglot").setLevel(logging.WARNING)
+    else:
+        # sqlglot prints parse-ambiguity messages directly through its logger at
+        # WARNING level — suppress them so they don't bleed into CLI output.
+        logging.getLogger("sqlglot").setLevel(logging.CRITICAL)
 
 
 app.command("setup-source")(setup_source)

@@ -169,3 +169,57 @@ def test_verbose_flag_log_warning_reaches_handler(tmp_path):
     assert any("test_verbose_check" in m for m in warning_messages), (
         f"Expected a warning containing 'test_verbose_check'; got records: {warning_messages!r}"
     )
+
+
+# ── sqlglot logger noise suppression ─────────────────────────────────────────
+
+def test_sqlglot_logger_suppressed_by_default(tmp_path):
+    """Without --verbose, the sqlglot logger must be silenced (CRITICAL level)."""
+    (tmp_path / "manifest.json").write_text('{"schema_version": "1"}')
+    sqlglot_logger = logging.getLogger("sqlglot")
+    original_level = sqlglot_logger.level
+    try:
+        with patch("shared.cli.reset_cmd.run_reset_migration") as mock_reset:
+            from shared.output_models.dry_run import ResetMigrationOutput
+            mock_reset.return_value = ResetMigrationOutput(
+                stage="scope", targets=[], reset=[], noop=[], blocked=[], not_found=[]
+            )
+            runner.invoke(
+                app,
+                ["reset", "scope", "silver.Foo", "--yes", "--project-root", str(tmp_path)],
+            )
+        assert sqlglot_logger.level == logging.CRITICAL, (
+            f"Expected sqlglot logger level CRITICAL ({logging.CRITICAL}), "
+            f"got {sqlglot_logger.level}"
+        )
+    finally:
+        sqlglot_logger.setLevel(original_level)
+
+
+def test_sqlglot_logger_not_suppressed_in_verbose_mode(tmp_path):
+    """With --verbose, the sqlglot logger must be left at WARNING so noise is visible."""
+    (tmp_path / "manifest.json").write_text('{"schema_version": "1"}')
+    sqlglot_logger = logging.getLogger("sqlglot")
+    original_level = sqlglot_logger.level
+    root_logger = logging.getLogger()
+    handlers_before = list(root_logger.handlers)
+    try:
+        with patch("shared.cli.reset_cmd.run_reset_migration") as mock_reset:
+            from shared.output_models.dry_run import ResetMigrationOutput
+            mock_reset.return_value = ResetMigrationOutput(
+                stage="scope", targets=[], reset=[], noop=[], blocked=[], not_found=[]
+            )
+            runner.invoke(
+                app,
+                ["--verbose", "reset", "scope", "silver.Foo", "--yes",
+                 "--project-root", str(tmp_path)],
+            )
+        assert sqlglot_logger.level <= logging.WARNING, (
+            f"Expected sqlglot logger level <= WARNING ({logging.WARNING}) in verbose mode, "
+            f"got {sqlglot_logger.level}"
+        )
+    finally:
+        sqlglot_logger.setLevel(original_level)
+        for h in list(root_logger.handlers):
+            if h not in handlers_before:
+                root_logger.removeHandler(h)
