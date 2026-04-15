@@ -2,7 +2,7 @@
 
 Two subcommands:
 
-    scaffold-project   Write CLAUDE.md, README.md, repo-map.json, .gitignore, .envrc, scripts/worktree.sh, .claude/rules/git-workflow.md
+    scaffold-project   Write CLAUDE.md, README.md, repo-map.json, .gitignore, .envrc, .claude/rules/git-workflow.md
     scaffold-hooks     Write .githooks/pre-commit and configure git hooks path
 
 Both are idempotent: existing files are merged or skipped, never overwritten.
@@ -45,7 +45,6 @@ from shared.init_templates import (
     _readme_md_sql_server,
     _repo_map_oracle,
     _repo_map_sql_server,
-    _worktree_sh,
 )
 from shared.output_models.init import (
     LocalOverrideDiscoveryOutput,
@@ -150,9 +149,11 @@ GIT_WORKFLOW_MD = """\
 
 Worktree base path: `{worktree_base}`
 
-Use `./scripts/worktree.sh <branch-name>` to create or attach a worktree and bootstrap it in one step.
+Batch commands create or reuse worktrees automatically through the internal `git-checkpoints` helper.
 
-Commands create worktrees at `<base>/<run-slug>` where `<run-slug>` is generated from the command name and table names (e.g. `scope-dimcustomer-dimproduct`).
+Commands create worktrees at `<base>/<run-slug>` where `<run-slug>` is generated from the command name and table names (e.g. `feature/scope-dimcustomer-dimproduct`).
+
+For manual worktrees, use standard `git worktree add` commands in the shell.
 
 ## Cleanup
 
@@ -282,17 +283,6 @@ def run_scaffold_project(project_root: Path, technology: str = "sql_server") -> 
             )
         else:
             files_skipped.append(".envrc")
-
-    # scripts/worktree.sh
-    worktree_script_path = project_root / "scripts" / "worktree.sh"
-    if not worktree_script_path.exists():
-        worktree_script_path.parent.mkdir(parents=True, exist_ok=True)
-        worktree_script_path.write_text(_worktree_sh(), encoding="utf-8")
-        worktree_script_path.chmod(worktree_script_path.stat().st_mode | stat.S_IEXEC)
-        files_created.append("scripts/worktree.sh")
-        logger.info("event=scaffold_file file=scripts/worktree.sh status=created")
-    else:
-        files_skipped.append("scripts/worktree.sh")
 
     # .claude/rules/git-workflow.md
     workflow_path = project_root / ".claude" / "rules" / "git-workflow.md"

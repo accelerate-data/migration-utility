@@ -18,7 +18,7 @@ The workflow has two layers:
 
 | Step | Command | Result |
 |---|---|---|
-| 1 | `/init-ad-migration` | Scaffolds project files, git hooks, and `scripts/worktree.sh` |
+| 1 | `/init-ad-migration` | Scaffolds project files, git hooks, and repo-local workflow guidance |
 | 2 | `ad-migration setup-source` | Extracts DDL and builds the local catalog |
 | 3 | `ad-migration setup-target` | Collects target runtime, scaffolds the dbt project, and generates `sources.yml` |
 | 4 | `ad-migration setup-sandbox` | Creates the throwaway database used for proof-backed testing |
@@ -97,7 +97,6 @@ catalog/
 ddl/
 test-specs/
 dbt/
-scripts/worktree.sh
 ```
 
 The catalog is the durable project state. Batch commands read from it, write back to it, and persist successful outputs to git.

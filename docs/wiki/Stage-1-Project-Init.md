@@ -45,14 +45,13 @@ The project scaffold currently includes:
 - `.gitignore`
 - `.envrc`
 - `.claude/rules/git-workflow.md`
-- `scripts/worktree.sh`
 - `.githooks/pre-commit`
 
 It also writes a partial `manifest.json` with source technology and dialect so `ad-migration setup-source` can enrich it later.
 
 ## Worktree flow
 
-The scaffolded repo includes `scripts/worktree.sh` as the canonical way to create or attach a worktree and bootstrap it. That script is what downstream command docs and git-workflow guidance refer to.
+The scaffolded repo does not include a repo-local worktree wrapper script. Batch commands create or reuse worktrees through the internal `git-checkpoints` helper, and the scaffolded git-workflow guidance documents the resulting worktree location and cleanup behavior.
 
 ## Idempotency
 

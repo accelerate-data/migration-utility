@@ -14,7 +14,7 @@ Happy-path walkthrough for migrating two tables, `silver.DimCustomer` and `silve
 /init-ad-migration
 ```
 
-This installs the `ad-migration` CLI via Homebrew, checks prerequisites, writes the project starter files, and scaffolds `scripts/worktree.sh` plus the repo-local git-workflow guidance.
+This installs the `ad-migration` CLI via Homebrew, checks prerequisites, writes the project starter files, and scaffolds the repo-local git-workflow guidance.
 
 Generated files include:
 
@@ -24,7 +24,6 @@ Generated files include:
 - `.envrc`
 - `.githooks/pre-commit`
 - `.claude/rules/git-workflow.md`
-- `scripts/worktree.sh`
 
 See [[Stage 1 Project Init]].
 

@@ -239,7 +239,7 @@ uv run --project "${CLAUDE_PLUGIN_ROOT}/lib" python3 -c "import oracledb"
 
 ## Step 6: Scaffold project files
 
-Run the `init` CLI to scaffold the project directory, passing the chosen source technology. This creates CLAUDE.md, README.md, repo-map.json, .gitignore, .envrc, `scripts/worktree.sh`, `.claude/rules/git-workflow.md`, and `.githooks/pre-commit` — all idempotently and parameterized by source.
+Run the `init` CLI to scaffold the project directory, passing the chosen source technology. This creates CLAUDE.md, README.md, repo-map.json, .gitignore, .envrc, `.claude/rules/git-workflow.md`, and `.githooks/pre-commit` — all idempotently and parameterized by source.
 
 ```bash
 uv run --project "${CLAUDE_PLUGIN_ROOT}/lib" init scaffold-project --project-root . --technology $SOURCE

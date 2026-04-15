@@ -9,13 +9,13 @@ Example:
 - Branch: `feature/vu-354-scaffold-tauri-app-with-full-frontend-stack`
 - Worktree path: `../worktrees/feature/vu-354-scaffold-tauri-app-with-full-frontend-stack`
 
-Create or attach a worktree with:
+Create or attach a worktree with the internal git-checkpoints helper:
 
 ```bash
-./scripts/worktree.sh <branch-name>
+./skills/git-checkpoints/scripts/worktree.sh <branch-name>
 ```
 
-`worktree.sh` creates or attaches the worktree at `../worktrees/<branch-name>` and then bootstraps it:
+The helper creates or attaches the worktree at `../worktrees/<branch-name>` and then bootstraps it:
 
 1. Symlinks `.env` from the main repo root
 2. Runs `direnv allow` when available

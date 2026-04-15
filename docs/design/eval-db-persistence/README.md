@@ -8,14 +8,12 @@ This makes it impossible to profile turn usage (`numTurns`) across runs, which i
 
 ## Decision
 
-Symlink the worktree's `tests/evals/.promptfoo/` directory to the main repo's `tests/evals/.promptfoo/` during worktree bootstrap. This follows the existing pattern used for `.env` in `scripts/worktree.sh`.
-
-No changes to `promptfoo.sh` or eval configs are needed. The symlink is transparent to promptfoo.
+Do not couple eval DB persistence to worktree bootstrap. Worktree bootstrap stays focused on repo setup, and `tests/evals/.promptfoo/` remains worktree-local unless the eval harness itself is changed.
 
 ## Why symlink instead of alternatives
 
 - **Changing `PROMPTFOO_CONFIG_DIR` to `~/.promptfoo/`**: Mixes results from all projects on the machine. Filtering by project requires parsing eval descriptions, which is fragile.
-- **Resolving `PROMPTFOO_CONFIG_DIR` via `git-common-dir`**: Requires modifying `promptfoo.sh` and only fixes the DB path. The symlink approach is zero-change to eval tooling.
+- **Resolving `PROMPTFOO_CONFIG_DIR` via `git-common-dir`**: Requires modifying `promptfoo.sh` and only fixes the DB path.
 - **Committing the DB to git**: SQLite binaries don't diff, grow unboundedly, and merge conflicts are unresolvable.
 
 ## Profiling approach

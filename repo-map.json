@@ -114,7 +114,7 @@
     },
     "scripts": {
       "path": "scripts/",
-      "description": "Developer scripts: contributor-setup.sh (canonical contributor maintainer bootstrap and readiness check with fix/show modes plus structured JSON summary), worktree.sh (single entrypoint for worktree creation/attach plus bootstrap and structured failure output), publish-sqlserver-image.sh (build + push SQL Server Docker image with pre-baked KimballFixture data files; MigrationTest stays a schema-level runtime materialization concern), demo-warehouse/ (cross-dialect Kimball demo warehouse fixture for demos, parity checks, and image builds)."
+      "description": "Developer scripts: contributor-setup.sh (canonical contributor maintainer bootstrap and readiness check with fix/show modes plus structured JSON summary), publish-sqlserver-image.sh (build + push SQL Server Docker image with pre-baked KimballFixture data files; MigrationTest stays a schema-level runtime materialization concern), demo-warehouse/ (cross-dialect Kimball demo warehouse fixture for demos, parity checks, and image builds)."
     },
     "docker_sqlserver": {
       "path": "docker/sqlserver/",

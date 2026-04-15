@@ -7,7 +7,6 @@ Tests call run_* functions directly (testability pattern).
 from __future__ import annotations
 
 import json
-import stat
 import subprocess
 from pathlib import Path
 
@@ -42,7 +41,6 @@ class TestScaffoldProject:
         assert ".gitignore" in result.files_created
         assert ".envrc" in result.files_created
         assert ".claude/rules/git-workflow.md" in result.files_created
-        assert "scripts/worktree.sh" in result.files_created
         assert result.files_updated == []
         assert result.files_skipped == []
 
@@ -62,20 +60,16 @@ class TestScaffoldProject:
         workflow = (tmp_path / ".claude" / "rules" / "git-workflow.md").read_text()
         assert "Worktree" in workflow
         assert "../worktrees" in workflow
-        worktree_script = tmp_path / "scripts" / "worktree.sh"
-        assert worktree_script.exists()
-        assert worktree_script.stat().st_mode & stat.S_IXUSR
-        worktree_script_text = worktree_script.read_text()
-        assert "WORKTREE_BRANCH_ALREADY_CHECKED_OUT" in worktree_script_text
-        assert 'local lib_dir="$worktree_path/lib"' in worktree_script_text
-        assert 'local lib_dir="$worktree_path/plugin' not in worktree_script_text
+        assert "git-checkpoints" in workflow
+        assert "scripts/worktree.sh" not in workflow
+        assert not (tmp_path / "scripts" / "worktree.sh").exists()
 
     def test_idempotent_skips_existing_files(self, tmp_path: Path) -> None:
         run_scaffold_project(tmp_path)
         result = run_scaffold_project(tmp_path)
         assert result.files_created == []
         assert result.files_updated == []
-        assert len(result.files_skipped) == 7
+        assert len(result.files_skipped) == 6
 
     def test_merges_missing_gitignore_entries(self, tmp_path: Path) -> None:
         (tmp_path / ".gitignore").write_text("# Custom\n.DS_Store\n")

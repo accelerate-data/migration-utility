@@ -80,8 +80,9 @@ Create the worktree:
 
 ```bash
 cd "$repo_root"
-./scripts/worktree.sh "feature/<slug>"
+"$repo_root/skills/git-checkpoints/scripts/worktree.sh" "feature/<slug>"
 ```
+
 Determine the worktree path as `$repo_root/../worktrees/feature/<slug>` and return that absolute
 path. All subsequent file writes and git operations for this run must target that path.
 
