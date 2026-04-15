@@ -20,6 +20,7 @@ _TESTS_DIR = Path(__file__).parent
 _FLAT_FIXTURES = _TESTS_DIR / "fixtures" / "flat"
 _UNPARSEABLE_FIXTURES = _TESTS_DIR / "fixtures" / "unparseable"
 _LISTING_OBJECTS_EVAL_FIXTURES = Path(__file__).resolve().parents[3] / "tests" / "evals" / "fixtures" / "analyzing-table" / "merge"
+_SOURCE_TABLE_GUARD_FIXTURES = Path(__file__).resolve().parents[3] / "tests" / "evals" / "fixtures" / "listing-objects" / "source-table-guard"
 
 
 # ── test_list_flat_tables ──────────────────────────────────────────────────
@@ -36,6 +37,16 @@ def test_list_flat_tables() -> None:
     assert "bronze.geography" in objects
     assert "bronze.runcontrol" in objects
     assert "dbo.config" in objects
+
+
+def test_list_sources_returns_confirmed_sources_only() -> None:
+    result = discover.run_list(_SOURCE_TABLE_GUARD_FIXTURES, discover.ObjectType.sources)
+    assert result.objects == ["silver.dimsource"]
+
+
+def test_list_tables_includes_source_tables_unchanged() -> None:
+    result = discover.run_list(_SOURCE_TABLE_GUARD_FIXTURES, discover.ObjectType.tables)
+    assert result.objects == ["silver.dimsource"]
 
 
 # ── test_list_flat_procedures ─────────────────────────────────────────────
@@ -121,6 +132,7 @@ def test_show_table_columns() -> None:
     """show on a table returns columns list populated from AST."""
     result = discover.run_show(_FLAT_FIXTURES, "silver.DimProduct")
     assert result.type == "table"
+    assert result.is_source is None
     assert result.parse_error is None
     columns = result.columns
     assert isinstance(columns, list)
@@ -132,6 +144,12 @@ def test_show_table_columns() -> None:
     for col in columns:
         assert col.name
         assert col.sql_type
+
+
+def test_show_source_table_includes_source_marker() -> None:
+    result = discover.run_show(_SOURCE_TABLE_GUARD_FIXTURES, "silver.DimSource")
+    assert result.type == "table"
+    assert result.is_source is True
 
 
 # ── test_show_unparseable_has_parse_error ─────────────────────────────────

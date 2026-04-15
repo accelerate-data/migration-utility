@@ -40,6 +40,7 @@ logger = logging.getLogger(__name__)
 
 class ObjectType(str, Enum):
     tables = "tables"
+    sources = "sources"
     procedures = "procedures"
     views = "views"
     functions = "functions"
@@ -76,6 +77,13 @@ def _catalog_error(type_label: str, norm: str) -> NoReturn:
 def run_list(project_root: Path, object_type: ObjectType) -> DiscoverListOutput:
     """Return the list subcommand result."""
     catalog, _ = _load(project_root)
+    if object_type == ObjectType.sources:
+        source_tables: list[str] = []
+        for fqn in sorted(catalog.tables.keys()):
+            table_cat = load_table_catalog(project_root, fqn)
+            if table_cat is not None and table_cat.is_source:
+                source_tables.append(fqn)
+        return DiscoverListOutput(objects=source_tables)
     return DiscoverListOutput(objects=sorted(_bucket(catalog, object_type).keys()))
 
 
@@ -83,7 +91,10 @@ def _show_table(project_root: Path, norm: str) -> dict[str, Any]:
     table_cat = load_table_catalog(project_root, norm)
     if table_cat is None:
         _catalog_error("table", norm)
-    return {"columns": table_cat.columns}
+    result: dict[str, Any] = {"columns": table_cat.columns}
+    if table_cat.is_source:
+        result["is_source"] = True
+    return result
 
 
 def _show_procedure(project_root: Path, norm: str, entry: DdlEntry) -> dict[str, Any]:

@@ -16,7 +16,7 @@ Read-only catalog viewer. Displays whatever state exists in the catalog.
 
 | Subcommand | Argument | Description |
 |---|---|---|
-| `list` | `tables`, `procedures`, `views`, or `functions` | Enumerate objects by type |
+| `list` | `tables`, `sources`, `procedures`, `views`, or `functions` | Enumerate objects by type |
 | `show` | `<schema.object>` | Display catalog state for one object |
 | `refs` | `<schema.object>` | Show procedures/views that reference an object |
 
@@ -39,6 +39,8 @@ uv run --project "${CLAUDE_PLUGIN_ROOT}/lib" discover list \
 
 Present as a numbered list. If the user selects an object, proceed to `show`. If they ask what references it, proceed to `refs`.
 
+`list sources` returns only confirmed source tables persisted as `is_source: true` in the catalog.
+
 If `objects[]` is empty, say there are no objects of that type in the current catalog state. Do not troubleshoot fixtures or infer missing extraction steps unless the user asks.
 
 ## show
@@ -53,6 +55,8 @@ Present whatever the catalog currently holds for the object.
 Do not special-case `is_source` tables. If `discover show` returns columns for a source table, present them as normal catalog state.
 For a direct `show <schema.object>` request, run `discover show` once and treat a successful payload as the source of truth for the response. Present the returned catalog state directly.
 Do not inspect sibling files, diagnose catalog/setup problems, or infer missing extraction steps unless `discover show` itself fails.
+
+If `discover show` includes `is_source: true`, surface that the table is a confirmed source.
 
 **Tables:** columns, plus scoping results and analyzed statements if present.
 
