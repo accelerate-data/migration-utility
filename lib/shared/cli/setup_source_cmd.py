@@ -12,6 +12,7 @@ from typing import Any
 import typer
 
 from shared.cli.env_check import require_source_vars
+from shared.cli.error_handler import cli_error_handler
 from shared.cli.git_ops import is_git_repo, stage_and_commit
 from shared.cli.output import console, error, print_table, success, warn
 from shared.init import run_scaffold_hooks, run_scaffold_project
@@ -60,7 +61,8 @@ def setup_source(
     database = os.environ.get("MSSQL_DB") if technology == "sql_server" else None
 
     if all_schemas:
-        discovered = run_list_schemas(root, database)
+        with cli_error_handler("discovering schemas in database"):
+            discovered = run_list_schemas(root, database)
         schema_list = [s["schema"] for s in discovered.get("schemas", [])]
         if not schema_list:
             error("No schemas found in the database. Verify the connection and database name.")
@@ -79,11 +81,8 @@ def setup_source(
 
     console.print(f"Extracting DDL from schemas: [bold]{', '.join(schema_list)}[/bold]")
     with console.status("Extracting..."):
-        try:
+        with cli_error_handler("extracting DDL from source database"):
             result = run_extract(root, database, schema_list)
-        except (OSError, ConnectionError) as exc:
-            error(f"Connection error: {exc}")
-            raise typer.Exit(code=2) from exc
 
     _report_extract(result)
 
