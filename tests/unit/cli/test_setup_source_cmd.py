@@ -230,6 +230,37 @@ def test_setup_source_neither_schemas_nor_all_schemas_exits_1(tmp_path, monkeypa
     assert result.exit_code == 1
 
 
+def test_setup_source_shows_clean_error_on_db_failure(tmp_path, monkeypatch):
+    monkeypatch.setenv("MSSQL_HOST", "localhost")
+    monkeypatch.setenv("MSSQL_PORT", "1433")
+    monkeypatch.setenv("MSSQL_DB", "BadDB")
+    monkeypatch.setenv("SA_PASSWORD", "pw")
+
+    import shared.cli.error_handler as _mod
+    class _FakePyodbcProgramming(Exception): pass
+
+    with (
+        patch("shared.cli.setup_source_cmd._check_source_prereqs"),
+        patch("shared.cli.setup_source_cmd.run_scaffold_project", return_value=_SCAFFOLD_OUT),
+        patch("shared.cli.setup_source_cmd.run_scaffold_hooks", return_value=_HOOKS_OUT),
+        patch("shared.cli.setup_source_cmd.run_extract",
+              side_effect=_FakePyodbcProgramming("Cannot open database")),
+        patch.object(_mod, "_PYODBC_PROGRAMMING_ERROR", _FakePyodbcProgramming),
+        patch.object(_mod, "_PYODBC_INTERFACE_ERROR", None),
+        patch.object(_mod, "_PYODBC_OPERATIONAL_ERROR", None),
+        patch.object(_mod, "_PYODBC_ERROR", _FakePyodbcProgramming),
+    ):
+        result = runner.invoke(
+            app,
+            ["setup-source", "--technology", "sql_server", "--schemas", "silver",
+             "--project-root", str(tmp_path)],
+        )
+
+    assert result.exit_code == 2
+    assert "Hint:" in result.output
+    assert "MSSQL_DB" in result.output
+
+
 def test_setup_source_oracle_passes_none_database(tmp_path, monkeypatch):
     monkeypatch.setenv("ORACLE_HOST", "localhost")
     monkeypatch.setenv("ORACLE_PORT", "1521")
