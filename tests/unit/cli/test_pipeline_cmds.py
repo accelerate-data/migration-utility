@@ -72,6 +72,37 @@ def test_reset_exits_1_on_blocked(tmp_path):
     assert result.exit_code == 1
 
 
+def test_reset_stage_commits_catalog_files(tmp_path):
+    _write_manifest(tmp_path)
+    with (
+        patch("shared.cli.reset_cmd.run_reset_migration", return_value=_RESET_OUT),
+        patch("shared.cli.reset_cmd.is_git_repo", return_value=True),
+        patch("shared.cli.reset_cmd.stage_and_commit", return_value=True) as mock_commit,
+    ):
+        result = runner.invoke(
+            app,
+            ["reset", "scope", "silver.DimCustomer", "--yes", "--project-root", str(tmp_path)],
+        )
+    assert result.exit_code == 0, result.output
+    mock_commit.assert_called_once()
+
+
+def test_reset_stage_no_commit_flag_skips_commit(tmp_path):
+    _write_manifest(tmp_path)
+    with (
+        patch("shared.cli.reset_cmd.run_reset_migration", return_value=_RESET_OUT),
+        patch("shared.cli.reset_cmd.is_git_repo", return_value=True),
+        patch("shared.cli.reset_cmd.stage_and_commit") as mock_commit,
+    ):
+        result = runner.invoke(
+            app,
+            ["reset", "scope", "silver.DimCustomer", "--yes", "--no-commit",
+             "--project-root", str(tmp_path)],
+        )
+    assert result.exit_code == 0, result.output
+    mock_commit.assert_not_called()
+
+
 # ── reset all (global) ───────────────────────────────────────────────────────
 
 _GLOBAL_RESET_OUT = ResetMigrationOutput(
@@ -178,6 +209,51 @@ def test_reset_all_rejects_fqn_arguments(tmp_path):
     _write_manifest(tmp_path)
     result = runner.invoke(app, ["reset", "all", "silver.Foo", "--yes", "--project-root", str(tmp_path)])
     assert result.exit_code == 1
+
+
+def test_reset_all_commits_deleted_paths(tmp_path):
+    _write_manifest(tmp_path)
+    with (
+        patch("shared.cli.reset_cmd._load_manifest", return_value={}),
+        patch("shared.cli.reset_cmd._get_sandbox_name", return_value=None),
+        patch("shared.cli.reset_cmd.run_reset_migration", return_value=_GLOBAL_RESET_OUT),
+        patch("shared.cli.reset_cmd.is_git_repo", return_value=True),
+        patch("shared.cli.reset_cmd.stage_and_commit", return_value=True) as mock_commit,
+    ):
+        result = runner.invoke(app, ["reset", "all", "--yes", "--project-root", str(tmp_path)])
+    assert result.exit_code == 0, result.output
+    mock_commit.assert_called_once()
+
+
+def test_reset_all_no_commit_flag_skips_commit(tmp_path):
+    _write_manifest(tmp_path)
+    with (
+        patch("shared.cli.reset_cmd._load_manifest", return_value={}),
+        patch("shared.cli.reset_cmd._get_sandbox_name", return_value=None),
+        patch("shared.cli.reset_cmd.run_reset_migration", return_value=_GLOBAL_RESET_OUT),
+        patch("shared.cli.reset_cmd.is_git_repo", return_value=True),
+        patch("shared.cli.reset_cmd.stage_and_commit") as mock_commit,
+    ):
+        result = runner.invoke(
+            app, ["reset", "all", "--yes", "--no-commit", "--project-root", str(tmp_path)]
+        )
+    assert result.exit_code == 0, result.output
+    mock_commit.assert_not_called()
+
+
+def test_reset_all_warns_if_not_git_repo(tmp_path):
+    _write_manifest(tmp_path)
+    with (
+        patch("shared.cli.reset_cmd._load_manifest", return_value={}),
+        patch("shared.cli.reset_cmd._get_sandbox_name", return_value=None),
+        patch("shared.cli.reset_cmd.run_reset_migration", return_value=_GLOBAL_RESET_OUT),
+        patch("shared.cli.reset_cmd.is_git_repo", return_value=False),
+        patch("shared.cli.reset_cmd.stage_and_commit") as mock_commit,
+    ):
+        result = runner.invoke(app, ["reset", "all", "--yes", "--project-root", str(tmp_path)])
+    assert result.exit_code == 0, result.output
+    mock_commit.assert_not_called()
+    assert "git" in result.output.lower()
 
 
 def test_reset_all_sandbox_db_error_warns_and_continues(tmp_path):
