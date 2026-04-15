@@ -18,9 +18,9 @@ Domain terms used across the migration utility wiki.
 
 - **selected_writer** -- the stored procedure identified during scoping as the primary writer for a table. Determined by analyzing `refs` (which procedures INSERT, UPDATE, MERGE, or DELETE into the table) and resolving candidates. Written to the table catalog's `scoping` section.
 
-- **routing flags** -- `mode` and `routing_reasons` fields on procedure catalog entries. Determine how the procedure is processed during analysis. `discover show` exposes these as the `needs_llm` boolean and `routing_reasons` array.
+- **routing flags** -- `mode` and `routing_reasons` fields on procedure catalog entries. Determine how the procedure is processed during analysis. Visible via `/listing-objects show <proc>` as the `needs_llm` boolean and `routing_reasons` array.
 
-- **needs_llm** -- boolean field on `discover show` output indicating whether the procedure requires LLM reasoning. `false` means the AST engine (sqlglot) fully parsed all statements. `true` means the procedure contains dynamic SQL, unparseable constructs, or parse failures that require the LLM to read `raw_ddl` and classify statements.
+- **needs_llm** -- boolean field in the procedure catalog entry (visible via `/listing-objects show <proc>`) indicating whether the procedure requires LLM reasoning. `false` means the AST engine (sqlglot) fully parsed all statements. `true` means the procedure contains dynamic SQL, unparseable constructs, or parse failures that require the LLM to read `raw_ddl` and classify statements.
 
 ## Profiling
 

@@ -19,17 +19,13 @@ Trigger phrases: "profile a table", "classify a table", "what kind of model is t
 - `manifest.json` must exist in the project root. If missing, run `ad-migration setup-source` first.
 - `catalog/tables/<table>.json` must exist. If missing, run `/listing-objects list tables` to see available tables.
 - `scoping.selected_writer` must be set in the table catalog. If missing, run [[Analyzing Table]] first.
-- The skill checks profiling readiness through `migrate-util ready` and stops on the surfaced code if the object is not ready.
+- The skill checks profiling readiness and stops with an error code if the object is not ready.
 
 ## Pipeline
 
 ### 1. Assemble context (deterministic)
 
-```bash
-uv run --project <shared-path> profile context --table <table>
-```
-
-The CLI reads the selected writer from the table's catalog scoping section. Output shape is enforced by the `ProfileContext` Pydantic model in `lib/shared/output_models.py`:
+Reads catalog files for the table and its selected writer to assemble profiling context. The context includes:
 
 - `catalog_signals` -- PKs, FKs, identity columns, unique indexes, change capture, sensitivity classifications
 - `writer_references` -- outbound references from the writer procedure with column-level read/write flags
@@ -47,13 +43,7 @@ Profile is presented as a structured summary. If a required question (Q1, Q2, Q4
 
 ### 4. Write to catalog (deterministic)
 
-```bash
-mkdir -p .staging
-# Write profile JSON to .staging/profile.json
-uv run --project <shared-path> profile write \
-  --table <table> \
-  --profile-file .staging/profile.json; rm -rf .staging
-```
+Writes the approved profile to the table catalog file.
 
 ## Reads
 
@@ -313,9 +303,9 @@ Catalog signals are treated as facts. The LLM fills in what the catalog does not
 
 | Error | Cause | Fix |
 |---|---|---|
-| `profile context` exit code 1 | Catalog file missing for table or writer | Run `ad-migration setup-source` and [[Analyzing Table]] first |
-| `profile context` exit code 2 | IO/parse error reading catalog files | Check file permissions and JSON validity in `catalog/` |
-| `profile write` exit code 1 | Validation failure -- invalid JSON, missing required fields, or invalid enum values | Check profile JSON against the field definitions and enum values above |
-| `profile write` exit code 2 | IO error -- catalog unreadable or write failure | Check file permissions on `catalog/tables/<table>.json` |
+| Catalog file missing | Catalog file missing for table or writer | Run `ad-migration setup-source` and [[Analyzing Table]] first |
+| IO/parse error | IO/parse error reading catalog files | Check file permissions and JSON validity in `catalog/` |
+| Profile write validation failure | Invalid field values in the assembled profile | Re-run `/profiling-table`; if it persists, check the catalog for corruption |
+| Profile write IO error | Catalog unreadable or write failure | Check file permissions on `catalog/tables/<table>.json` |
 | Ambiguous classification | Write pattern signals conflict with column shape signals | The skill stops and asks the user for guidance rather than auto-resolving |
 | Missing watermark | No WHERE clause filter or datetime column found | Profile is written with `status: "partial"`. Model will fall back to full-refresh `table` materialization |

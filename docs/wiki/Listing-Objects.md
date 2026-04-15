@@ -35,25 +35,7 @@ Read `manifest.json` to confirm a valid project root.
 
 ### 2. Execute subcommand
 
-Each subcommand runs a single CLI call and presents results.
-
-**list:**
-
-```bash
-uv run --project <shared-path> discover list --type <type>
-```
-
-**show:**
-
-```bash
-uv run --project <shared-path> discover show --name <fqn>
-```
-
-**refs:**
-
-```bash
-uv run --project <shared-path> discover refs --name <fqn>
-```
+Each subcommand reads the local catalog files and presents results.
 
 ### 3. Present results
 
@@ -80,7 +62,7 @@ None. This skill is strictly read-only.
 
 ## JSON Format
 
-### `discover list` output (`discover_list_output.json`)
+### `list` output
 
 ```json
 {
@@ -96,7 +78,7 @@ None. This skill is strictly read-only.
 |---|---|---|
 | `objects` | string[] | Sorted list of normalized fully-qualified names for all objects of the requested type |
 
-### `discover show` output (`discover_show_output.json`)
+### `show` output
 
 ```json
 {
@@ -146,7 +128,7 @@ None. This skill is strictly read-only.
 | `action` | string | Enum: `migrate`, `skip`, `needs_llm` |
 | `sql` | string | SQL text of the statement (truncated to 200 chars) |
 
-### `discover refs` output (`discover_refs_output.json`)
+### `refs` output
 
 ```json
 {
@@ -190,5 +172,5 @@ None. This skill is strictly read-only.
 |---|---|---|
 | Exit code 1 on any subcommand | Object not found or catalog file missing | Verify the object name matches catalog (use `list` to see available objects) |
 | Exit code 2 on any subcommand | Catalog directory unreadable (IO error) | Check file permissions on `catalog/` directory |
-| `parse_error` set on `discover show` | sqlglot could not parse the procedure body | `raw_ddl` is still preserved for manual inspection. The object can still be analyzed through the normal scoping flow |
+| `parse_error` set on `show` output | sqlglot could not parse the procedure body | `raw_ddl` is still preserved for manual inspection. The object can still be analyzed through the normal scoping flow |
 | Dynamic SQL writers missing from `refs` | `sys.dm_sql_referenced_entities` resolves at definition time | Known limitation -- procs that write only via dynamic SQL (`EXEC(@sql)`, `sp_executesql`) will not appear as writers |

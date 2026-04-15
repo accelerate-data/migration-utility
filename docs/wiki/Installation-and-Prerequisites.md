@@ -11,8 +11,7 @@ Local execution is supported on macOS and Linux. Windows is not supported for th
 | Tool | Version | Purpose |
 |---|---|---|
 | [Claude Code CLI](https://claude.ai) | Latest | Agent runtime that executes all plugin commands |
-| [uv](https://github.com/astral-sh/uv) | Latest | Python package manager and runner used by every CLI tool |
-| Python | 3.11+ | Runtime for shared library, MCP server, and CLI tools |
+| Python | 3.11+ | Runtime for CLI tools; installed automatically by the Homebrew formula |
 | [gh CLI](https://cli.github.com/) | Latest | GitHub operations (PRs, branch management, worktree cleanup) |
 | git | 2.x+ | Version control; worktree support required for batch commands |
 
@@ -67,10 +66,6 @@ export SOURCE_ORACLE_PASSWORD=<your-password>
 
 Add target and sandbox variables from the corresponding technology reference page before running `ad-migration setup-target` or `ad-migration setup-sandbox`.
 
-## Python Dependencies
-
-The shared library depends on pydantic, sqlglot, and typer as its key runtime libraries. All Python dependencies (including transitive ones) are managed by uv and pinned in `lib/pyproject.toml`. Running `uv sync` in the `lib` directory installs everything needed.
-
 ## Loading the Plugin
 
 Install from the Vibedata marketplace:
@@ -97,12 +92,6 @@ manually or verify an existing installation:
 brew tap accelerate-data/homebrew-tap
 brew install ad-migration
 ad-migration --version
-```
-
-Dev usage without installing:
-
-```bash
-uv run --project lib ad-migration --help
 ```
 
 ## Verifying Setup

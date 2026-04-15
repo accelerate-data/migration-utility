@@ -11,11 +11,11 @@
 
 ## What it does
 
-The command uses the current CLI surface, not the old dry-run flow:
+The command reads the local catalog to compute current pipeline state:
 
-- `migrate-util status` for per-object stage state
-- `migrate-util sync-excluded-warnings` to refresh exclusion diagnostics
-- `migrate-util batch-plan` for dependency-aware execution planning
+- per-object stage status across all in-scope tables, views, and materialized views
+- exclusion diagnostics refreshed from the current catalog
+- dependency-aware execution planning to identify the next best action
 
 ## Batch mode
 
