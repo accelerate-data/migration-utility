@@ -25,7 +25,7 @@ Plugin commands run inside Claude Code and handle LLM-driven pipeline stages.
 
 | Command | Purpose |
 |---|---|
-| `/reset-migration` | Clear one migration stage so it can be re-run cleanly |
+| `/cleanup-worktrees` | Remove merged worktrees and their branches after PR cleanup |
 
 ## ad-migration CLI
 
@@ -64,4 +64,5 @@ uv run --project lib ad-migration <command>
 ## Notes
 
 - Source-confirmed tables are skipped by downstream migration commands.
-- For the full ad-migration CLI reference including options, exit codes, and git workflow, see [[CLI Reference]].
+- The `ad-migration` CLI does not commit, push, open PRs, or clean worktrees; do those git operations yourself in the shell.
+- For the full ad-migration CLI reference including options and exit codes, see [[CLI Reference]].

@@ -16,9 +16,9 @@ Generate test scenarios, review for coverage, then bulk-execute approved scenari
 
 - `manifest.json` must exist. If missing, fail all items with `MANIFEST_NOT_FOUND`.
 - For each FQN argument: if `catalog/tables/<fqn>.json` has `"is_source": true`, skip that table and print:
-  > `<fqn>` is marked as a dbt source — no migration needed. Use `/add-source-tables` to manage source tables.
-- `manifest.json` must have `runtime.sandbox`. If missing, fail all items with `SANDBOX_NOT_CONFIGURED` and tell user to run `/setup-sandbox`. The command executes against the active sandbox endpoint, not against the source or target runtime.
-- Check sandbox exists via `uv run --project "${CLAUDE_PLUGIN_ROOT}/lib" test-harness sandbox-status`. If not found, fail all items with `SANDBOX_NOT_RUNNING` and tell user to check the sandbox with `/setup-sandbox` (it may have been torn down or the database dropped).
+  > `<fqn>` is marked as a dbt source — no migration needed. Use `ad-migration add-source-table` to manage source tables.
+- `manifest.json` must have `runtime.sandbox`. If missing, fail all items with `SANDBOX_NOT_CONFIGURED` and tell user to run `ad-migration setup-sandbox`. The command executes against the active sandbox endpoint, not against the source or target runtime.
+- Check sandbox exists via `uv run --project "${CLAUDE_PLUGIN_ROOT}/lib" test-harness sandbox-status`. If not found, fail all items with `SANDBOX_NOT_RUNNING` and tell user to check the sandbox with `ad-migration setup-sandbox` (it may have been torn down or the database dropped).
 
 Per-item readiness is checked by the skill via `migrate-util ready`.
 
@@ -98,7 +98,7 @@ git checkout -- test-specs/<item_id>.json
 
 Use `rm -f` for files that were newly created and have no prior version.
 
-If the item final status is not `error`, auto-commit and push: run `/commit test-specs/<item_id>.json`.
+If the item final status is not `error`, stage `test-specs/<item_id>.json`, create a checkpoint commit, and push the current branch.
 
 ### Step 6 — Summarize
 

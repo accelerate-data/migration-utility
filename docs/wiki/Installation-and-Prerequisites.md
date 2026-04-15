@@ -47,7 +47,7 @@ The variables required depend on your source technology. The `/init-ad-migration
 
 When using the default `FreeTDS` path, `/init-ad-migration` now verifies both the Homebrew package and the unixODBC driver registration. A plain `brew install freetds` is not considered sufficient if `FreeTDS` does not appear in `odbcinst -q -d`.
 
-All connection variables are required for `ad-migration setup-source`, `/setup-sandbox`, `/generate-tests`, `/refactor`, and any other live-database skill.
+All connection variables are required for `ad-migration setup-source`, `ad-migration setup-sandbox`, `/generate-tests`, `/refactor`, and any other live-database skill.
 
 ### Oracle
 

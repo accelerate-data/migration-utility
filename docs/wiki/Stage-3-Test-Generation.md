@@ -17,8 +17,8 @@
 
 ## Pipeline
 
-1. generate the test scenarios with `/generating-tests`
-2. review them with `/reviewing-tests`
+1. generate the test scenarios
+2. run the independent review loop
 3. execute approved scenarios in the sandbox
 4. write dbt-ready YAML test artifacts
 
@@ -35,7 +35,7 @@ The JSON spec is the working artifact for the pipeline. The YAML file is the use
 
 ## Sandbox teardown
 
-Use `/teardown-sandbox` after you are done with test generation and SQL proof workflows that depend on the sandbox.
+Use `ad-migration teardown-sandbox` after you are done with test generation and SQL proof workflows that depend on the sandbox.
 
 ## Next step
 

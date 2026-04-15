@@ -6,6 +6,15 @@ The `ad-migration` CLI manages migration state — DDL extraction, catalog, sand
 
 Git is your responsibility. The CLI writes files; you decide when to commit them.
 
+The CLI does **not**:
+
+- create branches or worktrees
+- stage files
+- commit changes
+- push branches
+- open or update PRs
+- clean up worktrees after merge
+
 **Recommended flow:**
 
 ```bash
@@ -17,7 +26,7 @@ git push origin feature/migration-setup
 # open PR, review, merge to main
 ```
 
-Each command's output section below lists exactly which files it writes, so you know what to stage.
+Each command's output section below lists exactly which files it writes, so you know what to stage manually.
 
 ## Installation
 

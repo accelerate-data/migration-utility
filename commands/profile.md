@@ -15,7 +15,7 @@ Produce migration profiles for each table, view, or materialized view. Launches 
 
 - `manifest.json` must exist. If missing, fail all items with `MANIFEST_NOT_FOUND`.
 - For each FQN argument: if `catalog/tables/<fqn>.json` has `"is_source": true`, skip that table and print:
-  > `<fqn>` is marked as a dbt source — no migration needed. Use `/add-source-tables` to manage source tables.
+  > `<fqn>` is marked as a dbt source — no migration needed. Use `ad-migration add-source-table` to manage source tables.
 
 Per-item readiness is checked by the skill via `migrate-util ready`.
 
@@ -51,7 +51,7 @@ git checkout -- catalog/tables/<item_id>.json  # or catalog/views/<item_id>.json
 
 Ignore errors from `git checkout` (the file may not have been modified).
 
-If the item status is not `error`, auto-commit and push: run `/commit catalog/tables/<item_id>.json` (or `catalog/views/<item_id>.json` for views).
+If the item status is not `error`, stage the affected catalog path, create a checkpoint commit, and push the current branch.
 
 Then continue to Step 3.
 
@@ -66,7 +66,7 @@ Create `.migration-runs/` first if it does not already exist.
 
 After writing the result:
 - If status == "error": run `git checkout -- catalog/tables/<item_id>.json` or `catalog/views/<item_id>.json` (ignore errors).
-- If status != "error": invoke the /commit command with the appropriate catalog path.
+- If status != "error": stage the appropriate catalog path, create a checkpoint commit, and push the current branch.
 
 On failure before writing a result, write result with status: "error" and error details, then revert as above.
 Return the item result JSON.

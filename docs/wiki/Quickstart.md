@@ -44,7 +44,7 @@ See [[Stage 2 DDL Extraction]].
 /scope silver.DimCustomer silver.FactInternetSales
 ```
 
-Before `/setup-target` can proceed, every extracted table needs one of these outcomes:
+Before `ad-migration setup-target` can proceed, every extracted table needs one of these outcomes:
 
 - scoped to a writer via `/scope` or `/analyzing-table`
 - excluded from the migration via `ad-migration exclude-table <fqn>`
@@ -138,8 +138,8 @@ Run this after all test generation and refactor work that depends on the sandbox
 
 ## 12. Clean up merged worktrees later
 
-```bash
-bash scripts/cleanup-worktrees.sh
+```text
+/cleanup-worktrees
 ```
 
 After PRs are merged, use this to remove stale worktrees and merged branches.

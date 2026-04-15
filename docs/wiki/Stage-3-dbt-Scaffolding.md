@@ -21,13 +21,13 @@ ad-migration setup-target
 - `catalog/tables/` must exist
 - the initial analyze stage must be complete for in-scope tables
 
-Before `/setup-target` can proceed, extracted tables need to be in one of these states:
+Before `ad-migration setup-target` can proceed, extracted tables need to be in one of these states:
 
 - resolved to a writer
 - excluded from the migration
 - writerless and explicitly confirmed as a source
 
-In practice, this means you should finish the scope/exclude/source decision first, then run `ad-migration add-source-table <fqn>` for every table that should remain a dbt source before invoking `/setup-target`.
+In practice, this means you should finish the scope/exclude/source decision first, then run `ad-migration add-source-table <fqn>` for every table that should remain a dbt source before invoking `ad-migration setup-target`.
 
 ## What it writes
 
@@ -54,13 +54,13 @@ This is the part that matters most operationally:
 - resolved migration targets are excluded from `sources.yml` because they are expected to become dbt models
 - excluded tables do not appear in `sources.yml`
 
-So `no_writer_found` by itself is not enough. Source tables have to be explicitly confirmed with `ad-migration add-source-table <fqn>` before `/setup-target`. `setup-target` consumes those decisions; it should not be the step where you make them.
+So `no_writer_found` by itself is not enough. Source tables have to be explicitly confirmed with `ad-migration add-source-table <fqn>` before `ad-migration setup-target`. `setup-target` consumes those decisions; it should not be the step where you make them.
 
 If you confirm additional source tables later, rerun `ad-migration setup-target`. The command is idempotent: it will regenerate `sources.yml` from the latest `is_source` flags and create only the missing target-side source tables.
 
 ## Re-running
 
-Re-running `/setup-target` is safe:
+Re-running `ad-migration setup-target` is safe:
 
 - it regenerates `sources.yml`
 - it does not overwrite your edited `profiles.yml`

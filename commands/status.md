@@ -18,8 +18,8 @@ Use the canonical `/status` code list in [../lib/shared/status_error_codes.md](.
 ## Guards
 
 - **No caching.** Every `/status` invocation MUST execute the CLI commands (`migrate-util status`, `migrate-util batch-plan`, etc.) fresh. Never reuse output from a previous `/status` run in the same conversation. The catalog can change between invocations — always read from disk.
-- `manifest.json` must exist. If missing, tell the user to run `/setup-ddl` first.
-- `catalog/tables/` must contain at least one `.json` file. If empty, tell the user to run `/setup-ddl` first.
+- `manifest.json` must exist. If missing, tell the user to run `ad-migration setup-source` first.
+- `catalog/tables/` must contain at least one `.json` file. If empty, tell the user to run `ad-migration setup-source` first.
 
 ## Pipeline — No table argument (batch summary)
 
@@ -180,7 +180,7 @@ What to do next
 
   1. Fix 2 error diagnostic(s) before proceeding:
        PARSE_ERROR on silver.FactSales — DDL failed to parse. Simplify the view DDL
-         and re-run /setup-ddl, then /analyzing-view silver.FactSales.
+         and rerun `ad-migration setup-source`, then re-run `/scope silver.FactSales`.
        MULTI_TABLE_WRITE on silver.DimProduct — writer proc targets multiple tables.
          Use /scope to re-select a single-table writer, or split the proc.
 
@@ -209,7 +209,7 @@ After the "What to do next" section, show these notes if applicable:
 
   ```text
   pending source confirmation (N tables)
-    Run /add-source-tables <fqn> to confirm, or confirm during /setup-target.
+    Run `!ad-migration add-source-table <fqn>` to confirm, then rerun `!ad-migration setup-target`.
     silver.AuditLog
     silver.TempStaging
   ```
@@ -415,6 +415,6 @@ For all object types (tables, views, MVs), route through the same stage commands
 | `migrate-util status` returns exit code 2 | Report IO error, suggest checking project setup |
 | `migrate-util sync-excluded-warnings` returns exit code 2 | Log warning to stderr, continue — exclusion warnings may be stale |
 | `migrate-util batch-plan` returns exit code 2 | Report IO error, suggest checking project setup |
-| `migrate-util batch-plan` returns `{"error": ...}` | Report the error and suggest running `/setup-ddl` |
-| No catalog files found | Tell user to run `/setup-ddl` first |
+| `migrate-util batch-plan` returns `{"error": ...}` | Report the error and suggest running `ad-migration setup-source` |
+| No catalog files found | Tell user to run `ad-migration setup-source` first |
 | `CLAUDE_PLUGIN_ROOT` not set | Tell user to load the plugin with `claude --plugin-dir <path>` |

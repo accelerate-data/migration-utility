@@ -6,12 +6,12 @@ Cross-reference index of common pipeline failures and the user-facing command th
 
 | Code | Typical meaning | Usually seen from | Fix |
 |---|---|---|---|
-| `MANIFEST_NOT_FOUND` | `manifest.json` is missing | `/status` or any downstream batch command | Run `/setup-ddl` |
-| `MANIFEST_CORRUPT` | `manifest.json` is invalid JSON | `/status` or downstream commands | Repair the file or re-run `/setup-ddl` |
-| `CATALOG_FILE_MISSING` | Expected catalog file is missing | `/status`, `/scope`, `/profile`, downstream commands | Re-run `/setup-ddl` for the relevant source objects |
-| `CATALOG_FILE_CORRUPT` | Catalog JSON is invalid | `/status` or downstream commands | Repair the file or re-run `/setup-ddl` |
-| `TECHNOLOGY_NOT_SET` | Source technology was not initialized | `/setup-ddl` | Run `/init-ad-migration` again if the scaffold is incomplete |
-| `TECHNOLOGY_UNKNOWN` | Unsupported or misspelled technology value | `/setup-ddl` | Fix `manifest.json` to a supported technology |
+| `MANIFEST_NOT_FOUND` | `manifest.json` is missing | `/status` or any downstream batch command | Run `ad-migration setup-source` |
+| `MANIFEST_CORRUPT` | `manifest.json` is invalid JSON | `/status` or downstream commands | Repair the file or re-run `ad-migration setup-source` |
+| `CATALOG_FILE_MISSING` | Expected catalog file is missing | `/status`, `/scope`, `/profile`, downstream commands | Re-run `ad-migration setup-source` for the relevant source objects |
+| `CATALOG_FILE_CORRUPT` | Catalog JSON is invalid | `/status` or downstream commands | Repair the file or re-run `ad-migration setup-source` |
+| `TECHNOLOGY_NOT_SET` | Source technology was not initialized | `ad-migration setup-source` | Run `/init-ad-migration` again if the scaffold is incomplete |
+| `TECHNOLOGY_UNKNOWN` | Unsupported or misspelled technology value | `ad-migration setup-source` | Fix `manifest.json` to a supported technology |
 
 ### Common setup issues
 
@@ -21,14 +21,14 @@ Live SQL Server extraction requires `toolbox` on `PATH`.
 
 **MSSQL bootstrap environment variables missing**
 
-`/setup-ddl` needs these before it can persist `runtime.source`:
+`ad-migration setup-source` needs these before it can persist `runtime.source`:
 
 - `SOURCE_MSSQL_HOST`
 - `SOURCE_MSSQL_PORT`
 - `SOURCE_MSSQL_DB`
 - `SOURCE_MSSQL_PASSWORD`
 
-`/setup-sandbox` and `/generate-model` instead rely on the env vars referenced by `runtime.sandbox` and `runtime.target`.
+`ad-migration setup-sandbox` and `/generate-model` instead rely on the env vars referenced by `runtime.sandbox` and `runtime.target`.
 
 **Plugin root not configured**
 
@@ -46,7 +46,7 @@ If `CLAUDE_PLUGIN_ROOT` is missing, the plugin was not loaded correctly. Launch 
 
 **No writer found**
 
-If the object is truly an external source, mark it with `/add-source-tables`. If it should be migrated, inspect references with `/listing-objects refs <object>`.
+If the object is truly an external source, mark it with `ad-migration add-source-table`. If it should be migrated, inspect references with `/listing-objects refs <object>`.
 
 **Multiple writers**
 
@@ -63,10 +63,10 @@ Use `/listing-objects show <proc>` on each candidate before choosing a writer.
 
 | Code | Typical meaning | Usually seen from | Fix |
 |---|---|---|---|
-| `SANDBOX_NOT_CONFIGURED` | No sandbox metadata in `manifest.json` | `/status`, `/generate-tests`, `/refactor`, `/generate-model` | Run `/setup-sandbox` |
-| `SANDBOX_NOT_RUNNING` | Sandbox database is missing or unreachable | `/generate-tests`, `/refactor` | Recreate it with `/setup-sandbox` |
+| `SANDBOX_NOT_CONFIGURED` | No sandbox metadata in `manifest.json` | `/status`, `/generate-tests`, `/refactor`, `/generate-model` | Run `ad-migration setup-sandbox` |
+| `SANDBOX_NOT_RUNNING` | Sandbox database is missing or unreachable | `/generate-tests`, `/refactor` | Recreate it with `ad-migration setup-sandbox` |
 | `TEST_SPEC_NOT_FOUND` | The approved test spec is missing | `/status`, `/refactor`, `/generate-model` | Run `/generate-tests <object>` |
-| `SANDBOX_DOWN_FAILED` | Sandbox teardown failed | `/teardown-sandbox` | Check connectivity, permissions, and whether the DB still exists |
+| `SANDBOX_DOWN_FAILED` | Sandbox teardown failed | `ad-migration teardown-sandbox` | Check connectivity, permissions, and whether the DB still exists |
 
 ## Refactor
 
@@ -85,8 +85,8 @@ This usually points to dynamic SQL, side effects, or behavior that is hard to is
 
 | Code | Typical meaning | Usually seen from | Fix |
 |---|---|---|---|
-| `DBT_PROJECT_MISSING` | `dbt/` has not been scaffolded | `/generate-model` | Run `/setup-target` |
-| `DBT_PROFILE_MISSING` | `profiles.yml` is missing | `/generate-model` | Re-run `/setup-target` or restore the file |
+| `DBT_PROJECT_MISSING` | `dbt/` has not been scaffolded | `/generate-model` | Run `ad-migration setup-target` |
+| `DBT_PROFILE_MISSING` | `profiles.yml` is missing | `/generate-model` | Re-run `ad-migration setup-target` or restore the file |
 | `DBT_CONNECTION_FAILED` | `dbt debug` failed | `/generate-model` | Fix `profiles.yml` or the env-bound credentials referenced by `runtime.target` |
 | `DBT_COMPILE_FAILED` | Generated model did not compile | `/generate-model` | Review the generated SQL and rerun the command |
 | `DBT_TEST_FAILED` | Generated model still failed tests after retries | `/generate-model` | Inspect the generated artifact and test output, then rerun |

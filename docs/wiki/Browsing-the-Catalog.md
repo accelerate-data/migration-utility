@@ -75,11 +75,11 @@ A typical exploration session before scoping:
 
 - **Before scoping** -- understand which tables exist, which procedures write to them, and what the catalog contains before committing to a migration batch
 - **During debugging** -- inspect catalog state to understand why a guard is failing (e.g. check if `selected_writer` is set, or if statements are resolved)
-- **After setup** -- verify that `/setup-ddl` populated the catalog correctly
+- **After setup** -- verify that `ad-migration setup-source` populated the catalog correctly
 
 ## Prerequisites
 
-`manifest.json` must exist in the project root. If missing, run `/setup-ddl` first.
+`manifest.json` must exist in the project root. If missing, run `ad-migration setup-source` first.
 
 ## Error handling
 

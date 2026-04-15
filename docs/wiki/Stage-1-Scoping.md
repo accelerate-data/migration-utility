@@ -35,8 +35,8 @@ Typical outcomes:
 - `no_writer_found`
 - `error`
 
-If a table ends up `no_writer_found`, it is not automatically treated as a source table. Use `/add-source-tables` if that table should become a dbt source.
+If a table ends up `no_writer_found`, it is not automatically treated as a source table. Use `ad-migration add-source-table` if that table should become a dbt source.
 
 ## Next step
 
-Proceed to [[Stage 2 Profiling]] or use `/add-source-tables` and `/exclude-table` to clean up remaining non-migration targets before `/setup-target`.
+Proceed to [[Stage 2 Profiling]] or use `ad-migration add-source-table` and `ad-migration exclude-table` to clean up remaining non-migration targets before `ad-migration setup-target`.

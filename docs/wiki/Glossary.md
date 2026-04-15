@@ -28,7 +28,7 @@ Domain terms used across the migration utility wiki.
 
 - **materialization** -- the dbt materialization strategy mapped from the table classification. For example, `dim_scd2` maps to `snapshot`, `fact_transaction` maps to `incremental`, `dim_non_scd` maps to `table`.
 
-- **signal queries** -- 12 catalog enrichment queries run during DDL extraction (`/setup-ddl`). These queries discover primary keys, foreign keys, identity columns, CDC tracking, change tracking, sensitivity labels, DMF references, and other structural metadata. The results are stored in catalog files and consumed by profiling and downstream stages.
+- **signal queries** -- 12 catalog enrichment queries run during DDL extraction (`ad-migration setup-source`). These queries discover primary keys, foreign keys, identity columns, CDC tracking, change tracking, sensitivity labels, DMF references, and other structural metadata. The results are stored in catalog files and consumed by profiling and downstream stages.
 
 ## Test generation
 
@@ -38,7 +38,7 @@ Domain terms used across the migration utility wiki.
 
 - **ground truth** -- actual output rows produced by executing a stored procedure in the sandbox with test fixtures. These rows are the expected results that the generated dbt model must reproduce. Captured during test generation and stored in the test spec.
 
-- **sandbox** -- a throwaway database (`__test_<random_hex>`) created by `/setup-sandbox` for executing stored procedures during test generation. Cloned from the source SQL Server's schema and procedures. Torn down via `/teardown-sandbox` after test generation is complete.
+- **sandbox** -- a throwaway database (`__test_<random_hex>`) created by `ad-migration setup-sandbox` for executing stored procedures during test generation. Cloned from the source SQL Server's schema and procedures. Torn down via `ad-migration teardown-sandbox` after test generation is complete.
 
 ## Migration
 

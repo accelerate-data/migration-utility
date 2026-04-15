@@ -16,7 +16,7 @@ Trigger phrases: "profile a table", "classify a table", "what kind of model is t
 
 ## Prerequisites
 
-- `manifest.json` must exist in the project root. If missing, run [[Command Setup DDL]] first.
+- `manifest.json` must exist in the project root. If missing, run `ad-migration setup-source` first.
 - `catalog/tables/<table>.json` must exist. If missing, run `/listing-objects list tables` to see available tables.
 - `scoping.selected_writer` must be set in the table catalog. If missing, run [[Skill Analyzing Table]] first.
 - The skill checks profiling readiness through `migrate-util ready` and stops on the surfaced code if the object is not ready.

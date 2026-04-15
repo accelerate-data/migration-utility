@@ -147,8 +147,8 @@
     ".claude/skills/": "Workflow playbooks for repo-local Claude Code skills"
   },
   "commands": {
-    "ad_migration_setup_source": "cd lib && uv run ad-migration setup-source --technology sql_server|oracle --schemas silver,gold",
-    "ad_migration_setup_target": "cd lib && uv run ad-migration setup-target --technology fabric|snowflake|duckdb",
+    "ad_migration_setup_source": "cd lib && uv run ad-migration setup-source --schemas silver,gold",
+    "ad_migration_setup_target": "cd lib && uv run ad-migration setup-target [--source-schema bronze]",
     "ad_migration_setup_sandbox": "cd lib && uv run ad-migration setup-sandbox [--yes]",
     "ad_migration_teardown_sandbox": "cd lib && uv run ad-migration teardown-sandbox [--yes]",
     "ad_migration_reset": "cd lib && uv run ad-migration reset <stage> <fqn> [fqn ...] [--yes]",

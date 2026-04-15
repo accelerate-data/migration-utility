@@ -102,15 +102,15 @@ PRs target the repo's default branch. The FDE reviews and merges — commands do
 
 ## Committing and pushing
 
-Use the bundled scripts for git operations:
+The scaffolded migration repo does not include `scripts/commit.sh` or `scripts/commit-push-pr.sh`.
+
+Batch commands handle their own checkpoint commits and pushes as part of the command flow. For manual git work outside those commands, use normal git commands in the shell:
 
 ```bash
-bash scripts/commit.sh "<message>" <files>          # stage and commit
-bash scripts/commit-push-pr.sh "<message>" "<title>"  # stage, commit, push, open PR
+git add <files>
+git commit -m "<message>"
+git push
 ```
-
-Claude rules call these scripts automatically during batch command checkpoints. You can also run
-them directly from a terminal when making manual checkpoint commits.
 
 ## What gets committed vs what stays local
 
@@ -127,7 +127,7 @@ The `.migration-runs/` directory contains per-command execution metadata (timing
 
 ## Cleaning up worktrees
 
-After a PR is merged, the worktree and its branches are no longer needed. Run `bash scripts/cleanup-worktrees.sh` to remove them. See [[Cleanup and Teardown]] for details.
+After a PR is merged, the worktree and its branches are no longer needed. Run `/cleanup-worktrees` to remove them. See [[Cleanup and Teardown]] for details.
 
 ## Related pages
 
