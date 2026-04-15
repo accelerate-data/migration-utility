@@ -70,6 +70,17 @@ Human updates Paperclip tasks directly in the UI while Slack is not yet wired. W
 4. Add `@modelcontextprotocol/server-slack` to `.mcp.json` with `SLACK_BOT_TOKEN` and `SLACK_TEAM_ID` env vars
 5. Validate: agent posts a message and reads a reply via the MCP tool
 
+## Findings
+
+All pass criteria met on 2026-04-15 using a `codex_local` agent.
+
+- Paperclip starts cleanly via `pnpm dev` at `http://localhost:3100`
+- `pnpm paperclipai onboard` is required on first run to generate `PAPERCLIP_AGENT_JWT_SECRET`; without it Paperclip cannot inject `PAPERCLIP_API_KEY` into agent runs and logs a warning
+- `codex_local` agent with OpenRouter (`OPENROUTER_API_KEY`) dispatched and completed successfully
+- `gws auth login` resolved the `invalid_rapt` token; all subsequent `gws` calls succeeded
+- Agent created a Google Doc, wrote content, read it back, posted the Doc URL as a Paperclip task comment, and marked the task done
+- Slack deferred; human updated Paperclip tasks directly in the UI with no issues
+
 ## Rejected Alternatives
 
 ### OpenClaw as execution runtime
