@@ -15,9 +15,8 @@ The command groups checks into common prerequisites plus source-specific checks.
 
 ### Common checks
 
-- `uv`
 - Python 3.11+
-- shared Python dependencies
+- `ad-migration` CLI installed (via Homebrew)
 - git repository presence
 - `direnv` availability
 
@@ -51,7 +50,7 @@ It also writes a partial `manifest.json` with source technology and dialect so `
 
 ## Worktree flow
 
-The scaffolded repo does not include a repo-local worktree wrapper script. Batch commands create or reuse worktrees through the internal `git-checkpoints` helper, and the scaffolded git-workflow guidance documents the resulting worktree location and cleanup behavior.
+The scaffolded repo does not include a repo-local worktree wrapper script. Batch commands create and manage worktrees automatically, and the scaffolded git-workflow guidance documents the resulting worktree location and cleanup behavior.
 
 ## Idempotency
 

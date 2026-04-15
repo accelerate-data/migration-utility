@@ -2,6 +2,10 @@
 
 This page covers the tools, installation steps, and verification flow needed before running the migration utility.
 
+## What is Claude Code?
+
+[Claude Code](https://docs.anthropic.com/en/docs/claude-code) is an AI-powered CLI that runs in your terminal. You interact with it by typing natural language or `/` commands in a chat-style interface. The migration utility is a **plugin** that adds migration-specific commands (like `/scope`, `/profile`, `/generate-model`) to Claude Code. When you type a `/` command, the agent reads your project files, runs tools, and writes results -- you review and approve at each step.
+
 ## Platform Support
 
 Local execution is supported on macOS and Linux. Windows is not supported for the current local workflow because the project setup depends on Unix-oriented tooling such as `brew`, `direnv`, bash hooks, and unixODBC-based FreeTDS registration.

@@ -1,6 +1,6 @@
 # Troubleshooting and Error Codes
 
-Cross-reference index of the surfaced codes documented in the canonical command-specific files under `lib/shared/*_error_codes.md`.
+Cross-reference index of the error codes you may encounter while using the migration utility.
 
 ## Setup and status
 

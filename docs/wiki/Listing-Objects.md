@@ -18,7 +18,7 @@ If no subcommand is given, defaults to `list`.
 | `show` | `<schema.object>` | Display full catalog state for one object |
 | `refs` | `<schema.object>` | Show procedures/views that reference an object |
 
-Trigger phrases: "list tables", "list procedures", "show me object X", "what references Y", "browse catalog contents".
+You can also use natural language in your Claude Code session, such as "list tables", "show me object X", or "what references Y".
 
 ## Prerequisites
 
@@ -59,6 +59,10 @@ If the user selects an object from `list`, the skill proceeds to `show`. If they
 ## Writes
 
 None. This skill is strictly read-only.
+
+## Output Details
+
+The sections below document the structured output returned by each subcommand. This is useful when you want to understand the exact fields available for a given object, but you do not need to memorize these schemas -- the skill presents results in a readable format during your session.
 
 ## JSON Format
 

@@ -30,7 +30,7 @@ Reads reference data from the catalog for the target table. Extracts the `writer
 
 ### 3. Analyze each writer candidate
 
-For each writer candidate, follows the procedure analysis reference (`references/procedure-analysis.md`). This runs a 6-step pipeline per candidate:
+For each writer candidate, the skill runs a 6-step analysis pipeline:
 
 1. **Fetch object data** — reads refs, statements, needs_llm, raw_ddl from the catalog
 2. **Classify statements** — `needs_llm: false` (AST-parsed) or `needs_llm: true` (LLM-based from raw_ddl)

@@ -17,7 +17,7 @@ Internally, the command delegates each item to `/analyzing-table`, which auto-de
 
 ## Git behavior
 
-The command uses `git-checkpoints` first:
+The command checks your git state first:
 
 - if you are already on a feature branch or worktree, it uses that
 - if you are on the default branch, it prompts you to continue there or create a worktree-backed feature branch

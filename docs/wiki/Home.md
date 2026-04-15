@@ -1,11 +1,17 @@
 # Migration Utility
 
-A Claude Code plugin and batch CLI pipeline that migrates warehouse stored procedures to dbt models. It targets silver and gold transformations; bronze remains out of scope.
+A plugin for [Claude Code](https://docs.anthropic.com/en/docs/claude-code) that migrates warehouse stored procedures to dbt models. It targets silver and gold transformations; bronze remains out of scope.
+
+## How it works
+
+You work inside **Claude Code**, an AI-powered CLI that runs in your terminal. You type natural language or `/` commands in a chat-style interface. The plugin adds migration-specific commands (like `/scope` and `/profile`) that the agent executes on your behalf -- reading your catalog, analyzing SQL, writing files, and committing results to git.
+
+There are also terminal CLI commands (like `ad-migration setup-source`) that you run directly in your shell, outside the Claude Code session. These handle deterministic setup tasks that don't need AI reasoning.
 
 ## Who uses it
 
-- Field Data Engineers running customer migrations
-- Customers doing self-service stored-procedure-to-dbt conversions
+- Data engineers running warehouse-to-dbt migrations
+- Teams doing self-service stored-procedure-to-dbt conversions
 
 ## Pipeline overview
 
@@ -33,18 +39,20 @@ The workflow has two layers:
   -> /generate-model
 ```
 
-Batch commands create or reuse worktrees through `git-checkpoints` and manage their own batch git workflow. The `ad-migration` CLI does not commit, push, open PRs, or clean worktrees for you.
+Batch commands create git worktrees to isolate their work and manage their own batch git workflow. The `ad-migration` CLI does not commit, push, open PRs, or clean worktrees for you.
 
 ## Interactive vs batch
 
 | Mode | Entry point | Best for |
 |---|---|---|
-| Interactive | Skills such as `/listing-objects`, `/analyzing-table`, `/profiling-table` | Exploring or fixing one object at a time |
-| Batch | Commands such as `/scope`, `/profile`, `/generate-tests`, `/refactor`, `/generate-model` | Processing multiple objects with parallel sub-agents and git automation |
+| Interactive | `/listing-objects`, `/analyzing-table`, `/profiling-table` | Exploring or fixing one object at a time |
+| Batch | `/scope`, `/profile`, `/generate-tests`, `/refactor`, `/generate-model` | Processing multiple objects with git automation |
 
-## User-invocable commands
+Both are typed as `/` commands inside a Claude Code session. Interactive commands work on a single object and wait for your input at decision points. Batch commands process a list of objects, commit each one as it finishes, and can open a PR at the end.
 
-The plugin currently exposes these user-facing commands:
+## Commands
+
+The plugin exposes these `/` commands inside Claude Code:
 
 - `/init-ad-migration`
 - `/scope`
@@ -57,7 +65,7 @@ The plugin currently exposes these user-facing commands:
 
 See [[Command Reference]] for a one-page summary.
 
-The user-facing CLI commands are:
+The following CLI commands run directly in your terminal (not inside Claude Code):
 
 - `ad-migration setup-source`
 - `ad-migration setup-target`
@@ -67,15 +75,7 @@ The user-facing CLI commands are:
 - `ad-migration exclude-table`
 - `ad-migration add-source-table`
 
-## User-invocable skills
-
-The main user-facing skills are:
-
-- `/listing-objects`
-- `/analyzing-table`
-- `/profiling-table`
-
-Internal skills such as `generating-tests`, `generating-model`, `git-checkpoints`, `reviewing-tests`, `reviewing-model`, `refactoring-sql`, and `test-invariants` support the batch commands but are not user entrypoints.
+The interactive commands (`/listing-objects`, `/analyzing-table`, `/profiling-table`) are useful for exploring one object at a time or debugging a specific table's catalog state.
 
 ## Where to start
 

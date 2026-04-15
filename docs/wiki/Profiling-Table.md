@@ -12,7 +12,7 @@ Profiles a single table for migration by assembling deterministic context from c
 
 Argument is the fully-qualified table name. The skill asks if missing. The writer procedure is read automatically from the catalog's `scoping.selected_writer` field.
 
-Trigger phrases: "profile a table", "classify a table", "what kind of model is this table", "determine PK, FK, watermark, or PII for a migration target".
+You can also use natural language in your Claude Code session, such as "profile a table", "classify this table", or "what kind of model is this table".
 
 ## Prerequisites
 
@@ -58,7 +58,7 @@ Writes the approved profile to the table catalog file.
 
 ### `profile` section in `catalog/tables/<table>.json`
 
-The profile section follows `table_catalog.json#/$defs/profile_section`.
+The profile is written to the `profile` section of the table catalog file.
 
 | Field | Type | Required | Description |
 |---|---|---|---|
