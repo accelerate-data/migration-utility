@@ -1,5 +1,5 @@
 [project]
-name = "ad-migration"
+name = "ad-migration-shared"
 version = "0.1.0"
 requires-python = ">=3.11"
 dependencies = [
@@ -22,19 +22,6 @@ build-backend = "hatchling.build"
 
 [tool.hatch.build.targets.wheel]
 packages = ["shared"]
-
-[project.scripts]
-ad-migration = "shared.cli.main:app"
-catalog-enrich = "shared.catalog_enrich:app"
-discover = "shared.discover:app"
-init = "shared.init:app"
-migrate = "shared.migrate:app"
-profile = "shared.profile:app"
-setup-ddl = "shared.setup_ddl:app"
-test-harness = "shared.test_harness:app"
-migrate-util = "shared.dry_run:app"
-generate-sources = "shared.generate_sources:app"
-refactor = "shared.refactor:app"
 
 [tool.pytest.ini_options]
 testpaths = ["../tests/unit"]

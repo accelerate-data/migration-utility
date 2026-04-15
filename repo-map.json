@@ -51,17 +51,9 @@
   ],
   "entrypoints": {
     "ddl_mcp_server": "mcp/ddl/server.py",
-    "discover_cli": "lib/shared/discover.py",
-    "catalog_enrich_cli": "lib/shared/catalog_enrich.py",
-    "diagnostics_cli": "lib/shared/diagnostics/__init__.py",
-    "migrate_cli": "lib/shared/migrate.py",
-    "init_cli": "lib/shared/init.py",
-    "profile_cli": "lib/shared/profile.py",
-    "test_harness_cli": "lib/shared/test_harness.py",
-    "migrate_util_cli": "lib/shared/dry_run.py",
-    "generate_sources_cli": "lib/shared/generate_sources.py",
-    "refactor_cli": "lib/shared/refactor.py",
-    "ad_migration_cli": "lib/shared/cli/main.py"
+    "discover_cli": "packages/ad-migration-internal/src/ad_migration_internal/entrypoints.py",
+    "setup_ddl_cli": "packages/ad-migration-internal/src/ad_migration_internal/entrypoints.py",
+    "ad_migration_cli": "packages/ad-migration-cli/src/ad_migration_cli/main.py"
   },
   "modules": {
     "plugin_manifest": {
@@ -134,6 +126,7 @@
     "commands/": "Claude Code command specs at the repository root",
     "skills/": "Claude Code skills at the repository root",
     "lib/": "Python DDL analysis library (uv project, sqlglot-based)",
+    "packages/": "Packaging wrappers for the public ad-migration CLI and internal plugin entrypoints.",
     "lib/shared/schemas/": "JSON Schema files for catalog, agent I/O, discover CLI output, and shared definitions",
     "tests/unit/": "Shared-library unit pytest suite organized by module under tests/unit/<module>/.",
     "tests/integration/": "Shared-library integration pytest suite organized by backend and module under tests/integration/<technology>/<module>/.",
@@ -148,13 +141,13 @@
     ".claude/skills/": "Workflow playbooks for repo-local Claude Code skills"
   },
   "commands": {
-    "ad_migration_setup_source": "cd lib && uv run ad-migration setup-source --schemas silver,gold",
-    "ad_migration_setup_target": "cd lib && uv run ad-migration setup-target [--source-schema bronze]",
-    "ad_migration_setup_sandbox": "cd lib && uv run ad-migration setup-sandbox [--yes]",
-    "ad_migration_teardown_sandbox": "cd lib && uv run ad-migration teardown-sandbox [--yes]",
-    "ad_migration_reset": "cd lib && uv run ad-migration reset <stage> <fqn> [fqn ...] [--yes]",
-    "ad_migration_exclude_table": "cd lib && uv run ad-migration exclude-table <fqn> [--no-commit]",
-    "ad_migration_add_source_table": "cd lib && uv run ad-migration add-source-table <fqn> [--no-commit]",
+    "ad_migration_setup_source": "cd packages/ad-migration-cli && uv run ad-migration setup-source --schemas silver,gold",
+    "ad_migration_setup_target": "cd packages/ad-migration-cli && uv run ad-migration setup-target [--source-schema bronze]",
+    "ad_migration_setup_sandbox": "cd packages/ad-migration-cli && uv run ad-migration setup-sandbox [--yes]",
+    "ad_migration_teardown_sandbox": "cd packages/ad-migration-cli && uv run ad-migration teardown-sandbox [--yes]",
+    "ad_migration_reset": "cd packages/ad-migration-cli && uv run ad-migration reset <stage> <fqn> [fqn ...] [--yes]",
+    "ad_migration_exclude_table": "cd packages/ad-migration-cli && uv run ad-migration exclude-table <fqn> [--no-commit]",
+    "ad_migration_add_source_table": "cd packages/ad-migration-cli && uv run ad-migration add-source-table <fqn> [--no-commit]",
     "test_migration_python": "cd lib && uv run pytest",
     "test_migration_python_module": "cd lib && uv run pytest ../tests/unit/<module>",
     "test_migration_python_integration_sql_server": "cd lib && uv run pytest ../tests/integration/sql_server",
