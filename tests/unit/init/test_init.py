@@ -52,8 +52,12 @@ class TestScaffoldProject:
         repo_map = json.loads((tmp_path / "repo-map.json").read_text())
         assert repo_map == config.repo_map_fn()
         assert ".mcp.json" not in (tmp_path / ".gitignore").read_text()
-        assert ".envrc" in (tmp_path / ".gitignore").read_text()
-        assert "MSSQL_HOST" in (tmp_path / ".envrc").read_text()
+        assert ".envrc" not in (tmp_path / ".gitignore").read_text()
+        envrc_text = (tmp_path / ".envrc").read_text()
+        assert "MSSQL_HOST" in envrc_text
+        assert "SOURCE_MSSQL_PASSWORD" not in envrc_text
+        assert "SANDBOX_MSSQL_PASSWORD" not in envrc_text
+        assert "TARGET_MSSQL_PASSWORD" not in envrc_text
         assert 'source_env_if_exists .env' in (tmp_path / ".envrc").read_text()
         workflow = (tmp_path / ".claude" / "rules" / "git-workflow.md").read_text()
         assert "Worktree" in workflow
@@ -81,7 +85,7 @@ class TestScaffoldProject:
         content = (tmp_path / ".gitignore").read_text()
         assert "# Custom" in content
         assert ".mcp.json" not in content
-        assert ".envrc" in content
+        assert ".envrc" not in content
 
     def test_merges_local_env_loader_into_existing_envrc(self, tmp_path: Path) -> None:
         (tmp_path / ".envrc").write_text("export MSSQL_HOST=localhost\n", encoding="utf-8")
@@ -122,7 +126,7 @@ class TestScaffoldProjectOracle:
         assert "ORACLE_PORT" in envrc
         assert "ORACLE_SERVICE" in envrc
         assert "ORACLE_USER" in envrc
-        assert "ORACLE_PASSWORD" in envrc
+        assert "ORACLE_PASSWORD" not in envrc
         assert 'source_env_if_exists .env' in envrc
         assert "MSSQL" not in envrc
 
@@ -173,11 +177,57 @@ class TestScaffoldHooks:
     def test_oracle_hook_blocks_oracle_creds(self, tmp_path: Path) -> None:
         run_scaffold_hooks(tmp_path, technology="oracle")
         hook_content = (tmp_path / ".githooks" / "pre-commit").read_text()
-        assert "SOURCE_ORACLE_" in hook_content
-        assert "SANDBOX_ORACLE_" in hook_content
-        # Oracle hook should NOT check for MSSQL patterns
-        assert "SA_PASSWORD" not in hook_content
+        assert "tracked secret field" in hook_content
+        assert "API_KEY" in hook_content
         assert "MSSQL" not in hook_content
+
+    def test_sql_server_hook_allows_tracked_non_secret_envrc(self, tmp_path: Path) -> None:
+        subprocess.run(["git", "init"], cwd=tmp_path, capture_output=True, check=True)
+        run_scaffold_hooks(tmp_path)
+        envrc_path = tmp_path / ".envrc"
+        envrc_path.write_text(
+            'export SOURCE_MSSQL_HOST=localhost\n'
+            'export SOURCE_MSSQL_USER=sa\n',
+            encoding="utf-8",
+        )
+        subprocess.run(["git", "add", ".envrc"], cwd=tmp_path, capture_output=True, check=True)
+
+        result = subprocess.run(
+            [str(tmp_path / ".githooks" / "pre-commit")],
+            cwd=tmp_path,
+            capture_output=True,
+            text=True,
+        )
+
+        assert result.returncode == 0, result.stderr
+
+    @pytest.mark.parametrize(
+        ("filename", "content"),
+        [
+            (".envrc", "export SOURCE_MSSQL_PASSWORD=super-secret\n"),
+            (".mcp.json", '{"api_key":"secret-value"}\n'),
+        ],
+    )
+    def test_sql_server_hook_blocks_tracked_secrets(
+        self,
+        tmp_path: Path,
+        filename: str,
+        content: str,
+    ) -> None:
+        subprocess.run(["git", "init"], cwd=tmp_path, capture_output=True, check=True)
+        run_scaffold_hooks(tmp_path)
+        target = tmp_path / filename
+        target.write_text(content, encoding="utf-8")
+        subprocess.run(["git", "add", filename], cwd=tmp_path, capture_output=True, check=True)
+
+        result = subprocess.run(
+            [str(tmp_path / ".githooks" / "pre-commit")],
+            cwd=tmp_path,
+            capture_output=True,
+            text=True,
+        )
+
+        assert result.returncode == 1
 
 
 # ── source registry ─────────────────────────────────────────────────────────

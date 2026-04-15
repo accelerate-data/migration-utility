@@ -109,14 +109,16 @@ Data warehouse migration from Microsoft SQL Server to Vibedata Managed Warehouse
 
 ### Credential setup with direnv
 
-1. Copy the `.envrc` template and fill in your values:
+1. Commit the scaffolded `.envrc` with shared non-secret settings, then put secrets in `.env`:
 
    ```bash
-   # .envrc (gitignored) — source database
+   # .envrc (tracked) — shared non-secret settings
    export SOURCE_MSSQL_HOST=localhost
    export SOURCE_MSSQL_PORT=1433
    export SOURCE_MSSQL_DB=YourDatabase
    export SOURCE_MSSQL_USER=sa
+
+   # .env (gitignored) — local secrets
    export SOURCE_MSSQL_PASSWORD=YourPassword
    ```
 
@@ -137,7 +139,8 @@ Data warehouse migration from Microsoft SQL Server to Vibedata Managed Warehouse
 ├── CLAUDE.md          # Agent instructions
 ├── README.md          # This file
 ├── repo-map.json      # Directory structure for agent discovery
-├── .envrc             # Credentials (gitignored)
+├── .envrc             # Shared non-secret config (tracked)
+├── .env               # Local secrets (gitignored)
 ├── .gitignore         # Git ignore rules
 ├── .githooks/         # Git hooks (pre-commit secret blocking)
 ├── ddl/               # Extracted DDL files (from setup-ddl)
@@ -151,9 +154,9 @@ Data warehouse migration from Microsoft SQL Server to Vibedata Managed Warehouse
 A pre-commit hook in `.githooks/` blocks commits containing:
 
 - Anthropic API keys (`sk-ant` prefix)
-- SQL Server credentials (`SOURCE_MSSQL_*`, `SANDBOX_MSSQL_*`, `TARGET_MSSQL_*`) in `.env` or `.envrc` files
+- Password fields or API-key fields in tracked files
 
-The hook is a safety net — `.env`, `.envrc`, and `.mcp.json` are also in `.gitignore`.
+The hook is a safety net — `.env` stays gitignored, while tracked files such as `.envrc` and `.mcp.json` must stay secret-free.
 
 ## Commit Conventions
 
@@ -165,9 +168,8 @@ Examples: `feat: extract DDL from AdventureWorks`, `fix: correct column type map
 
 def _envrc_sql_server() -> str:
     return """\
-# SQL Server credentials for the ad-migration CLI.
-# Fill in your values and run `direnv allow`.
-# This file is gitignored — do not commit it.
+# SQL Server shared non-secret settings for the ad-migration CLI.
+# Keep secrets in `.env`, then run `direnv allow`.
 
 source_env_if_exists .env
 
@@ -176,20 +178,17 @@ export SOURCE_MSSQL_HOST=localhost
 export SOURCE_MSSQL_PORT=1433
 export SOURCE_MSSQL_DB=
 export SOURCE_MSSQL_USER=sa
-export SOURCE_MSSQL_PASSWORD=
 
 # Sandbox database (used by setup-sandbox)
 export SANDBOX_MSSQL_HOST=localhost
 export SANDBOX_MSSQL_PORT=1433
 export SANDBOX_MSSQL_USER=sa
-export SANDBOX_MSSQL_PASSWORD=
 
 # Target database (used by setup-target)
 export TARGET_MSSQL_HOST=localhost
 export TARGET_MSSQL_PORT=1433
 export TARGET_MSSQL_DB=
 export TARGET_MSSQL_USER=sa
-export TARGET_MSSQL_PASSWORD=
 """
 
 
@@ -227,10 +226,10 @@ if git diff --cached --diff-filter=ACMR -z -- . | xargs -0 grep -lE "${ANT_KEY_P
     exit 1
 fi
 
-# 2. SQL Server credentials in .env / .envrc files
-for f in $(git diff --cached --name-only | grep -E '\\.(env|envrc)$' || true); do
-    if git show :"$f" 2>/dev/null | grep -qE '(SOURCE_MSSQL_|SANDBOX_MSSQL_|TARGET_MSSQL_)(HOST|PORT|DB|USER|PASSWORD)=.+'; then
-        echo "ERROR: $f contains SQL Server credentials. This file should be in .gitignore." >&2
+# 2. Secret-bearing settings in tracked files
+for f in $(git diff --cached --name-only --diff-filter=ACMR || true); do
+    if git show :"$f" 2>/dev/null | grep -qiE '(^|[^A-Za-z0-9_])(PASSWORD|[A-Za-z0-9_]*_PASSWORD|API_KEY|[A-Za-z0-9_]*_API_KEY)"?[[:space:]]*[:=]'; then
+        echo "ERROR: $f contains a tracked secret field. Keep secrets in .env and out of tracked files." >&2
         exit 1
     fi
 done
@@ -337,14 +336,16 @@ Data warehouse migration from Oracle Database to Vibedata Managed Warehouse Plat
 
 ### Credential setup with direnv
 
-1. Copy the `.envrc` template and fill in your values:
+1. Commit the scaffolded `.envrc` with shared non-secret settings, then put secrets in `.env`:
 
    ```bash
-   # .envrc (gitignored) — source database
+   # .envrc (tracked) — shared non-secret settings
    export SOURCE_ORACLE_HOST=localhost
    export SOURCE_ORACLE_PORT=1521
    export SOURCE_ORACLE_SERVICE=FREEPDB1
    export SOURCE_ORACLE_USER=YourUser
+
+   # .env (gitignored) — local secrets
    export SOURCE_ORACLE_PASSWORD=YourPassword
    ```
 
@@ -365,7 +366,8 @@ Data warehouse migration from Oracle Database to Vibedata Managed Warehouse Plat
 ├── CLAUDE.md          # Agent instructions
 ├── README.md          # This file
 ├── repo-map.json      # Directory structure for agent discovery
-├── .envrc             # Credentials (gitignored)
+├── .envrc             # Shared non-secret config (tracked)
+├── .env               # Local secrets (gitignored)
 ├── .gitignore         # Git ignore rules
 ├── .githooks/         # Git hooks (pre-commit secret blocking)
 ├── ddl/               # Extracted DDL files (from setup-ddl)
@@ -379,9 +381,9 @@ Data warehouse migration from Oracle Database to Vibedata Managed Warehouse Plat
 A pre-commit hook in `.githooks/` blocks commits containing:
 
 - Anthropic API keys (`sk-ant` prefix)
-- Oracle credentials in `.env` or `.envrc` files
+- Password fields or API-key fields in tracked files
 
-The hook is a safety net — `.env`, `.envrc`, and `.mcp.json` are also in `.gitignore`.
+The hook is a safety net — `.env` stays gitignored, while tracked files such as `.envrc` and `.mcp.json` must stay secret-free.
 
 ## Commit Conventions
 
@@ -393,9 +395,8 @@ Examples: `feat: extract DDL from SH schema`, `fix: correct column type mapping`
 
 def _envrc_oracle() -> str:
     return """\
-# Oracle credentials for the ad-migration CLI.
-# Fill in your values and run `direnv allow`.
-# This file is gitignored — do not commit it.
+# Oracle shared non-secret settings for the ad-migration CLI.
+# Keep secrets in `.env`, then run `direnv allow`.
 
 source_env_if_exists .env
 
@@ -404,21 +405,18 @@ export SOURCE_ORACLE_HOST=localhost
 export SOURCE_ORACLE_PORT=1521
 export SOURCE_ORACLE_SERVICE=FREEPDB1
 export SOURCE_ORACLE_USER=
-export SOURCE_ORACLE_PASSWORD=
 
 # Sandbox database (used by setup-sandbox)
 export SANDBOX_ORACLE_HOST=localhost
 export SANDBOX_ORACLE_PORT=1521
 export SANDBOX_ORACLE_SERVICE=FREEPDB1
 export SANDBOX_ORACLE_USER=
-export SANDBOX_ORACLE_PASSWORD=
 
 # Target database (used by setup-target)
 export TARGET_ORACLE_HOST=localhost
 export TARGET_ORACLE_PORT=1521
 export TARGET_ORACLE_SERVICE=FREEPDB1
 export TARGET_ORACLE_USER=
-export TARGET_ORACLE_PASSWORD=
 """
 
 
@@ -456,10 +454,10 @@ if git diff --cached --diff-filter=ACMR -z -- . | xargs -0 grep -lE "${ANT_KEY_P
     exit 1
 fi
 
-# 2. Oracle credentials in .env / .envrc files
-for f in $(git diff --cached --name-only | grep -E '\\.(env|envrc)$' || true); do
-    if git show :"$f" 2>/dev/null | grep -qE '(SOURCE_ORACLE_|SANDBOX_ORACLE_|TARGET_ORACLE_)(HOST|PORT|SERVICE|USER|PASSWORD)=.+'; then
-        echo "ERROR: $f contains Oracle credentials. This file should be in .gitignore." >&2
+# 2. Secret-bearing settings in tracked files
+for f in $(git diff --cached --name-only --diff-filter=ACMR || true); do
+    if git show :"$f" 2>/dev/null | grep -qiE '(^|[^A-Za-z0-9_])(PASSWORD|[A-Za-z0-9_]*_PASSWORD|API_KEY|[A-Za-z0-9_]*_API_KEY)"?[[:space:]]*[:=]'; then
+        echo "ERROR: $f contains a tracked secret field. Keep secrets in .env and out of tracked files." >&2
         exit 1
     fi
 done

@@ -302,7 +302,7 @@ git add CLAUDE.md README.md .gitignore .githooks/ repo-map.json .claude/ scripts
 git commit -m "chore: init migration project ($SOURCE)"
 ```
 
-Do not stage `.envrc` or `.env` — both are local environment files. `.envrc` contains repo-local environment scaffolding and `.env` contains machine-local overrides.
+Do not stage `.env`. It contains machine-local secrets. `.envrc` is tracked scaffolded config and must stay secret-free.
 
 If not a git repository, skip silently.
 
@@ -315,12 +315,12 @@ Tell the user:
 **For source = SQL Server:**
 
 - **SOURCE_MSSQL_* vars set**: ready to run `ad-migration setup-source --technology sql_server --schemas <schema>` to extract DDL from the live database.
-- **SOURCE_MSSQL_* vars unset**: Set `SOURCE_MSSQL_HOST/PORT/DB/USER/PASSWORD` in `.envrc` and run `direnv allow`, then run `ad-migration setup-source`.
+- **SOURCE_MSSQL_* vars unset**: Set `SOURCE_MSSQL_HOST/PORT/DB/USER` in `.envrc`, set `SOURCE_MSSQL_PASSWORD` in `.env`, run `direnv allow`, then run `ad-migration setup-source`.
 
 **For source = Oracle:**
 
 - **SOURCE_ORACLE_* vars set**: ready to run `ad-migration setup-source --technology oracle --schemas <schema>` to extract DDL from the live database.
-- **SOURCE_ORACLE_* vars unset**: Set `SOURCE_ORACLE_HOST/PORT/SERVICE/USER/PASSWORD` in `.envrc` and run `direnv allow`, then run `ad-migration setup-source`.
+- **SOURCE_ORACLE_* vars unset**: Set `SOURCE_ORACLE_HOST/PORT/SERVICE/USER` in `.envrc`, set `SOURCE_ORACLE_PASSWORD` in `.env`, run `direnv allow`, then run `ad-migration setup-source`.
 
 **For target setup:**
 

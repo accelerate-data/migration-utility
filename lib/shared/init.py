@@ -140,7 +140,6 @@ GITIGNORE_ENTRIES = [
     ".env",
     ".env.*",
     "!.env.example",
-    ".envrc",
     "",
 ]
 

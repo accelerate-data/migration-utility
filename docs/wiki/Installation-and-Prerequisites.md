@@ -61,7 +61,7 @@ All connection variables are required for `ad-migration setup-source`, `/setup-s
 
 ### Setting variables with direnv (recommended)
 
-The `/init-ad-migration` command scaffolds a `.envrc` template containing only the variables for your selected source. Fill in your values and run:
+The `/init-ad-migration` command scaffolds a tracked `.envrc` template for shared non-secret variables and loads local secrets from `.env`. Fill in `.envrc`, put password values in `.env`, then run:
 
 ```bash
 direnv allow
