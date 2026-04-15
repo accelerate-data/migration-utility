@@ -33,9 +33,10 @@
         ".github/workflows/claude.yml",
         ".github/workflows/codeql.yml",
         ".github/workflows/dependabot-automerge.yml",
+        ".github/workflows/release-cli.yml",
         ".github/workflows/sync-wiki.yml"
       ],
-      "notes": "ci.yml: repo-map audit on PRs."
+      "notes": "ci.yml: repo-map audit on PRs. release-cli.yml: tagged GitHub release for ad-migration-shared and ad-migration-cli artifacts plus Homebrew tap formula update."
     }
   ],
   "test_frameworks": [

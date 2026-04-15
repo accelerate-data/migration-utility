@@ -1,0 +1,26 @@
+class AdMigration < Formula
+  include Language::Python::Virtualenv
+
+  desc "Warehouse stored procedure to dbt migration CLI"
+  homepage "https://github.com/accelerate-data/migration-utility"
+  url "<%= cli_url %>"
+  sha256 "<%= cli_sha256 %>"
+  license "MIT"
+
+  depends_on "python@3.12"
+  depends_on "freetds"
+  depends_on "unixodbc"
+
+  resource "ad-migration-shared" do
+    url "<%= shared_url %>"
+    sha256 "<%= shared_sha256 %>"
+  end
+
+  def install
+    virtualenv_install_with_resources
+  end
+
+  test do
+    assert_match "<%= version %>\n", shell_output("#{bin}/ad-migration --version")
+  end
+end

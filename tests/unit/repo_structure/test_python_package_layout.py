@@ -48,6 +48,10 @@ def test_repo_map_declares_the_split_python_projects() -> None:
     }
 
 
+def test_release_workflow_exists() -> None:
+    assert (REPO_ROOT / ".github" / "workflows" / "release-cli.yml").is_file()
+
+
 def test_repo_map_points_commands_at_the_split_projects() -> None:
     repo_map = json.loads((REPO_ROOT / "repo-map.json").read_text(encoding="utf-8"))
 
