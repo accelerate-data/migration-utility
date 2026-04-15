@@ -5,7 +5,7 @@
 Use:
 
 ```bash
-uv run --project "${CLAUDE_PLUGIN_ROOT}/lib" migrate context \
+uv run --project "${CLAUDE_PLUGIN_ROOT}/packages/ad-migration-internal" migrate context \
   --table <item_id> \
   [--writer <proc_fqn>]
 ```
@@ -29,7 +29,7 @@ Read from the context output:
 Use:
 
 ```bash
-uv run --project "${CLAUDE_PLUGIN_ROOT}/lib" discover show \
+uv run --project "${CLAUDE_PLUGIN_ROOT}/packages/ad-migration-internal" discover show \
   --name <item_id>
 ```
 

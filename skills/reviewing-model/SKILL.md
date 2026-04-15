@@ -26,7 +26,7 @@ This reviewer is stateless. Caller workflows such as `/generate-model` own the m
 Run:
 
 ```bash
-uv run --project "${CLAUDE_PLUGIN_ROOT}/lib" migrate context \
+uv run --project "${CLAUDE_PLUGIN_ROOT}/packages/ad-migration-internal" migrate context \
   --table <item_id> \
   [--writer <writer_fqn>]
 ```

@@ -9,7 +9,7 @@ Follow this reference after the parent skill has confirmed:
 ## Step 1 -- Show view from catalog
 
 ```bash
-uv run --project "${CLAUDE_PLUGIN_ROOT}/lib" discover show \
+uv run --project "${CLAUDE_PLUGIN_ROOT}/packages/ad-migration-internal" discover show \
   --name <view_fqn>
 ```
 
@@ -70,7 +70,7 @@ mkdir -p .staging
 cat > .staging/scoping.json <<'EOF'
 <scoping JSON>
 EOF
-uv run --project "${CLAUDE_PLUGIN_ROOT}/lib" discover write-scoping \
+uv run --project "${CLAUDE_PLUGIN_ROOT}/packages/ad-migration-internal" discover write-scoping \
   --name <view_fqn> --scoping-file .staging/scoping.json && rm -rf .staging
 ```
 

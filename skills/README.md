@@ -35,7 +35,7 @@ argument-hint: "<args>"        # shown in skill picker UI
 
 ## Schema discipline                          # if skill writes to catalog
 
-Use the canonical `/<stage>` surfaced code list in `../../lib/shared/<stage>_error_codes.md`.
+Use the canonical `/<stage>` surfaced code list in `../lib/shared/<stage>_error_codes.md`.
 Do not define a competing public error-code list in this skill.
 
 ## Before invoking                            # stage guard
@@ -78,14 +78,14 @@ Skill directories use gerund naming: `generating-tests`, `profiling-table`, `ana
 All skills check readiness before proceeding:
 
 ```bash
-uv run --project "${CLAUDE_PLUGIN_ROOT}/lib" migrate-util ready <stage> --object <fqn>
+uv run --project "${CLAUDE_PLUGIN_ROOT}/packages/ad-migration-internal" migrate-util ready <stage> --object <fqn>
 ```
 
 If `ready` is `false`, report the failing check and stop.
 
 ### Error codes
 
-Each skill references its canonical error codes file at `../../lib/shared/<stage>_error_codes.md`. Skills must not define competing error-code lists.
+Each skill references its canonical error codes file at `../lib/shared/<stage>_error_codes.md`. Skills must not define competing error-code lists.
 
 ### Staging directory
 

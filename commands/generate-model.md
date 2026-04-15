@@ -22,7 +22,7 @@ Generate dbt models for a batch of tables. Launches one sub-agent per table in p
 - `dbt debug` must show "Connection test: OK". If it fails, fail all items with `DBT_CONNECTION_FAILED` and tell the user to check the resolved `runtime.target` credentials and endpoint in `manifest.json` and the matching `dbt/profiles.yml` configuration.
 - `runtime.target` must be present in `manifest.json`. If missing, fail all items with `TARGET_NOT_CONFIGURED` and tell the user to run `ad-migration setup-target`.
 - `runtime.sandbox` must be present in `manifest.json`. If missing, fail all items with `SANDBOX_NOT_CONFIGURED` and tell the user to run `ad-migration setup-sandbox`. The sandbox is the active execution endpoint when the workflow needs live source-backed validation; it is separate from `runtime.target`.
-- The sandbox must be reachable: run `uv run --project "${CLAUDE_PLUGIN_ROOT}/lib" test-harness sandbox-status`. If the sandbox does not exist or is not accessible, fail all items with `SANDBOX_NOT_CONFIGURED`.
+- The sandbox must be reachable: run `uv run --project "${CLAUDE_PLUGIN_ROOT}/packages/ad-migration-internal" test-harness sandbox-status`. If the sandbox does not exist or is not accessible, fail all items with `SANDBOX_NOT_CONFIGURED`.
 
 Per-item readiness is checked by the skill via `migrate-util ready` (which enforces that refactor, test generation, and sandbox configuration are complete before model generation can proceed).
 

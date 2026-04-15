@@ -42,7 +42,7 @@ See [references/review-output-contract.md](references/review-output-contract.md)
 Run:
 
 ```bash
-uv run --project "${CLAUDE_PLUGIN_ROOT}/lib" migrate-util ready test-gen --object <item_id>
+uv run --project "${CLAUDE_PLUGIN_ROOT}/packages/ad-migration-internal" migrate-util ready test-gen --object <item_id>
 ```
 
 If `ready` is `false`, return a valid `TestReviewOutput` with `status: "error"` and the surfaced `code` and `reason` from `../../lib/shared/generate_tests_error_codes.md`. Do not infer readiness from filenames or directory listings.
@@ -137,7 +137,7 @@ Write the `TestReviewResult` JSON to `.staging/review.json`, then validate:
 
 ```bash
 mkdir -p .staging
-uv run --project "${CLAUDE_PLUGIN_ROOT}/lib" test-harness validate-review \
+uv run --project "${CLAUDE_PLUGIN_ROOT}/packages/ad-migration-internal" test-harness validate-review \
   --review-file .staging/review.json
 ```
 

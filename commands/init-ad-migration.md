@@ -20,6 +20,8 @@ If the host platform is Windows, stop immediately and tell the user local Window
 
 ## Step 1.5: Install ad-migration CLI
 
+This Homebrew auto-install path is supported only on macOS.
+
 Check whether `ad-migration` is already on PATH:
 
 ```bash
@@ -91,7 +93,7 @@ Do NOT install or change anything yet — only gather evidence for items not alr
 
 1. `uv --version` — is uv installed?
 2. `python3 --version` — is Python >= 3.11?
-3. `uv run --project "${CLAUDE_PLUGIN_ROOT}/lib" python3 -c "import pydantic, sqlglot, typer"` — are shared package deps synced?
+3. `uv run --project "${CLAUDE_PLUGIN_ROOT}/packages/ad-migration-internal" python3 -c "import pydantic, sqlglot, typer"` — are shared package deps synced?
 4. `uv run "${CLAUDE_PLUGIN_ROOT}/mcp/ddl/server.py" --help` — does the DDL MCP server start cleanly?
 5. `git rev-parse --is-inside-work-tree` — is the current working directory inside a git repository? If not, warn the user that the project folder is not under version control and recommend initialising git before running extraction skills.
 6. `direnv version` — is direnv installed? This is optional; mark as `—` if missing.
@@ -102,8 +104,8 @@ Run the source-stack checks for `$SOURCE`. These checks validate only local mach
 
 #### When `$SOURCE` is `sql_server`
 
-1. `uv run --project "${CLAUDE_PLUGIN_ROOT}/lib" init check-freetds` — verify that Homebrew FreeTDS is installed, `odbcinst` is available, and `FreeTDS` appears in `odbcinst -q -d`
-2. `uv run --project "${CLAUDE_PLUGIN_ROOT}/lib" init discover-mssql-driver-override` — discover the effective local SQL Server driver override. If the result is `status="resolved"`, add `MSSQL_DRIVER` to `$OVERRIDES`. If the result is `status="manual"`, show the returned `message` verbatim.
+1. `uv run --project "${CLAUDE_PLUGIN_ROOT}/packages/ad-migration-internal" init check-freetds` — verify that Homebrew FreeTDS is installed, `odbcinst` is available, and `FreeTDS` appears in `odbcinst -q -d`
+2. `uv run --project "${CLAUDE_PLUGIN_ROOT}/packages/ad-migration-internal" init discover-mssql-driver-override` — discover the effective local SQL Server driver override. If the result is `status="resolved"`, add `MSSQL_DRIVER` to `$OVERRIDES`. If the result is `status="manual"`, show the returned `message` verbatim.
 
 #### When `$SOURCE` is `oracle`
 
@@ -115,12 +117,12 @@ Run the target-stack checks for `$TARGET`. These checks validate only local mach
 
 #### When `$TARGET` is `sql_server`
 
-1. `uv run --project "${CLAUDE_PLUGIN_ROOT}/lib" python3 -c "import pyodbc"` — is the SQL Server Python client available?
-2. `uv run --project "${CLAUDE_PLUGIN_ROOT}/lib" init discover-mssql-driver-override` — discover the effective local SQL Server driver override. If the result is `status="resolved"` and `MSSQL_DRIVER` is not already present in `$OVERRIDES`, add it. If the result is `status="manual"`, show the returned `message` verbatim.
+1. `uv run --project "${CLAUDE_PLUGIN_ROOT}/packages/ad-migration-internal" python3 -c "import pyodbc"` — is the SQL Server Python client available?
+2. `uv run --project "${CLAUDE_PLUGIN_ROOT}/packages/ad-migration-internal" init discover-mssql-driver-override` — discover the effective local SQL Server driver override. If the result is `status="resolved"` and `MSSQL_DRIVER` is not already present in `$OVERRIDES`, add it. If the result is `status="manual"`, show the returned `message` verbatim.
 
 #### When `$TARGET` is `oracle`
 
-1. `uv run --project "${CLAUDE_PLUGIN_ROOT}/lib" python3 -c "import oracledb"` — is the Oracle Python client available?
+1. `uv run --project "${CLAUDE_PLUGIN_ROOT}/packages/ad-migration-internal" python3 -c "import oracledb"` — is the Oracle Python client available?
 
 ## Step 4: Present plan
 
@@ -186,7 +188,7 @@ After installing, re-run `uv --version` to confirm. Tell the user to restart the
 **Sync shared deps** (if not synced):
 
 ```bash
-uv sync --project "${CLAUDE_PLUGIN_ROOT}/lib"
+uv sync --project "${CLAUDE_PLUGIN_ROOT}/packages/ad-migration-internal"
 ```
 
 **Install FreeTDS** (SQL Server, if missing):
@@ -200,7 +202,7 @@ After installing, re-run `brew list --formula freetds` to confirm. FreeTDS is th
 **Register FreeTDS in unixODBC** (SQL Server, when installed but not registered):
 
 ```bash
-uv run --project "${CLAUDE_PLUGIN_ROOT}/lib" init check-freetds --register-missing
+uv run --project "${CLAUDE_PLUGIN_ROOT}/packages/ad-migration-internal" init check-freetds --register-missing
 ```
 
 This command must succeed and report `registered: true` before you record `freetds: true` in the handoff.
@@ -210,13 +212,13 @@ This command must succeed and report `registered: true` before you record `freet
 For SQL Server:
 
 ```bash
-uv sync --project "${CLAUDE_PLUGIN_ROOT}/lib" --extra export
+uv sync --project "${CLAUDE_PLUGIN_ROOT}/packages/ad-migration-internal" --extra export
 ```
 
 For Oracle:
 
 ```bash
-uv sync --project "${CLAUDE_PLUGIN_ROOT}/lib" --extra oracle
+uv sync --project "${CLAUDE_PLUGIN_ROOT}/packages/ad-migration-internal" --extra oracle
 ```
 
 **Verify target client libraries**:
@@ -224,13 +226,13 @@ uv sync --project "${CLAUDE_PLUGIN_ROOT}/lib" --extra oracle
 For SQL Server target:
 
 ```bash
-uv run --project "${CLAUDE_PLUGIN_ROOT}/lib" python3 -c "import pyodbc"
+uv run --project "${CLAUDE_PLUGIN_ROOT}/packages/ad-migration-internal" python3 -c "import pyodbc"
 ```
 
 For Oracle target:
 
 ```bash
-uv run --project "${CLAUDE_PLUGIN_ROOT}/lib" python3 -c "import oracledb"
+uv run --project "${CLAUDE_PLUGIN_ROOT}/packages/ad-migration-internal" python3 -c "import oracledb"
 ```
 
 **ddl_mcp fails** (after shared sync): re-run the ddl_mcp check. If it still fails, show the error output to the user and tell them to check their Python environment.
@@ -242,8 +244,8 @@ uv run --project "${CLAUDE_PLUGIN_ROOT}/lib" python3 -c "import oracledb"
 Run the `init` CLI to scaffold the project directory, passing the chosen source technology. This creates CLAUDE.md, README.md, repo-map.json, .gitignore, .envrc, `.claude/rules/git-workflow.md`, and `.githooks/pre-commit` — all idempotently and parameterized by source.
 
 ```bash
-uv run --project "${CLAUDE_PLUGIN_ROOT}/lib" init scaffold-project --project-root . --technology $SOURCE
-uv run --project "${CLAUDE_PLUGIN_ROOT}/lib" init scaffold-hooks --project-root . --technology $SOURCE
+uv run --project "${CLAUDE_PLUGIN_ROOT}/packages/ad-migration-internal" init scaffold-project --project-root . --technology $SOURCE
+uv run --project "${CLAUDE_PLUGIN_ROOT}/packages/ad-migration-internal" init scaffold-hooks --project-root . --technology $SOURCE
 ```
 
 Parse the JSON output and report to the user which files were created, updated, or skipped.
@@ -257,7 +259,7 @@ If `$OVERRIDES` is non-empty, write it to `.env` in the project root:
 Use the deterministic init helper for that write:
 
 ```bash
-uv run --project "${CLAUDE_PLUGIN_ROOT}/lib" init write-local-env-overrides --project-root . --overrides-json '$OVERRIDES'
+uv run --project "${CLAUDE_PLUGIN_ROOT}/packages/ad-migration-internal" init write-local-env-overrides --project-root . --overrides-json '$OVERRIDES'
 ```
 
 Then write the partial manifest with prerequisite validation results. Build a JSON object `$PREREQS` from the combined results of Steps 3-5 (merging any existing handoff values with newly validated items). The object should record common startup checks plus role-scoped startup readiness:
@@ -278,7 +280,7 @@ Then write the partial manifest with prerequisite validation results. Build a JS
 Pass it to the CLI:
 
 ```bash
-uv run --project "${CLAUDE_PLUGIN_ROOT}/lib" setup-ddl write-partial-manifest --project-root . --technology $SOURCE --target-technology $TARGET --prereqs-json '$PREREQS'
+uv run --project "${CLAUDE_PLUGIN_ROOT}/packages/ad-migration-internal" setup-ddl write-partial-manifest --project-root . --technology $SOURCE --target-technology $TARGET --prereqs-json '$PREREQS'
 ```
 
 Re-running `/init-ad-migration` reads the handoff from `manifest.json` and skips already-passing checks.
@@ -358,7 +360,7 @@ Tell the user:
 | `init scaffold-project` | 0 + `files_skipped` non-empty | Files already exist. Report which were skipped — not an error |
 | `init scaffold-hooks` | non-zero | Hook creation or git config failed. Surface error message |
 | `setup-ddl write-partial-manifest` | non-zero | Technology validation or IO failure. Surface error message, stop |
-| `uv run ... python3 -c "import ..."` | non-zero | Shared deps not synced. Tell user to run `uv sync --project "${CLAUDE_PLUGIN_ROOT}/lib"` |
+| `uv run ... python3 -c "import ..."` | non-zero | Shared deps not synced. Tell user to run `uv sync --project "${CLAUDE_PLUGIN_ROOT}/packages/ad-migration-internal"` |
 
 ## Idempotency
 

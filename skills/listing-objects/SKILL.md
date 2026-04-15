@@ -33,7 +33,7 @@ All CLI commands return JSON. Key fields: `objects[]` (list), `columns`/`refs`/`
 ## list
 
 ```bash
-uv run --project "${CLAUDE_PLUGIN_ROOT}/lib" discover list \
+uv run --project "${CLAUDE_PLUGIN_ROOT}/packages/ad-migration-internal" discover list \
   --type <type>
 ```
 
@@ -46,7 +46,7 @@ If `objects[]` is empty, say there are no objects of that type in the current ca
 ## show
 
 ```bash
-uv run --project "${CLAUDE_PLUGIN_ROOT}/lib" discover show \
+uv run --project "${CLAUDE_PLUGIN_ROOT}/packages/ad-migration-internal" discover show \
   --name <fqn>
 ```
 
@@ -67,7 +67,7 @@ If `discover show` includes `is_source: true`, surface that the table is a confi
 ## refs
 
 ```bash
-uv run --project "${CLAUDE_PLUGIN_ROOT}/lib" discover refs \
+uv run --project "${CLAUDE_PLUGIN_ROOT}/packages/ad-migration-internal" discover refs \
   --name <fqn>
 ```
 

@@ -32,16 +32,20 @@ app = typer.Typer(
 
 def _fallback_pyproject_version() -> str:
     pyproject_path = Path(__file__).resolve().parents[2] / "pyproject.toml"
-    with pyproject_path.open("rb") as handle:
-        data = tomllib.load(handle)
-    return data["project"]["version"]
+    if pyproject_path.exists():
+        with pyproject_path.open("rb") as handle:
+            data = tomllib.load(handle)
+        return data["project"]["version"]
+    raise importlib.metadata.PackageNotFoundError("ad-migration-cli")
 
 
 def _package_version() -> str:
-    try:
-        return importlib.metadata.version("ad-migration")
-    except importlib.metadata.PackageNotFoundError:
-        return _fallback_pyproject_version()
+    for distribution_name in ("ad-migration-cli", "ad-migration-shared", "ad-migration"):
+        try:
+            return importlib.metadata.version(distribution_name)
+        except importlib.metadata.PackageNotFoundError:
+            continue
+    return _fallback_pyproject_version()
 
 
 def _print_version(value: bool) -> None:

@@ -1,6 +1,6 @@
 # Refactor Context Fields
 
-Use this reference after `uv run --project "${CLAUDE_PLUGIN_ROOT}/lib" refactor context --table <table_fqn>`.
+Use this reference after `uv run --project "${CLAUDE_PLUGIN_ROOT}/packages/ad-migration-internal" refactor context --table <table_fqn>`.
 
 ## Table Path
 

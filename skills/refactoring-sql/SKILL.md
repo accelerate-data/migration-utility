@@ -29,8 +29,8 @@ Do not use this skill when:
 
 | Item | Rule |
 |---|---|
-| Guard | `uv run --project "${CLAUDE_PLUGIN_ROOT}/lib" migrate-util ready refactor --object <table_fqn>` |
-| Context | `uv run --project "${CLAUDE_PLUGIN_ROOT}/lib" refactor context --table <table_fqn>` |
+| Guard | `uv run --project "${CLAUDE_PLUGIN_ROOT}/packages/ad-migration-internal" migrate-util ready refactor --object <table_fqn>` |
+| Context | `uv run --project "${CLAUDE_PLUGIN_ROOT}/packages/ad-migration-internal" refactor context --table <table_fqn>` |
 | Compare gate | Run `test-harness sandbox-status`; if unavailable or explicitly skipped, persist with `--no-compare-required` |
 | Contracts | Use [references/context-fields.md](references/context-fields.md), [references/refactor-contracts.md](references/refactor-contracts.md), and [`../../lib/shared/refactor_error_codes.md`](../../lib/shared/refactor_error_codes.md) |
 | Ground truth | Never modify the extracted SQL during self-correction |

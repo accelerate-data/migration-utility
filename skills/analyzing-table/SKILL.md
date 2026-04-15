@@ -40,7 +40,7 @@ Do not use this skill when:
 Check stage readiness:
 
 ```bash
-uv run --project "${CLAUDE_PLUGIN_ROOT}/lib" migrate-util ready scope --object <fqn>
+uv run --project "${CLAUDE_PLUGIN_ROOT}/packages/ad-migration-internal" migrate-util ready scope --object <fqn>
 ```
 
 If `ready` is `false`, report the failing check's `code` and `reason` to the user and stop.

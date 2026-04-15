@@ -11,7 +11,7 @@ Follow these steps in order. Do not abbreviate — every step must complete befo
 ### Step 1 — Fetch object data
 
 ```bash
-uv run --project "${CLAUDE_PLUGIN_ROOT}/lib" discover show \
+uv run --project "${CLAUDE_PLUGIN_ROOT}/packages/ad-migration-internal" discover show \
   --name <proc>
 ```
 
@@ -137,7 +137,7 @@ mkdir -p .staging
 cat > .staging/statements.json <<'EOF'
 <statements JSON>
 EOF
-uv run --project "${CLAUDE_PLUGIN_ROOT}/lib" discover write-statements \
+uv run --project "${CLAUDE_PLUGIN_ROOT}/packages/ad-migration-internal" discover write-statements \
   --name <procedure_name> --statements-file .staging/statements.json && rm -rf .staging
 ```
 
