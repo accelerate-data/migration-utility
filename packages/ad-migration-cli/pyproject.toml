@@ -3,7 +3,7 @@ name = "ad-migration-cli"
 version = "0.1.0"
 requires-python = ">=3.11"
 dependencies = [
-    "ad-migration-shared",
+    "ad-migration-shared==0.1.0",
 ]
 
 [tool.uv.sources]

@@ -9,6 +9,16 @@
       "manifest": "lib/pyproject.toml"
     },
     {
+      "name": "uv (public cli)",
+      "lockfile": "packages/ad-migration-cli/uv.lock",
+      "manifest": "packages/ad-migration-cli/pyproject.toml"
+    },
+    {
+      "name": "uv (internal cli)",
+      "lockfile": "packages/ad-migration-internal/uv.lock",
+      "manifest": "packages/ad-migration-internal/pyproject.toml"
+    },
+    {
       "name": "uv (ddl-mcp)",
       "lockfile": "mcp/ddl/uv.lock",
       "manifest": "mcp/ddl/pyproject.toml"
@@ -148,7 +158,26 @@
     "ad_migration_reset": "cd packages/ad-migration-cli && uv run ad-migration reset <stage> <fqn> [fqn ...] [--yes]",
     "ad_migration_exclude_table": "cd packages/ad-migration-cli && uv run ad-migration exclude-table <fqn> [--no-commit]",
     "ad_migration_add_source_table": "cd packages/ad-migration-cli && uv run ad-migration add-source-table <fqn> [--no-commit]",
+    "catalog_enrich": "cd packages/ad-migration-internal && uv run catalog-enrich [<args>]",
     "discover": "cd packages/ad-migration-internal && uv run discover <args>",
+    "generate_sources": "cd packages/ad-migration-internal && uv run generate-sources [--write] [--strict] [--project-root <path>]",
+    "init_check_freetds": "cd packages/ad-migration-internal && uv run init check-freetds [--register-missing]",
+    "migrate_context": "cd packages/ad-migration-internal && uv run migrate context [<args>]",
+    "migrate_write": "cd packages/ad-migration-internal && uv run migrate write [<args>]",
+    "migrate_write_catalog": "cd packages/ad-migration-internal && uv run migrate write-catalog [<args>]",
+    "migrate_render_unit_tests": "cd packages/ad-migration-internal && uv run migrate render-unit-tests [<args>]",
+    "profile_context": "cd packages/ad-migration-internal && uv run profile context [<args>]",
+    "profile_write": "cd packages/ad-migration-internal && uv run profile write [<args>]",
+    "test_harness_help": "cd packages/ad-migration-internal && uv run test-harness --help",
+    "test_harness_execute_spec": "cd packages/ad-migration-internal && uv run test-harness execute-spec --spec <path>",
+    "migrate_util_status": "cd packages/ad-migration-internal && uv run migrate-util status [<fqn>]",
+    "migrate_util_ready": "cd packages/ad-migration-internal && uv run migrate-util ready <stage> [--object <fqn>]",
+    "migrate_util_exclude": "cd packages/ad-migration-internal && uv run migrate-util exclude <fqn> [fqn ...]",
+    "migrate_util_reset_migration": "cd packages/ad-migration-internal && uv run migrate-util reset-migration <scope|profile|generate-tests|refactor|all> [--fqn <fqn> ...]",
+    "migrate_util_sync_excluded_warnings": "cd packages/ad-migration-internal && uv run migrate-util sync-excluded-warnings",
+    "refactor_context": "cd packages/ad-migration-internal && uv run refactor context --table <schema.table>",
+    "refactor_write": "cd packages/ad-migration-internal && uv run refactor write --table <schema.table> --refactored-sql-file <path> --status ok|partial|error",
+    "compare_sql": "cd packages/ad-migration-internal && uv run test-harness compare-sql --sql-a-file <extracted.sql> --sql-b-file <refactored.sql> --spec <spec-path>",
     "setup_ddl": "cd packages/ad-migration-internal && uv run setup-ddl <args>",
     "test_migration_python": "cd lib && uv run pytest",
     "test_migration_python_module": "cd lib && uv run pytest ../tests/unit/<module>",
