@@ -51,6 +51,8 @@ Before `ad-migration setup-target` can proceed, every extracted table needs one 
 
 Tables with `scoping.status == "no_writer_found"` are not automatically included in `sources.yml`; they stay pending until you explicitly confirm them as sources with `ad-migration add-source-table`.
 
+After you confirm source tables, use `/listing-objects list sources` to see the current confirmed-source inventory from catalog state.
+
 See [[Stage 1 Scoping]].
 
 ## 4. Set up the target

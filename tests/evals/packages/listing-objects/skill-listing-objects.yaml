@@ -24,6 +24,12 @@ tests:
       request_text: "list tables"
       expected_terms: "silver.dimsource"
 
+  - description: "list-sources — returns only confirmed source tables"
+    vars:
+      fixture_path: "tests/evals/fixtures/listing-objects/source-table-guard"
+      request_text: "list sources"
+      expected_terms: "silver.dimsource"
+
   - description: "show-table — surfaces columns and selected writer context"
     vars:
       fixture_path: "tests/evals/fixtures/analyzing-table/merge"
@@ -46,7 +52,7 @@ tests:
     vars:
       fixture_path: "tests/evals/fixtures/listing-objects/source-table-guard"
       request_text: "show silver.DimSource"
-      expected_terms: "silver.dimsource,sourcekey"
+      expected_terms: "silver.dimsource,sourcekey,is_source"
 
   - description: "refs-procedure — unsupported refs target returns payload error"
     vars:

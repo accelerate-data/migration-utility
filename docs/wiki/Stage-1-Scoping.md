@@ -37,6 +37,8 @@ Typical outcomes:
 
 If a table ends up `no_writer_found`, it is not automatically treated as a source table. Use `ad-migration add-source-table` if that table should become a dbt source.
 
+Once source decisions are written, use `/listing-objects list sources` to list the confirmed source tables without mixing them into the migration workflow dashboard.
+
 ## Next step
 
 Proceed to [[Stage 2 Profiling]] or use `ad-migration add-source-table` and `ad-migration exclude-table` to clean up remaining non-migration targets before `ad-migration setup-target`.

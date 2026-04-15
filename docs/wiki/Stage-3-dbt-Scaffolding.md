@@ -29,6 +29,8 @@ Before `ad-migration setup-target` can proceed, extracted tables need to be in o
 
 In practice, this means you should finish the scope/exclude/source decision first, then run `ad-migration add-source-table <fqn>` for every table that should remain a dbt source before invoking `ad-migration setup-target`.
 
+Use `/listing-objects list sources` if you want to verify the confirmed source-table set before running `ad-migration setup-target`.
+
 ## What it writes
 
 ```text

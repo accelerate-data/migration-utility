@@ -56,6 +56,34 @@ def _resolve_physical_source_schema(
     return target_role.schemas.source
 
 
+def list_confirmed_source_tables(project_root: Path) -> list[str]:
+    """Return confirmed source-table FQNs from persisted catalog state."""
+    catalog_dir = resolve_catalog_dir(project_root)
+    tables_dir = catalog_dir / "tables"
+    if not tables_dir.is_dir():
+        return []
+
+    included: list[str] = []
+    for table_file in sorted(tables_dir.glob("*.json")):
+        try:
+            cat = json.loads(table_file.read_text(encoding="utf-8"))
+        except (json.JSONDecodeError, UnicodeDecodeError):
+            logger.warning(
+                "event=generate_sources_skip_file path=%s reason=parse_error",
+                table_file,
+            )
+            continue
+
+        if cat.get("excluded") or cat.get("is_source") is not True:
+            continue
+
+        schema = cat.get("schema", "").lower()
+        name = cat.get("name", "")
+        included.append(f"{schema}.{name.lower()}")
+
+    return included
+
+
 def generate_sources(
     project_root: Path,
     *,

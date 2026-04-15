@@ -24,6 +24,7 @@ from shared.loader import (
     extract_refs,
     load_ddl,
 )
+from shared.generate_sources import list_confirmed_source_tables
 from shared.name_resolver import normalize
 from shared.output_models.discover import (
     BasicRefs,
@@ -40,6 +41,7 @@ logger = logging.getLogger(__name__)
 
 class ObjectType(str, Enum):
     tables = "tables"
+    sources = "sources"
     procedures = "procedures"
     views = "views"
     functions = "functions"
@@ -75,6 +77,8 @@ def _catalog_error(type_label: str, norm: str) -> NoReturn:
 
 def run_list(project_root: Path, object_type: ObjectType) -> DiscoverListOutput:
     """Return the list subcommand result."""
+    if object_type == ObjectType.sources:
+        return DiscoverListOutput(objects=list_confirmed_source_tables(project_root))
     catalog, _ = _load(project_root)
     return DiscoverListOutput(objects=sorted(_bucket(catalog, object_type).keys()))
 
@@ -83,7 +87,10 @@ def _show_table(project_root: Path, norm: str) -> dict[str, Any]:
     table_cat = load_table_catalog(project_root, norm)
     if table_cat is None:
         _catalog_error("table", norm)
-    return {"columns": table_cat.columns}
+    result: dict[str, Any] = {"columns": table_cat.columns}
+    if table_cat.is_source:
+        result["is_source"] = True
+    return result
 
 
 def _show_procedure(project_root: Path, norm: str, entry: DdlEntry) -> dict[str, Any]:
