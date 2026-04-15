@@ -1,6 +1,12 @@
 """Top-level ad-migration Typer app."""
+from __future__ import annotations
+
+import importlib.metadata
 import logging
 import sys
+from pathlib import Path
+
+import tomllib
 
 import typer
 
@@ -24,10 +30,38 @@ app = typer.Typer(
 )
 
 
+def _fallback_pyproject_version() -> str:
+    pyproject_path = Path(__file__).resolve().parents[2] / "pyproject.toml"
+    with pyproject_path.open("rb") as handle:
+        data = tomllib.load(handle)
+    return data["project"]["version"]
+
+
+def _package_version() -> str:
+    try:
+        return importlib.metadata.version("ad-migration")
+    except importlib.metadata.PackageNotFoundError:
+        return _fallback_pyproject_version()
+
+
+def _print_version(value: bool) -> None:
+    if not value:
+        return
+    typer.echo(_package_version())
+    raise typer.Exit()
+
+
 @app.callback()
 def _main(
     quiet: bool = typer.Option(False, "--quiet", help="Suppress all output except errors, for CI use."),
     verbose: bool = typer.Option(False, "--verbose", "-v", help="Show warnings and log output on stderr."),
+    version: bool = typer.Option(
+        False,
+        "--version",
+        callback=_print_version,
+        is_eager=True,
+        help="Show the ad-migration CLI version and exit.",
+    ),
 ) -> None:
     if quiet:
         output.set_quiet(True)
