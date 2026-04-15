@@ -4,6 +4,7 @@ from unittest.mock import MagicMock, patch
 
 from typer.testing import CliRunner
 
+import shared.cli.error_handler as _err_mod
 from shared.cli.main import app
 from shared.output_models.sandbox import SandboxDownOutput, SandboxUpOutput
 
@@ -103,3 +104,48 @@ def test_teardown_sandbox_error_exits_nonzero(tmp_path):
         result = runner.invoke(app, ["teardown-sandbox", "--yes", "--project-root", str(tmp_path)])
 
     assert result.exit_code == 1
+
+
+def _patch_pyodbc_programming():
+    class _FakePyodbcProgramming(Exception): pass
+    return _FakePyodbcProgramming, patch.multiple(
+        _err_mod,
+        _PYODBC_PROGRAMMING_ERROR=_FakePyodbcProgramming,
+        _PYODBC_INTERFACE_ERROR=None,
+        _PYODBC_OPERATIONAL_ERROR=None,
+        _PYODBC_ERROR=_FakePyodbcProgramming,
+    )
+
+
+def test_setup_sandbox_shows_clean_error_on_db_failure(tmp_path):
+    _FakePyodbcProgramming, driver_patch = _patch_pyodbc_programming()
+    mock_backend = MagicMock()
+    mock_backend.sandbox_up.side_effect = _FakePyodbcProgramming("login failed")
+
+    with (
+        driver_patch,
+        patch("shared.cli.setup_sandbox_cmd._load_manifest", return_value={}),
+        patch("shared.cli.setup_sandbox_cmd._create_backend", return_value=mock_backend),
+        patch("shared.cli.setup_sandbox_cmd._get_schemas", return_value=["silver"]),
+    ):
+        result = runner.invoke(app, ["setup-sandbox", "--yes", "--project-root", str(tmp_path)])
+
+    assert result.exit_code == 2
+    assert "Hint:" in result.output
+
+
+def test_teardown_sandbox_shows_clean_error_on_db_failure(tmp_path):
+    _FakePyodbcProgramming, driver_patch = _patch_pyodbc_programming()
+    mock_backend = MagicMock()
+    mock_backend.sandbox_down.side_effect = _FakePyodbcProgramming("login failed")
+
+    with (
+        driver_patch,
+        patch("shared.cli.teardown_sandbox_cmd._load_manifest", return_value={}),
+        patch("shared.cli.teardown_sandbox_cmd._create_backend", return_value=mock_backend),
+        patch("shared.cli.teardown_sandbox_cmd._get_sandbox_name", return_value="__test_abc"),
+    ):
+        result = runner.invoke(app, ["teardown-sandbox", "--yes", "--project-root", str(tmp_path)])
+
+    assert result.exit_code == 2
+    assert "Hint:" in result.output
