@@ -130,14 +130,18 @@ Example for a resolved dynamic SQL write:
 
 No `needs_llm` actions are written to catalog — all must be resolved before persisting.
 
-Write the statements JSON to a temp file:
+Create the temp file first, then persist it to the catalog:
 
 ```bash
 mkdir -p .staging
-# Write statements JSON to .staging/statements.json
+cat > .staging/statements.json <<'EOF'
+<statements JSON>
+EOF
 uv run --project "${CLAUDE_PLUGIN_ROOT}/lib" discover write-statements \
   --name <procedure_name> --statements-file .staging/statements.json && rm -rf .staging
 ```
+
+`discover write-statements` reads `.staging/statements.json` and persists those statements into the catalog.
 
 After `discover write-statements` succeeds, report that the statements were persisted and summarize the migrate/skip decisions.
 

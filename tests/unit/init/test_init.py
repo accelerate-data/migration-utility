@@ -7,7 +7,6 @@ Tests call run_* functions directly (testability pattern).
 from __future__ import annotations
 
 import json
-import stat
 import subprocess
 from pathlib import Path
 
@@ -20,7 +19,6 @@ from shared.init import (
     SOURCE_REGISTRY,
     get_source_config,
     run_discover_mssql_driver_override,
-    run_discover_sqlcl_bin_override,
     run_scaffold_hooks,
     run_scaffold_project,
     write_local_env_overrides,
@@ -43,7 +41,6 @@ class TestScaffoldProject:
         assert ".gitignore" in result.files_created
         assert ".envrc" in result.files_created
         assert ".claude/rules/git-workflow.md" in result.files_created
-        assert "scripts/worktree.sh" in result.files_created
         assert result.files_updated == []
         assert result.files_skipped == []
 
@@ -53,26 +50,26 @@ class TestScaffoldProject:
         repo_map = json.loads((tmp_path / "repo-map.json").read_text())
         assert repo_map == config.repo_map_fn()
         assert ".mcp.json" not in (tmp_path / ".gitignore").read_text()
-        assert ".envrc" in (tmp_path / ".gitignore").read_text()
-        assert "MSSQL_HOST" in (tmp_path / ".envrc").read_text()
+        assert ".envrc" not in (tmp_path / ".gitignore").read_text()
+        envrc_text = (tmp_path / ".envrc").read_text()
+        assert "MSSQL_HOST" in envrc_text
+        assert "SOURCE_MSSQL_PASSWORD" not in envrc_text
+        assert "SANDBOX_MSSQL_PASSWORD" not in envrc_text
+        assert "TARGET_MSSQL_PASSWORD" not in envrc_text
         assert 'source_env_if_exists .env' in (tmp_path / ".envrc").read_text()
         workflow = (tmp_path / ".claude" / "rules" / "git-workflow.md").read_text()
         assert "Worktree" in workflow
         assert "../worktrees" in workflow
-        worktree_script = tmp_path / "scripts" / "worktree.sh"
-        assert worktree_script.exists()
-        assert worktree_script.stat().st_mode & stat.S_IXUSR
-        worktree_script_text = worktree_script.read_text()
-        assert "WORKTREE_BRANCH_ALREADY_CHECKED_OUT" in worktree_script_text
-        assert 'local lib_dir="$worktree_path/lib"' in worktree_script_text
-        assert 'local lib_dir="$worktree_path/plugin' not in worktree_script_text
+        assert "git-checkpoints" in workflow
+        assert "scripts/worktree.sh" not in workflow
+        assert not (tmp_path / "scripts" / "worktree.sh").exists()
 
     def test_idempotent_skips_existing_files(self, tmp_path: Path) -> None:
         run_scaffold_project(tmp_path)
         result = run_scaffold_project(tmp_path)
         assert result.files_created == []
         assert result.files_updated == []
-        assert len(result.files_skipped) == 7
+        assert len(result.files_skipped) == 6
 
     def test_merges_missing_gitignore_entries(self, tmp_path: Path) -> None:
         (tmp_path / ".gitignore").write_text("# Custom\n.DS_Store\n")
@@ -82,7 +79,7 @@ class TestScaffoldProject:
         content = (tmp_path / ".gitignore").read_text()
         assert "# Custom" in content
         assert ".mcp.json" not in content
-        assert ".envrc" in content
+        assert ".envrc" not in content
 
     def test_merges_local_env_loader_into_existing_envrc(self, tmp_path: Path) -> None:
         (tmp_path / ".envrc").write_text("export MSSQL_HOST=localhost\n", encoding="utf-8")
@@ -123,19 +120,16 @@ class TestScaffoldProjectOracle:
         assert "ORACLE_PORT" in envrc
         assert "ORACLE_SERVICE" in envrc
         assert "ORACLE_USER" in envrc
-        assert "ORACLE_PASSWORD" in envrc
+        assert "ORACLE_PASSWORD" not in envrc
         assert 'source_env_if_exists .env' in envrc
         assert "MSSQL" not in envrc
 
         claude_md = (tmp_path / "CLAUDE.md").read_text()
         assert "Oracle" in claude_md
-        assert "SQLcl" in claude_md
-        assert "auto-connect" in claude_md
+        assert "ddl_mcp" in claude_md
 
         readme = (tmp_path / "README.md").read_text()
         assert "Oracle" in readme
-        assert "SQLcl" in readme
-        assert "Java 11+" in readme
 
         repo_map = json.loads((tmp_path / "repo-map.json").read_text())
         assert "oracle_env_vars" in repo_map["notes_for_agents"]
@@ -177,11 +171,57 @@ class TestScaffoldHooks:
     def test_oracle_hook_blocks_oracle_creds(self, tmp_path: Path) -> None:
         run_scaffold_hooks(tmp_path, technology="oracle")
         hook_content = (tmp_path / ".githooks" / "pre-commit").read_text()
-        assert "ORACLE_PASSWORD" in hook_content
-        assert "ORACLE_HOST" in hook_content
-        # Oracle hook should NOT check for MSSQL patterns
-        assert "SA_PASSWORD" not in hook_content
+        assert "tracked secret field" in hook_content
+        assert "API_KEY" in hook_content
         assert "MSSQL" not in hook_content
+
+    def test_sql_server_hook_allows_tracked_non_secret_envrc(self, tmp_path: Path) -> None:
+        subprocess.run(["git", "init"], cwd=tmp_path, capture_output=True, check=True)
+        run_scaffold_hooks(tmp_path)
+        envrc_path = tmp_path / ".envrc"
+        envrc_path.write_text(
+            'export SOURCE_MSSQL_HOST=localhost\n'
+            'export SOURCE_MSSQL_USER=sa\n',
+            encoding="utf-8",
+        )
+        subprocess.run(["git", "add", ".envrc"], cwd=tmp_path, capture_output=True, check=True)
+
+        result = subprocess.run(
+            [str(tmp_path / ".githooks" / "pre-commit")],
+            cwd=tmp_path,
+            capture_output=True,
+            text=True,
+        )
+
+        assert result.returncode == 0, result.stderr
+
+    @pytest.mark.parametrize(
+        ("filename", "content"),
+        [
+            (".envrc", "export SOURCE_MSSQL_PASSWORD=super-secret\n"),
+            (".mcp.json", '{"api_key":"secret-value"}\n'),
+        ],
+    )
+    def test_sql_server_hook_blocks_tracked_secrets(
+        self,
+        tmp_path: Path,
+        filename: str,
+        content: str,
+    ) -> None:
+        subprocess.run(["git", "init"], cwd=tmp_path, capture_output=True, check=True)
+        run_scaffold_hooks(tmp_path)
+        target = tmp_path / filename
+        target.write_text(content, encoding="utf-8")
+        subprocess.run(["git", "add", filename], cwd=tmp_path, capture_output=True, check=True)
+
+        result = subprocess.run(
+            [str(tmp_path / ".githooks" / "pre-commit")],
+            cwd=tmp_path,
+            capture_output=True,
+            text=True,
+        )
+
+        assert result.returncode == 1
 
 
 # ── source registry ─────────────────────────────────────────────────────────
@@ -422,94 +462,3 @@ class TestDiscoverMssqlDriverOverride:
         payload = json.loads(result.stdout)
         assert payload["key"] == "MSSQL_DRIVER"
         assert payload["status"] == "resolved"
-
-
-class TestDiscoverSqlclBinOverride:
-    def test_uses_env_override(self, monkeypatch: pytest.MonkeyPatch) -> None:
-        monkeypatch.setenv("SQLCL_BIN", "/opt/sqlcl/bin/sql")
-        monkeypatch.setattr("shared.init._is_executable_file", lambda _path: True)
-        monkeypatch.setattr("shared.init._is_sqlcl_binary", lambda _path: True)
-
-        result = run_discover_sqlcl_bin_override()
-
-        assert result.status == "resolved"
-        assert result.value == "/opt/sqlcl/bin/sql"
-
-    def test_rejects_non_executable_env_override(self, monkeypatch: pytest.MonkeyPatch) -> None:
-        monkeypatch.setenv("SQLCL_BIN", "/missing/sql")
-        monkeypatch.setattr("shared.init._is_executable_file", lambda _path: False)
-
-        result = run_discover_sqlcl_bin_override()
-
-        assert result.status == "manual"
-        assert result.message == 'Set SQLCL_BIN="/absolute/path/to/sql" and ensure Java 11+ is on PATH.'
-
-    def test_rejects_non_sqlcl_env_override(self, monkeypatch: pytest.MonkeyPatch) -> None:
-        monkeypatch.setenv("SQLCL_BIN", "/usr/local/bin/sql")
-        monkeypatch.setattr("shared.init._is_executable_file", lambda _path: True)
-        monkeypatch.setattr("shared.init._is_sqlcl_binary", lambda _path: False)
-
-        result = run_discover_sqlcl_bin_override()
-
-        assert result.status == "manual"
-
-    def test_defaults_when_sql_on_path(self, monkeypatch: pytest.MonkeyPatch) -> None:
-        monkeypatch.delenv("SQLCL_BIN", raising=False)
-        monkeypatch.setattr("shared.init.which", lambda name: "/usr/local/bin/sql" if name == "sql" else None)
-        monkeypatch.setattr("shared.init._is_sqlcl_binary", lambda _path: True)
-
-        result = run_discover_sqlcl_bin_override()
-
-        assert result.status == "default"
-        assert result.value is None
-
-    def test_defaults_when_sqlcl_on_path(self, monkeypatch: pytest.MonkeyPatch) -> None:
-        monkeypatch.delenv("SQLCL_BIN", raising=False)
-        monkeypatch.setattr("shared.init.which", lambda name: "/usr/local/bin/sqlcl" if name == "sqlcl" else None)
-        monkeypatch.setattr("shared.init._is_sqlcl_binary", lambda _path: True)
-
-        result = run_discover_sqlcl_bin_override()
-
-        assert result.status == "default"
-        assert result.value is None
-
-    def test_reports_manual_override_when_sqlcl_not_found(
-        self,
-        monkeypatch: pytest.MonkeyPatch,
-    ) -> None:
-        monkeypatch.delenv("SQLCL_BIN", raising=False)
-        monkeypatch.setattr("shared.init.which", lambda _name: None)
-
-        result = run_discover_sqlcl_bin_override()
-
-        assert result.status == "manual"
-        assert result.message == 'Set SQLCL_BIN="/absolute/path/to/sql" and ensure Java 11+ is on PATH.'
-
-    def test_reports_manual_override_when_path_sql_is_not_sqlcl(
-        self,
-        monkeypatch: pytest.MonkeyPatch,
-    ) -> None:
-        monkeypatch.delenv("SQLCL_BIN", raising=False)
-        monkeypatch.setattr("shared.init.which", lambda name: "/usr/local/bin/sql" if name == "sql" else None)
-        monkeypatch.setattr("shared.init._is_sqlcl_binary", lambda _path: False)
-
-        result = run_discover_sqlcl_bin_override()
-
-        assert result.status == "manual"
-
-    def test_cli_returns_sqlcl_discovery_payload(self, monkeypatch: pytest.MonkeyPatch) -> None:
-        monkeypatch.setattr(
-            "shared.init.run_discover_sqlcl_bin_override",
-            lambda: LocalOverrideDiscoveryOutput(
-                key="SQLCL_BIN",
-                status="manual",
-                message='Set SQLCL_BIN="/absolute/path/to/sql" and ensure Java 11+ is on PATH.',
-            ),
-        )
-
-        result = RUNNER.invoke(app, ["discover-sqlcl-bin-override"])
-
-        assert result.exit_code == 0, result.stdout
-        payload = json.loads(result.stdout)
-        assert payload["key"] == "SQLCL_BIN"
-        assert payload["status"] == "manual"

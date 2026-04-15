@@ -1,18 +1,16 @@
 # Command Reference
 
-This page lists the current user-invocable commands exposed by the plugin.
+## Plugin commands
 
-## Project setup
+Plugin commands run inside Claude Code and handle LLM-driven pipeline stages.
+
+### Bootstrap
 
 | Command | Purpose |
 |---|---|
-| `/init-ad-migration` | Scaffold the migration repo and check prerequisites |
-| `/setup-ddl` | Extract DDL and build the local catalog |
-| `/setup-target` | Configure the target runtime, scaffold the dbt project, and generate `sources.yml` |
-| `/setup-sandbox` | Create the active sandbox execution endpoint |
-| `/teardown-sandbox` | Drop the sandbox endpoint and clear sandbox metadata |
+| `/init-ad-migration` | Install the `ad-migration` CLI, check prerequisites, and scaffold the project |
 
-## Migration pipeline
+### Migration pipeline
 
 | Command | Purpose |
 |---|---|
@@ -23,24 +21,48 @@ This page lists the current user-invocable commands exposed by the plugin.
 | `/generate-model` | Generate dbt artifacts from approved refactors and tests |
 | `/status` | Show current readiness and the next best action |
 
-## Source and scope management
+### Source and scope management
 
 | Command | Purpose |
 |---|---|
-| `/add-source-tables` | Confirm tables as dbt sources (`is_source: true`) |
-| `/exclude-table` | Exclude tables or views from the active migration pipeline |
-| `/reset-migration` | Clear one migration stage so it can be re-run cleanly |
+| `/cleanup-worktrees` | Remove merged worktrees and their branches after PR cleanup |
 
-## Git and workflow helpers
+## ad-migration CLI
+
+Deterministic setup and pipeline state commands, usable from a terminal or CI without Claude Code.
+
+Install via `/init-ad-migration` (automatic) or manually:
+
+```bash
+brew tap accelerate-data/homebrew-tap
+brew install ad-migration
+```
+
+Dev usage (no install needed):
+
+```bash
+uv run --project lib ad-migration <command>
+```
+
+### Setup commands
 
 | Command | Purpose |
 |---|---|
-| `/commit` | Stage specific files, commit, and push |
-| `/commit-push-pr` | Stage specific files, commit, push, and open or update a PR |
-| `/cleanup-worktrees` | Remove merged worktrees and stale merged branches |
+| `ad-migration setup-source` | Extract DDL and build the local catalog from a live source database |
+| `ad-migration setup-target` | Scaffold the dbt project and generate `sources.yml` |
+| `ad-migration setup-sandbox` | Create the active sandbox execution endpoint |
+| `ad-migration teardown-sandbox` | Drop the sandbox endpoint and clear sandbox metadata |
+
+### Pipeline state commands
+
+| Command | Purpose |
+|---|---|
+| `ad-migration reset` | Clear one migration stage so it can be re-run |
+| `ad-migration exclude-table` | Exclude tables or views from the active migration pipeline |
+| `ad-migration add-source-table` | Confirm tables as dbt sources (`is_source: true`) |
 
 ## Notes
 
-- Batch commands use the git checkpoint flow and may create or reuse worktrees.
-- Successful items are usually committed as they complete, not held for a single end-of-batch approval step.
-- Source-confirmed tables are skipped by downstream migration commands because they are not migration targets.
+- Source-confirmed tables are skipped by downstream migration commands.
+- The `ad-migration` CLI does not commit, push, open PRs, or clean worktrees; do those git operations yourself in the shell.
+- For the full ad-migration CLI reference including options and exit codes, see [[CLI Reference]].

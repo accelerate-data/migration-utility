@@ -1,6 +1,20 @@
 # Stage 2 -- DDL Extraction
 
-`/setup-ddl` extracts source metadata and builds the local migration catalog that every downstream command depends on. It also persists the active source endpoint in `manifest.json` as `runtime.source` and writes extraction metadata under `extraction.*`.
+`ad-migration setup-source` extracts source metadata and builds the local migration catalog that every downstream command depends on. It also persists the active source endpoint in `manifest.json` as `runtime.source` and writes extraction metadata under `extraction.*`.
+
+## Invocation
+
+```bash
+ad-migration setup-source --schemas silver,gold
+ad-migration setup-source --schemas SH,HR
+```
+
+| Option | Required | Description |
+|---|---|---|
+| `--schemas` | yes | Comma-separated list of schemas to extract |
+| `--project-root` | no | Defaults to current working directory |
+
+`setup-source` reads the source technology from `manifest.json` as `runtime.source`, which is seeded by `/init-ad-migration`.
 
 ## What it produces
 
@@ -8,39 +22,42 @@
 - extracted object definitions in `ddl/`
 - per-object catalog JSON in `catalog/`
 
-## SQL Server / Fabric flow
+## How it works
 
-For SQL Server-style sources, `/setup-ddl` runs an interactive extraction flow:
+1. Validates required environment variables (exits 1 with a list of missing vars if absent)
+2. Runs extraction via `run_extract`
+3. Writes `manifest.json`, `ddl/`, and `catalog/`
+4. Runs AST enrichment
 
-1. choose the source database
-2. choose one or more schemas
-3. confirm the extraction preview
-4. extract DDL and write catalog state
-5. run enrichment so catalog references include both database metadata and AST-derived signals
+## Prerequisites
 
-### Prerequisites
+The CLI validates all required environment variables before connecting. Missing variables cause an immediate exit with a message listing exactly which vars are absent.
+
+### SQL Server
 
 - `toolbox` on `PATH`
-- `MSSQL_HOST`
-- `MSSQL_PORT`
-- `MSSQL_DB`
-- `SA_PASSWORD`
+- `SOURCE_MSSQL_HOST`
+- `SOURCE_MSSQL_PORT`
+- `SOURCE_MSSQL_DB`
+- `SOURCE_MSSQL_USER`
+- `SOURCE_MSSQL_PASSWORD`
 
-These are bootstrap inputs for the initial source connection. Once `/setup-ddl` completes, the active source endpoint is persisted in `manifest.json` as `runtime.source`.
+These are bootstrap inputs for the initial source connection. Once `ad-migration setup-source` completes, the active source endpoint is persisted in `manifest.json` as `runtime.source`.
 
-## Oracle flow
+### Oracle
 
-For Oracle projects, the usual path is the headless CLI extract flow rather than the interactive SQL Server-style prompt flow:
-
-```bash
-uv run --project <shared-path> setup-ddl extract --schemas SH,HR
-```
+- SQLcl and Java 11+
+- `SOURCE_ORACLE_HOST`
+- `SOURCE_ORACLE_PORT`
+- `SOURCE_ORACLE_SERVICE`
+- `SOURCE_ORACLE_USER`
+- `SOURCE_ORACLE_PASSWORD`
 
 The Oracle user needs catalog access such as `SELECT_CATALOG_ROLE` and `SELECT ANY DICTIONARY`.
 
 ## Re-running extraction
 
-Re-running `/setup-ddl` rebuilds `ddl/` and `catalog/` from source state. Enriched migration fields such as scoping, profile, and refactor are preserved across re-extraction where the CLI supports that preservation.
+Re-running `ad-migration setup-source` rebuilds `ddl/` and `catalog/` from source state. Enriched migration fields such as scoping, profile, and refactor are preserved across re-extraction where the CLI supports that preservation.
 
 ## Known limitation
 

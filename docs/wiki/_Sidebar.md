@@ -22,15 +22,14 @@
 **Commands**
 
 - [[Command Reference]]
-- [[Command Setup DDL]]
+- [[Command-Setup-Source]]
+- [[Testing-the-CLI]]
 
 **Skills**
 
 - [[Skill Listing Objects]]
 - [[Skill Analyzing Table]]
 - [[Skill Profiling Table]]
-- [[Skill Generating Tests]]
-- [[Skill Generating Model]]
 
 **Operations**
 

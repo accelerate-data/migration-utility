@@ -1,14 +1,14 @@
 # Cleanup and Teardown
 
-Two cleanup commands remove resources created during the migration pipeline: `/cleanup-worktrees` for git worktrees and branches, and `/teardown-sandbox` for the throwaway test database.
+Two cleanup operations remove resources created during the migration pipeline: `/cleanup-worktrees` for git worktrees and branches, and `ad-migration teardown-sandbox` for the throwaway test database.
 
-## `/teardown-sandbox`
+## ad-migration teardown-sandbox
 
-Drops the active sandbox endpoint that was created by `/setup-sandbox` during test generation.
+Drops the active sandbox endpoint that was created by `ad-migration setup-sandbox` during test generation.
 
 ### When to run
 
-Run `/teardown-sandbox` after test generation is complete for all tables in the current batch. The sandbox is only needed while `/generate-tests` or `/generating-tests` is actively executing stored procedures to capture ground truth. Once all test specs are written to `test-specs/`, the sandbox can be safely dropped.
+Run `ad-migration teardown-sandbox` after test generation is complete for all tables in the current batch. The sandbox is only needed while `/generate-tests` is actively executing stored procedures to capture ground truth. Once all test specs are written to `test-specs/`, the sandbox can be safely dropped.
 
 ### How it works
 
@@ -32,7 +32,7 @@ Run `/teardown-sandbox` after test generation is complete for all tables in the 
 | Connection error or permissions failure | Reports `SANDBOX_DOWN_FAILED` error with details |
 | No sandbox metadata in manifest | Stops with message that no sandbox exists |
 
-## `/cleanup-worktrees`
+## /cleanup-worktrees
 
 Scans git worktrees and local branches for merged PRs and removes them. Runs three passes in sequence.
 
@@ -42,8 +42,10 @@ Run `/cleanup-worktrees` after PRs have been merged. Batch commands create a wor
 
 ### Usage
 
-- **All worktrees:** `/cleanup-worktrees` -- scans every worktree except the main working tree
-- **Single branch:** `/cleanup-worktrees <branch-name>` -- targets only the specified branch
+```text
+/cleanup-worktrees
+/cleanup-worktrees <branch>
+```
 
 ### How it works
 

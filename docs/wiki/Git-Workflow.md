@@ -18,9 +18,9 @@ For batch command worktrees, the branch name is derived from the command and tab
 ../worktrees/feature/scope-silver-dimcustomer-silver-dimproduct
 ```
 
-Use `./scripts/worktree.sh <branch-name>` to create or attach a worktree and bootstrap it in one step.
+Batch commands create or reuse worktrees automatically through the internal `git-checkpoints` helper.
 
-The wrapper bootstraps the worktree by:
+That helper bootstraps the worktree by:
 
 - Symlinking `.env` from the main repo root
 - Running `direnv allow`
@@ -30,18 +30,9 @@ The wrapper bootstraps the worktree by:
 
 ## Main-branch check
 
-Every batch command checks the current branch at startup. If you are on `main`, the command warns and offers to create a worktree:
+Every batch command checks the current branch at startup. If you are on the default branch, `git-checkpoints` asks whether to continue there or create a feature-branch worktree first.
 
-```text
-⚠️  You are on main. It is recommended to work on a feature branch.
-
-To create a worktree now:
-  ./scripts/worktree.sh feature/<slug>
-
-Proceed on main anyway? (y/n)
-```
-
-If you confirm, the command continues on `main`. If you create the worktree first, the command uses it automatically on the next invocation.
+If you continue on the default branch, the command runs in the current checkout. If you create a manual worktree first, the command uses it automatically on the next invocation.
 
 ## Branch naming
 
@@ -99,6 +90,18 @@ PRs target the repo's default branch. The FDE reviews and merges — commands do
 | Approval | Every step reviewed inline | Main-branch check at start; auto-commit per table |
 | PR creation | FDE manages manually | Command offers PR at end |
 | Error handling | FDE handles directly | Inline revert per error, surface in summary |
+
+## Committing and pushing
+
+The scaffolded migration repo does not include `scripts/commit.sh` or `scripts/commit-push-pr.sh`.
+
+Batch commands handle their own checkpoint commits and pushes as part of the command flow. For manual git work outside those commands, use normal git commands in the shell:
+
+```bash
+git add <files>
+git commit -m "<message>"
+git push
+```
 
 ## What gets committed vs what stays local
 

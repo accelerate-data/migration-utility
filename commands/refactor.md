@@ -28,7 +28,7 @@ This changes only the proof path. Keep the normal git/worktree, commit, and PR f
 
 - `manifest.json` must exist. If missing, fail all items with `MANIFEST_NOT_FOUND`.
 - For each FQN argument: if `catalog/tables/<fqn>.json` has `"is_source": true`, skip that table and print:
-  > `<fqn>` is marked as a dbt source — no migration needed. Use `/add-source-tables` to manage source tables.
+  > `<fqn>` is marked as a dbt source — no migration needed. Use `ad-migration add-source-table` to manage source tables.
 
 Per-item readiness is checked by the skill via `migrate-util ready`.
 
@@ -40,7 +40,7 @@ uv run --project "${CLAUDE_PLUGIN_ROOT}/lib" test-harness sandbox-status
 
 If the sandbox is not found (`status: "not_found"` or non-zero exit), warn the user upfront:
 
-> ⚠️ Sandbox not available — `compare-sql` proof will be skipped. All items will receive `partial` status (semantic review only). Run `/setup-sandbox` first if you want full `ok` proofs.
+> ⚠️ Sandbox not available — `compare-sql` proof will be skipped. All items will receive `partial` status (semantic review only). Run `ad-migration setup-sandbox` first if you want full `ok` proofs.
 
 ## Progress Tracking
 
@@ -81,7 +81,7 @@ If the item status is `error`, immediately revert that persisted catalog file:
 git checkout -- <persisted-catalog-path>
 ```
 
-If the item status is not `error`, run `/commit <persisted-catalog-path>`.
+If the item status is not `error`, stage `<persisted-catalog-path>`, create a checkpoint commit, and push the current branch.
 
 Then continue to Step 3.
 
@@ -106,7 +106,7 @@ After writing the result:
   - table: `catalog/procedures/<selected_writer>.json`
   - view or materialized view: `catalog/views/<item_id>.json`
 - If status == "error": run `git checkout -- <persisted-catalog-path>`.
-- If status != "error": invoke the /commit command with <persisted-catalog-path>
+- If status != "error": stage `<persisted-catalog-path>`, create a checkpoint commit, and push the current branch.
 
 On failure, write result with status: "error" and error details, then revert as above.
 

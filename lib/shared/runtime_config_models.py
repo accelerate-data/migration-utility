@@ -22,6 +22,7 @@ class RuntimeConnection(BaseModel):
     driver: str | None = None
     dsn: str | None = None
     path: str | None = None
+    tenant_id: str | None = None
 
 
 class RuntimeSchemas(BaseModel):

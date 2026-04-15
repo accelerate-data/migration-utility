@@ -1,11 +1,12 @@
 [project]
-name = "shared"
+name = "ad-migration"
 version = "0.1.0"
 requires-python = ">=3.11"
 dependencies = [
     "jsonschema>=4.18",
     "pydantic>=2.0",
     "pyyaml>=6.0",
+    "rich>=13.0",
     "sqlglot>=25.0,<26",
     "typer>=0.12",
 ]
@@ -23,6 +24,7 @@ build-backend = "hatchling.build"
 packages = ["shared"]
 
 [project.scripts]
+ad-migration = "shared.cli.main:app"
 catalog-enrich = "shared.catalog_enrich:app"
 discover = "shared.discover:app"
 init = "shared.init:app"

@@ -5,7 +5,7 @@
 ## Prerequisites
 
 - `manifest.json`
-- `dbt/` scaffolded by `/setup-target`
+- `dbt/` scaffolded by `ad-migration setup-target`
 - completed scoping
 - completed profiling
 - approved test spec
@@ -22,7 +22,7 @@
 1. generate dbt SQL and schema YAML
 2. run `dbt compile` and `dbt build` against `runtime.target`
 3. self-correct up to the command limits
-4. run the independent `/reviewing-model` loop
+4. run the independent model review loop
 5. commit successful items and optionally raise a PR
 
 The generator uses the proof-backed refactor persisted by `/refactor`; it does not go back to raw procedure SQL as the primary migration input.

@@ -1,4 +1,4 @@
-"""Tests for scripts/worktree.sh."""
+"""Tests for the git-checkpoints internal worktree helper."""
 
 from __future__ import annotations
 
@@ -10,7 +10,7 @@ from pathlib import Path
 
 
 REPO_ROOT = Path(__file__).resolve().parents[3]
-SCRIPT_PATH = REPO_ROOT / "scripts" / "worktree.sh"
+SCRIPT_PATH = REPO_ROOT / "skills" / "git-checkpoints" / "scripts" / "worktree.sh"
 
 
 def _write_executable(path: Path, body: str) -> None:
@@ -138,6 +138,7 @@ def test_worktree_script_creates_new_branch_and_bootstraps(tmp_path: Path) -> No
     assert "created worktree" in result.stdout
     expected_path = tmp_path / "worktrees" / "feature" / "test-branch"
     assert expected_path.exists()
+    assert not (expected_path / "tests" / "evals" / ".promptfoo").exists()
     assert log_path.read_text(encoding="utf-8").splitlines() == [
         "git show-ref --verify --quiet refs/heads/feature/test-branch",
         "git worktree list --porcelain",

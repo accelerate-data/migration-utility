@@ -11,8 +11,6 @@ When the table has one clearly defensible local writer, select it and persist sc
 - candidate context
 - canonical `warnings` / `errors` entries when needed
 
-Do not include `status` in the scoping payload. `discover write-scoping` derives it.
-
 ## Resolution table
 
 | Situation | Select proc? | Persisted outcome |
@@ -65,11 +63,15 @@ If distinct MERGE/INSERT/UPDATE blocks handle each target table:
 
    ```bash
    mkdir -p .staging
-   # Write the slice DDL to .staging/slice.sql, then:
+   cat > .staging/slice.sql <<'EOF'
+   <slice SQL>
+   EOF
    uv run --project "${CLAUDE_PLUGIN_ROOT}/lib" discover write-slice \
      --proc <proc_fqn> --table <target_table_fqn> --slice-file .staging/slice.sql
    rm -rf .staging
    ```
+
+   `discover write-slice` reads `.staging/slice.sql` and persists that slice into the catalog.
 
 3. Evaluate the sliced candidate normally.
 4. If selected, mention in `selected_writer_rationale` that this is a multi-table proc and name the other written tables.
@@ -94,14 +96,18 @@ If all discovered candidates are unsupported external delegates, persist table s
 
 Treat any existing `scoping` section as non-authoritative on reruns. Recompute scoping from current catalog evidence, then overwrite it with the new canonical payload.
 
-Write the scoping JSON to a temp file:
+Create the temp file first, then persist it to the catalog:
 
 ```bash
 mkdir -p .staging
-# Write scoping JSON to .staging/scoping.json
+cat > .staging/scoping.json <<'EOF'
+<scoping JSON>
+EOF
 uv run --project "${CLAUDE_PLUGIN_ROOT}/lib" discover write-scoping \
   --name <table> --scoping-file .staging/scoping.json && rm -rf .staging
 ```
+
+`discover write-scoping` reads `.staging/scoping.json` and persists that scoping payload into the catalog.
 
 The payload must include `selected_writer_rationale`, even when no writer is selected.
 

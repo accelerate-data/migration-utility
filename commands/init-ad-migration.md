@@ -1,12 +1,12 @@
 ---
 name: init-ad-migration
-description: Checks environment prerequisites for the chosen source and target technologies, installs missing deps, scaffolds project files (CLAUDE.md, README.md, repo-map.json, .gitignore, .envrc, .githooks), writes a partial manifest, and hands off to later setup stages.
+description: Bootstraps a migration project and validates local prerequisites before source, target, and sandbox CLI setup.
 user-invocable: true
 ---
 
 # Initialize ad-migration plugin
 
-Verify and set up all prerequisites before using `listing-objects`, `analyzing-table`, or `/setup-ddl`. Then scaffold the project directory for both agents and human developers.
+Bootstrap the project and validate local prerequisites before running the `ad-migration` setup commands.
 
 ## Progress Tracking
 
@@ -17,6 +17,36 @@ Use `TaskCreate` and `TaskUpdate` to track the automated phases of this command.
 If `CLAUDE_PLUGIN_ROOT` is not set, stop immediately and tell the user to load the plugin with `claude --plugin-dir <path-to-ad-migration>` before running this command.
 
 If the host platform is Windows, stop immediately and tell the user local Windows execution is not supported for this workflow. Recommend running the plugin on macOS or Linux instead. Do not continue with any prerequisite checks on Windows.
+
+## Step 1.5: Install ad-migration CLI
+
+Check whether `ad-migration` is already on PATH:
+
+```bash
+ad-migration --version 2>/dev/null && echo "INSTALLED" || echo "NOT_FOUND"
+```
+
+If already installed, print the version and continue to Step 2.
+
+If not installed, install via Homebrew:
+
+```bash
+brew tap accelerate-data/homebrew-tap
+brew install ad-migration
+```
+
+After installing, verify:
+
+```bash
+ad-migration --version
+```
+
+If Homebrew is not available on the user's machine, tell them:
+
+> Install Homebrew first: `/bin/bash -c "$(curl -fsSL https://raw.githubusercontent.com/Homebrew/install/HEAD/install.sh)"`
+> Then re-run `/init-ad-migration`.
+
+Do not continue if `ad-migration --version` still fails after installation.
 
 ## Step 2: Runtime selection
 
@@ -30,7 +60,9 @@ Determine which source and target technologies to configure:
 > 1. `sql_server` — Microsoft SQL Server (T-SQL)
 > 2. `oracle` — Oracle Database (PL/SQL)
 
-1. Ask the user which target technology they want to generate dbt assets for:
+If an existing `manifest.json` already suggests a source technology, present that as the default in this source-only question. Do not combine the target question with it.
+
+Resolve the source selection first. Only after source is resolved, ask the user which target technology they want to generate dbt assets for:
 
 > **Which target database technology are you writing dbt assets for?**
 >
@@ -39,9 +71,9 @@ Determine which source and target technologies to configure:
 
 Validate both chosen slugs against the source registry in `init.py`. If either slug is unknown, list the valid options and ask again.
 
-Store the chosen slugs as `$SOURCE` and `$TARGET` for the remaining steps.
+Store the chosen slugs as `$SOURCE` and `$TARGET` for the remaining steps. Ask these questions one at a time; never present source and target selection in the same prompt.
 
-Do **not** ask a separate sandbox question during init. The partial manifest persists `runtime.sandbox` as a separate role, initialized from `$SOURCE`, so later commands can still manage sandbox explicitly.
+Do not prompt for sandbox separately. Initialize `runtime.sandbox` from `$SOURCE`.
 
 ## Step 3: Gather evidence
 
@@ -66,24 +98,20 @@ Do NOT install or change anything yet — only gather evidence for items not alr
 
 ### Source runtime prerequisites
 
-Run the source-stack checks for `$SOURCE`. These checks validate that the local machine can support the selected source technology. Do **not** ask for or validate hostnames, database names, usernames, passwords, or other connection details during init.
+Run the source-stack checks for `$SOURCE`. These checks validate only local machine readiness for the selected source technology.
 
 #### When `$SOURCE` is `sql_server`
 
 1. `uv run --project "${CLAUDE_PLUGIN_ROOT}/lib" init check-freetds` — verify that Homebrew FreeTDS is installed, `odbcinst` is available, and `FreeTDS` appears in `odbcinst -q -d`
-2. `toolbox --version` — is the genai-toolbox binary installed?
-3. `uv run --project "${CLAUDE_PLUGIN_ROOT}/lib" init discover-mssql-driver-override` — discover the effective local SQL Server driver override. If the result is `status="resolved"`, add `MSSQL_DRIVER` to `$OVERRIDES`. If the result is `status="manual"`, show the returned `message` verbatim.
+2. `uv run --project "${CLAUDE_PLUGIN_ROOT}/lib" init discover-mssql-driver-override` — discover the effective local SQL Server driver override. If the result is `status="resolved"`, add `MSSQL_DRIVER` to `$OVERRIDES`. If the result is `status="manual"`, show the returned `message` verbatim.
 
 #### When `$SOURCE` is `oracle`
 
-1. `sql -V` — is SQLcl installed?
-2. `java -version` — is Java 11+ installed?
-3. Verify the Oracle MCP server can start: test that `sql -mcp` or `"${SQLCL_BIN}" -mcp` exits cleanly. This is a startup check only and does **not** require a live DB connection.
-4. `uv run --project "${CLAUDE_PLUGIN_ROOT}/lib" init discover-sqlcl-bin-override` — discover the effective local SQLcl binary path. If the result is `status="resolved"`, add `SQLCL_BIN` to `$OVERRIDES`. If the result is `status="manual"`, show the returned `message` verbatim.
+No additional source runtime prerequisites beyond common checks. Oracle extraction uses the `oracledb` Python client (synced in Step 5).
 
 ### Target runtime prerequisites
 
-Run the target-stack checks for `$TARGET`. These checks validate that the local machine has the client libraries needed by `/setup-target` and later dbops-backed flows. Do **not** ask for or validate target connection details during init.
+Run the target-stack checks for `$TARGET`. These checks validate only local machine readiness for the selected target technology.
 
 #### When `$TARGET` is `sql_server`
 
@@ -113,18 +141,7 @@ Common prerequisites:
 ```text
 Source runtime (SQL Server):
   freetds:                ✓ installed + registered  /  ✗ not installed  /  ✗ unixODBC missing  /  ✗ not registered
-  toolbox:                ✓ installed (x.y.z)  /  — not found (optional until /setup-ddl)
   mssql_driver_override:  ✓ resolved  /  — default FreeTDS  /  ✗ manual override needed
-```
-
-**For source = Oracle:**
-
-```text
-Source runtime (Oracle):
-  sqlcl:               ✓ installed  /  ✗ not found
-  java:                ✓ 11+ (x.y.z)  /  ✗ not found or < 11
-  oracle_mcp:          ✓ starts  /  ✗ fails
-  sqlcl_bin_override:  ✓ resolved  /  — PATH default  /  ✗ manual override needed
 ```
 
 **For target = SQL Server:**
@@ -142,15 +159,13 @@ Target runtime (Oracle):
   oracledb:  ✓ importable  /  ✗ missing
 ```
 
-`toolbox` and `direnv` are marked `—` (not `✗`) when missing. `toolbox` is optional for DDL file mode but required later for SQL Server `/setup-ddl`.
+`direnv` is marked `—` (not `✗`) when missing — it is recommended but optional.
 
-For SQL Server, `freetds` is only green after both installation and unixODBC registration pass. If `brew` reports FreeTDS installed but `odbcinst` is missing, treat that as a failed prerequisite because `/setup-ddl` will not work with the default `MSSQL_DRIVER="FreeTDS"` path.
+For SQL Server, `freetds` is only green after both installation and unixODBC registration pass. If `brew` reports FreeTDS installed but `odbcinst` is missing, treat that as a failed prerequisite because `ad-migration setup-source` will not work with the default `MSSQL_DRIVER="FreeTDS"` path.
 
-If any local override is discovered or required, explain that init will write only non-secret machine-specific overrides into `.env`, while `.envrc` remains the shared repo-local scaffold:
+If any local override is discovered or required, explain that init writes only non-secret machine-specific overrides into `.env`, while `.envrc` remains the shared repo-local scaffold:
 
-> **Recommended: keep machine-local overrides in `.env`.** The scaffolding step writes repo-shared environment scaffolding to `.envrc` and loads `.env` when present. Use `.env` only for non-secret local overrides such as `MSSQL_DRIVER` or `SQLCL_BIN`. Connection details are collected later in the stage-specific setup commands.
-
-Do not ask the user for source, target, or sandbox connection details during init. Those belong to `/setup-ddl`, `/setup-target`, and `/setup-sandbox`.
+> **Recommended: keep machine-local overrides in `.env`.** The scaffolding step writes repo-shared environment scaffolding to `.envrc` and loads `.env` when present. Use `.env` only for non-secret local overrides such as `MSSQL_DRIVER`. Connection details are collected later in the stage-specific setup commands.
 
 If everything is already validated (all items `true` in the existing handoff and no new gaps found), say "All prerequisites validated" and proceed directly to Step 6 without asking for confirmation. Otherwise, ask the user to confirm before proceeding with Step 5.
 
@@ -220,15 +235,11 @@ uv run --project "${CLAUDE_PLUGIN_ROOT}/lib" python3 -c "import oracledb"
 
 **ddl_mcp fails** (after shared sync): re-run the ddl_mcp check. If it still fails, show the error output to the user and tell them to check their Python environment.
 
-**toolbox missing** (SQL Server, if the user asks how to install it): Direct the user to `https://github.com/googleapis/genai-toolbox/releases` to download the binary for their platform and add it to PATH. Do not attempt to install it automatically.
-
-**SQLcl or Java missing** (Oracle): Direct the user to install SQLcl from `https://www.oracle.com/database/sqldeveloper/technologies/sqlcl/` and ensure Java 11+ is on PATH. Do not attempt to install automatically.
-
 **direnv missing** (if the user asks how to install it): Direct them to `https://direnv.net` for install instructions. Do not attempt to install it automatically.
 
 ## Step 6: Scaffold project files
 
-Run the `init` CLI to scaffold the project directory, passing the chosen source technology. This creates CLAUDE.md, README.md, repo-map.json, .gitignore, .envrc, `scripts/worktree.sh`, `.claude/rules/git-workflow.md`, and `.githooks/pre-commit` — all idempotently and parameterized by source.
+Run the `init` CLI to scaffold the project directory, passing the chosen source technology. This creates CLAUDE.md, README.md, repo-map.json, .gitignore, .envrc, `.claude/rules/git-workflow.md`, and `.githooks/pre-commit` — all idempotently and parameterized by source.
 
 ```bash
 uv run --project "${CLAUDE_PLUGIN_ROOT}/lib" init scaffold-project --project-root . --technology $SOURCE
@@ -239,7 +250,7 @@ Parse the JSON output and report to the user which files were created, updated, 
 
 If `scaffold-project` reports missing CLAUDE.md sections (in `files_skipped`), tell the user which sections are missing and recommend adding them.
 
-Maintain a JSON object `$OVERRIDES` while gathering evidence. Add only non-secret machine-specific resolved overrides such as `MSSQL_DRIVER` or `SQLCL_BIN`. Do not add connection details during init.
+Maintain a JSON object `$OVERRIDES` while gathering evidence. Add only non-secret machine-specific resolved overrides such as `MSSQL_DRIVER`.
 
 If `$OVERRIDES` is non-empty, write it to `.env` in the project root:
 
@@ -257,7 +268,7 @@ Then write the partial manifest with prerequisite validation results. Build a JS
     "startup": {"uv": true, "python": true, "shared_deps": true, "ddl_mcp": true, "direnv": false}
   },
   "roles": {
-    "source": {"technology": "sql_server", "startup": {"freetds": true, "toolbox": false, "driver_override_resolved": true}},
+    "source": {"technology": "sql_server", "startup": {"freetds": true, "driver_override_resolved": true}},
     "sandbox": {"technology": "sql_server", "startup": {"freetds": true, "driver_override_resolved": true}},
     "target": {"technology": "oracle", "startup": {"oracledb": true}}
   }
@@ -291,7 +302,7 @@ git add CLAUDE.md README.md .gitignore .githooks/ repo-map.json .claude/ scripts
 git commit -m "chore: init migration project ($SOURCE)"
 ```
 
-Do not stage `.envrc` or `.env` — both are local environment files. `.envrc` contains repo-local environment scaffolding and `.env` contains machine-local overrides.
+Do not stage `.env`. It contains machine-local secrets. `.envrc` is tracked scaffolded config and must stay secret-free.
 
 If not a git repository, skip silently.
 
@@ -303,18 +314,41 @@ Tell the user:
 
 **For source = SQL Server:**
 
-- **toolbox installed**: the SQL Server source toolchain is ready for `/setup-ddl` once the user provides source connection details in that stage.
-- **toolbox missing**: DDL file mode (`listing-objects`, `analyzing-table`, `scoping`) is fully available. Live source extraction in `/setup-ddl` still requires `toolbox`.
+- **SOURCE_MSSQL_* vars set**: ready to extract DDL from the live database:
+
+  ```text
+  !ad-migration setup-source --schemas <schema>
+  ```
+
+- **SOURCE_MSSQL_* vars unset**: Set `SOURCE_MSSQL_HOST/PORT/DB/USER` in `.envrc`, set `SOURCE_MSSQL_PASSWORD` in `.env`, run `direnv allow`, then run:
+
+  ```text
+  !ad-migration setup-source --schemas <schema>
+  ```
 
 **For source = Oracle:**
 
-- **SQLcl + Java installed**: the Oracle source toolchain is ready for `/setup-ddl` once the user provides source connection details in that stage. Remember: the Oracle MCP server requires a manual connect step at the start of each session.
-- **SQLcl/Java missing**: DDL file mode is still available, but live source extraction in `/setup-ddl` is blocked until those tools are installed.
+- **SOURCE_ORACLE_* vars set**: ready to extract DDL from the live database:
+
+  ```text
+  !ad-migration setup-source --schemas <schema>
+  ```
+
+- **SOURCE_ORACLE_* vars unset**: Set `SOURCE_ORACLE_HOST/PORT/SERVICE/USER` in `.envrc`, set `SOURCE_ORACLE_PASSWORD` in `.env`, run `direnv allow`, then run:
+
+  ```text
+  !ad-migration setup-source --schemas <schema>
+  ```
 
 **For target setup:**
 
-- **target toolchain ready**: proceed to `/setup-target` when ready to collect target connection/runtime details.
-- **target toolchain not ready**: install the missing client library or local override first, then run `/setup-target`.
+- **TARGET_* vars set**: ready to run `ad-migration setup-target`.
+- **TARGET_* vars unset**: Set the required target vars in `.envrc`, set the password var in `.env`, run `direnv allow`, then run `ad-migration setup-target`.
+
+**For sandbox setup:**
+
+- **SANDBOX_* vars set**: ready to run `ad-migration setup-sandbox`.
+- **SANDBOX_* vars unset**: Set the required sandbox vars in `.envrc`, set the password var in `.env`, run `direnv allow`, then run `ad-migration setup-sandbox`.
 
 ## Error handling
 

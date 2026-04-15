@@ -18,8 +18,8 @@ Use the canonical `/status` code list in [../lib/shared/status_error_codes.md](.
 ## Guards
 
 - **No caching.** Every `/status` invocation MUST execute the CLI commands (`migrate-util status`, `migrate-util batch-plan`, etc.) fresh. Never reuse output from a previous `/status` run in the same conversation. The catalog can change between invocations — always read from disk.
-- `manifest.json` must exist. If missing, tell the user to run `/setup-ddl` first.
-- `catalog/tables/` must contain at least one `.json` file. If empty, tell the user to run `/setup-ddl` first.
+- `manifest.json` must exist. If missing, tell the user to run `ad-migration setup-source` first.
+- `catalog/tables/` must contain at least one `.json` file. If empty, tell the user to run `ad-migration setup-source` first.
 
 ## Pipeline — No table argument (batch summary)
 
@@ -180,7 +180,7 @@ What to do next
 
   1. Fix 2 error diagnostic(s) before proceeding:
        PARSE_ERROR on silver.FactSales — DDL failed to parse. Simplify the view DDL
-         and re-run /setup-ddl, then /analyzing-view silver.FactSales.
+         and rerun `ad-migration setup-source`, then re-run `/scope silver.FactSales`.
        MULTI_TABLE_WRITE on silver.DimProduct — writer proc targets multiple tables.
          Use /scope to re-select a single-table writer, or split the proc.
 
@@ -209,7 +209,7 @@ After the "What to do next" section, show these notes if applicable:
 
   ```text
   pending source confirmation (N tables)
-    Run /add-source-tables <fqn> to confirm, or confirm during /setup-target.
+    Run `!ad-migration add-source-table <fqn>` to confirm, then rerun `!ad-migration setup-target`.
     silver.AuditLog
     silver.TempStaging
   ```
@@ -253,7 +253,12 @@ If there are no diagnostics, omit this section entirely.
 
 ### Step 7 — Sources staleness check
 
-If `dbt/models/staging/sources.yml` exists and any table has `scope_needed` status, show: "sources.yml may be stale — N tables have incomplete scoping. Re-run `/setup-target` after scoping is complete."
+If `dbt/models/staging/sources.yml` exists and any table has `scope_needed` status, show:
+
+```text
+sources.yml may be stale — N tables have incomplete scoping.
+!ad-migration setup-target
+```
 
 ### Step 8 — Source tables note
 
@@ -266,7 +271,9 @@ N source tables hidden — see sources.yml
 If `source_pending` is non-empty AND `summary.source_tables == 0`, instead show:
 
 ```text
-No source tables confirmed yet. Run /add-source-tables or confirm during /setup-target.
+No source tables confirmed yet. Mark them first, then refresh target scaffolding:
+!ad-migration add-source-table <fqn>
+!ad-migration setup-target
 ```
 
 ### Step 9 — setup-target readiness hint
@@ -274,7 +281,8 @@ No source tables confirmed yet. Run /add-source-tables or confirm during /setup-
 If `dbt/dbt_project.yml` does **not** exist AND the batch-plan `scope_phase` is empty (all in-scope objects have completed scope), show:
 
 ```text
-ready to initialise dbt  — all tables are scoped. Run /setup-target to scaffold your dbt project.
+ready to initialise dbt — all tables are scoped.
+!ad-migration setup-target
 ```
 
 If there are still tables in the scope phase, omit this hint entirely. Do not show the hint if `dbt/dbt_project.yml` already exists.
@@ -390,6 +398,13 @@ For completed stages, show the key signals from the status detail content:
 
 Based on the first incomplete stage, recommend the specific command to run next for this table.
 
+If the first incomplete stage is `test-gen` and the status detail or diagnostic indicates the sandbox is missing or not running, recommend the CLI setup command explicitly before any plugin command:
+
+```text
+Sandbox is not ready for test generation.
+!ad-migration setup-sandbox
+```
+
 For all object types (tables, views, MVs), route through the same stage commands: `profile_needed` → `/profile <fqn>`, `test_gen_needed` → `/generate-tests <fqn>`, `refactor_needed` → `/refactor <fqn>`, `migrate_needed` → `/generate-model <fqn>`.
 
 ## Error handling
@@ -400,6 +415,6 @@ For all object types (tables, views, MVs), route through the same stage commands
 | `migrate-util status` returns exit code 2 | Report IO error, suggest checking project setup |
 | `migrate-util sync-excluded-warnings` returns exit code 2 | Log warning to stderr, continue — exclusion warnings may be stale |
 | `migrate-util batch-plan` returns exit code 2 | Report IO error, suggest checking project setup |
-| `migrate-util batch-plan` returns `{"error": ...}` | Report the error and suggest running `/setup-ddl` |
-| No catalog files found | Tell user to run `/setup-ddl` first |
+| `migrate-util batch-plan` returns `{"error": ...}` | Report the error and suggest running `ad-migration setup-source` |
+| No catalog files found | Tell user to run `ad-migration setup-source` first |
 | `CLAUDE_PLUGIN_ROOT` not set | Tell user to load the plugin with `claude --plugin-dir <path>` |

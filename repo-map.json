@@ -60,7 +60,8 @@
     "test_harness_cli": "lib/shared/test_harness.py",
     "migrate_util_cli": "lib/shared/dry_run.py",
     "generate_sources_cli": "lib/shared/generate_sources.py",
-    "refactor_cli": "lib/shared/refactor.py"
+    "refactor_cli": "lib/shared/refactor.py",
+    "ad_migration_cli": "lib/shared/cli/main.py"
   },
   "modules": {
     "plugin_manifest": {
@@ -93,7 +94,7 @@
     },
     "migration_commands": {
       "path": "commands/",
-      "description": "Stage-specific commands: setup-ddl.md (DDL extraction from live source systems with catalog signals, DMF references, and AST enrichment; also enriches view catalogs with sql+columns fields), scope.md (writer discovery), profile.md (migration profiling — routes tables to profiling-table, views/MVs to profiling-view), setup-target.md (target runtime collection, dbt project scaffolding, and target-mapped sources.yml generation), generate-model.md (dbt model generation), status.md (migration status dashboard — calls migrate-util status CLI for collated stage statuses, interprets results with LLM), init-ad-migration.md (prerequisite checker and installer), setup-sandbox.md (create throwaway sandbox execution environment), teardown-sandbox.md (drop sandbox runtime), generate-tests.md (multi-table test generation with review loop), refactor.md (SQL CTE restructuring with equivalence audit), exclude-table.md (mark tables or views as excluded from the migration pipeline — sets excluded: true in catalog file, commits change), add-source-tables.md (mark one or more catalog tables as dbt sources with is_source: true; guards require scope to be complete), cleanup-worktrees.md (remove stale git worktrees), commit.md (stage and commit changes with a generated message), commit-push-pr.md (commit, push, and open a pull request in one step). Each is self-contained with sub-agent orchestration, worktree setup, and result summarization."
+      "description": "Stage-specific commands (LLM-driven only): scope.md, profile.md, generate-model.md, generate-tests.md, refactor.md, status.md. Deterministic setup and state-mutation commands have moved to the ad-migration CLI (lib/shared/cli/)."
     },
     "tests_migration": {
       "path": "tests/unit/",
@@ -113,7 +114,7 @@
     },
     "scripts": {
       "path": "scripts/",
-      "description": "Developer scripts: contributor-setup.sh (canonical contributor maintainer bootstrap and readiness check with fix/show modes plus structured JSON summary), worktree.sh (single entrypoint for worktree creation/attach plus bootstrap and structured failure output), publish-sqlserver-image.sh (build + push SQL Server Docker image with pre-baked KimballFixture data files; MigrationTest stays a schema-level runtime materialization concern), demo-warehouse/ (cross-dialect Kimball demo warehouse fixture for demos, parity checks, and image builds)."
+      "description": "Developer scripts: contributor-setup.sh (canonical contributor maintainer bootstrap and readiness check with fix/show modes plus structured JSON summary), publish-sqlserver-image.sh (build + push SQL Server Docker image with pre-baked KimballFixture data files; MigrationTest stays a schema-level runtime materialization concern), demo-warehouse/ (cross-dialect Kimball demo warehouse fixture for demos, parity checks, and image builds)."
     },
     "docker_sqlserver": {
       "path": "docker/sqlserver/",
@@ -137,7 +138,7 @@
     "tests/unit/": "Shared-library unit pytest suite organized by module under tests/unit/<module>/.",
     "tests/integration/": "Shared-library integration pytest suite organized by backend and module under tests/integration/<technology>/<module>/.",
     "tests/integration/scoping-inputs/": "JSON fixture inputs for scoping-logic tests and regressions.",
-    "tests/evals/": "Promptfoo eval harness for skill and command testing (skill packages include listing-objects, profiling-table, generating-model, generating-tests, reviewing-tests, reviewing-model, analyzing-table, analyzing-table-readiness; command packages include cmd-scope, cmd-profile, cmd-generate-model, cmd-generate-tests, cmd-refactor, cmd-status, cmd-reset-migration, cmd-commit-push-pr)",
+    "tests/evals/": "Promptfoo eval harness for skill and command testing (skill packages include listing-objects, profiling-table, generating-model, generating-tests, reviewing-tests, reviewing-model, analyzing-table, analyzing-table-readiness; command packages include cmd-scope, cmd-profile, cmd-generate-model, cmd-generate-tests, cmd-refactor, cmd-status, cmd-reset-migration)",
     "mcp/ddl/tests/": "DDL MCP pytest suite split into tests/unit/ plus shared top-level backend coverage under tests/integration/<technology>/ddl_mcp/ executed from the ddl-mcp project env.",
     "mcp/ddl/ddl_mcp_support/": "Standalone support slice for the DDL MCP package: local env/path helpers, name normalization, and DDL loader/parser logic copied from the shared runtime to keep the MCP dependency boundary narrow.",
     "scripts/demo-warehouse/": "Cross-dialect Kimball DW fixture: schema DDL, baseline seed data, and delta scenarios for SQL Server, Oracle, PostgreSQL",
@@ -146,6 +147,13 @@
     ".claude/skills/": "Workflow playbooks for repo-local Claude Code skills"
   },
   "commands": {
+    "ad_migration_setup_source": "cd lib && uv run ad-migration setup-source --schemas silver,gold",
+    "ad_migration_setup_target": "cd lib && uv run ad-migration setup-target [--source-schema bronze]",
+    "ad_migration_setup_sandbox": "cd lib && uv run ad-migration setup-sandbox [--yes]",
+    "ad_migration_teardown_sandbox": "cd lib && uv run ad-migration teardown-sandbox [--yes]",
+    "ad_migration_reset": "cd lib && uv run ad-migration reset <stage> <fqn> [fqn ...] [--yes]",
+    "ad_migration_exclude_table": "cd lib && uv run ad-migration exclude-table <fqn> [--no-commit]",
+    "ad_migration_add_source_table": "cd lib && uv run ad-migration add-source-table <fqn> [--no-commit]",
     "test_migration_python": "cd lib && uv run pytest",
     "test_migration_python_module": "cd lib && uv run pytest ../tests/unit/<module>",
     "test_migration_python_integration_sql_server": "cd lib && uv run pytest ../tests/integration/sql_server",
@@ -186,7 +194,6 @@
     "eval_cmd_reset_migration": "cd tests/evals && npm run eval:cmd-reset-migration",
     "eval_refactoring_sql": "cd tests/evals && npm run eval:refactoring-sql",
     "eval_cmd_refactor": "cd tests/evals && npm run eval:cmd-refactor",
-    "eval_cmd_commit_push_pr": "cd tests/evals && npm run eval:cmd-commit-push-pr",
     "eval_oracle_live": "cd tests/evals && npm run eval:oracle-live",
     "eval_mssql_live": "cd tests/evals && npm run eval:mssql-live"
   },

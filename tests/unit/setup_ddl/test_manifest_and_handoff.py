@@ -522,13 +522,13 @@ class TestConnectionIdentity:
 
     def test_sqlserver_identity_reads_env(self, monkeypatch):
         get_connection_identity, _, _ = self._import()
-        monkeypatch.setenv("MSSQL_HOST", "server1.example.com")
-        monkeypatch.setenv("MSSQL_PORT", "1433")
+        monkeypatch.setenv("SOURCE_MSSQL_HOST", "server1.example.com")
+        monkeypatch.setenv("SOURCE_MSSQL_PORT", "1433")
         identity = get_connection_identity("sql_server", "AdventureWorks")
         assert identity["connection"]["host"] == "server1.example.com"
         assert identity["connection"]["port"] == "1433"
         assert identity["connection"]["database"] == "AdventureWorks"
-        assert identity["connection"]["password_env"] == "SA_PASSWORD"
+        assert identity["connection"]["password_env"] == "SOURCE_MSSQL_PASSWORD"
 
     def test_oracle_identity_reads_dsn(self, monkeypatch):
         get_connection_identity, _, _ = self._import()
@@ -536,11 +536,11 @@ class TestConnectionIdentity:
         identity = get_connection_identity("oracle", "")
         assert identity["connection"]["dsn"] == "localhost:1521/FREEPDB1"
         assert "host" not in identity["connection"]
-        assert identity["connection"]["password_env"] == "ORACLE_PASSWORD"
+        assert identity["connection"]["password_env"] == "SOURCE_ORACLE_PASSWORD"
 
     def test_sqlserver_manifest_stores_identity(self, tmp_path, monkeypatch):
-        monkeypatch.setenv("MSSQL_HOST", "db1.internal")
-        monkeypatch.setenv("MSSQL_PORT", "1433")
+        monkeypatch.setenv("SOURCE_MSSQL_HOST", "db1.internal")
+        monkeypatch.setenv("SOURCE_MSSQL_PORT", "1433")
         result = _run_cli([
             "write-manifest",
             "--project-root", str(tmp_path),
@@ -553,7 +553,7 @@ class TestConnectionIdentity:
         assert manifest["runtime"]["source"]["connection"]["host"] == "db1.internal"
         assert manifest["runtime"]["source"]["connection"]["port"] == "1433"
         assert manifest["runtime"]["source"]["connection"]["database"] == "MyDB"
-        assert manifest["runtime"]["source"]["connection"]["password_env"] == "SA_PASSWORD"
+        assert manifest["runtime"]["source"]["connection"]["password_env"] == "SOURCE_MSSQL_PASSWORD"
 
     def test_oracle_manifest_stores_dsn(self, tmp_path, monkeypatch):
         monkeypatch.setenv("ORACLE_DSN", "oraclehost:1521/PROD")
@@ -567,7 +567,7 @@ class TestConnectionIdentity:
         assert result.returncode == 0, result.stderr
         manifest = json.loads((tmp_path / "manifest.json").read_text())
         assert manifest["runtime"]["source"]["connection"]["dsn"] == "oraclehost:1521/PROD"
-        assert manifest["runtime"]["source"]["connection"]["password_env"] == "ORACLE_PASSWORD"
+        assert manifest["runtime"]["source"]["connection"]["password_env"] == "SOURCE_ORACLE_PASSWORD"
 
     def test_identity_changed_host(self):
         _, identity_changed_fn, _ = self._import()
@@ -655,8 +655,8 @@ class TestConnectionIdentity:
         proc_path.write_text(json.dumps({"ddl_hash": "abc"}), encoding="utf-8")
 
         # New env points to a different host
-        monkeypatch.setenv("MSSQL_HOST", "new-server")
-        monkeypatch.setenv("MSSQL_PORT", "1433")
+        monkeypatch.setenv("SOURCE_MSSQL_HOST", "new-server")
+        monkeypatch.setenv("SOURCE_MSSQL_PORT", "1433")
 
         import sys
         sys.path.insert(0, str(Path(__file__).resolve().parents[3] / "lib"))
@@ -693,8 +693,8 @@ class TestConnectionIdentity:
         }
         (tmp_path / "manifest.json").write_text(json.dumps(manifest), encoding="utf-8")
 
-        monkeypatch.setenv("MSSQL_HOST", "server1")
-        monkeypatch.setenv("MSSQL_PORT", "1433")
+        monkeypatch.setenv("SOURCE_MSSQL_HOST", "server1")
+        monkeypatch.setenv("SOURCE_MSSQL_PORT", "1433")
 
         import sys
         sys.path.insert(0, str(Path(__file__).resolve().parents[3] / "lib"))

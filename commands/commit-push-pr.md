@@ -1,7 +1,7 @@
 ---
 name: commit-push-pr
 description: Commit, push, and open a PR. Derives title from step and tables context.
-user-invocable: true
+user-invocable: false
 argument-hint: "[<step> <tables>] [files]"
 ---
 

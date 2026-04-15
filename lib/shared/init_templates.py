@@ -27,7 +27,6 @@ Migration target: silver and gold dbt transformations on the managed warehouse p
 | Layer | Technology | Notes |
 |---|---|---|
 | Source DDL access | DDL file MCP (`ddl_mcp`) | Pre-extracted `.sql` files; no live DB required |
-| Live source DB access | `mssql` MCP via genai-toolbox | Requires `toolbox` binary on PATH |
 | Transformation target | **dbt** | SQL models on the configured target runtime |
 | Storage | Managed warehouse tables | Managed by the target platform |
 | Orchestration | dbt build pipeline | |
@@ -54,7 +53,6 @@ See `repo-map.json` for the full directory structure and agent notes.
 | Server | Transport | Purpose |
 |---|---|---|
 | `ddl_mcp` | stdio | Structured DDL parsing from local `.sql` files |
-| `mssql` | HTTP (genai-toolbox) | Live SQL Server queries |
 
 ## Git Workflow
 
@@ -108,23 +106,23 @@ Data warehouse migration from Microsoft SQL Server to Vibedata Managed Warehouse
 - **Python 3.11+**
 - **uv** — Python package manager ([install](https://astral.sh/uv))
 - **direnv** — credential management ([install](https://direnv.net)) — recommended
-- **genai-toolbox** — for live SQL Server access ([releases](https://github.com/googleapis/genai-toolbox/releases)) — optional
 
 ### Credential setup with direnv
 
-1. Copy the `.envrc` template and fill in your values:
+1. Commit the scaffolded `.envrc` with shared non-secret settings, then put secrets in `.env`:
 
    ```bash
-   # .envrc (gitignored)
-   export MSSQL_HOST=localhost
-   export MSSQL_PORT=1433
-   export MSSQL_DB=YourDatabase
-   export SA_PASSWORD=YourPassword
+   # .envrc (tracked) — shared non-secret settings
+   export SOURCE_MSSQL_HOST=localhost
+   export SOURCE_MSSQL_PORT=1433
+   export SOURCE_MSSQL_DB=YourDatabase
+   export SOURCE_MSSQL_USER=sa
+
+   # .env (gitignored) — local secrets
+   export SOURCE_MSSQL_PASSWORD=YourPassword
    ```
 
 2. Run `direnv allow` to load the variables.
-
-These values are passed to the `mssql` MCP server at startup via environment inheritance — they must be set before launching `claude`.
 
 ## Workflow
 
@@ -141,7 +139,8 @@ These values are passed to the `mssql` MCP server at startup via environment inh
 ├── CLAUDE.md          # Agent instructions
 ├── README.md          # This file
 ├── repo-map.json      # Directory structure for agent discovery
-├── .envrc             # Credentials (gitignored)
+├── .envrc             # Shared non-secret config (tracked)
+├── .env               # Local secrets (gitignored)
 ├── .gitignore         # Git ignore rules
 ├── .githooks/         # Git hooks (pre-commit secret blocking)
 ├── ddl/               # Extracted DDL files (from setup-ddl)
@@ -155,10 +154,9 @@ These values are passed to the `mssql` MCP server at startup via environment inh
 A pre-commit hook in `.githooks/` blocks commits containing:
 
 - Anthropic API keys (`sk-ant` prefix)
-- `SA_PASSWORD` in `.mcp.json`
-- MSSQL credentials in `.env` or `.envrc` files
+- Password fields or API-key fields in tracked files
 
-The hook is a safety net — `.env`, `.envrc`, and `.mcp.json` are also in `.gitignore`.
+The hook is a safety net — `.env` stays gitignored, while tracked files such as `.envrc` and `.mcp.json` must stay secret-free.
 
 ## Commit Conventions
 
@@ -170,16 +168,27 @@ Examples: `feat: extract DDL from AdventureWorks`, `fix: correct column type map
 
 def _envrc_sql_server() -> str:
     return """\
-# SQL Server credentials for the mssql MCP server.
-# Fill in your values and run `direnv allow`.
-# This file is gitignored — do not commit it.
+# SQL Server shared non-secret settings for the ad-migration CLI.
+# Keep secrets in `.env`, then run `direnv allow`.
 
 source_env_if_exists .env
 
-export MSSQL_HOST=localhost
-export MSSQL_PORT=1433
-export MSSQL_DB=
-export SA_PASSWORD=
+# Source database (used by setup-source)
+export SOURCE_MSSQL_HOST=localhost
+export SOURCE_MSSQL_PORT=1433
+export SOURCE_MSSQL_DB=
+export SOURCE_MSSQL_USER=sa
+
+# Sandbox database (used by setup-sandbox)
+export SANDBOX_MSSQL_HOST=localhost
+export SANDBOX_MSSQL_PORT=1433
+export SANDBOX_MSSQL_USER=sa
+
+# Target database (used by setup-target)
+export TARGET_MSSQL_HOST=localhost
+export TARGET_MSSQL_PORT=1433
+export TARGET_MSSQL_DB=
+export TARGET_MSSQL_USER=sa
 """
 
 
@@ -197,7 +206,7 @@ def _repo_map_sql_server() -> dict[str, Any]:
             "startup": "Read this file before exploring the project. It is the primary startup context for structure and conventions.",
             "catalog_mandatory": "discover and scoping tools require catalog/ files from setup-ddl. Errors if catalog is missing.",
             "ddl_filenames": "The loader auto-detects object types from CREATE statements — .sql filenames are not significant.",
-            "mssql_env_vars": "Live SQL Server access requires MSSQL_HOST, MSSQL_PORT, MSSQL_DB, SA_PASSWORD exported before launching claude.",
+            "mssql_env_vars": "CLI setup commands require SOURCE_MSSQL_HOST/PORT/DB/USER/PASSWORD (setup-source), SANDBOX_MSSQL_HOST/PORT/USER/PASSWORD (setup-sandbox), TARGET_MSSQL_HOST/PORT/DB/USER/PASSWORD (setup-target).",
         },
     }
 
@@ -217,18 +226,10 @@ if git diff --cached --diff-filter=ACMR -z -- . | xargs -0 grep -lE "${ANT_KEY_P
     exit 1
 fi
 
-# 2. SA_PASSWORD in .mcp.json
-if git diff --cached --name-only | grep -q '\\.mcp\\.json$'; then
-    if git show :".mcp.json" 2>/dev/null | grep -q 'SA_PASSWORD'; then
-        echo "ERROR: .mcp.json contains SA_PASSWORD. This file should be in .gitignore." >&2
-        exit 1
-    fi
-fi
-
-# 3. MSSQL credentials in .env / .envrc files
-for f in $(git diff --cached --name-only | grep -E '\\.(env|envrc)$' || true); do
-    if git show :"$f" 2>/dev/null | grep -qE '(MSSQL_HOST|MSSQL_PORT|MSSQL_DB|SA_PASSWORD)=.+'; then
-        echo "ERROR: $f contains MSSQL credentials. This file should be in .gitignore." >&2
+# 2. Secret-bearing settings in tracked files
+for f in $(git diff --cached --name-only --diff-filter=ACMR || true); do
+    if git show :"$f" 2>/dev/null | grep -qiE '(^|[^A-Za-z0-9_])(PASSWORD|[A-Za-z0-9_]*_PASSWORD|API_KEY|[A-Za-z0-9_]*_API_KEY)"?[[:space:]]*[:=]'; then
+        echo "ERROR: $f contains a tracked secret field. Keep secrets in .env and out of tracked files." >&2
         exit 1
     fi
 done
@@ -253,7 +254,6 @@ Migration target: silver and gold dbt transformations on the managed warehouse p
 | Layer | Technology | Notes |
 |---|---|---|
 | Source DDL access | DDL file MCP (`ddl_mcp`) | Pre-extracted `.sql` files; no live DB required |
-| Live source DB access | Oracle MCP via SQLcl | Requires `sql` (SQLcl) binary and Java 11+ on PATH |
 | Transformation target | **dbt** | SQL models on the configured target runtime |
 | Storage | Managed warehouse tables | Managed by the target platform |
 | Orchestration | dbt build pipeline | |
@@ -280,15 +280,6 @@ See `repo-map.json` for the full directory structure and agent notes.
 | Server | Transport | Purpose |
 |---|---|---|
 | `ddl_mcp` | stdio | Structured DDL parsing from local `.sql` files |
-| `oracle` | stdio (SQLcl) | Live Oracle queries |
-
-**Important:** The Oracle MCP server does **not** auto-connect on startup. At the beginning of each session, run:
-
-```text
-mcp__oracle__run-sqlcl: connect $ORACLE_USER/$ORACLE_PASSWORD@$ORACLE_HOST:$ORACLE_PORT/$ORACLE_SERVICE
-```
-
-After connecting, use `mcp__oracle__run-sql` for queries and `mcp__oracle__schema-information` for metadata.
 
 ## Git Workflow
 
@@ -342,25 +333,23 @@ Data warehouse migration from Oracle Database to Vibedata Managed Warehouse Plat
 - **Python 3.11+**
 - **uv** — Python package manager ([install](https://astral.sh/uv))
 - **direnv** — credential management ([install](https://direnv.net)) — recommended
-- **SQLcl** — Oracle SQL Developer Command Line ([install](https://www.oracle.com/database/sqldeveloper/technologies/sqlcl/)) — required for live DB access
-- **Java 11+** — required by SQLcl
 
 ### Credential setup with direnv
 
-1. Copy the `.envrc` template and fill in your values:
+1. Commit the scaffolded `.envrc` with shared non-secret settings, then put secrets in `.env`:
 
    ```bash
-   # .envrc (gitignored)
-   export ORACLE_HOST=localhost
-   export ORACLE_PORT=1521
-   export ORACLE_SERVICE=FREEPDB1
-   export ORACLE_USER=YourUser
-   export ORACLE_PASSWORD=YourPassword
+   # .envrc (tracked) — shared non-secret settings
+   export SOURCE_ORACLE_HOST=localhost
+   export SOURCE_ORACLE_PORT=1521
+   export SOURCE_ORACLE_SERVICE=FREEPDB1
+   export SOURCE_ORACLE_USER=YourUser
+
+   # .env (gitignored) — local secrets
+   export SOURCE_ORACLE_PASSWORD=YourPassword
    ```
 
 2. Run `direnv allow` to load the variables.
-
-These values are used to connect the Oracle MCP server at session start — they must be set before launching `claude`.
 
 ## Workflow
 
@@ -377,7 +366,8 @@ These values are used to connect the Oracle MCP server at session start — they
 ├── CLAUDE.md          # Agent instructions
 ├── README.md          # This file
 ├── repo-map.json      # Directory structure for agent discovery
-├── .envrc             # Credentials (gitignored)
+├── .envrc             # Shared non-secret config (tracked)
+├── .env               # Local secrets (gitignored)
 ├── .gitignore         # Git ignore rules
 ├── .githooks/         # Git hooks (pre-commit secret blocking)
 ├── ddl/               # Extracted DDL files (from setup-ddl)
@@ -391,9 +381,9 @@ These values are used to connect the Oracle MCP server at session start — they
 A pre-commit hook in `.githooks/` blocks commits containing:
 
 - Anthropic API keys (`sk-ant` prefix)
-- Oracle credentials in `.env` or `.envrc` files
+- Password fields or API-key fields in tracked files
 
-The hook is a safety net — `.env`, `.envrc`, and `.mcp.json` are also in `.gitignore`.
+The hook is a safety net — `.env` stays gitignored, while tracked files such as `.envrc` and `.mcp.json` must stay secret-free.
 
 ## Commit Conventions
 
@@ -405,17 +395,28 @@ Examples: `feat: extract DDL from SH schema`, `fix: correct column type mapping`
 
 def _envrc_oracle() -> str:
     return """\
-# Oracle credentials for the Oracle MCP server (SQLcl).
-# Fill in your values and run `direnv allow`.
-# This file is gitignored — do not commit it.
+# Oracle shared non-secret settings for the ad-migration CLI.
+# Keep secrets in `.env`, then run `direnv allow`.
 
 source_env_if_exists .env
 
-export ORACLE_HOST=localhost
-export ORACLE_PORT=1521
-export ORACLE_SERVICE=FREEPDB1
-export ORACLE_USER=
-export ORACLE_PASSWORD=
+# Source database (used by setup-source)
+export SOURCE_ORACLE_HOST=localhost
+export SOURCE_ORACLE_PORT=1521
+export SOURCE_ORACLE_SERVICE=FREEPDB1
+export SOURCE_ORACLE_USER=
+
+# Sandbox database (used by setup-sandbox)
+export SANDBOX_ORACLE_HOST=localhost
+export SANDBOX_ORACLE_PORT=1521
+export SANDBOX_ORACLE_SERVICE=FREEPDB1
+export SANDBOX_ORACLE_USER=
+
+# Target database (used by setup-target)
+export TARGET_ORACLE_HOST=localhost
+export TARGET_ORACLE_PORT=1521
+export TARGET_ORACLE_SERVICE=FREEPDB1
+export TARGET_ORACLE_USER=
 """
 
 
@@ -433,7 +434,7 @@ def _repo_map_oracle() -> dict[str, Any]:
             "startup": "Read this file before exploring the project. It is the primary startup context for structure and conventions.",
             "catalog_mandatory": "discover and scoping tools require catalog/ files from setup-ddl. Errors if catalog is missing.",
             "ddl_filenames": "The loader auto-detects object types from CREATE statements — .sql filenames are not significant.",
-            "oracle_env_vars": "Live Oracle access requires ORACLE_HOST, ORACLE_PORT, ORACLE_SERVICE, ORACLE_USER, ORACLE_PASSWORD exported before launching claude.",
+            "oracle_env_vars": "CLI setup commands require SOURCE_ORACLE_HOST/PORT/SERVICE/USER/PASSWORD (setup-source), SANDBOX_ORACLE_HOST/PORT/SERVICE/USER/PASSWORD (setup-sandbox), TARGET_ORACLE_HOST/PORT/SERVICE/USER/PASSWORD (setup-target).",
         },
     }
 
@@ -453,208 +454,12 @@ if git diff --cached --diff-filter=ACMR -z -- . | xargs -0 grep -lE "${ANT_KEY_P
     exit 1
 fi
 
-# 2. Oracle credentials in .env / .envrc files
-for f in $(git diff --cached --name-only | grep -E '\\.(env|envrc)$' || true); do
-    if git show :"$f" 2>/dev/null | grep -qE '(ORACLE_HOST|ORACLE_PORT|ORACLE_SERVICE|ORACLE_USER|ORACLE_PASSWORD)=.+'; then
-        echo "ERROR: $f contains Oracle credentials. This file should be in .gitignore." >&2
+# 2. Secret-bearing settings in tracked files
+for f in $(git diff --cached --name-only --diff-filter=ACMR || true); do
+    if git show :"$f" 2>/dev/null | grep -qiE '(^|[^A-Za-z0-9_])(PASSWORD|[A-Za-z0-9_]*_PASSWORD|API_KEY|[A-Za-z0-9_]*_API_KEY)"?[[:space:]]*[:=]'; then
+        echo "ERROR: $f contains a tracked secret field. Keep secrets in .env and out of tracked files." >&2
         exit 1
     fi
 done
 """
 
-
-def _worktree_sh() -> str:
-    return """\
-#!/usr/bin/env bash
-set -euo pipefail
-
-if [[ $# -ne 1 ]]; then
-  echo "Usage: $0 <branch-name>" >&2
-  exit 1
-fi
-
-branch="$1"
-
-script_dir="$(cd "$(dirname "$0")" && pwd)"
-repo_root="$(cd "$script_dir/.." && pwd)"
-worktree_base="${WORKTREE_BASE_DIR:-$repo_root/../worktrees}"
-worktree_path="$worktree_base/$branch"
-
-json_error() {
-  local code="$1"
-  local step="$2"
-  local message="$3"
-  local can_retry="$4"
-  local retry_command="$5"
-  local suggested_fix="$6"
-  local existing_worktree_path="${7:-}"
-  BRANCH="$branch" \
-  REQUESTED_WORKTREE_PATH="$worktree_path" \
-  CODE="$code" \
-  STEP="$step" \
-  MESSAGE="$message" \
-  CAN_RETRY="$can_retry" \
-  RETRY_COMMAND="$retry_command" \
-  SUGGESTED_FIX="$suggested_fix" \
-  EXISTING_WORKTREE_PATH="$existing_worktree_path" \
-  python3 - <<'PY' >&2
-import json
-import os
-
-payload = {
-    "code": os.environ["CODE"],
-    "step": os.environ["STEP"],
-    "message": os.environ["MESSAGE"],
-    "branch": os.environ["BRANCH"],
-    "requested_worktree_path": os.environ["REQUESTED_WORKTREE_PATH"],
-    "can_retry": os.environ["CAN_RETRY"].lower() == "true",
-    "retry_command": os.environ["RETRY_COMMAND"],
-    "suggested_fix": os.environ["SUGGESTED_FIX"],
-}
-existing = os.environ.get("EXISTING_WORKTREE_PATH")
-if existing:
-    payload["existing_worktree_path"] = existing
-print(json.dumps(payload))
-PY
-  exit 1
-}
-
-existing_branch_worktree() {
-  local target_branch="$1"
-  local current_path=""
-  local current_branch=""
-  while IFS= read -r line || [[ -n "$line" ]]; do
-    if [[ -z "$line" ]]; then
-      if [[ "$current_branch" == "refs/heads/$target_branch" ]]; then
-        printf '%s\\n' "$current_path"
-        return 0
-      fi
-      current_path=""
-      current_branch=""
-      continue
-    fi
-    case "$line" in
-      worktree\\ *) current_path="${line#worktree }" ;;
-      branch\\ *) current_branch="${line#branch }" ;;
-    esac
-  done < <(git worktree list --porcelain)
-
-  if [[ "$current_branch" == "refs/heads/$target_branch" ]]; then
-    printf '%s\\n' "$current_path"
-  fi
-}
-
-bootstrap_worktree() {
-  local env_src="$repo_root/.env"
-  local env_dst="$worktree_path/.env"
-
-  if [[ -f "$env_src" ]]; then
-    if [[ -e "$env_dst" || -L "$env_dst" ]]; then
-      rm -f "$env_dst"
-    fi
-    ln -s "$env_src" "$env_dst"
-    echo "ENV: symlink $env_dst -> $env_src"
-  else
-    echo "ENV: skipped (no .env in $repo_root)"
-  fi
-
-  if command -v direnv &>/dev/null && [[ -f "$worktree_path/.envrc" ]]; then
-    direnv allow "$worktree_path" || json_error \\
-      "WORKTREE_DIRENV_ALLOW_FAILED" \\
-      "direnv_allow" \\
-      "direnv allow failed for the worktree." \\
-      "true" \\
-      "$0 $branch" \\
-      "Fix direnv or remove the broken .envrc, then rerun the worktree command."
-    echo "direnv: allowed $worktree_path"
-  else
-    if ! command -v direnv &>/dev/null; then
-      echo "direnv: skipped (not installed)"
-    else
-      echo "direnv: skipped (no .envrc in worktree)"
-    fi
-  fi
-
-  local lib_dir="$worktree_path/lib"
-  if [[ -f "$lib_dir/pyproject.toml" ]]; then
-    echo "uv: syncing dev dependencies in $lib_dir"
-    (
-      cd "$lib_dir" &&
-        uv sync --extra dev
-    ) || json_error \\
-      "WORKTREE_UV_SYNC_FAILED" \\
-      "uv_sync" \\
-      "uv sync failed while creating the worktree environment." \\
-      "true" \\
-      "$0 $branch" \\
-      "Run 'cd $lib_dir && rm -rf .venv && uv sync --extra dev' to repair the environment, then rerun the worktree command."
-    (
-      cd "$lib_dir" &&
-        uv run python -c 'import pyodbc, oracledb'
-    ) || json_error \\
-      "WORKTREE_DEPENDENCY_VERIFICATION_FAILED" \\
-      "uv_verify_dependencies" \\
-      "The worktree environment does not import pyodbc and oracledb." \\
-      "true" \\
-      "$0 $branch" \\
-      "Run 'cd $lib_dir && rm -rf .venv && uv sync --extra dev' to reinstall the integration dependencies, then rerun the worktree command."
-    echo "uv: verified worktree Python deps (pyodbc, oracledb)"
-  else
-    echo "uv: skipped (no pyproject.toml in lib)"
-  fi
-
-  local evals_dir="$worktree_path/tests/evals"
-  if [[ -f "$evals_dir/package.json" ]]; then
-    echo "npm: installing eval dependencies in $evals_dir"
-    (
-      cd "$evals_dir" &&
-        npm install --no-audit --no-fund
-    ) || json_error \\
-      "WORKTREE_NPM_INSTALL_FAILED" \\
-      "npm_install" \\
-      "npm install failed for worktree eval dependencies." \\
-      "true" \\
-      "$0 $branch" \\
-      "Run 'cd $evals_dir && npm install --no-audit --no-fund' to repair node dependencies, then rerun the worktree command."
-  else
-    echo "npm: skipped (no package.json in tests/evals)"
-  fi
-}
-
-mkdir -p "$(dirname "$worktree_path")"
-
-branch_exists=false
-if git show-ref --verify --quiet "refs/heads/$branch"; then
-  branch_exists=true
-fi
-
-checked_out_path="$(existing_branch_worktree "$branch")"
-if [[ -n "$checked_out_path" && "$checked_out_path" != "$worktree_path" ]]; then
-  json_error \\
-    "WORKTREE_BRANCH_ALREADY_CHECKED_OUT" \\
-    "branch_conflict" \\
-    "Branch is already checked out in another worktree." \\
-    "false" \\
-    "" \\
-    "Use the existing worktree or remove it before requesting a new worktree for this branch." \\
-    "$checked_out_path"
-fi
-
-if [[ -n "$checked_out_path" && "$checked_out_path" == "$worktree_path" ]]; then
-  echo "worktree: branch already attached at $worktree_path; rerunning bootstrap"
-  bootstrap_worktree
-  echo "worktree: ready $worktree_path"
-  exit 0
-fi
-
-if $branch_exists; then
-  git worktree add "$worktree_path" "$branch"
-else
-  git worktree add -b "$branch" "$worktree_path" HEAD
-fi
-echo "worktree: created worktree at $worktree_path"
-
-bootstrap_worktree
-
-echo "worktree: ready $worktree_path"
-"""

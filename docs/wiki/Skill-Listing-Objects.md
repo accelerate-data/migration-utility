@@ -22,8 +22,8 @@ Trigger phrases: "list tables", "list procedures", "show me object X", "what ref
 
 ## Prerequisites
 
-- `manifest.json` must exist in the project root. If missing, run [[Command Setup DDL]] first.
-- Catalog files must exist in `catalog/` (produced by [[Command Setup DDL]]).
+- `manifest.json` must exist in the project root. If missing, run `ad-migration setup-source` first.
+- Catalog files must exist in `catalog/` (produced by `ad-migration setup-source`).
 
 This skill is read-only. It does not require a pipeline readiness check beyond having a valid project root and catalog files.
 

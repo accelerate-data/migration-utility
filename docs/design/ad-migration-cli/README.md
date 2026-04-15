@@ -104,13 +104,7 @@ When a skill or rule needs to invoke a deterministic step mid-workflow, it calls
 
 ## Scripts
 
-Git workflow helpers stay as shell scripts, not CLI commands — same pattern as `scripts/worktree.sh`:
-
-- `scripts/cleanup-worktrees.sh` — scans worktrees, checks merged PRs via `gh`, removes merged ones.
-- `scripts/commit.sh` — stage specified files and commit with a provided message.
-- `scripts/commit-push-pr.sh` — stage, commit, push, open PR via `gh pr create`.
-
-Claude rules reference these directly.
+Git workflow automation stays outside the CLI. User-facing cleanup is exposed as `/cleanup-worktrees`, and internal batch-command worktree bootstrap lives in the `git-checkpoints` skill helper rather than in scaffolded repo scripts.
 
 ## Distribution
 

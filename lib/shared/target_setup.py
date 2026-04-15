@@ -3,6 +3,8 @@
 from __future__ import annotations
 
 import json
+import logging
+import os
 from dataclasses import dataclass
 from pathlib import Path
 
@@ -11,8 +13,79 @@ from shared.generate_sources import generate_sources, write_sources_yml
 from shared.output_models.generate_sources import GenerateSourcesOutput
 from shared.output_models.target_setup import SetupTargetOutput
 from shared.runtime_config import get_runtime_role
-from shared.runtime_config_models import RuntimeRole
+from shared.runtime_config_models import RuntimeConnection, RuntimeRole, RuntimeSchemas
 from shared.setup_ddl_support.manifest import read_manifest_strict
+
+logger = logging.getLogger(__name__)
+
+_TARGET_ENV_MAPS: dict[str, dict[str, str]] = {
+    "sql_server": {
+        "host": "TARGET_MSSQL_HOST",
+        "port": "TARGET_MSSQL_PORT",
+        "database": "TARGET_MSSQL_DB",
+        "user": "TARGET_MSSQL_USER",
+        "password_env": "TARGET_MSSQL_PASSWORD",
+    },
+    "oracle": {
+        "host": "TARGET_ORACLE_HOST",
+        "port": "TARGET_ORACLE_PORT",
+        "service": "TARGET_ORACLE_SERVICE",
+        "user": "TARGET_ORACLE_USER",
+        "password_env": "TARGET_ORACLE_PASSWORD",
+    },
+}
+
+
+def write_target_runtime_from_env(
+    project_root: Path,
+    technology: str,
+    source_schema: str = "bronze",
+) -> RuntimeRole:
+    """Read TARGET_* env vars and write runtime.target to manifest.json.
+
+    Returns the RuntimeRole written. Raises ValueError if manifest is missing.
+    """
+    if technology not in _TARGET_ENV_MAPS:
+        raise ValueError(
+            f"Unknown target technology '{technology}'. "
+            f"Supported: {list(_TARGET_ENV_MAPS)}"
+        )
+
+    manifest_path = project_root / "manifest.json"
+    if not manifest_path.exists():
+        raise ValueError(f"manifest.json not found at {manifest_path}. Run setup-source first.")
+
+    env_map = _TARGET_ENV_MAPS[technology]
+    connection_kwargs: dict[str, str] = {}
+    for field, env_var in env_map.items():
+        if field == "password_env":
+            # Store the env var name itself — not the secret value.
+            connection_kwargs["password_env"] = env_var
+        else:
+            value = os.environ.get(env_var, "")
+            if value:
+                connection_kwargs[field] = value
+
+    role = RuntimeRole(
+        technology=technology,
+        dialect=technology,
+        connection=RuntimeConnection(**connection_kwargs),
+        schemas=RuntimeSchemas(source=source_schema, marts=None),
+    )
+
+    manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
+    if "runtime" not in manifest or not isinstance(manifest["runtime"], dict):
+        manifest["runtime"] = {}
+    manifest["runtime"]["target"] = role.model_dump(mode="json", exclude_none=True)
+    manifest_path.write_text(json.dumps(manifest, indent=2), encoding="utf-8")
+
+    logger.info(
+        "event=write_target_runtime status=success component=target_setup technology=%s source_schema=%s",
+        technology,
+        source_schema,
+    )
+
+    return role
 
 
 @dataclass(frozen=True)

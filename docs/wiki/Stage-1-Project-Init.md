@@ -1,6 +1,6 @@
 # Stage 1 -- Project Init
 
-`/init-ad-migration` is the entrypoint for a new migration repo. It checks prerequisites, scaffolds the project, and prepares the repo for the rest of the pipeline.
+`/init-ad-migration` is the entrypoint for a new migration repo. It installs the `ad-migration` CLI via Homebrew, checks prerequisites, scaffolds the project, and prepares the repo for the pipeline.
 
 ```text
 /init-ad-migration
@@ -24,7 +24,7 @@ The command groups checks into common prerequisites plus source-specific checks.
 ### SQL Server-specific checks
 
 - FreeTDS and unixODBC registration
-- optional `toolbox` for live `/setup-ddl`
+- optional `toolbox` for live `ad-migration setup-source`
 - `MSSQL_*` environment variables
 
 ### Oracle-specific checks
@@ -45,14 +45,13 @@ The project scaffold currently includes:
 - `.gitignore`
 - `.envrc`
 - `.claude/rules/git-workflow.md`
-- `scripts/worktree.sh`
 - `.githooks/pre-commit`
 
-It also writes a partial `manifest.json` with source technology and dialect so `/setup-ddl` can enrich it later.
+It also writes a partial `manifest.json` with source technology and dialect so `ad-migration setup-source` can enrich it later.
 
 ## Worktree flow
 
-The scaffolded repo includes `scripts/worktree.sh` as the canonical way to create or attach a worktree and bootstrap it. That script is what downstream command docs and git-workflow guidance refer to.
+The scaffolded repo does not include a repo-local worktree wrapper script. Batch commands create or reuse worktrees through the internal `git-checkpoints` helper, and the scaffolded git-workflow guidance documents the resulting worktree location and cleanup behavior.
 
 ## Idempotency
 
@@ -64,4 +63,4 @@ The command is safe to re-run:
 
 ## Next step
 
-Proceed to [[Stage 2 DDL Extraction]].
+Proceed to [[Stage 2 DDL Extraction]] and run `ad-migration setup-source`.

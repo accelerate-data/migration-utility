@@ -18,10 +18,10 @@ The workflow has two layers:
 
 | Step | Command | Result |
 |---|---|---|
-| 1 | `/init-ad-migration` | Scaffolds project files, git hooks, and `scripts/worktree.sh` |
-| 2 | `/setup-ddl` | Extracts DDL and builds the local catalog |
-| 3 | `/setup-target` | Collects target runtime, scaffolds the dbt project, and generates `sources.yml` |
-| 4 | `/setup-sandbox` | Creates the throwaway database used for proof-backed testing |
+| 1 | `/init-ad-migration` | Scaffolds project files, git hooks, and repo-local workflow guidance |
+| 2 | `ad-migration setup-source` | Extracts DDL and builds the local catalog |
+| 3 | `ad-migration setup-target` | Collects target runtime, scaffolds the dbt project, and generates `sources.yml` |
+| 4 | `ad-migration setup-sandbox` | Creates the throwaway database used for proof-backed testing |
 
 ### Per-object migration
 
@@ -33,7 +33,7 @@ The workflow has two layers:
   -> /generate-model
 ```
 
-Batch commands create or reuse worktrees through `git-checkpoints`, commit successful items as they finish, and can raise a PR for the run at the end.
+Batch commands create or reuse worktrees through `git-checkpoints` and manage their own batch git workflow. The `ad-migration` CLI does not commit, push, open PRs, or clean worktrees for you.
 
 ## Interactive vs batch
 
@@ -47,24 +47,25 @@ Batch commands create or reuse worktrees through `git-checkpoints`, commit succe
 The plugin currently exposes these user-facing commands:
 
 - `/init-ad-migration`
-- `/setup-ddl`
-- `/setup-target`
-- `/setup-sandbox`
 - `/scope`
 - `/profile`
 - `/generate-tests`
 - `/refactor`
 - `/generate-model`
 - `/status`
-- `/add-source-tables`
-- `/exclude-table`
-- `/reset-migration`
-- `/commit`
-- `/commit-push-pr`
-- `/teardown-sandbox`
 - `/cleanup-worktrees`
 
 See [[Command Reference]] for a one-page summary.
+
+The user-facing CLI commands are:
+
+- `ad-migration setup-source`
+- `ad-migration setup-target`
+- `ad-migration setup-sandbox`
+- `ad-migration teardown-sandbox`
+- `ad-migration reset`
+- `ad-migration exclude-table`
+- `ad-migration add-source-table`
 
 ## User-invocable skills
 
@@ -73,10 +74,8 @@ The main user-facing skills are:
 - `/listing-objects`
 - `/analyzing-table`
 - `/profiling-table`
-- `/generating-tests`
-- `/generating-model`
 
-Internal skills such as `git-checkpoints`, `reviewing-tests`, `reviewing-model`, and `test-invariants` support the batch commands but are not the normal user entrypoints.
+Internal skills such as `generating-tests`, `generating-model`, `git-checkpoints`, `reviewing-tests`, `reviewing-model`, `refactoring-sql`, and `test-invariants` support the batch commands but are not user entrypoints.
 
 ## Where to start
 
@@ -98,7 +97,6 @@ catalog/
 ddl/
 test-specs/
 dbt/
-scripts/worktree.sh
 ```
 
 The catalog is the durable project state. Batch commands read from it, write back to it, and persist successful outputs to git.

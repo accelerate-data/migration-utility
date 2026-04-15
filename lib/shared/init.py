@@ -2,7 +2,7 @@
 
 Two subcommands:
 
-    scaffold-project   Write CLAUDE.md, README.md, repo-map.json, .gitignore, .envrc, scripts/worktree.sh, .claude/rules/git-workflow.md
+    scaffold-project   Write CLAUDE.md, README.md, repo-map.json, .gitignore, .envrc, .claude/rules/git-workflow.md
     scaffold-hooks     Write .githooks/pre-commit and configure git hooks path
 
 Both are idempotent: existing files are merged or skipped, never overwritten.
@@ -29,7 +29,6 @@ import stat
 import subprocess
 from dataclasses import dataclass
 from pathlib import Path
-from shutil import which
 from typing import Any, Callable, Optional
 
 import typer
@@ -46,7 +45,6 @@ from shared.init_templates import (
     _readme_md_sql_server,
     _repo_map_oracle,
     _repo_map_sql_server,
-    _worktree_sh,
 )
 from shared.output_models.init import (
     LocalOverrideDiscoveryOutput,
@@ -84,7 +82,7 @@ SOURCE_REGISTRY: dict[str, SourceConfig] = {
     "sql_server": SourceConfig(
         slug="sql_server",
         display_name="SQL Server",
-        env_vars=["MSSQL_HOST", "MSSQL_PORT", "MSSQL_DB", "SA_PASSWORD"],
+        env_vars=["SOURCE_MSSQL_HOST", "SOURCE_MSSQL_PORT", "SOURCE_MSSQL_DB", "SOURCE_MSSQL_USER", "SOURCE_MSSQL_PASSWORD"],
         dep_group="export",
         claude_md_fn=_claude_md_sql_server,
         readme_md_fn=_readme_md_sql_server,
@@ -95,7 +93,7 @@ SOURCE_REGISTRY: dict[str, SourceConfig] = {
     "oracle": SourceConfig(
         slug="oracle",
         display_name="Oracle",
-        env_vars=["ORACLE_HOST", "ORACLE_PORT", "ORACLE_SERVICE", "ORACLE_USER", "ORACLE_PASSWORD"],
+        env_vars=["SOURCE_ORACLE_HOST", "SOURCE_ORACLE_PORT", "SOURCE_ORACLE_SERVICE", "SOURCE_ORACLE_USER", "SOURCE_ORACLE_PASSWORD"],
         dep_group="oracle",
         claude_md_fn=_claude_md_oracle,
         readme_md_fn=_readme_md_oracle,
@@ -141,7 +139,6 @@ GITIGNORE_ENTRIES = [
     ".env",
     ".env.*",
     "!.env.example",
-    ".envrc",
     "",
 ]
 
@@ -152,9 +149,11 @@ GIT_WORKFLOW_MD = """\
 
 Worktree base path: `{worktree_base}`
 
-Use `./scripts/worktree.sh <branch-name>` to create or attach a worktree and bootstrap it in one step.
+Batch commands create or reuse worktrees automatically through the internal `git-checkpoints` helper.
 
-Commands create worktrees at `<base>/<run-slug>` where `<run-slug>` is generated from the command name and table names (e.g. `scope-dimcustomer-dimproduct`).
+Commands create worktrees at `<base>/<run-slug>` where `<run-slug>` is generated from the command name and table names (e.g. `feature/scope-dimcustomer-dimproduct`).
+
+For manual worktrees, use standard `git worktree add` commands in the shell.
 
 ## Cleanup
 
@@ -183,7 +182,6 @@ SQL_SERVER_DRIVER_CANDIDATES = (
     "ODBC Driver 18 for SQL Server",
     "ODBC Driver 17 for SQL Server",
 )
-SQLCL_MANUAL_MESSAGE = 'Set SQLCL_BIN="/absolute/path/to/sql" and ensure Java 11+ is on PATH.'
 MSSQL_DRIVER_MANUAL_MESSAGE = (
     'Set MSSQL_DRIVER="ODBC Driver 18 for SQL Server" after installing a SQL Server ODBC driver.'
 )
@@ -286,17 +284,6 @@ def run_scaffold_project(project_root: Path, technology: str = "sql_server") -> 
         else:
             files_skipped.append(".envrc")
 
-    # scripts/worktree.sh
-    worktree_script_path = project_root / "scripts" / "worktree.sh"
-    if not worktree_script_path.exists():
-        worktree_script_path.parent.mkdir(parents=True, exist_ok=True)
-        worktree_script_path.write_text(_worktree_sh(), encoding="utf-8")
-        worktree_script_path.chmod(worktree_script_path.stat().st_mode | stat.S_IEXEC)
-        files_created.append("scripts/worktree.sh")
-        logger.info("event=scaffold_file file=scripts/worktree.sh status=created")
-    else:
-        files_skipped.append("scripts/worktree.sh")
-
     # .claude/rules/git-workflow.md
     workflow_path = project_root / ".claude" / "rules" / "git-workflow.md"
     if not workflow_path.exists():
@@ -338,20 +325,6 @@ def _query_odbc_drivers() -> list[str]:
 def _is_executable_file(path_str: str) -> bool:
     path = Path(path_str)
     return path.is_file() and os.access(path, os.X_OK)
-
-
-def _is_sqlcl_binary(command_path: str) -> bool:
-    try:
-        result = subprocess.run(
-            [command_path, "-V"],
-            check=True,
-            capture_output=True,
-            text=True,
-        )
-    except (FileNotFoundError, subprocess.CalledProcessError):
-        return False
-    output = f"{result.stdout}\n{result.stderr}".lower()
-    return "sqlcl" in output
 
 
 def run_discover_mssql_driver_override() -> LocalOverrideDiscoveryOutput:
@@ -412,49 +385,6 @@ def run_discover_mssql_driver_override() -> LocalOverrideDiscoveryOutput:
         key="MSSQL_DRIVER",
         status="manual",
         message=MSSQL_DRIVER_MANUAL_MESSAGE,
-    )
-
-
-def run_discover_sqlcl_bin_override() -> LocalOverrideDiscoveryOutput:
-    """Resolve the effective local SQLcl binary override."""
-    configured_bin = (os.environ.get("SQLCL_BIN", "") or "").strip()
-    if configured_bin:
-        if not _is_executable_file(configured_bin) or not _is_sqlcl_binary(configured_bin):
-            logger.warning(
-                "event=discover_local_override key=SQLCL_BIN status=manual source=env_invalid",
-            )
-            return LocalOverrideDiscoveryOutput(
-                key="SQLCL_BIN",
-                status="manual",
-                message=SQLCL_MANUAL_MESSAGE,
-            )
-        logger.info(
-            "event=discover_local_override key=SQLCL_BIN status=resolved source=env",
-        )
-        return LocalOverrideDiscoveryOutput(
-            key="SQLCL_BIN",
-            status="resolved",
-            value=configured_bin,
-        )
-
-    for candidate in ("sql", "sqlcl"):
-        resolved = which(candidate)
-        if resolved and _is_sqlcl_binary(resolved):
-            logger.info(
-                "event=discover_local_override key=SQLCL_BIN status=default",
-            )
-            return LocalOverrideDiscoveryOutput(
-                key="SQLCL_BIN",
-                status="default",
-            )
-
-    logger.warning(
-        "event=discover_local_override key=SQLCL_BIN status=manual",
-    )
-    return LocalOverrideDiscoveryOutput(
-        key="SQLCL_BIN",
-        status="manual",
-        message=SQLCL_MANUAL_MESSAGE,
     )
 
 
@@ -643,13 +573,6 @@ def write_local_env_overrides_cmd(
 def discover_mssql_driver_override_cmd() -> None:
     """Resolve the effective local SQL Server driver override."""
     result = run_discover_mssql_driver_override()
-    typer.echo(json.dumps(result.model_dump(mode="json", exclude_none=True)))
-
-
-@app.command("discover-sqlcl-bin-override")
-def discover_sqlcl_bin_override_cmd() -> None:
-    """Resolve the effective local SQLcl binary override."""
-    result = run_discover_sqlcl_bin_override()
     typer.echo(json.dumps(result.model_dump(mode="json", exclude_none=True)))
 
 

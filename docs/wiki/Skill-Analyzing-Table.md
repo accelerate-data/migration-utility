@@ -14,7 +14,7 @@ Argument is the fully-qualified table name (e.g., `silver.DimCustomer`, `[dbo].[
 
 ## Prerequisites
 
-- `manifest.json` must exist in the project root. If missing, run [[Command Setup DDL]] first.
+- `manifest.json` must exist in the project root. If missing, run `ad-migration setup-source` first.
 - `catalog/tables/<table>.json` must exist. If missing, run `/listing-objects list tables` to see available tables.
 - The skill checks scoping readiness through `migrate-util ready` and stops on the surfaced code if the object is not ready.
 

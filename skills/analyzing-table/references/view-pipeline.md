@@ -63,14 +63,18 @@ Read `raw_ddl` and write a 2-4 sentence plain-language description of what the v
 
 ## Step 5 -- Persist scoping
 
-Write the scoping JSON to a temp file:
+Create the temp file first, then persist it to the catalog:
 
 ```bash
 mkdir -p .staging
-# Write scoping JSON to .staging/scoping.json
+cat > .staging/scoping.json <<'EOF'
+<scoping JSON>
+EOF
 uv run --project "${CLAUDE_PLUGIN_ROOT}/lib" discover write-scoping \
   --name <view_fqn> --scoping-file .staging/scoping.json && rm -rf .staging
 ```
+
+`discover write-scoping` reads `.staging/scoping.json` and persists that scoping payload into the catalog.
 
 Required fields:
 

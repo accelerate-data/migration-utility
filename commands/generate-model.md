@@ -16,12 +16,12 @@ Generate dbt models for a batch of tables. Launches one sub-agent per table in p
 
 - `manifest.json` must exist. If missing, fail all items with `MANIFEST_NOT_FOUND`.
 - For each FQN argument: if `catalog/tables/<fqn>.json` has `"is_source": true`, skip that table and print:
-  > `<fqn>` is marked as a dbt source — no migration needed. Use `/add-source-tables` to manage source tables.
+  > `<fqn>` is marked as a dbt source — no migration needed. Use `ad-migration add-source-table` to manage source tables.
 - `dbt_project.yml` must exist at `./dbt/`. If missing, fail all items with `DBT_PROJECT_MISSING`.
-- `dbt/profiles.yml` must exist. If missing, fail all items with `DBT_PROFILE_MISSING` and tell the user to run `/setup-target`.
+- `dbt/profiles.yml` must exist. If missing, fail all items with `DBT_PROFILE_MISSING` and tell the user to run `ad-migration setup-target`.
 - `dbt debug` must show "Connection test: OK". If it fails, fail all items with `DBT_CONNECTION_FAILED` and tell the user to check the resolved `runtime.target` credentials and endpoint in `manifest.json` and the matching `dbt/profiles.yml` configuration.
-- `runtime.target` must be present in `manifest.json`. If missing, fail all items with `TARGET_NOT_CONFIGURED` and tell the user to run `/setup-target`.
-- `runtime.sandbox` must be present in `manifest.json`. If missing, fail all items with `SANDBOX_NOT_CONFIGURED` and tell the user to run `/setup-sandbox`. The sandbox is the active execution endpoint when the workflow needs live source-backed validation; it is separate from `runtime.target`.
+- `runtime.target` must be present in `manifest.json`. If missing, fail all items with `TARGET_NOT_CONFIGURED` and tell the user to run `ad-migration setup-target`.
+- `runtime.sandbox` must be present in `manifest.json`. If missing, fail all items with `SANDBOX_NOT_CONFIGURED` and tell the user to run `ad-migration setup-sandbox`. The sandbox is the active execution endpoint when the workflow needs live source-backed validation; it is separate from `runtime.target`.
 - The sandbox must be reachable: run `uv run --project "${CLAUDE_PLUGIN_ROOT}/lib" test-harness sandbox-status`. If the sandbox does not exist or is not accessible, fail all items with `SANDBOX_NOT_CONFIGURED`.
 
 Per-item readiness is checked by the skill via `migrate-util ready` (which enforces that refactor, test generation, and sandbox configuration are complete before model generation can proceed).
@@ -87,9 +87,9 @@ git checkout -- dbt/models/staging/<model_name>.sql dbt/models/staging/_<model_n
 
 Use `rm -f` instead of `git checkout` for newly created files with no prior version.
 
-If the item final status is not `error`, auto-commit and push: run `/commit dbt/models/staging/<model_name>.sql dbt/models/staging/_<model_name>.yml`.
+If the item final status is not `error`, stage the generated dbt files, create a checkpoint commit, and push the current branch.
 
-For multi-table sub-agents: include the commit/revert instructions in the sub-agent prompt at the end of the review loop, using "invoke the /commit command with <files>".
+For multi-table sub-agents: include the commit/revert instructions in the sub-agent prompt at the end of the review loop, using "stage <files>, create a checkpoint commit, and push the current branch".
 
 ### Step 4 — Summarize
 
