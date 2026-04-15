@@ -15,7 +15,7 @@ logger = logging.getLogger(__name__)
 
 
 def setup_target(
-    technology: str = typer.Option(..., "--technology", help="Target technology: fabric, snowflake, or duckdb"),
+    technology: str = typer.Option(..., "--technology", help="Target technology: sql_server or oracle"),
     source_schema: str = typer.Option("bronze", "--source-schema", help="Target source schema (default: bronze)"),
     project_root: Path | None = typer.Option(None, "--project-root"),
 ) -> None:

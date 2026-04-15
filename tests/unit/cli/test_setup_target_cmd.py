@@ -25,32 +25,37 @@ def _write_manifest(tmp_path: Path) -> None:
     )
 
 
-def test_setup_target_writes_runtime_and_runs_orchestrator(tmp_path, monkeypatch):
-    monkeypatch.setenv("TARGET_ACCOUNT", "acme.snowflakecomputing.com")
-    monkeypatch.setenv("TARGET_DATABASE", "WAREHOUSE")
-    monkeypatch.setenv("TARGET_SCHEMA", "bronze")
-    monkeypatch.setenv("TARGET_WAREHOUSE", "COMPUTE_WH")
-    monkeypatch.setenv("TARGET_USER", "loader")
-    monkeypatch.setenv("TARGET_PASSWORD", "secret")
+def test_setup_target_sql_server_writes_runtime_and_runs_orchestrator(tmp_path):
     _write_manifest(tmp_path)
-
     with (
         patch("shared.cli.setup_target_cmd.require_target_vars"),
         patch("shared.cli.setup_target_cmd.write_target_runtime_from_env") as mock_write,
-        patch("shared.cli.setup_target_cmd.run_setup_target", return_value=_SETUP_TARGET_OUT) as mock_setup,
+        patch("shared.cli.setup_target_cmd.run_setup_target", return_value=_SETUP_TARGET_OUT),
     ):
         result = runner.invoke(
             app,
-            ["setup-target", "--technology", "snowflake", "--project-root", str(tmp_path)],
+            ["setup-target", "--technology", "sql_server", "--project-root", str(tmp_path)],
         )
-
     assert result.exit_code == 0, result.output
-    mock_write.assert_called_once_with(tmp_path, "snowflake", "bronze")
-    mock_setup.assert_called_once_with(tmp_path)
+    mock_write.assert_called_once_with(tmp_path, "sql_server", "bronze")
+
+
+def test_setup_target_oracle_writes_runtime_and_runs_orchestrator(tmp_path):
+    _write_manifest(tmp_path)
+    with (
+        patch("shared.cli.setup_target_cmd.require_target_vars"),
+        patch("shared.cli.setup_target_cmd.write_target_runtime_from_env") as mock_write,
+        patch("shared.cli.setup_target_cmd.run_setup_target", return_value=_SETUP_TARGET_OUT),
+    ):
+        result = runner.invoke(
+            app,
+            ["setup-target", "--technology", "oracle", "--project-root", str(tmp_path)],
+        )
+    assert result.exit_code == 0, result.output
+    mock_write.assert_called_once_with(tmp_path, "oracle", "bronze")
 
 
 def test_setup_target_exits_1_on_missing_manifest(tmp_path):
-    # write_target_runtime_from_env raises ValueError when manifest.json is absent.
     with (
         patch("shared.cli.setup_target_cmd.require_target_vars"),
         patch(
@@ -60,7 +65,15 @@ def test_setup_target_exits_1_on_missing_manifest(tmp_path):
     ):
         result = runner.invoke(
             app,
-            ["setup-target", "--technology", "snowflake", "--project-root", str(tmp_path)],
+            ["setup-target", "--technology", "sql_server", "--project-root", str(tmp_path)],
         )
+    assert result.exit_code == 1
 
+
+def test_setup_target_rejects_snowflake(tmp_path):
+    """Snowflake has no backend — must be rejected."""
+    result = runner.invoke(
+        app,
+        ["setup-target", "--technology", "snowflake", "--project-root", str(tmp_path)],
+    )
     assert result.exit_code == 1

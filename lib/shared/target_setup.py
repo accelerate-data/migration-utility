@@ -19,24 +19,19 @@ from shared.setup_ddl_support.manifest import read_manifest_strict
 logger = logging.getLogger(__name__)
 
 _TARGET_ENV_MAPS: dict[str, dict[str, str]] = {
-    "snowflake": {
-        "host": "TARGET_ACCOUNT",
-        "database": "TARGET_DATABASE",
-        "schema": "TARGET_SCHEMA",
-        "driver": "TARGET_WAREHOUSE",
-        "user": "TARGET_USER",
-        "password_env": "TARGET_PASSWORD",
+    "sql_server": {
+        "host": "TARGET_MSSQL_HOST",
+        "port": "TARGET_MSSQL_PORT",
+        "database": "TARGET_MSSQL_DB",
+        "user": "TARGET_MSSQL_USER",
+        "password_env": "TARGET_MSSQL_PASSWORD",
     },
-    "fabric": {
-        "database": "TARGET_WORKSPACE",
-        "schema": "TARGET_LAKEHOUSE",
-        "user": "TARGET_CLIENT_ID",
-        "password_env": "TARGET_CLIENT_SECRET",
-        "tenant_id": "TARGET_TENANT_ID",
-    },
-    "duckdb": {
-        "path": "TARGET_PATH",
-        "schema": "TARGET_SCHEMA",
+    "oracle": {
+        "host": "TARGET_ORACLE_HOST",
+        "port": "TARGET_ORACLE_PORT",
+        "service": "TARGET_ORACLE_SERVICE",
+        "user": "TARGET_ORACLE_USER",
+        "password_env": "TARGET_ORACLE_PASSWORD",
     },
 }
 
@@ -63,9 +58,13 @@ def write_target_runtime_from_env(
     env_map = _TARGET_ENV_MAPS[technology]
     connection_kwargs: dict[str, str] = {}
     for field, env_var in env_map.items():
-        value = os.environ.get(env_var, "")
-        if value:
-            connection_kwargs[field] = value
+        if field == "password_env":
+            # Store the env var name itself — not the secret value.
+            connection_kwargs["password_env"] = env_var
+        else:
+            value = os.environ.get(env_var, "")
+            if value:
+                connection_kwargs[field] = value
 
     role = RuntimeRole(
         technology=technology,
