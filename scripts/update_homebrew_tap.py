@@ -3,7 +3,6 @@
 from __future__ import annotations
 
 import argparse
-import textwrap
 import tomllib
 from pathlib import Path
 
@@ -16,37 +15,6 @@ LOCK_PATH = REPO_ROOT / "lib" / "uv.lock"
 def _load_lock() -> dict[str, object]:
     with LOCK_PATH.open("rb") as handle:
         return tomllib.load(handle)
-
-
-def _select_resource_artifact(package: dict[str, object]) -> dict[str, str]:
-    wheels = package.get("wheels", [])
-    wheel_urls = [wheel["url"] for wheel in wheels]
-
-    for wheel in wheels:
-        if wheel["url"].endswith("py3-none-any.whl"):
-            return wheel
-
-    preferred_tags = (
-        "cp312-cp312-macosx_11_0_arm64.whl",
-        "cp312-cp312-macosx_11_0_universal2.whl",
-        "cp312-abi3-macosx_11_0_arm64.whl",
-        "cp312-abi3-macosx_11_0_universal2.whl",
-    )
-    for tag in preferred_tags:
-        for wheel in wheels:
-            if wheel["url"].endswith(tag):
-                return wheel
-
-    if wheels:
-        raise RuntimeError(
-            f"No compatible Homebrew resource artifact found for {package['name']}: {wheel_urls}"
-        )
-
-    sdist = package.get("sdist")
-    if sdist:
-        return sdist
-
-    raise RuntimeError(f"No sdist or wheel metadata found for {package['name']}")
 
 
 def _runtime_resource_packages() -> list[dict[str, str]]:
@@ -66,12 +34,14 @@ def _runtime_resource_packages() -> list[dict[str, str]]:
             seen.add(dep_name)
             dep_package = packages[dep_name]
             queue.append(dep_name)
-            artifact = _select_resource_artifact(dep_package)
+            sdist = dep_package.get("sdist")
+            if not sdist:
+                raise RuntimeError(f"No sdist metadata found for {dep_name}")
             resources.append(
                 {
                     "name": dep_name,
-                    "url": artifact["url"],
-                    "sha256": artifact["hash"].removeprefix("sha256:"),
+                    "url": sdist["url"],
+                    "sha256": sdist["hash"].removeprefix("sha256:"),
                 }
             )
 
@@ -82,32 +52,14 @@ def _render_python_resources() -> str:
     blocks = []
     for resource in _runtime_resource_packages():
         blocks.append(
-            textwrap.dedent(
-                f"""
-                  resource "{resource['name']}" do
-                    url "{resource['url']}"
-                    sha256 "{resource['sha256']}"
-                  end
-                """
-            ).rstrip()
+            (
+                f'resource "{resource["name"]}" do\n'
+                f'  url "{resource["url"]}"\n'
+                f'  sha256 "{resource["sha256"]}"\n'
+                "end"
+            )
         )
     return "\n\n".join(blocks)
-
-
-def _render_python_resource_installs() -> str:
-    lines = []
-    for resource in _runtime_resource_packages():
-        artifact_url = resource["url"]
-        if artifact_url.endswith(".whl"):
-            lines.append(f'    resource("{resource["name"]}").stage do')
-            lines.append(
-                f'      venv.pip_install Pathname.pwd / resource("{resource["name"]}").downloader.basename'
-            )
-            lines.append("    end")
-            continue
-
-        lines.append(f'    venv.pip_install resource("{resource["name"]}")')
-    return "\n".join(lines)
 
 
 def render_formula(
@@ -126,7 +78,6 @@ def render_formula(
         .replace("<%= shared_url %>", shared_url)
         .replace("<%= shared_sha256 %>", shared_sha256)
         .replace("<%= python_resources %>", _render_python_resources())
-        .replace("<%= python_resource_installs %>", _render_python_resource_installs())
     )
 
 

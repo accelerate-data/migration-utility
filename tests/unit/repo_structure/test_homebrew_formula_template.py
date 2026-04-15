@@ -30,14 +30,14 @@ def test_render_formula_includes_shared_resource() -> None:
 
     assert 'depends_on "freetds"' in formula
     assert 'depends_on "unixodbc"' in formula
+    assert 'depends_on "maturin" => :build' in formula
+    assert 'depends_on "rust" => :build' in formula
     assert 'resource "ad-migration-shared"' in formula
     assert 'resource "pydantic"' in formula
     assert 'resource "pydantic-core"' in formula
     assert 'resource "typer"' in formula
     assert "ad_migration_shared-0.1.0.tar.gz" in formula
     assert "pydantic_core-" in formula
-    assert "cp312-cp312-macosx_11_0_arm64.whl" in formula
-    assert 'resource("pydantic-core").stage do' in formula
-    assert 'venv.pip_install Pathname.pwd / resource("pydantic-core").downloader.basename' in formula
+    assert ".tar.gz" in formula
+    assert "virtualenv_install_with_resources" in formula
     assert 'assert_match "0.1.0\\n", shell_output("#{bin}/ad-migration --version")' in formula
-    assert 'venv.pip_install_and_link buildpath' in formula
