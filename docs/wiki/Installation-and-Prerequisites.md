@@ -2,6 +2,10 @@
 
 This page covers the tools, installation steps, and verification flow needed before running the migration utility.
 
+## What is Claude Code?
+
+[Claude Code](https://docs.anthropic.com/en/docs/claude-code) is an AI-powered CLI that runs in your terminal. You interact with it by typing natural language or `/` commands in a chat-style interface. The migration utility is a **plugin** that adds migration-specific commands (like `/scope`, `/profile`, `/generate-model`) to Claude Code. When you type a `/` command, the agent reads your project files, runs tools, and writes results -- you review and approve at each step.
+
 ## Platform Support
 
 Local execution is supported on macOS and Linux. Windows is not supported for the current local workflow because the project setup depends on Unix-oriented tooling such as `brew`, `direnv`, bash hooks, and unixODBC-based FreeTDS registration.
@@ -11,8 +15,7 @@ Local execution is supported on macOS and Linux. Windows is not supported for th
 | Tool | Version | Purpose |
 |---|---|---|
 | [Claude Code CLI](https://claude.ai) | Latest | Agent runtime that executes all plugin commands |
-| [uv](https://github.com/astral-sh/uv) | Latest | Python package manager and runner used by every CLI tool |
-| Python | 3.11+ | Runtime for shared library, MCP server, and CLI tools |
+| Python | 3.11+ | Runtime for CLI tools; installed automatically by the Homebrew formula |
 | [gh CLI](https://cli.github.com/) | Latest | GitHub operations (PRs, branch management, worktree cleanup) |
 | git | 2.x+ | Version control; worktree support required for batch commands |
 
@@ -67,10 +70,6 @@ export SOURCE_ORACLE_PASSWORD=<your-password>
 
 Add target and sandbox variables from the corresponding technology reference page before running `ad-migration setup-target` or `ad-migration setup-sandbox`.
 
-## Python Dependencies
-
-The shared library depends on pydantic, sqlglot, and typer as its key runtime libraries. All Python dependencies (including transitive ones) are managed by uv and pinned in `lib/pyproject.toml`. Running `uv sync` in the `lib` directory installs everything needed.
-
 ## Loading the Plugin
 
 Install from the Vibedata marketplace:
@@ -99,12 +98,6 @@ brew install ad-migration
 ad-migration --version
 ```
 
-Dev usage without installing:
-
-```bash
-uv run --project lib ad-migration --help
-```
-
 ## Verifying Setup
 
 Run the initialization command inside your Claude Code session:
@@ -113,7 +106,7 @@ Run the initialization command inside your Claude Code session:
 /init-ad-migration
 ```
 
-This installs the `ad-migration` CLI via Homebrew if not already present, then prompts for source technology selection, checks every prerequisite silently, and presents a status display grouped by source. See [[Stage 1 Project Init]] for full details on the status display format and what each check covers.
+This installs the `ad-migration` CLI via Homebrew if not already present, then prompts for source technology selection, checks every prerequisite silently, and presents a status display grouped by source. See [[Project Init]] for full details on the status display format and what each check covers.
 
 ## Next Step
 

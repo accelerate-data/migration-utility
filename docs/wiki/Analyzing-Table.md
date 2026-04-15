@@ -16,7 +16,7 @@ Argument is the fully-qualified table name (e.g., `silver.DimCustomer`, `[dbo].[
 
 - `manifest.json` must exist in the project root. If missing, run `ad-migration setup-source` first.
 - `catalog/tables/<table>.json` must exist. If missing, run `/listing-objects list tables` to see available tables.
-- The skill checks scoping readiness through `migrate-util ready` and stops on the surfaced code if the object is not ready.
+- The skill checks scoping readiness and stops with an error code if the object is not ready.
 
 ## Pipeline
 
@@ -26,19 +26,15 @@ Reads `catalog/tables/<table>.json` and presents the column list with types and 
 
 ### 2. Discover writer candidates
 
-```bash
-uv run --project <shared-path> discover refs --name <table>
-```
-
-Extracts the `writers` array from the output. If no writers are found, persists `no_writer_found` to catalog and stops.
+Reads reference data from the catalog for the target table. Extracts the `writers` array. If no writers are found, persists `no_writer_found` to catalog and stops.
 
 ### 3. Analyze each writer candidate
 
-For each writer candidate, follows the procedure analysis reference (`references/procedure-analysis.md`). This runs a 6-step pipeline per candidate:
+For each writer candidate, the skill runs a 6-step analysis pipeline:
 
-1. **Fetch object data** — `discover show --name <proc>` returns refs, statements, needs_llm, raw_ddl
+1. **Fetch object data** — reads refs, statements, needs_llm, raw_ddl from the catalog
 2. **Classify statements** — `needs_llm: false` (AST-parsed) or `needs_llm: true` (LLM-based from raw_ddl)
-3. **Resolve call graph** — follow refs to base tables via recursive `discover show`
+3. **Resolve call graph** — follows refs to base tables recursively via the catalog
 4. **Logic summary** — plain-language explanation of what the procedure does
 5. **Migration guidance** — tag each statement as `migrate` or `skip`
 6. **Persist resolved statements** — write to `catalog/procedures/<proc>.json`
@@ -75,14 +71,7 @@ The skill waits for explicit user confirmation before proceeding.
 
 ### 6. Persist scoping to catalog
 
-Writes scoping JSON via a temp file to avoid shell quoting issues:
-
-```bash
-mkdir -p .staging
-# Write scoping JSON to .staging/scoping.json
-uv run --project <shared-path> discover write-scoping \
-  --name <table> --scoping-file .staging/scoping.json; rm -rf .staging
-```
+Writes the resolved scoping decision to the table catalog file.
 
 ## Reads
 
@@ -162,9 +151,8 @@ Written during procedure analysis (Step 3). Each statement has `action` (migrate
 
 | Error | Cause | Fix |
 |---|---|---|
-| `discover refs` exit code 1 | Object not found or catalog file missing | Verify the table name with `/listing-objects list tables` |
-| `discover refs` exit code 2 | Catalog directory unreadable (IO error) | Check file permissions on `catalog/` |
+| Object not found | Object not found or catalog file missing | Verify the table name with `/listing-objects list tables` |
+| Catalog unreadable | Catalog directory unreadable (IO error) | Check file permissions on `catalog/` |
 | Procedure analysis failure | Could not analyze a candidate procedure | Candidate is marked `BLOCKED`; remaining candidates continue. If all candidates fail, `status` is set to `error` |
-| `discover write-scoping` exit code 1 | Validation failure (invalid JSON, missing fields) | Check scoping JSON structure against the schema above |
-| `discover write-scoping` exit code 2 | Invalid JSON or IO error | Verify the `.staging/scoping.json` file was written correctly |
-| No writers detected but proc clearly writes | Writer uses dynamic SQL that catalog queries cannot resolve | Known limitation of `sys.dm_sql_referenced_entities`. Run `/analyzing-table` on the suspected table and manually scope |
+| Scoping write validation failure | Invalid or incomplete scoping result | Re-run `/analyzing-table` on the table; if the issue persists, check the catalog file for corruption |
+| No writers detected but proc clearly writes | Writer uses dynamic SQL that catalog queries cannot resolve | Dynamic SQL via `EXEC(@sql)` or `sp_executesql` is not resolved statically. Run `/analyzing-table` on the suspected table and manually scope |

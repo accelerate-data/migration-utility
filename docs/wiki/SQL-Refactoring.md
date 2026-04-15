@@ -1,4 +1,4 @@
-# Stage 5 -- SQL Refactoring
+# SQL Refactoring
 
 `/refactor` restructures source SQL into import/logical/final CTE form and persists only proof-backed results.
 
@@ -47,4 +47,4 @@ That persisted refactor state is what `/generate-model` consumes later.
 
 ## Next step
 
-Proceed to [[Stage 4 Model Generation]].
+Proceed to [[Model Generation]].

@@ -40,12 +40,6 @@ brew tap accelerate-data/homebrew-tap
 brew install ad-migration
 ```
 
-Dev usage (no install needed):
-
-```bash
-uv run --project lib ad-migration <command>
-```
-
 ### Setup commands
 
 | Command | Purpose |

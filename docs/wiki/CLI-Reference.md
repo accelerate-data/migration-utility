@@ -33,12 +33,8 @@ Each command's output section below lists exactly which files it writes, so you 
 ## Installation
 
 ```bash
-# Via Homebrew
 brew tap accelerate-data/homebrew-tap
 brew install ad-migration
-
-# Dev (no install needed)
-uv run --project lib ad-migration <command>
 ```
 
 ## Global options

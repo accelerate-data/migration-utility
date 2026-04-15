@@ -1,10 +1,10 @@
 # Git Workflow
 
-The migration utility uses git worktrees, structured branch names, and automatic per-table commits to keep multi-table batch work isolated and reviewable.
+The migration utility uses [git worktrees](https://git-scm.com/docs/git-worktree), structured branch names, and automatic per-table commits to keep multi-table batch work isolated and reviewable. A worktree is a second working copy of the repo that shares the same `.git` directory -- it lets batch commands work on a feature branch without disturbing your main checkout.
 
 ## Worktrees
 
-Batch commands (`/scope`, `/profile`, `/generate-tests`, `/refactor`, `/generate-model`) create worktrees to isolate their work from the main working tree. This lets the FDE run multiple commands in parallel without conflicts.
+Batch commands (`/scope`, `/profile`, `/generate-tests`, `/refactor`, `/generate-model`) create worktrees to isolate their work from the main working tree. This lets you run multiple commands in parallel without conflicts.
 
 Worktrees are created at `../worktrees/<branchName>` relative to the repo root. For feature branches, the full prefix is preserved:
 
@@ -18,19 +18,11 @@ For batch command worktrees, the branch name is derived from the command and tab
 ../worktrees/feature/scope-silver-dimcustomer-silver-dimproduct
 ```
 
-Batch commands create or reuse worktrees automatically through the internal `git-checkpoints` helper.
-
-That helper bootstraps the worktree by:
-
-- Symlinking `.env` from the main repo root
-- Running `direnv allow`
-- Running `uv sync --extra dev` in `lib/`
-- Verifying `pyodbc` and `oracledb` import from the worktree venv
-- Running `npm install --no-audit --no-fund` in `tests/evals/`
+Batch commands create or reuse worktrees automatically. The worktree is bootstrapped with environment files and dependencies so it is ready to run immediately.
 
 ## Main-branch check
 
-Every batch command checks the current branch at startup. If you are on the default branch, `git-checkpoints` asks whether to continue there or create a feature-branch worktree first.
+Every batch command checks the current branch at startup. If you are on the default branch, the command asks whether to continue there or create a feature-branch worktree first.
 
 If you continue on the default branch, the command runs in the current checkout. If you create a manual worktree first, the command uses it automatically on the next invocation.
 
@@ -38,12 +30,12 @@ If you continue on the default branch, the command runs in the current checkout.
 
 | Mode | Branch pattern | Created by |
 |---|---|---|
-| Interactive (skill) | FDE's current branch | FDE manages manually |
-| Multi-table (command) | `<command>-<table1>-<table2>-...` (truncated to 60 chars) | Command, before spawning sub-agents |
+| Interactive (skill) | Your current branch | You manage manually |
+| Multi-table (command) | `<command>-<table1>-<table2>-...` (truncated to 60 chars) | Command, before processing starts |
 
-Single-table skill invocations (`/analyzing-table`, `/profiling-table`, etc.) do not create branches. The FDE works on whatever branch they are already on.
+Single-table skill invocations (`/analyzing-table`, `/profiling-table`, etc.) do not create branches. You work on whatever branch you are already on.
 
-Multi-table commands create a branch and worktree automatically. Before creating a new one, the command scans for existing worktrees. If any are found, it lists them and asks the FDE whether to **continue on an existing worktree** (preserve prior work) or create a **new worktree**. This lets the FDE build up work across multiple command invocations — for example, scoping table A, then adding table B on the same branch. The branch name is built from the command name and the table names, truncated to 60 characters to stay within git limits.
+Multi-table commands create a branch and worktree automatically. Before creating a new one, the command scans for existing worktrees. If any are found, it lists them and asks whether to **continue on an existing worktree** (preserve prior work) or create a **new worktree**. This lets you build up work across multiple command invocations -- for example, scoping table A, then adding table B on the same branch. The branch name is built from the command name and the table names, truncated to 60 characters to stay within git limits.
 
 ## Commit granularity
 
@@ -80,16 +72,16 @@ All successful items committed and pushed.
 Raise a PR for this run? (y/n)
 ```
 
-PRs target the repo's default branch. The FDE reviews and merges — commands do not auto-merge.
+PRs target the repo's default branch. The user reviews and merges — commands do not auto-merge.
 
 ## Interactive vs multi-table differences
 
 | Aspect | Interactive (skill) | Multi-table (command) |
 |---|---|---|
-| Branching | FDE's current branch | Auto-created branch + worktree |
+| Branching | user's current branch | Auto-created branch + worktree |
 | Approval | Every step reviewed inline | Main-branch check at start; auto-commit per table |
-| PR creation | FDE manages manually | Command offers PR at end |
-| Error handling | FDE handles directly | Inline revert per error, surface in summary |
+| PR creation | user manages manually | Command offers PR at end |
+| Error handling | user handles directly | Inline revert per error, surface in summary |
 
 ## Committing and pushing
 

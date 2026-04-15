@@ -1,6 +1,6 @@
 # Troubleshooting and Error Codes
 
-Cross-reference index of the surfaced codes documented in the canonical command-specific files under `lib/shared/*_error_codes.md`.
+Cross-reference index of the error codes you may encounter while using the migration utility.
 
 ## Setup and status
 
@@ -85,9 +85,9 @@ When in doubt, run:
 
 - [[Quickstart]]
 - [[Status Dashboard]]
-- [[Stage 1 Scoping]]
-- [[Stage 2 Profiling]]
-- [[Stage 3 Test Generation]]
-- [[Stage 5 SQL Refactoring]]
-- [[Stage 4 Model Generation]]
+- [[Scoping]]
+- [[Profiling]]
+- [[Test Generation]]
+- [[SQL Refactoring]]
+- [[Model Generation]]
 - [[Sandbox Operations]]

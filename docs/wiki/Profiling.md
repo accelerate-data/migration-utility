@@ -1,4 +1,4 @@
-# Stage 2 -- Profiling
+# Profiling
 
 `/profile` produces the migration profile for each table, view, or materialized view.
 
@@ -22,7 +22,7 @@ For views and materialized views, the profile classifies them for downstream mig
 
 ## Git behavior
 
-Like the other batch commands, `/profile` uses `git-checkpoints`, commits successful items as they complete, and can open or update a PR at the end of the run.
+Like the other batch commands, `/profile` manages its own git workflow, commits successful items as they complete, and can open or update a PR at the end of the run.
 
 ## Status values
 
@@ -34,4 +34,4 @@ Like the other batch commands, `/profile` uses `git-checkpoints`, commits succes
 
 ## Next step
 
-Proceed to [[Stage 3 Test Generation]].
+Proceed to [[Test Generation]].
