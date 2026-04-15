@@ -4,7 +4,7 @@ description: >
   Scan git worktrees for branches with merged PRs and clean them up
   (remove worktree, delete local and remote branches). Then sweep
   gone branches and remote-only branches that have merged PRs.
-user-invocable: false
+user-invocable: true
 argument-hint: "[branch-name]"
 ---
 
