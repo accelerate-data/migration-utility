@@ -1,4 +1,4 @@
-# Stage 1 -- Scoping
+# Scoping
 
 `/scope` is the batch command for writer discovery and initial object analysis.
 
@@ -41,4 +41,4 @@ Once source decisions are written, use `/listing-objects list sources` to list t
 
 ## Next step
 
-Proceed to [[Stage 2 Profiling]] or use `ad-migration add-source-table` and `ad-migration exclude-table` to clean up remaining non-migration targets before `ad-migration setup-target`.
+Proceed to [[Profiling]] or use `ad-migration add-source-table` and `ad-migration exclude-table` to clean up remaining non-migration targets before `ad-migration setup-target`.

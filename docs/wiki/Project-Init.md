@@ -1,4 +1,4 @@
-# Stage 1 -- Project Init
+# Project Init
 
 `/init-ad-migration` is the entrypoint for a new migration repo. It installs the `ad-migration` CLI via Homebrew, checks prerequisites, scaffolds the project, and prepares the repo for the pipeline.
 
@@ -62,4 +62,4 @@ The command is safe to re-run:
 
 ## Next step
 
-Proceed to [[Stage 2 DDL Extraction]] and run `ad-migration setup-source`.
+Proceed to [[DDL Extraction]] and run `ad-migration setup-source`.

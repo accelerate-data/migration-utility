@@ -1,4 +1,4 @@
-# Stage 2 -- DDL Extraction
+# DDL Extraction
 
 `ad-migration setup-source` extracts source metadata and builds the local migration catalog that every downstream command depends on. It also persists the active source endpoint in `manifest.json` as `runtime.source` and writes extraction metadata under `extraction.*`.
 
@@ -71,4 +71,4 @@ Dynamic SQL writers may not appear in metadata-driven references. Those are reso
 
 ## Next step
 
-Proceed to [[Stage 1 Scoping]] if you want to classify writers first, or to [[Browsing the Catalog]] if you want to inspect the extracted state before acting.
+Proceed to [[Scoping]] if you want to classify writers first, or to [[Browsing the Catalog]] if you want to inspect the extracted state before acting.

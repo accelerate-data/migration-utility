@@ -64,6 +64,6 @@ Use the technology-specific reference for source, target, and sandbox variables:
 
 ## Related pages
 
-- [[Stage 4 Sandbox Setup]] -- project-setup walkthrough for sandbox creation
-- [[Stage 3 Test Generation]] -- where the sandbox is used first
+- [[Sandbox Setup]] -- project-setup walkthrough for sandbox creation
+- [[Test Generation]] -- where the sandbox is used first
 - [[Git Workflow]] -- worktree and branch cleanup lives there, not here

@@ -1,4 +1,4 @@
-# Stage 3 -- Test Generation
+# Test Generation
 
 `/generate-tests` creates migration test scenarios, reviews them independently, and captures ground truth in the sandbox.
 
@@ -39,4 +39,4 @@ Use `ad-migration teardown-sandbox` after you are done with test generation and 
 
 ## Next step
 
-Proceed to [[Stage 5 SQL Refactoring]].
+Proceed to [[SQL Refactoring]].

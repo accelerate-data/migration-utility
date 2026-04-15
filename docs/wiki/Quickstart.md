@@ -2,13 +2,22 @@
 
 Happy-path walkthrough for migrating two tables, `silver.DimCustomer` and `silver.FactInternetSales`.
 
+## Two interfaces
+
+You will alternate between two interfaces throughout this walkthrough:
+
+- **Claude Code session** -- where you type `/` commands (like `/scope`, `/profile`). These are AI-driven commands that analyze your code and make decisions interactively.
+- **Terminal shell** -- where you run `ad-migration` CLI commands (like `ad-migration setup-source`). These are deterministic tools that connect to databases and write files.
+
+Each step below is tagged with which interface to use.
+
 ## Prerequisites
 
 - All tools installed and verified, see [[Installation and Prerequisites]]
 - A git repo for the migration project
 - Access to the source database
 
-## 1. Scaffold the project and install the CLI
+## 1. Scaffold the project and install the CLI (Claude Code)
 
 ```text
 /init-ad-migration
@@ -25,9 +34,9 @@ Generated files include:
 - `.githooks/pre-commit`
 - `.claude/rules/git-workflow.md`
 
-See [[Stage 1 Project Init]].
+See [[Project Init]].
 
-## 2. Extract DDL and build the catalog
+## 2. Extract DDL and build the catalog (terminal)
 
 ```bash
 ad-migration setup-source --schemas silver,gold
@@ -35,9 +44,9 @@ ad-migration setup-source --schemas silver,gold
 
 This validates credentials, extracts DDL, and builds catalog files. It creates `manifest.json`, writes extracted DDL into `ddl/`, and builds per-object catalog files in `catalog/`.
 
-See [[Stage 2 DDL Extraction]].
+See [[DDL Extraction]].
 
-## 3. Resolve extracted tables before target setup
+## 3. Resolve extracted tables before target setup (Claude Code)
 
 ```text
 /scope silver.DimCustomer silver.FactInternetSales
@@ -53,9 +62,9 @@ Tables with `scoping.status == "no_writer_found"` are not automatically included
 
 After you confirm source tables, use `/listing-objects list sources` to see the current confirmed-source inventory from catalog state.
 
-See [[Stage 1 Scoping]].
+See [[Scoping]].
 
-## 4. Set up the target
+## 4. Set up the target (terminal)
 
 ```bash
 ad-migration setup-target
@@ -67,9 +76,9 @@ This scaffolds `dbt/`, persists `runtime.target`, and generates `models/staging/
 
 If you identify more source tables later, mark them with `ad-migration add-source-table <fqn>` and run `ad-migration setup-target` again. The command is idempotent: it will refresh `sources.yml` and create any newly required target-side source tables without redoing existing ones.
 
-See [[Stage 3 dbt Scaffolding]].
+See [[dbt Scaffolding]].
 
-## 5. Profile the migration targets
+## 5. Profile the migration targets (Claude Code)
 
 ```text
 /profile silver.DimCustomer silver.FactInternetSales
@@ -77,9 +86,9 @@ See [[Stage 3 dbt Scaffolding]].
 
 This writes the migration profile for each object: classification, keys, watermark, and other downstream signals used by test generation and model generation.
 
-See [[Stage 2 Profiling]].
+See [[Profiling]].
 
-## 6. Create the sandbox
+## 6. Create the sandbox (terminal)
 
 ```bash
 ad-migration setup-sandbox
@@ -87,9 +96,9 @@ ad-migration setup-sandbox
 
 This creates the active sandbox endpoint used for ground-truth capture and SQL equivalence checks and persists it as `runtime.sandbox`.
 
-See [[Stage 4 Sandbox Setup]].
+See [[Sandbox Setup]].
 
-## 7. Generate tests
+## 7. Generate tests (Claude Code)
 
 ```text
 /generate-tests silver.DimCustomer silver.FactInternetSales
@@ -97,9 +106,9 @@ See [[Stage 4 Sandbox Setup]].
 
 This generates scenarios, runs the independent review loop, executes approved scenarios in the sandbox, and writes dbt-ready YAML test artifacts.
 
-See [[Stage 3 Test Generation]].
+See [[Test Generation]].
 
-## 8. Refactor the source SQL
+## 8. Refactor the source SQL (Claude Code)
 
 ```text
 /refactor silver.DimCustomer silver.FactInternetSales
@@ -107,9 +116,9 @@ See [[Stage 3 Test Generation]].
 
 This restructures the source SQL into import/logical/final CTE form and proves equivalence against the extracted ground truth. For table migrations, the proof-backed refactor is persisted on the selected writer procedure catalog entry.
 
-See [[Stage 5 SQL Refactoring]].
+See [[SQL Refactoring]].
 
-## 9. Generate dbt models
+## 9. Generate dbt models (Claude Code)
 
 ```text
 /generate-model silver.DimCustomer silver.FactInternetSales
@@ -117,9 +126,9 @@ See [[Stage 5 SQL Refactoring]].
 
 This generates dbt SQL and schema YAML, runs `dbt build`, applies the independent model review loop, and commits successful items.
 
-See [[Stage 4 Model Generation]].
+See [[Model Generation]].
 
-## 10. Check overall progress
+## 10. Check overall progress (Claude Code)
 
 ```text
 /status
@@ -129,7 +138,7 @@ Use this to see what is complete, what is blocked, which source tables still nee
 
 See [[Status Dashboard]].
 
-## 11. Tear down the sandbox when finished
+## 11. Tear down the sandbox when finished (terminal)
 
 ```bash
 ad-migration teardown-sandbox
@@ -137,7 +146,7 @@ ad-migration teardown-sandbox
 
 Run this after all test generation and refactor work that depends on the sandbox is complete.
 
-## 12. Clean up merged worktrees later
+## 12. Clean up merged worktrees later (Claude Code)
 
 ```text
 /cleanup-worktrees

@@ -1,4 +1,4 @@
-# Stage 4 -- Sandbox Setup
+# Sandbox Setup
 
 Creates a throwaway sandbox execution environment and persists it as `runtime.sandbox` in `manifest.json`.
 
@@ -40,4 +40,4 @@ Safe to re-run. The CLI recreates the active sandbox endpoint for the current pr
 
 ## Next Step
 
-Proceed to [[Stage 3 Test Generation]] to generate test specs for your stored procedures.
+Proceed to [[Test Generation]] to generate test specs for your stored procedures.

@@ -92,5 +92,5 @@ A typical exploration session before scoping:
 ## Related pages
 
 - [[Listing Objects]] -- full schema details and CLI reference
-- [[Stage 1 Scoping]] -- using catalog data for writer discovery
+- [[Scoping]] -- using catalog data for writer discovery
 - [[Glossary]] -- definitions of catalog, item_id, routing flags

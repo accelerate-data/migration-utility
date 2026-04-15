@@ -1,4 +1,4 @@
-# Stage 2 -- Profiling
+# Profiling
 
 `/profile` produces the migration profile for each table, view, or materialized view.
 
@@ -34,4 +34,4 @@ Like the other batch commands, `/profile` manages its own git workflow, commits 
 
 ## Next step
 
-Proceed to [[Stage 3 Test Generation]].
+Proceed to [[Test Generation]].

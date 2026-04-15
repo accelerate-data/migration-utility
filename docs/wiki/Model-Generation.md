@@ -1,4 +1,4 @@
-# Stage 4 -- Model Generation
+# Model Generation
 
 `/generate-model` turns the proof-backed refactor, profile, and approved test spec into dbt artifacts.
 

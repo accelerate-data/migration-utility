@@ -1,4 +1,4 @@
-# Stage 3 -- dbt Scaffolding
+# dbt Scaffolding
 
 `ad-migration setup-target` scaffolds the dbt project and generates `sources.yml` from the catalog.
 
@@ -78,4 +78,4 @@ Re-running `ad-migration setup-target` is safe:
 
 ## Next step
 
-Proceed to [[Stage 4 Sandbox Setup]].
+Proceed to [[Sandbox Setup]].

@@ -106,7 +106,7 @@ Run the initialization command inside your Claude Code session:
 /init-ad-migration
 ```
 
-This installs the `ad-migration` CLI via Homebrew if not already present, then prompts for source technology selection, checks every prerequisite silently, and presents a status display grouped by source. See [[Stage 1 Project Init]] for full details on the status display format and what each check covers.
+This installs the `ad-migration` CLI via Homebrew if not already present, then prompts for source technology selection, checks every prerequisite silently, and presents a status display grouped by source. See [[Project Init]] for full details on the status display format and what each check covers.
 
 ## Next Step
 
