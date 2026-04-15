@@ -7,7 +7,7 @@ user-invocable: true
 argument-hint: "<schema.table_or_view> [schema.table_or_view ...]"
 ---
 
-# Scope
+# Scope Tables
 
 Identify which procedures write to each table, or analyze SQL structure for each view or materialized view. Launches one sub-agent per item in parallel using `/analyzing-table` (which auto-detects table vs view).
 
@@ -80,7 +80,7 @@ Return the item result JSON.
 3. Present human-readable summary:
 
    ```text
-   scope complete — N items processed
+   scope-tables complete — N items processed
 
      ✓ silver.DimCustomer      resolved   (table)
      ✓ silver.DimProduct       resolved   (table)
@@ -96,7 +96,7 @@ Return the item result JSON.
    > All successful items have been committed and pushed.
    > Raise a PR for this run? (y/n)
 
-   If yes: run `/commit-push-pr scope <comma-separated list of successfully processed items>`.
+   If yes: run `/commit-push-pr scope-tables <comma-separated list of successfully processed items>`.
    After the PR is created or updated, tell the user:
 
    ```text
