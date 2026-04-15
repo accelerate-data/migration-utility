@@ -38,7 +38,7 @@ Test that the CLI exits 1 with a clear message when credentials are missing:
 env -i HOME=$HOME uv run --project lib ad-migration setup-source \
   --technology sql_server --schemas silver
 echo "exit: $?"
-# Expected: exit 1; stderr lists MSSQL_HOST, MSSQL_PORT, MSSQL_DB, SA_PASSWORD
+# Expected: exit 1; stderr lists SOURCE_MSSQL_HOST, SOURCE_MSSQL_PORT, SOURCE_MSSQL_DB, SOURCE_MSSQL_PASSWORD
 ```
 
 Expected error format:
@@ -46,10 +46,10 @@ Expected error format:
 ```text
 Error: missing required environment variables for sql_server:
 
-  MSSQL_HOST                     not set
-  MSSQL_PORT                     not set
-  MSSQL_DB                       not set
-  SA_PASSWORD                    not set
+  SOURCE_MSSQL_HOST              not set
+  SOURCE_MSSQL_PORT              not set
+  SOURCE_MSSQL_DB                not set
+  SOURCE_MSSQL_PASSWORD          not set
 
 Set these in your shell or .envrc before running setup-source.
 ```
@@ -57,7 +57,7 @@ Set these in your shell or .envrc before running setup-source.
 Test with all vars set (should pass env check and show help, not extract):
 
 ```bash
-MSSQL_HOST=localhost MSSQL_PORT=1433 MSSQL_DB=AdventureWorks2022 SA_PASSWORD=test \
+SOURCE_MSSQL_HOST=localhost SOURCE_MSSQL_PORT=1433 SOURCE_MSSQL_DB=AdventureWorks2022 SOURCE_MSSQL_PASSWORD=test \
   uv run --project lib ad-migration setup-source --help
 # Expected: exit 0, help text shown
 ```

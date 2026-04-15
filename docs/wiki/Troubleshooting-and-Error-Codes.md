@@ -23,10 +23,10 @@ Live SQL Server extraction requires `toolbox` on `PATH`.
 
 `/setup-ddl` needs these before it can persist `runtime.source`:
 
-- `MSSQL_HOST`
-- `MSSQL_PORT`
-- `MSSQL_DB`
-- `SA_PASSWORD`
+- `SOURCE_MSSQL_HOST`
+- `SOURCE_MSSQL_PORT`
+- `SOURCE_MSSQL_DB`
+- `SOURCE_MSSQL_PASSWORD`
 
 `/setup-sandbox` and `/generate-model` instead rely on the env vars referenced by `runtime.sandbox` and `runtime.target`.
 

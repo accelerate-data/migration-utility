@@ -48,27 +48,28 @@ The variables required depend on your source technology. The `/init-ad-migration
 
 | Variable | Description | Example |
 |---|---|---|
-| `MSSQL_HOST` | SQL Server hostname or IP | `localhost` |
-| `MSSQL_PORT` | SQL Server port | `1433` |
-| `MSSQL_DB` | Configured source database that contains the runtime `MigrationTest` schema fixture | `AdventureWorks2022` |
-| `SA_PASSWORD` | SQL login password | _(from env)_ |
+| `SOURCE_MSSQL_HOST` | SQL Server hostname or IP | `localhost` |
+| `SOURCE_MSSQL_PORT` | SQL Server port | `1433` |
+| `SOURCE_MSSQL_DB` | Configured source database that contains the runtime `MigrationTest` schema fixture | `AdventureWorks2022` |
+| `SOURCE_MSSQL_USER` | SQL login username | `sa` |
+| `SOURCE_MSSQL_PASSWORD` | SQL login password | _(from env)_ |
 | `MSSQL_DRIVER` | _(optional)_ ODBC driver override | `FreeTDS` _(default)_ |
 
 `MSSQL_DRIVER` defaults to `FreeTDS`. Set it to `ODBC Driver 18 for SQL Server` if you prefer the Microsoft driver (requires `brew install msodbcsql18` with interactive EULA acceptance).
 
 When using the default `FreeTDS` path, `/init-ad-migration` now verifies both the Homebrew package and the unixODBC driver registration. A plain `brew install freetds` is not considered sufficient if `FreeTDS` does not appear in `odbcinst -q -d`.
 
-All four connection variables are required for `ad-migration setup-source`, `/setup-sandbox`, `/generate-tests`, `/refactor`, and any other live-database skill.
+All connection variables are required for `ad-migration setup-source`, `/setup-sandbox`, `/generate-tests`, `/refactor`, and any other live-database skill.
 
 ### Oracle
 
 | Variable | Description | Example |
 |---|---|---|
-| `ORACLE_HOST` | Oracle hostname or IP | `localhost` |
-| `ORACLE_PORT` | Oracle listener port | `1521` |
-| `ORACLE_SERVICE` | Oracle service name | `FREEPDB1` |
-| `ORACLE_USER` | Oracle username | `sh` |
-| `ORACLE_PASSWORD` | Oracle password | _(from env)_ |
+| `SOURCE_ORACLE_HOST` | Oracle hostname or IP | `localhost` |
+| `SOURCE_ORACLE_PORT` | Oracle listener port | `1521` |
+| `SOURCE_ORACLE_SERVICE` | Oracle service name | `FREEPDB1` |
+| `SOURCE_ORACLE_USER` | Oracle username | `sh` |
+| `SOURCE_ORACLE_PASSWORD` | Oracle password | _(from env)_ |
 
 ### Setting variables with direnv (recommended)
 
@@ -84,17 +85,18 @@ Export them in your shell before launching `claude`:
 
 ```bash
 # SQL Server
-export MSSQL_HOST=localhost
-export MSSQL_PORT=1433
-export MSSQL_DB=AdventureWorks2022
-export SA_PASSWORD=<your-password>
+export SOURCE_MSSQL_HOST=localhost
+export SOURCE_MSSQL_PORT=1433
+export SOURCE_MSSQL_DB=AdventureWorks2022
+export SOURCE_MSSQL_USER=sa
+export SOURCE_MSSQL_PASSWORD=<your-password>
 
 # Oracle
-export ORACLE_HOST=localhost
-export ORACLE_PORT=1521
-export ORACLE_SERVICE=FREEPDB1
-export ORACLE_USER=sh
-export ORACLE_PASSWORD=<your-password>
+export SOURCE_ORACLE_HOST=localhost
+export SOURCE_ORACLE_PORT=1521
+export SOURCE_ORACLE_SERVICE=FREEPDB1
+export SOURCE_ORACLE_USER=sh
+export SOURCE_ORACLE_PASSWORD=<your-password>
 ```
 
 ## Python Dependencies

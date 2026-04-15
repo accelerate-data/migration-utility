@@ -53,8 +53,9 @@ def build_sql_server_connection_string(
 def sql_server_connect(database: str) -> Any:
     """Open a pyodbc connection to SQL Server.
 
-    Reads MSSQL_HOST, MSSQL_PORT, MSSQL_USER, SA_PASSWORD, MSSQL_DRIVER from
-    the environment. Raises ValueError if required variables are missing.
+    Reads SOURCE_MSSQL_HOST, SOURCE_MSSQL_PORT, SOURCE_MSSQL_USER,
+    SOURCE_MSSQL_PASSWORD, MSSQL_DRIVER from the environment.
+    Raises ValueError if required variables are missing.
     Raises RuntimeError if pyodbc is not installed.
     """
     try:
@@ -65,13 +66,13 @@ def sql_server_connect(database: str) -> Any:
             "Install it with: uv pip install pyodbc"
         ) from exc
 
-    host = os.environ.get("MSSQL_HOST", "")
-    port = os.environ.get("MSSQL_PORT", "1433")
-    user = os.environ.get("MSSQL_USER", "sa")
-    password = os.environ.get("SA_PASSWORD", "")
+    host = os.environ.get("SOURCE_MSSQL_HOST", "")
+    port = os.environ.get("SOURCE_MSSQL_PORT", "1433")
+    user = os.environ.get("SOURCE_MSSQL_USER", "sa")
+    password = os.environ.get("SOURCE_MSSQL_PASSWORD", "")
     driver = os.environ.get("MSSQL_DRIVER", "FreeTDS")
 
-    missing = [name for name, val in [("MSSQL_HOST", host), ("SA_PASSWORD", password)] if not val]
+    missing = [name for name, val in [("SOURCE_MSSQL_HOST", host), ("SOURCE_MSSQL_PASSWORD", password)] if not val]
     if missing:
         raise ValueError(f"Required environment variables not set: {missing}")
 
@@ -98,7 +99,7 @@ def sql_server_connect(database: str) -> Any:
 def oracle_connect() -> Any:
     """Open an oracledb connection to Oracle.
 
-    Reads ORACLE_USER, ORACLE_PASSWORD, ORACLE_DSN from the environment.
+    Reads SOURCE_ORACLE_USER, SOURCE_ORACLE_PASSWORD, ORACLE_DSN from the environment.
     Raises ValueError if required variables are missing.
     Raises RuntimeError if oracledb is not installed.
     """
@@ -110,12 +111,12 @@ def oracle_connect() -> Any:
             "Install it with: uv pip install oracledb"
         ) from exc
 
-    user = os.environ.get("ORACLE_USER", "")
-    password = os.environ.get("ORACLE_PASSWORD", "")
+    user = os.environ.get("SOURCE_ORACLE_USER", "")
+    password = os.environ.get("SOURCE_ORACLE_PASSWORD", "")
     dsn = os.environ.get("ORACLE_DSN", "")
 
     missing = [name for name, val in [
-        ("ORACLE_USER", user), ("ORACLE_PASSWORD", password), ("ORACLE_DSN", dsn),
+        ("SOURCE_ORACLE_USER", user), ("SOURCE_ORACLE_PASSWORD", password), ("ORACLE_DSN", dsn),
     ] if not val]
     if missing:
         raise ValueError(f"Required environment variables not set: {missing}")

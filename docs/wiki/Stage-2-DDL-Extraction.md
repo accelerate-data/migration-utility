@@ -38,21 +38,22 @@ The CLI validates all required environment variables before connecting. Missing 
 ### SQL Server
 
 - `toolbox` on `PATH`
-- `MSSQL_HOST`
-- `MSSQL_PORT`
-- `MSSQL_DB`
-- `SA_PASSWORD`
+- `SOURCE_MSSQL_HOST`
+- `SOURCE_MSSQL_PORT`
+- `SOURCE_MSSQL_DB`
+- `SOURCE_MSSQL_USER`
+- `SOURCE_MSSQL_PASSWORD`
 
 These are bootstrap inputs for the initial source connection. Once `ad-migration setup-source` completes, the active source endpoint is persisted in `manifest.json` as `runtime.source`.
 
 ### Oracle
 
 - SQLcl and Java 11+
-- `ORACLE_HOST`
-- `ORACLE_PORT`
-- `ORACLE_SERVICE`
-- `ORACLE_USER`
-- `ORACLE_PASSWORD`
+- `SOURCE_ORACLE_HOST`
+- `SOURCE_ORACLE_PORT`
+- `SOURCE_ORACLE_SERVICE`
+- `SOURCE_ORACLE_USER`
+- `SOURCE_ORACLE_PASSWORD`
 
 The Oracle user needs catalog access such as `SELECT_CATALOG_ROLE` and `SELECT ANY DICTIONARY`.
 

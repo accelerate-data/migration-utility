@@ -693,8 +693,8 @@ class TestConnectionIdentity:
         }
         (tmp_path / "manifest.json").write_text(json.dumps(manifest), encoding="utf-8")
 
-        monkeypatch.setenv("MSSQL_HOST", "server1")
-        monkeypatch.setenv("MSSQL_PORT", "1433")
+        monkeypatch.setenv("SOURCE_MSSQL_HOST", "server1")
+        monkeypatch.setenv("SOURCE_MSSQL_PORT", "1433")
 
         import sys
         sys.path.insert(0, str(Path(__file__).resolve().parents[3] / "lib"))

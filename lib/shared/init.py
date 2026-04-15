@@ -84,7 +84,7 @@ SOURCE_REGISTRY: dict[str, SourceConfig] = {
     "sql_server": SourceConfig(
         slug="sql_server",
         display_name="SQL Server",
-        env_vars=["MSSQL_HOST", "MSSQL_PORT", "MSSQL_DB", "SA_PASSWORD"],
+        env_vars=["SOURCE_MSSQL_HOST", "SOURCE_MSSQL_PORT", "SOURCE_MSSQL_DB", "SOURCE_MSSQL_USER", "SOURCE_MSSQL_PASSWORD"],
         dep_group="export",
         claude_md_fn=_claude_md_sql_server,
         readme_md_fn=_readme_md_sql_server,
@@ -95,7 +95,7 @@ SOURCE_REGISTRY: dict[str, SourceConfig] = {
     "oracle": SourceConfig(
         slug="oracle",
         display_name="Oracle",
-        env_vars=["ORACLE_HOST", "ORACLE_PORT", "ORACLE_SERVICE", "ORACLE_USER", "ORACLE_PASSWORD"],
+        env_vars=["SOURCE_ORACLE_HOST", "SOURCE_ORACLE_PORT", "SOURCE_ORACLE_SERVICE", "SOURCE_ORACLE_USER", "SOURCE_ORACLE_PASSWORD"],
         dep_group="oracle",
         claude_md_fn=_claude_md_oracle,
         readme_md_fn=_readme_md_oracle,

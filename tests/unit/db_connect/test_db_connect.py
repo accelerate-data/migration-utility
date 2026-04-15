@@ -12,7 +12,7 @@ class TestSqlServerConnect:
     """Tests for sql_server_connect()."""
 
     def test_default_driver_is_freetds(self) -> None:
-        env = {"MSSQL_HOST": "localhost", "SA_PASSWORD": "pass"}
+        env = {"SOURCE_MSSQL_HOST": "localhost", "SOURCE_MSSQL_PASSWORD": "pass"}
         mock_pyodbc = MagicMock()
         with patch.dict(os.environ, env, clear=True):
             with patch.dict("sys.modules", {"pyodbc": mock_pyodbc}):
@@ -22,7 +22,7 @@ class TestSqlServerConnect:
         assert "DRIVER={FreeTDS};" in conn_str
 
     def test_cant_open_lib_raises_runtime_error(self) -> None:
-        env = {"MSSQL_HOST": "localhost", "SA_PASSWORD": "pass"}
+        env = {"SOURCE_MSSQL_HOST": "localhost", "SOURCE_MSSQL_PASSWORD": "pass"}
         mock_pyodbc = MagicMock()
         mock_pyodbc.Error = type("Error", (Exception,), {})
         mock_pyodbc.connect.side_effect = mock_pyodbc.Error(
@@ -37,7 +37,7 @@ class TestSqlServerConnect:
                     mod.sql_server_connect("testdb")
 
     def test_other_pyodbc_errors_propagate(self) -> None:
-        env = {"MSSQL_HOST": "localhost", "SA_PASSWORD": "pass"}
+        env = {"SOURCE_MSSQL_HOST": "localhost", "SOURCE_MSSQL_PASSWORD": "pass"}
         mock_pyodbc = MagicMock()
         mock_pyodbc.Error = type("Error", (Exception,), {})
         mock_pyodbc.connect.side_effect = mock_pyodbc.Error("Login failed")
@@ -50,7 +50,7 @@ class TestSqlServerConnect:
                     mod.sql_server_connect("testdb")
 
     def test_password_is_odbc_escaped_in_connection_string(self) -> None:
-        env = {"MSSQL_HOST": "localhost", "SA_PASSWORD": "pa;ss}word"}
+        env = {"SOURCE_MSSQL_HOST": "localhost", "SOURCE_MSSQL_PASSWORD": "pa;ss}word"}
         mock_pyodbc = MagicMock()
         with patch.dict(os.environ, env, clear=True):
             with patch.dict("sys.modules", {"pyodbc": mock_pyodbc}):
