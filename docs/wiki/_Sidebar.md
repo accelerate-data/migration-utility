@@ -23,7 +23,6 @@
 
 - [[Command Reference]]
 - [[Command-Setup-Source]]
-- [[Testing-the-CLI]]
 
 **Skills**
 
