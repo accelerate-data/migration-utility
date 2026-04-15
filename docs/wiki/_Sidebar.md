@@ -22,22 +22,24 @@
 **Commands**
 
 - [[Command Reference]]
-- [[Command-Setup-Source]]
+- [[CLI Reference]]
 
 **Skills**
 
-- [[Skill Listing Objects]]
-- [[Skill Analyzing Table]]
-- [[Skill Profiling Table]]
+- [[Listing Objects]]
+- [[Analyzing Table]]
+- [[Profiling Table]]
 
 **Operations**
 
 - [[Status Dashboard]]
 - [[Git Workflow]]
 - [[Browsing the Catalog]]
-- [[Cleanup and Teardown]]
+- [[Sandbox Operations]]
 
 **Reference**
 
 - [[Glossary]]
+- [[SQL Server Connection Variables]]
+- [[Oracle Connection Variables]]
 - [[Troubleshooting and Error Codes]]

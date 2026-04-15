@@ -41,6 +41,15 @@ brew install ad-migration
 uv run --project lib ad-migration <command>
 ```
 
+## Global options
+
+| Option | Description |
+|---|---|
+| `--quiet` | Suppress all output except errors, intended for CI use |
+| `--verbose`, `-v` | Show warnings and log output on stderr |
+| `--version` | Print the installed CLI version and exit |
+| `--help` | Show help for the top-level CLI or subcommand |
+
 ## Setup commands
 
 ### setup-source
@@ -73,6 +82,7 @@ Technology comes from `manifest.json` as `runtime.source`, seeded by `/init-ad-m
 | `SOURCE_MSSQL_DB` | Database name |
 | `SOURCE_MSSQL_USER` | Username |
 | `SOURCE_MSSQL_PASSWORD` | Password |
+| `MSSQL_DRIVER` | Optional ODBC driver override; defaults to `FreeTDS` |
 
 **Environment variables — Oracle:**
 
@@ -274,7 +284,7 @@ Confirm tables as dbt sources (`is_source: true`).
 
 Use this before `ad-migration setup-target` for any writerless table that should stay as a dbt source. `setup-target` reads the existing `is_source` decisions when generating `sources.yml` and creating target-side source tables.
 
-To review the currently confirmed source tables later, run `/listing-objects list sources`.
+To review source-confirmation progress later, run `/status` and check which writerless tables are still pending versus already confirmed as sources.
 
 If you add more source tables later, rerun `ad-migration setup-target`. It is idempotent and will apply only the newly required source-table changes.
 

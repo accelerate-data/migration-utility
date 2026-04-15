@@ -35,7 +35,7 @@ The JSON spec is the working artifact for the pipeline. The YAML file is the use
 
 ## Sandbox teardown
 
-Use `ad-migration teardown-sandbox` after you are done with test generation and SQL proof workflows that depend on the sandbox.
+Use `ad-migration teardown-sandbox` after you are done with test generation and SQL proof workflows that depend on the sandbox. See [[Sandbox Operations]] for the sandbox lifecycle.
 
 ## Next step
 

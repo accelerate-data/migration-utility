@@ -29,7 +29,7 @@ Before `ad-migration setup-target` can proceed, extracted tables need to be in o
 
 In practice, this means you should finish the scope/exclude/source decision first, then run `ad-migration add-source-table <fqn>` for every table that should remain a dbt source before invoking `ad-migration setup-target`.
 
-Use `/listing-objects list sources` if you want to verify the confirmed source-table set before running `ad-migration setup-target`.
+Use `/status` if you want to verify which tables are confirmed as sources versus still pending before running `ad-migration setup-target`.
 
 ## What it writes
 
@@ -68,6 +68,13 @@ Re-running `ad-migration setup-target` is safe:
 - it does not overwrite your edited `profiles.yml`
 - it does not overwrite generated models or snapshots
 - it creates any missing target-side source tables for items already marked `is_source: true`, but it does not backfill data or decide which tables are sources
+
+## Connection variables
+
+`setup-target` requires the target runtime variables for the configured technology. See:
+
+- [[SQL Server Connection Variables]]
+- [[Oracle Connection Variables]]
 
 ## Next step
 
