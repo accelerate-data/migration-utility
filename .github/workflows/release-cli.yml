@@ -42,6 +42,8 @@ jobs:
           python -m pip install lib/dist/ad_migration_shared-*.whl
           python -m pip install packages/ad-migration-cli/dist/ad_migration_cli-*.whl
           ad-migration --version
+          deactivate
+          /tmp/ad-migration-release/bin/ad-migration --version
 
       - name: Publish GitHub release artifacts
         uses: softprops/action-gh-release@v2

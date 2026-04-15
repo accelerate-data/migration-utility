@@ -40,3 +40,4 @@ def test_render_formula_includes_shared_resource() -> None:
     assert 'resource("pydantic-core").stage do' in formula
     assert 'venv.pip_install Pathname.pwd / resource("pydantic-core").downloader.basename' in formula
     assert 'assert_match "0.1.0\\n", shell_output("#{bin}/ad-migration --version")' in formula
+    assert 'venv.pip_install_and_link buildpath' in formula
