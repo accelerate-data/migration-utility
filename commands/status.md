@@ -367,7 +367,7 @@ status for silver.DimCustomer
     branches: 4, tests: 6
     sandbox: __test_abc123
 
-  refactor ✗ — pending  ⚠ PARSE_ERROR: DDL failed to parse — fix before running /refactoring-sql
+  refactor ✗ — pending  ⚠ PARSE_ERROR: DDL failed to parse — fix before running /refactor-query
     guard failed: TEST_SPEC_NOT_REVIEWED
 
   migrate ✗ — blocked
