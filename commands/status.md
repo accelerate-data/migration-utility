@@ -246,7 +246,7 @@ catalog diagnostics  (3 errors, 5 warnings)
 After listing the diagnostics, provide LLM-generated triage: for each unique error code present, generate one concise remediation action (1–2 sentences). Group by code, not by object. Examples:
 
 - "MULTI_TABLE_WRITE (1 table): The writer proc targets multiple tables. Use `/scope-tables` to re-select a single-table writer, or split the proc."
-- "DDL_PARSE_ERROR (1 view): The view DDL has unsupported syntax. Review the view definition and simplify before running `/scope-tables`."
+- "DDL_PARSE_ERROR (1 view): The view DDL has unsupported syntax. Review the view definition, rerun `ad-migration setup-source`, then run `/scope-tables`."
 - "STALE_OBJECT (1 table): Object was removed from the source. Verify it is no longer needed and remove its catalog file if so."
 
 If there are no diagnostics, omit this section entirely.
