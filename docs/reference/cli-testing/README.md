@@ -50,6 +50,16 @@ SOURCE_MSSQL_HOST=localhost SOURCE_MSSQL_PORT=1433 SOURCE_MSSQL_DB=AdventureWork
 
 These require a live database and valid local configuration.
 
+## Homebrew release verification
+
+Verify the published install contract before cutting or approving a release:
+
+1. Build `ad-migration-shared` and `ad-migration-cli`.
+2. Confirm `ad-migration --version` works in a fresh virtualenv after installing the built wheels.
+3. Render `Formula/ad-migration.rb` from the built sdists and install it with Homebrew from source.
+4. Confirm `ad-migration --version` succeeds after the Homebrew install and `brew test ad-migration` passes.
+5. Run `/init-ad-migration` in a clean plugin checkout and verify the command skips Homebrew installation when the binary is already present.
+
 ### `setup-source`
 
 ```bash

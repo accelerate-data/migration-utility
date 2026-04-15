@@ -15,9 +15,13 @@ class AdMigration < Formula
     url "<%= shared_url %>"
     sha256 "<%= shared_sha256 %>"
   end
+<%= python_resources %>
 
   def install
-    virtualenv_install_with_resources
+    venv = virtualenv_create(libexec, "python3.12")
+    venv.pip_install resource("ad-migration-shared")
+<%= python_resource_installs %>
+    venv.pip_install_and_link buildpath
   end
 
   test do
