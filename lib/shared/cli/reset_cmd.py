@@ -8,6 +8,7 @@ from typing import Any
 import typer
 
 from shared.dry_run_core import RESET_GLOBAL_MANIFEST_SECTIONS, RESET_GLOBAL_PATHS, RESETTABLE_STAGES, run_reset_migration
+from shared.cli.error_handler import cli_error_handler
 from shared.cli.output import console, error, print_table, success, warn
 from shared.loader_io import clear_manifest_sandbox
 from shared.runtime_config import get_sandbox_name
@@ -58,14 +59,18 @@ def _teardown_sandbox_if_configured(root: Path) -> None:
     teardown_ok = False
     try:
         backend = _create_backend(manifest)
-        result = backend.sandbox_down(sandbox_db)
+        with cli_error_handler("tearing down sandbox database"):
+            result = backend.sandbox_down(sandbox_db)
         teardown_ok = result.status == "ok"
         if not teardown_ok:
             logger.warning(
                 "event=global_reset_sandbox_teardown_failed component=reset_cmd sandbox=%s status=%s",
                 sandbox_db, result.status,
             )
-    except (OSError, ConnectionError) as exc:
+    except typer.Exit:
+        # cli_error_handler raised Exit — treat as teardown failure and continue
+        pass
+    except Exception as exc:
         logger.warning(
             "event=global_reset_sandbox_teardown_failed component=reset_cmd sandbox=%s error=%s",
             sandbox_db, exc,
