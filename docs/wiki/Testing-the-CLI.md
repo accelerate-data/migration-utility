@@ -71,10 +71,6 @@ ad-migration setup-source --technology sql_server --schemas silver,gold
 
 # Verify artifacts written
 ls -la ddl/ catalog/tables/ manifest.json
-
-# Verify --no-commit skips git commit
-ad-migration setup-source --technology sql_server --schemas silver --no-commit
-git status  # should show untracked/modified files, not a clean tree
 ```
 
 ### setup-target
@@ -109,14 +105,14 @@ print('profile' in cat)  # False
 ### exclude-table / add-source-table
 
 ```bash
-ad-migration exclude-table silver.DimCurrency --no-commit
+ad-migration exclude-table silver.DimCurrency
 python3 -c "
 import json
 cat = json.load(open('catalog/tables/silver.dimcurrency.json'))
 print(cat.get('is_excluded'))  # True
 "
 
-ad-migration add-source-table silver.DimGeography --no-commit
+ad-migration add-source-table silver.DimGeography
 python3 -c "
 import json
 cat = json.load(open('catalog/tables/silver.dimgeography.json'))
@@ -138,17 +134,6 @@ Quick verification:
 # Should exit 1 (missing env vars)
 ad-migration setup-source --technology sql_server --schemas silver 2>/dev/null
 echo "exit: $?"
-```
-
-## CI integration
-
-The `--no-commit` and `--yes` flags make all commands CI-safe:
-
-```bash
-# Full setup pipeline, no prompts, no commits
-ad-migration setup-source --technology sql_server --schemas silver --no-commit
-ad-migration setup-target --technology fabric --no-commit
-ad-migration setup-sandbox --yes
 ```
 
 Use `set -e` or check `$?` after each step — exit codes are reliable.

@@ -17,7 +17,6 @@ ad-migration setup-source --technology oracle --schemas SH,HR
 | `--technology` | yes | `sql_server` or `oracle` |
 | `--schemas` | yes | Comma-separated list of schemas to extract |
 | `--project-root` | no | Defaults to current working directory |
-| `--no-commit` | no | Skip the automatic git commit after extraction |
 
 ## What it produces
 
@@ -31,7 +30,6 @@ ad-migration setup-source --technology oracle --schemas SH,HR
 2. Runs extraction via `run_extract`
 3. Writes `manifest.json`, `ddl/`, and `catalog/`
 4. Runs AST enrichment
-5. Commits extracted files (unless `--no-commit`)
 
 ## Prerequisites
 

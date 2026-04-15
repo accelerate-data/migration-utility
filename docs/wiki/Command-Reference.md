@@ -61,18 +61,7 @@ uv run --project lib ad-migration <command>
 | `ad-migration exclude-table` | Exclude tables or views from the active migration pipeline |
 | `ad-migration add-source-table` | Confirm tables as dbt sources (`is_source: true`) |
 
-## Git workflow scripts
-
-Shell scripts for git operations — called by Claude rules, also runnable directly.
-
-| Script | Purpose |
-|---|---|
-| `scripts/commit.sh` | Stage specific files and commit |
-| `scripts/commit-push-pr.sh` | Stage, commit, push, and open a PR |
-| `scripts/cleanup-worktrees.sh` | Remove merged worktrees and stale merged branches |
-
 ## Notes
 
-- Batch plugin commands use the git checkpoint flow and may create or reuse worktrees.
-- Successful items are committed as they complete.
 - Source-confirmed tables are skipped by downstream migration commands.
+- For the full ad-migration CLI reference including options, exit codes, and git workflow, see [[CLI Reference]].

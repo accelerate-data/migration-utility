@@ -12,7 +12,6 @@ ad-migration setup-target --technology fabric
 |---|---|---|
 | `--technology` | yes | `fabric`, `snowflake`, or `duckdb` |
 | `--source-schema` | no | Source schema for `sources.yml` (defaults to `bronze`) |
-| `--no-commit` | no | Skip the automatic git commit |
 
 ## Prerequisites
 
