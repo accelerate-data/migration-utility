@@ -15,14 +15,16 @@ from shared.cli.env_check import require_source_vars
 from shared.cli.git_ops import is_git_repo, stage_and_commit
 from shared.cli.output import console, error, print_table, success, warn
 from shared.init import run_scaffold_hooks, run_scaffold_project
-from shared.setup_ddl_support.extract import run_extract
+from shared.setup_ddl_support.extract import run_extract, run_list_schemas
 
 logger = logging.getLogger(__name__)
 
 
 def setup_source(
     technology: str = typer.Option(..., "--technology", help="Source technology: sql_server or oracle"),
-    schemas: str = typer.Option(..., "--schemas", help="Comma-separated schema names to extract (e.g. silver,gold)"),
+    schemas: str | None = typer.Option(None, "--schemas", help="Comma-separated schema names to extract (e.g. silver,gold)"),
+    all_schemas: bool = typer.Option(False, "--all-schemas", help="Discover and extract all schemas in the database"),
+    yes: bool = typer.Option(False, "--yes", "-y", help="Skip confirmation prompt (only applies to --all-schemas)"),
     no_commit: bool = typer.Option(False, "--no-commit", help="Skip git commit after extraction"),
     project_root: Path | None = typer.Option(None, "--project-root"),
 ) -> None:
@@ -31,7 +33,13 @@ def setup_source(
     Run /init-ad-migration (plugin command) first to install the CLI, check prerequisites, and scaffold project files.
     """
     root = project_root if project_root is not None else Path.cwd()
-    schema_list = [s.strip() for s in schemas.split(",") if s.strip()]
+
+    if schemas and all_schemas:
+        error("--schemas and --all-schemas are mutually exclusive. Use one or the other.")
+        raise typer.Exit(code=1)
+    if not schemas and not all_schemas:
+        error("Provide --schemas <list> or --all-schemas to extract every schema in the database.")
+        raise typer.Exit(code=1)
 
     require_source_vars(technology)
     _check_source_prereqs(technology)
@@ -50,6 +58,24 @@ def setup_source(
     )
 
     database = os.environ.get("MSSQL_DB") if technology == "sql_server" else None
+
+    if all_schemas:
+        discovered = run_list_schemas(root, database)
+        schema_list = [s["schema"] for s in discovered.get("schemas", [])]
+        if not schema_list:
+            error("No schemas found in the database. Verify the connection and database name.")
+            raise typer.Exit(code=1)
+        console.print(f"Discovered schemas: [bold]{', '.join(schema_list)}[/bold]")
+        if not yes:
+            confirmed = typer.confirm(
+                f"Extract all {len(schema_list)} schemas? This will overwrite existing DDL and catalog files.",
+                default=False,
+            )
+            if not confirmed:
+                console.print("Aborted.")
+                return
+    else:
+        schema_list = [s.strip() for s in (schemas or "").split(",") if s.strip()]
 
     console.print(f"Extracting DDL from schemas: [bold]{', '.join(schema_list)}[/bold]")
     with console.status("Extracting..."):
