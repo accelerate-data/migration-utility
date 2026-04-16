@@ -1,6 +1,6 @@
 # Refactor Error Codes
 
-Use only these surfaced codes for `/refactor` and `/refactoring-sql`.
+Use only these surfaced codes for `/refactor-query` and `/refactoring-sql`.
 
 ## Statuses
 
@@ -23,6 +23,6 @@ Use only these surfaced codes for `/refactor` and `/refactoring-sql`.
 
 ## Rules
 
-- Do not invent new surfaced `/refactor` codes in commands or skills.
+- Do not invent new surfaced `/refactor-query` codes in commands or skills.
 - `ok` requires semantic review to pass and executable compare to pass when compare is required.
 - Harness mode should normally persist `partial`, not `ok`.

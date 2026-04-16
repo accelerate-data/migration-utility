@@ -14,10 +14,10 @@ Plugin commands run inside Claude Code and handle LLM-driven pipeline stages.
 
 | Command | Purpose |
 |---|---|
-| `/scope` | Resolve writers for tables or analyze views |
-| `/profile` | Write migration profiles for tables, views, or MVs |
+| `/scope-tables` | Resolve writers for tables or analyze views |
+| `/profile-tables` | Write migration profiles for tables, views, or MVs |
 | `/generate-tests` | Generate and review test scenarios, then capture ground truth |
-| `/refactor` | Persist proof-backed import/logical/final refactors |
+| `/refactor-query` | Persist proof-backed import/logical/final refactors |
 | `/generate-model` | Generate dbt artifacts from approved refactors and tests |
 | `/status` | Show current readiness and the next best action |
 

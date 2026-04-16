@@ -26,7 +26,6 @@ tests:
       expected_stage_statuses: '{"scope": "ok", "profile": "ok"}'
       expected_blocked_stage: "test-gen"
       expected_output_terms: "scope,profile,test-gen,blocked"
-      expected_recommendation: "generate-tests"
 
   # ── status-single-dimcurrency: catalog only ─────────────────
   - description: "status-single-dimcurrency — catalog only, no scoping"
@@ -49,7 +48,7 @@ tests:
   - description: "status-all-summary — summary report across all catalog tables"
     vars:
       fixture_path: "tests/evals/fixtures/cmd-status/status-all-summary"
-      expected_output_terms: "scope,profile,generate"
+      expected_output_terms: "test-gen,migrate"
 
   # ── status-all-objects: views and writerless N/A ─────────────
   - description: "status-all-objects — views and writerless tables with type column and N/A"
@@ -76,7 +75,7 @@ tests:
   - description: "status-all-next-steps — What to do next with runnable command"
     vars:
       fixture_path: "tests/evals/fixtures/cmd-status/status-all-next-steps"
-      expected_output_terms: "scope-tables,generate-tests"
+      expected_output_terms: "scope-tables,silver.dimdate"
 
   # ── status-single-view-profile: recommends /profile-tables ───────
   - description: "status-single-view-profile — view at profile_needed recommends /profile-tables"

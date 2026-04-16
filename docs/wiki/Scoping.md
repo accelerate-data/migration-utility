@@ -1,6 +1,6 @@
 # Scoping
 
-`/scope` is the batch command for writer discovery and initial object analysis.
+`/scope-tables` is the batch command for writer discovery and initial object analysis.
 
 ## What it does
 
@@ -12,7 +12,7 @@ Internally, the command delegates each item to `/analyzing-table`, which auto-de
 ## Invocation
 
 ```text
-/scope silver.DimCustomer silver.DimProduct
+/scope-tables silver.DimCustomer silver.DimProduct
 ```
 
 ## Git behavior

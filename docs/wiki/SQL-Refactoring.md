@@ -1,6 +1,6 @@
 # SQL Refactoring
 
-`/refactor` restructures source SQL into import/logical/final CTE form and persists only proof-backed results.
+`/refactor-query` restructures source SQL into import/logical/final CTE form and persists only proof-backed results.
 
 ## Prerequisites
 
@@ -15,7 +15,7 @@ If the sandbox is unavailable or you explicitly skip executable compare, the com
 ## Invocation
 
 ```text
-/refactor silver.DimCustomer silver.FactInternetSales
+/refactor-query silver.DimCustomer silver.FactInternetSales
 ```
 
 ## Pipeline

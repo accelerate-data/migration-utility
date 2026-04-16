@@ -4,7 +4,7 @@ A plugin for [Claude Code](https://docs.anthropic.com/en/docs/claude-code) that 
 
 ## How it works
 
-You work inside **Claude Code**, an AI-powered CLI that runs in your terminal. You type natural language or `/` commands in a chat-style interface. The plugin adds migration-specific commands (like `/scope` and `/profile`) that the agent executes on your behalf -- reading your catalog, analyzing SQL, writing files, and committing results to git.
+You work inside **Claude Code**, an AI-powered CLI that runs in your terminal. You type natural language or `/` commands in a chat-style interface. The plugin adds migration-specific commands (like `/scope-tables` and `/profile-tables`) that the agent executes on your behalf -- reading your catalog, analyzing SQL, writing files, and committing results to git.
 
 There are also terminal CLI commands (like `ad-migration setup-source`) that you run directly in your shell, outside the Claude Code session. These handle deterministic setup tasks that don't need AI reasoning.
 
@@ -32,10 +32,10 @@ The workflow has two layers:
 ### Per-object migration
 
 ```text
-/scope
-  -> /profile
+/scope-tables
+  -> /profile-tables
   -> /generate-tests
-  -> /refactor
+  -> /refactor-query
   -> /generate-model
 ```
 
@@ -46,7 +46,7 @@ Batch commands create git worktrees to isolate their work and manage their own b
 | Mode | Entry point | Best for |
 |---|---|---|
 | Interactive | `/listing-objects`, `/analyzing-table`, `/profiling-table` | Exploring or fixing one object at a time |
-| Batch | `/scope`, `/profile`, `/generate-tests`, `/refactor`, `/generate-model` | Processing multiple objects with git automation |
+| Batch | `/scope-tables`, `/profile-tables`, `/generate-tests`, `/refactor-query`, `/generate-model` | Processing multiple objects with git automation |
 
 Both are typed as `/` commands inside a Claude Code session. Interactive commands work on a single object and wait for your input at decision points. Batch commands process a list of objects, commit each one as it finishes, and can open a PR at the end.
 
@@ -55,10 +55,10 @@ Both are typed as `/` commands inside a Claude Code session. Interactive command
 The plugin exposes these `/` commands inside Claude Code:
 
 - `/init-ad-migration`
-- `/scope`
-- `/profile`
+- `/scope-tables`
+- `/profile-tables`
 - `/generate-tests`
-- `/refactor`
+- `/refactor-query`
 - `/generate-model`
 - `/status`
 - `/cleanup-worktrees`

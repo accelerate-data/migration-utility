@@ -1,6 +1,6 @@
 # Profiling
 
-`/profile` produces the migration profile for each table, view, or materialized view.
+`/profile-tables` produces the migration profile for each table, view, or materialized view.
 
 ## What it answers
 
@@ -17,12 +17,12 @@ For views and materialized views, the profile classifies them for downstream mig
 ## Invocation
 
 ```text
-/profile silver.DimCustomer silver.FactInternetSales
+/profile-tables silver.DimCustomer silver.FactInternetSales
 ```
 
 ## Git behavior
 
-Like the other batch commands, `/profile` manages its own git workflow, commits successful items as they complete, and can open or update a PR at the end of the run.
+Like the other batch commands, `/profile-tables` manages its own git workflow, commits successful items as they complete, and can open or update a PR at the end of the run.
 
 ## Status values
 

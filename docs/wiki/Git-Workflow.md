@@ -4,7 +4,7 @@ The migration utility uses [git worktrees](https://git-scm.com/docs/git-worktree
 
 ## Worktrees
 
-Batch commands (`/scope`, `/profile`, `/generate-tests`, `/refactor`, `/generate-model`) create worktrees to isolate their work from the main working tree. This lets you run multiple commands in parallel without conflicts.
+Batch commands (`/scope-tables`, `/profile-tables`, `/generate-tests`, `/refactor-query`, `/generate-model`) create worktrees to isolate their work from the main working tree. This lets you run multiple commands in parallel without conflicts.
 
 Worktrees are created at `../worktrees/<branchName>` relative to the repo root. For feature branches, the full prefix is preserved:
 
@@ -15,7 +15,7 @@ Worktrees are created at `../worktrees/<branchName>` relative to the repo root. 
 For batch command worktrees, the branch name is derived from the command and tables:
 
 ```text
-../worktrees/feature/scope-silver-dimcustomer-silver-dimproduct
+../worktrees/feature/scope-tables-silver-dimcustomer-silver-dimproduct
 ```
 
 Batch commands create or reuse worktrees automatically. The worktree is bootstrapped with environment files and dependencies so it is ready to run immediately.
