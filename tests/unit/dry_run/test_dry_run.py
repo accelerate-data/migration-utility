@@ -591,6 +591,27 @@ def test_ready_source_table() -> None:
         assert result.object.code == "SOURCE_TABLE"
 
 
+def test_ready_seed_table() -> None:
+    """Seed table returns not_applicable with SEED_TABLE code."""
+    tmp, root = _make_project()
+    with tmp:
+        cat_path = root / "catalog" / "tables" / "silver.dimcustomer.json"
+        cat = json.loads(cat_path.read_text(encoding="utf-8"))
+        cat["is_source"] = False
+        cat["is_seed"] = True
+        cat["profile"] = {
+            "status": "ok",
+            "classification": {"resolved_kind": "seed", "source": "catalog"},
+        }
+        cat_path.write_text(json.dumps(cat), encoding="utf-8")
+        result = dry_run.run_ready(root, "profile", object_fqn="silver.DimCustomer")
+        assert isinstance(result, DryRunOutput)
+        assert result.ready is False
+        assert result.object is not None
+        assert result.object.reason == "not_applicable"
+        assert result.object.code == "SEED_TABLE"
+
+
 def test_ready_excluded_table() -> None:
     """Excluded table returns not_applicable."""
     tmp, root = _make_project()
