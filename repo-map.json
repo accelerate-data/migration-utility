@@ -101,7 +101,7 @@
     },
     "migration_commands": {
       "path": "commands/",
-      "description": "Stage-specific commands (LLM-driven only): scope.md, profile.md, generate-model.md, generate-tests.md, refactor.md, status.md. Deterministic setup and state-mutation commands have moved to the ad-migration CLI (lib/shared/cli/)."
+      "description": "Stage-specific commands (LLM-driven only): scope.md, profile.md, generate-model.md, generate-tests.md, refactor.md, status.md, review-diagnostics.md. Deterministic setup and state-mutation commands have moved to the ad-migration CLI (lib/shared/cli/)."
     },
     "tests_migration": {
       "path": "tests/unit/",

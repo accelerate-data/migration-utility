@@ -11,6 +11,7 @@ from typing import Any, Literal
 from pydantic import BaseModel, Field
 
 from shared.catalog import write_json
+from shared.env_config import resolve_catalog_dir
 
 REVIEW_ARTIFACT = "diagnostic-reviews.json"
 REVIEW_SCHEMA_VERSION = "1.0"
@@ -39,7 +40,7 @@ class ReviewedDiagnostic(DiagnosticIdentity):
 
 def review_artifact_path(project_root: Path) -> Path:
     """Return the project-local reviewed diagnostic artifact path."""
-    return project_root / "catalog" / REVIEW_ARTIFACT
+    return resolve_catalog_dir(project_root) / REVIEW_ARTIFACT
 
 
 def _message_hash(message: str | None) -> str:

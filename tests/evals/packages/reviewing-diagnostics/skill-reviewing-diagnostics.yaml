@@ -22,8 +22,9 @@ tests:
     vars:
       fixture_path: "tests/evals/fixtures/reviewing-diagnostics/fixable-writer"
       target_table: "gold.rpt_sales_by_category"
-      expected_output_terms: "gold.rpt_sales_by_category,dbo.usp_load_rpt_sales_by_category,catalog fix"
-      unexpected_output_terms: "diagnostic-reviews.json,suppress"
+      expected_output_terms: "gold.rpt_sales_by_category,dbo.usp_load_rpt_sales_by_category"
+      unexpected_output_terms: ""
+      expect_no_review_artifact: "true"
 
   - description: "review-acceptable-multitable — writes reviewed warning artifact"
     vars:

@@ -21,7 +21,7 @@ Ask for a table FQN if it is missing. Do not run this skill for all tables at on
 Run:
 
 ```bash
-uv run --project "${CLAUDE_PLUGIN_ROOT}/packages/ad-migration-internal" migrate-util batch-plan
+uv run --project "${CLAUDE_PLUGIN_ROOT}/packages/ad-migration-internal" migrate-util batch-plan --project-root <project-root>
 ```
 
 Find diagnostics where `fqn` matches the requested table.
@@ -29,8 +29,8 @@ Find diagnostics where `fqn` matches the requested table.
 Then load context:
 
 ```bash
-uv run --project "${CLAUDE_PLUGIN_ROOT}/packages/ad-migration-internal" discover show --name <fqn>
-uv run --project "${CLAUDE_PLUGIN_ROOT}/packages/ad-migration-internal" discover refs --name <fqn>
+uv run --project "${CLAUDE_PLUGIN_ROOT}/packages/ad-migration-internal" discover show --name <fqn> --project-root <project-root>
+uv run --project "${CLAUDE_PLUGIN_ROOT}/packages/ad-migration-internal" discover refs --name <fqn> --project-root <project-root>
 ```
 
 Also inspect the relevant catalog JSON files directly when needed:
@@ -54,6 +54,8 @@ Fix catalog state when diagnostics show wrong or stale catalog facts, for exampl
 Ask the user when multiple plausible catalog fixes exist and the catalog does not identify one clear correction.
 
 When one clear catalog correction exists, apply it. Do not ask permission to edit catalog files that the workflow owns.
+This workflow is non-interactive for clear catalog fixes: proceed, then report the
+catalog paths changed.
 
 Write a reviewed-warning artifact only when:
 

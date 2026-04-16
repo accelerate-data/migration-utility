@@ -12,6 +12,7 @@
 //   expected_recommendation?,   — term that should appear in the recommendation
 //   expected_na_object?,        — FQN that should appear with N/A status
 //   expected_view_objects?,     — comma-separated view FQNs that should appear in output
+//   expected_reviewed_warnings_hidden?, — numeric hidden reviewed warning count
 // }
 
 const { normalizeTerms } = require('./schema-helpers');
@@ -104,6 +105,20 @@ module.exports = (output, context) => {
         pass: false,
         score: 0,
         reason: `Expected recommendation containing '${rec}' not found in output`,
+      };
+    }
+  }
+
+  if (context.vars.expected_reviewed_warnings_hidden) {
+    const count = String(context.vars.expected_reviewed_warnings_hidden).trim();
+    const reviewedPattern = new RegExp(
+      `${count}\\s+reviewed\\s+warnings?\\s+hidden\\s+-\\s+inspect\\s+catalog/diagnostic-reviews\\.json`
+    );
+    if (!reviewedPattern.test(outputStr)) {
+      return {
+        pass: false,
+        score: 0,
+        reason: `Expected reviewed warnings hidden count '${count}' not found in output`,
       };
     }
   }

@@ -64,6 +64,30 @@ def test_write_and_load_reviewed_diagnostic_round_trips(tmp_path: Path) -> None:
     assert loaded[0].reason == "Reviewed table-specific slice; multi-table proc is intentional."
 
 
+def test_write_reviewed_diagnostic_honors_catalog_dir_override(tmp_path: Path, monkeypatch) -> None:
+    catalog_dir = tmp_path / "custom-catalog"
+    monkeypatch.setenv("CATALOG_DIR", str(catalog_dir))
+    identity = DiagnosticIdentity(
+        fqn="dim.dim_address",
+        object_type="table",
+        code="MULTI_TABLE_WRITE",
+        message_hash="sha256:abc123",
+    )
+
+    written = write_reviewed_diagnostic(
+        tmp_path,
+        ReviewedDiagnostic(
+            **identity.model_dump(),
+            status="accepted",
+            reason="Reviewed with catalog override.",
+            evidence=[],
+        ),
+    )
+
+    assert written == catalog_dir / "diagnostic-reviews.json"
+    assert load_reviewed_diagnostics(tmp_path)[0].reason == "Reviewed with catalog override."
+
+
 def test_partition_reviewed_warnings_hides_only_matching_accepted_reviews(tmp_path: Path) -> None:
     active = [
         {

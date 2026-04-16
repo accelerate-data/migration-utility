@@ -25,11 +25,21 @@ module.exports = (output, context) => {
     }
   }
 
+  const runPath = context.vars.run_path;
+  if (String(context.vars.expect_no_review_artifact || '').toLowerCase() === 'true') {
+    if (!runPath) {
+      return fail('run_path was not provided by the workspace extension');
+    }
+    const artifactPath = path.join(runPath, 'catalog', 'diagnostic-reviews.json');
+    if (fs.existsSync(artifactPath)) {
+      return fail(`Did not expect reviewed diagnostic artifact at ${artifactPath}`);
+    }
+  }
+
   if (String(context.vars.expect_review_artifact || '').toLowerCase() !== 'true') {
     return { pass: true, score: 1, reason: 'Reviewing diagnostics output validated' };
   }
 
-  const runPath = context.vars.run_path;
   if (!runPath) {
     return fail('run_path was not provided by the workspace extension');
   }

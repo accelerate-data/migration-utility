@@ -68,7 +68,8 @@ tests:
   - description: "status-reviewed-warning-hidden — hides one reviewed warning and shows remaining active warning"
     vars:
       fixture_path: "tests/evals/fixtures/cmd-status/status-reviewed-warning-hidden"
-      expected_output_terms: "reviewed warnings hidden,parse_error"
+      expected_output_terms: "reviewed,hidden,parse_error"
+      expected_reviewed_warnings_hidden: "1"
       unexpected_output_terms: "proc also writes dim.other"
 
   # ── status-writerless-dep: no blocked-by annotation ─────────────

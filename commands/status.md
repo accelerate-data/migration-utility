@@ -263,6 +263,8 @@ If `catalog_diagnostics.reviewed_warnings_hidden > 0`, add:
 N reviewed warnings hidden - inspect catalog/diagnostic-reviews.json for rationale.
 ```
 
+Render that line exactly, replacing `N` with the numeric hidden-warning count.
+
 ### Step 7 — Sources staleness check
 
 If `dbt/models/staging/sources.yml` exists and any table has `scope_needed` status, show:
