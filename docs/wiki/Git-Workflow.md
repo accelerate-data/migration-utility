@@ -1,10 +1,10 @@
 # Git Workflow
 
-The migration utility uses [git worktrees](https://git-scm.com/docs/git-worktree), structured branch names, and automatic per-table commits to keep multi-table batch work isolated and reviewable. A worktree is a second working copy of the repo that shares the same `.git` directory -- it lets batch commands work on a feature branch without disturbing your main checkout.
+The migration utility uses [git worktrees](https://git-scm.com/docs/git-worktree), structured branch names, and per-item commits to keep batch work isolated and reviewable when you choose a feature branch. A worktree is a second working copy of the repo that shares the same `.git` directory.
 
 ## Worktrees
 
-Batch commands (`/scope-tables`, `/profile-tables`, `/generate-tests`, `/refactor-query`, `/generate-model`) create worktrees to isolate their work from the main working tree. This lets you run multiple commands in parallel without conflicts.
+Batch commands (`/scope-tables`, `/profile-tables`, `/generate-tests`, `/refactor-query`, `/generate-model`) check your current branch before they write. If you are on the default branch, they ask whether to continue in place or create a feature branch with a worktree. If you are already on a feature branch, they use the current checkout.
 
 Worktrees are created at `../worktrees/<branchName>` relative to the repo root. For feature branches, the full prefix is preserved:
 
@@ -12,36 +12,37 @@ Worktrees are created at `../worktrees/<branchName>` relative to the repo root. 
 ../worktrees/feature/vu-354-scaffold-tauri-app
 ```
 
-For batch command worktrees, the branch name is derived from the command and tables:
+When a batch command creates a worktree, the branch name starts with `feature/` and uses the command's run slug:
 
 ```text
-../worktrees/feature/scope-tables-silver-dimcustomer-silver-dimproduct
+../worktrees/feature/scope-customer-dims
 ```
 
-Batch commands create or reuse worktrees automatically. The worktree is bootstrapped with environment files and dependencies so it is ready to run immediately.
+Created worktrees are bootstrapped with environment files and dependencies so they are ready to run immediately.
 
 ## Main-branch check
 
 Every batch command checks the current branch at startup. If you are on the default branch, the command asks whether to continue there or create a feature-branch worktree first.
 
-If you continue on the default branch, the command runs in the current checkout. If you create a manual worktree first, the command uses it automatically on the next invocation.
+If you continue on the default branch, the command runs in the current checkout. If you create a feature branch worktree, subsequent work in that run uses the new worktree path.
 
 ## Branch naming
 
 | Mode | Branch pattern | Created by |
 |---|---|---|
-| Interactive (skill) | Your current branch | You manage manually |
-| Multi-table (command) | `<command>-<table1>-<table2>-...` (truncated to 60 chars) | Command, before processing starts |
+| Interactive workflow | Your current branch | You manage manually |
+| Single-item batch command | `feature/<command>-<schema>-<name>` if you choose a worktree | Command, after confirmation |
+| Multi-item batch command | `feature/<short-run-slug>` if you choose a worktree | Command, after confirmation |
 
-Single-table skill invocations (`/analyzing-table`, `/profiling-table`, etc.) do not create branches. You work on whatever branch you are already on.
+Single-object interactive workflows (`/analyzing-table`, `/profiling-table`, etc.) do not create branches. You work on whatever branch you are already on.
 
-Multi-table commands create a branch and worktree automatically. Before creating a new one, the command scans for existing worktrees. If any are found, it lists them and asks whether to **continue on an existing worktree** (preserve prior work) or create a **new worktree**. This lets you build up work across multiple command invocations -- for example, scoping table A, then adding table B on the same branch. The branch name is built from the command name and the table names, truncated to 60 characters to stay within git limits.
+Batch commands generate deterministic run slugs for single objects and short descriptive run slugs for multi-object batches. If you choose the worktree option from the default-branch prompt, that slug becomes the feature branch suffix.
 
 ## Commit granularity
 
-Each table is committed automatically as soon as it reaches its final state in the loop — no batch approval step. Only items with status `ok` or `partial` are committed. Items with status `error` are reverted inline: `git checkout -- <files>` runs immediately after the failure, before processing the next table.
+Each item is committed as soon as it reaches a persisted non-error state in the loop. Items with status `error` are reverted inline before processing continues.
 
-Per-table commits are pushed to remote immediately after committing.
+Per-item commits are pushed to remote immediately after committing.
 
 ### Commit message format
 
@@ -52,9 +53,9 @@ Per-table commits are pushed to remote immediately after committing.
 Examples:
 
 ```text
-scope(silver.DimCustomer): resolve usp_load_dimcustomer as selected writer
-profile(silver.DimProduct): classify as dim_scd1 with surrogate key
-refactor(silver.DimCustomer): 4 CTEs, audit passed
+scope-tables(silver.DimCustomer): resolve usp_load_dimcustomer as selected writer
+profile-tables(silver.DimProduct): classify as dim_scd1 with surrogate key
+refactor-query(silver.DimCustomer): 4 CTEs, audit passed
 generate-model(silver.FactSales): stg_factsales + mart, incremental materialization
 ```
 
@@ -62,8 +63,8 @@ generate-model(silver.FactSales): stg_factsales + mart, incremental materializat
 
 Pull requests have titles derived from the command and tables processed:
 
-- **Title:** `<command>: <table1>, <table2>` (e.g. `scope: silver.DimCustomer, silver.DimProduct`)
-- **Body:** table-level summary from the run
+- **Title:** `<command>: <table1>, <table2>` (e.g. `scope-tables: silver.DimCustomer, silver.DimProduct`)
+- **Body:** created by the PR command; batch summaries remain in the command output and run logs
 
 At the end of each batch command, you are offered the option to open a PR:
 
@@ -76,16 +77,14 @@ PRs target the repo's default branch. The user reviews and merges — commands d
 
 ## Interactive vs multi-table differences
 
-| Aspect | Interactive (skill) | Multi-table (command) |
+| Aspect | Interactive workflow | Batch command |
 |---|---|---|
-| Branching | user's current branch | Auto-created branch + worktree |
-| Approval | Every step reviewed inline | Main-branch check at start; auto-commit per table |
+| Branching | user's current branch | Current branch, or feature worktree if selected |
+| Approval | Reviewed inline | Main-branch choice at start; per-item commits |
 | PR creation | user manages manually | Command offers PR at end |
 | Error handling | user handles directly | Inline revert per error, surface in summary |
 
 ## Committing and pushing
-
-The scaffolded migration repo does not include `scripts/commit.sh` or `scripts/commit-push-pr.sh`.
 
 Batch commands handle their own checkpoint commits and pushes as part of the command flow. For manual git work outside those commands, use normal git commands in the shell:
 
@@ -101,12 +100,12 @@ git push
 |---|---|
 | `catalog/tables/*.json` | `.migration-runs/` (`.gitignore`d) |
 | `catalog/procedures/*.json` | |
-| `test-specs/*.yml` | |
+| `test-specs/*.json` | |
 | `dbt/models/**/*.sql` | |
 | `dbt/models/**/*.yml` | |
 | `ddl/*.sql` (from setup, not per-batch) | |
 
-The `.migration-runs/` directory contains per-command execution metadata (timing, cost, per-item status). Each file includes a Unix epoch suffix (e.g. `silver.dimcustomer.1743868200.json`) so runs accumulate without overwriting. It is never committed. The latest run's summary is consumed at PR time for rich PR bodies.
+The `.migration-runs/` directory contains per-command execution metadata such as per-item status. Each file includes a run ID suffix so runs accumulate without overwriting. It is never committed.
 
 ## Cleaning up worktrees
 

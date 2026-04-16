@@ -25,7 +25,7 @@ You can also use natural language in your Claude Code session, such as "list tab
 - `manifest.json` must exist in the project root. If missing, run `ad-migration setup-source` first.
 - Catalog files must exist in `catalog/` (produced by `ad-migration setup-source`).
 
-This skill is read-only. It does not require a pipeline readiness check beyond having a valid project root and catalog files.
+This workflow is read-only. It does not require a pipeline readiness check beyond having a valid project root and catalog files.
 
 ## Pipeline
 
@@ -43,7 +43,7 @@ Each subcommand reads the local catalog files and presents results.
 - `show` -- full catalog state for the object (columns, refs, statements, scoping, profile)
 - `refs` -- grouped list of writers and readers
 
-If the user selects an object from `list`, the skill proceeds to `show`. If they ask what references it, proceeds to `refs`.
+If the user selects an object from `list`, the workflow proceeds to `show`. If they ask what references it, proceeds to `refs`.
 
 ## Reads
 
@@ -58,11 +58,11 @@ If the user selects an object from `list`, the skill proceeds to `show`. If they
 
 ## Writes
 
-None. This skill is strictly read-only.
+None. This workflow is strictly read-only.
 
 ## Output Details
 
-The sections below document the structured output returned by each subcommand. This is useful when you want to understand the exact fields available for a given object, but you do not need to memorize these schemas -- the skill presents results in a readable format during your session.
+The sections below document the structured output returned by each subcommand. This is useful when you want to understand the exact fields available for a given object, but you do not need to memorize these schemas -- the workflow presents results in a readable format during your session.
 
 ## JSON Format
 

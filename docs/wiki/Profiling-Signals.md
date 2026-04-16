@@ -1,6 +1,6 @@
 # Profiling Signals Reference
 
-Detailed signal tables and output field definitions for the six profiling questions answered by `/profiling-table`. See [[Profiling Table]] for the main skill documentation.
+Detailed signal tables and output field definitions for the six profiling questions answered by `/profiling-table`. See [[Profiling Table]] for the main workflow documentation.
 
 ## Q1 -- What kind of model is this? (Required)
 

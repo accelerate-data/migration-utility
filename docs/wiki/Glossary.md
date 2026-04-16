@@ -10,9 +10,9 @@ Domain terms used across the migration utility wiki.
 
 - **item_id** -- the canonical identifier for one table migration: `<schema>.<table>` (e.g. `silver.DimCustomer`). One table equals one migration item equals one dbt model. Used as the filename stem in catalog files, test specs, and run logs.
 
-- **run log** -- the `.migration-runs/` directory containing ephemeral per-command execution metadata (timing, cost, per-item status). Each file includes a Unix epoch suffix so runs accumulate without overwriting. `.gitignore`d and never committed. Consumed at commit/PR time for rich messages.
+- **run log** -- the `.migration-runs/` directory containing ephemeral per-command execution metadata such as per-item status. Each file includes a run ID suffix so runs accumulate without overwriting. `.gitignore`d and never committed.
 
-- **worktree** -- a git worktree created by batch commands for parallel execution. Lives at `../worktrees/<branchName>` relative to the repo root. Allows you to run multiple batch commands simultaneously without conflicts.
+- **worktree** -- a git worktree that batch commands can create when you choose the feature-branch option from the default-branch prompt. Lives at `../worktrees/<branchName>` relative to the repo root.
 
 ## Scoping
 
@@ -38,7 +38,6 @@ Domain terms used across the migration utility wiki.
 
 - **ground truth** -- actual output rows produced by executing a stored procedure in the sandbox with test fixtures. These rows are the expected results that the generated dbt model must reproduce. Captured during test generation and stored in the test spec.
 
-- **sandbox** -- a throwaway database (`__test_<random_hex>`) created by `ad-migration setup-sandbox` for executing stored procedures during test generation. Cloned from the source SQL Server's schema and procedures. Torn down via `ad-migration teardown-sandbox` after test generation is complete.
 - **sandbox** -- the temporary execution environment created by `ad-migration setup-sandbox` for ground-truth capture and proof-backed SQL checks. Its concrete form depends on the configured technology. Torn down via `ad-migration teardown-sandbox` when sandbox-backed work is complete.
 
 ## Migration
