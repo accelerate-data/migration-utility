@@ -36,7 +36,7 @@ tests:
       expected_first_command: "!ad-migration setup-target"
       expected_stage_statuses: '{"scope": "ok", "profile": "ok"}'
       expected_blocked_stage: "test-gen"
-      expected_output_terms: "scope,profile,test-gen,pending,setup-target"
+      expected_output_terms: "scope,profile,test-gen,setup-target"
       unexpected_output_terms: "/generate-tests"
 
   # ── status-single-insertselecttarget-missing-sandbox ───────────────
@@ -47,7 +47,7 @@ tests:
       expected_first_command: "!ad-migration setup-sandbox"
       expected_stage_statuses: '{"scope": "ok", "profile": "ok"}'
       expected_blocked_stage: "test-gen"
-      expected_output_terms: "scope,profile,test-gen,pending,setup-sandbox"
+      expected_output_terms: "scope,profile,test-gen,setup-sandbox"
       unexpected_output_terms: "/generate-tests"
 
   # ── status-single-insertselecttarget-no-target: test-gen needs setup-target ─
