@@ -400,6 +400,68 @@ def test_sources_yml_skips_unresolved_and_composite_relationships() -> None:
         tmp.cleanup()
 
 
+def test_sources_yml_skips_malformed_none_relationship_values() -> None:
+    """Malformed FK values with None schema/table/columns do not emit relationships tests."""
+    tmp, root = _make_project([
+        {
+            "schema": "bronze",
+            "name": "Customer",
+            "scoping": {"status": "no_writer_found"},
+            "is_source": True,
+            "columns": [{"name": "customer_id", "sql_type": "INT", "is_nullable": False}],
+        },
+        {
+            "schema": "bronze",
+            "name": "Order",
+            "scoping": {"status": "no_writer_found"},
+            "is_source": True,
+            "columns": [{"name": "customer_id", "sql_type": "INT", "is_nullable": False}],
+            "foreign_keys": [
+                {
+                    "constraint_name": "FK_Order_Customer_Schema_None",
+                    "columns": ["customer_id"],
+                    "referenced_schema": None,
+                    "referenced_table": "Customer",
+                    "referenced_columns": ["customer_id"],
+                },
+                {
+                    "constraint_name": "FK_Order_Customer_Table_None",
+                    "columns": ["customer_id"],
+                    "referenced_schema": "bronze",
+                    "referenced_table": None,
+                    "referenced_columns": ["customer_id"],
+                },
+                {
+                    "constraint_name": "FK_Order_Customer_Column_None",
+                    "columns": ["customer_id"],
+                    "referenced_schema": "bronze",
+                    "referenced_table": "Customer",
+                    "referenced_columns": [None],
+                },
+                {
+                    "constraint_name": "FK_Order_Customer_Local_None",
+                    "columns": [None],
+                    "referenced_schema": "bronze",
+                    "referenced_table": "Customer",
+                    "referenced_columns": ["customer_id"],
+                },
+            ],
+        },
+    ])
+    try:
+        result = generate_sources(root)
+        assert result.sources is not None
+        order_table = next(
+            table
+            for table in result.sources["sources"][0]["tables"]
+            if table["name"] == "Order"
+        )
+        customer_id = order_table["columns"][0]
+        assert customer_id["tests"] == ["not_null"]
+    finally:
+        tmp.cleanup()
+
+
 def test_write_sources_yml_creates_file(tmp_path) -> None:
     """write_sources_yml writes the file and returns the path."""
     tables_dir = tmp_path / "catalog" / "tables"

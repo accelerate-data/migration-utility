@@ -97,6 +97,13 @@ def _append_test(tests: list[Any], test: Any) -> None:
         tests.append(test)
 
 
+def _present_string(value: Any) -> str | None:
+    if not isinstance(value, str):
+        return None
+    text = value.strip()
+    return text or None
+
+
 def _single_column_constraint_columns(constraints: list[Any]) -> set[str]:
     columns: set[str] = set()
     for constraint in constraints:
@@ -121,8 +128,8 @@ def _relationship_tests_by_column(
             continue
         columns = fk.get("columns")
         referenced_columns = fk.get("referenced_columns")
-        referenced_schema = str(fk.get("referenced_schema", "")).lower()
-        referenced_table = str(fk.get("referenced_table", ""))
+        referenced_schema = _present_string(fk.get("referenced_schema"))
+        referenced_table = _present_string(fk.get("referenced_table"))
         if (
             not isinstance(columns, list)
             or not isinstance(referenced_columns, list)
@@ -132,11 +139,11 @@ def _relationship_tests_by_column(
             or not referenced_table
         ):
             continue
-        referenced_fqn = f"{referenced_schema}.{referenced_table.lower()}"
+        referenced_fqn = f"{referenced_schema.lower()}.{referenced_table.lower()}"
         if referenced_fqn not in confirmed_sources:
             continue
-        local_column = str(columns[0]).strip()
-        referenced_column = str(referenced_columns[0]).strip()
+        local_column = _present_string(columns[0])
+        referenced_column = _present_string(referenced_columns[0])
         if not local_column or not referenced_column:
             continue
         test = {
