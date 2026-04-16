@@ -102,6 +102,17 @@ def _runtime_role_is_configured(manifest: dict[str, Any], role: str) -> bool:
     return bool(connection)
 
 
+def _load_manifest_json(manifest_path: Path) -> dict[str, Any] | None:
+    try:
+        return json.loads(manifest_path.read_text(encoding="utf-8"))
+    except (json.JSONDecodeError, OSError) as exc:
+        logger.warning(
+            "event=manifest_parse_failed path=%s error=%s",
+            manifest_path, exc,
+        )
+        return None
+
+
 def _read_catalog_json(path: Path) -> dict[str, Any]:
     try:
         return json.loads(path.read_text(encoding="utf-8"))
@@ -125,16 +136,18 @@ def _project_stage_ready(project_root: Path, stage: str) -> ReadinessDetail:
         # is not required beyond the project already being initialized.
         return _detail(True, "ok")
 
-    try:
-        manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
-    except (json.JSONDecodeError, OSError) as exc:
-        logger.warning(
-            "event=manifest_parse_failed path=%s error=%s",
-            manifest_path, exc,
-        )
+    manifest = _load_manifest_json(manifest_path)
+    if manifest is None:
         return _detail(False, "manifest_missing")
 
-    if stage in {"test-gen", "refactor"}:
+    if stage == "test-gen":
+        if not _runtime_role_is_configured(manifest, "target"):
+            return _detail(False, "target_not_configured", "TARGET_NOT_CONFIGURED")
+        if not _runtime_role_is_configured(manifest, "sandbox"):
+            return _detail(False, "sandbox_not_configured", "SANDBOX_NOT_CONFIGURED")
+        return _detail(True, "ok")
+
+    if stage == "refactor":
         if not _runtime_role_is_configured(manifest, "sandbox"):
             return _detail(False, "sandbox_not_configured", "SANDBOX_NOT_CONFIGURED")
         return _detail(True, "ok")

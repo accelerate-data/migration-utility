@@ -93,6 +93,7 @@ Map the status values to table cells:
 - Status is `null` (section does not exist yet) AND it is the first null stage -- `pending`
 - Status is `null` AND a prior stage is null/pending -- `blocked`
 - Writerless table (`scoping.status == "no_writer_found"`) -- `N/A` for all stages after scope
+- The final pipeline stage label is always `migrate` in user-facing output. Do not label the column or stage as `generate`.
 
 ### Step 3 — Sync exclusion warnings and run batch planner
 
@@ -196,7 +197,10 @@ What to do next
   - If `scope_phase` is non-empty: current command is `/scope-tables <fqn1> <fqn2> ...` for all scope-phase FQNs.
   - Else if `profile_phase` is non-empty: current command is `/profile-tables <fqn1> <fqn2> ...`.
   - Else if `migrate_batches` is non-empty: use the first batch's `pipeline_status` to pick the command:
-    - `test_gen_needed` → `/generate-tests <fqn1> ...`
+    - `test_gen_needed` → first run `uv run --project "${CLAUDE_PLUGIN_ROOT}/packages/ad-migration-internal" migrate-util ready test-gen --project-root {{run_path}} --object <fqn1>`.
+      If the code is `TARGET_NOT_CONFIGURED`, current command is `!ad-migration setup-target`.
+      If it is `SANDBOX_NOT_CONFIGURED`, current command is `!ad-migration setup-sandbox`.
+      Only when readiness is `ok` is current command `/generate-tests <fqn1> ...`.
     - `refactor_needed` → `/refactor-query <fqn1> ...`
     - `migrate_needed` → `/generate-model <fqn1> ...`
   - If `circular_refs` is non-empty, append inline: `[N excluded — CIRCULAR_REFERENCE]`
@@ -264,6 +268,9 @@ N reviewed warnings hidden - inspect catalog/diagnostic-reviews.json for rationa
 ```
 
 Render that line exactly, replacing `N` with the numeric hidden-warning count.
+Do not list hidden reviewed warning codes, messages, affected objects, or
+rationales in `/status`; by definition those warnings have been acknowledged
+and should remain hidden unless the user opens `catalog/diagnostic-reviews.json`.
 
 ### Step 7 — Sources staleness check
 
@@ -354,6 +361,18 @@ uv run --project "${CLAUDE_PLUGIN_ROOT}/packages/ad-migration-internal" migrate-
 
 This returns a single object's stage statuses. For each stage, the status value and the actual catalog section content are included for the detail view.
 
+If this status output shows `test-gen` as the first incomplete stage or the next
+recommended phase, run the readiness check before rendering the final answer:
+
+```bash
+uv run --project "${CLAUDE_PLUGIN_ROOT}/packages/ad-migration-internal" migrate-util ready test-gen --project-root {{run_path}} --object <table>
+```
+
+The readiness JSON is authoritative for whether test generation can run now. If
+readiness is not `ok`, show the readiness failure on the `test-gen` stage and in
+the recommendation even when catalog sections, test specs, dbt files, or
+refactor artifacts already exist.
+
 ### Step 2 — Present per-stage breakdown
 
 For each stage, present the status and detail content:
@@ -412,14 +431,32 @@ For completed stages, show the key signals from the status detail content:
 
 Based on the first incomplete stage, recommend the specific command to run next for this table.
 
-If the first incomplete stage is `test-gen` and the status detail or diagnostic indicates the sandbox is missing or not running, recommend the CLI setup command explicitly before any plugin command:
+If the first incomplete stage is `test-gen`, treat readiness as a strict
+priority order and do not recommend `/generate-tests` until it is `ok`.
+You MUST run `migrate-util ready test-gen --project-root {{run_path}} --object
+<table>` for the table in focus and use that JSON as authoritative. Do not
+infer test-gen readiness from catalog sections, test specs, refactor status, or
+dbt files. If the code is `TARGET_NOT_CONFIGURED`, recommend `!ad-migration
+setup-target` and stop. If the code is `SANDBOX_NOT_CONFIGURED`, recommend
+`!ad-migration setup-sandbox` and stop.
 
-```text
-Sandbox is not ready for test generation.
-!ad-migration setup-sandbox
-```
+If `test-harness sandbox-status` fails with `MISSING_ENV_VARS` and its message
+says the password variable is defined in `.env` but not loaded in this Claude
+session, do not recommend `setup-sandbox`. Tell the user to restart Claude from
+the migration project directory after direnv has loaded the environment, then
+rerun `/status` or the blocked command. The sandbox already exists in
+`manifest.json`; recreating it will not fix a stale Claude process environment.
 
-For all object types (tables, views, MVs), route through the same stage commands: `profile_needed` → `/profile-tables <fqn>`, `test_gen_needed` → `/generate-tests <fqn>`, `refactor_needed` → `/refactor-query <fqn>`, `migrate_needed` → `/generate-model <fqn>`.
+If `test-harness sandbox-status` returns a true missing/not-running sandbox
+without stale-session `.env` guidance, recommend `!ad-migration setup-sandbox`
+and stop. Only recommend `/generate-tests <fqn>` after target setup, sandbox
+setup, and sandbox reachability are complete.
+
+For all object types (tables, views, MVs), route through the same stage
+commands: `profile_needed` → `/profile-tables <fqn>`, `test_gen_needed` →
+`/generate-tests <fqn>` only after `test-gen` readiness and sandbox reachability
+are ok, `refactor_needed` → `/refactor-query <fqn>`, `migrate_needed` →
+`/generate-model <fqn>`.
 
 ## Error handling
 

@@ -27,6 +27,22 @@ tests:
       expected_blocked_stage: "test-gen"
       expected_output_terms: "scope,profile,test-gen,blocked"
 
+  # ── status-single-insertselecttarget-no-target: test-gen needs setup-target ─
+  - description: "status-single-insertselecttarget-no-target — test-gen recommends setup-target before generate-tests"
+    vars:
+      fixture_path: "tests/evals/fixtures/cmd-status/status-single-insertselecttarget-no-target"
+      target_table: "silver.InsertSelectTarget"
+      expected_blocked_stage: "test-gen"
+      expected_output_terms: "setup-target"
+
+  # ── status-single-insertselecttarget-no-sandbox: test-gen needs setup-sandbox ─
+  - description: "status-single-insertselecttarget-no-sandbox — test-gen recommends setup-sandbox before generate-tests"
+    vars:
+      fixture_path: "tests/evals/fixtures/cmd-status/status-single-insertselecttarget-no-sandbox"
+      target_table: "silver.InsertSelectTarget"
+      expected_blocked_stage: "test-gen"
+      expected_output_terms: "setup-sandbox"
+
   # ── status-single-dimcurrency: catalog only ─────────────────
   - description: "status-single-dimcurrency — catalog only, no scoping"
     vars:
