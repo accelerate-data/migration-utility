@@ -93,3 +93,21 @@ def test_doctor_drivers_missing_driver_exits_one_with_maintainer_remediation(
     assert "Fix the public CLI package or Homebrew formula resources" in result.output
     assert "pip install" not in result.output
     assert "uv pip install" not in result.output
+
+
+def test_doctor_drivers_missing_sql_server_driver_exits_one_with_remediation(
+    tmp_path: Path,
+) -> None:
+    def _import_driver(name: str) -> object:
+        if name == "pyodbc":
+            raise ImportError("missing sql server driver")
+        return object()
+
+    with patch("shared.cli.doctor_drivers_cmd.importlib.import_module", side_effect=_import_driver):
+        result = runner.invoke(app, ["doctor", "drivers", "--project-root", str(tmp_path)])
+
+    assert result.exit_code == 1
+    assert "pyodbc" in result.output
+    assert "Fix the public CLI package or Homebrew formula resources" in result.output
+    assert "pip install" not in result.output
+    assert "uv pip install" not in result.output
