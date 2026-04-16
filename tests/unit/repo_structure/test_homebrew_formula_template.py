@@ -35,6 +35,8 @@ def test_render_formula_includes_shared_resource() -> None:
     assert 'resource "ad-migration-shared"' in formula
     assert 'resource "oracledb"' in formula
     assert 'resource "pyodbc"' in formula
+    assert 'resource "cryptography"' in formula
+    assert 'resource "cffi"' in formula
     assert 'resource "pydantic"' in formula
     assert 'resource "pydantic-core"' in formula
     assert 'resource "typer"' in formula
