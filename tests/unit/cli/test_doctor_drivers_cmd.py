@@ -111,3 +111,26 @@ def test_doctor_drivers_missing_sql_server_driver_exits_one_with_remediation(
     assert "Fix the public CLI package or Homebrew formula resources" in result.output
     assert "pip install" not in result.output
     assert "uv pip install" not in result.output
+
+
+def test_doctor_drivers_json_failure_reports_driver_remediation(tmp_path: Path) -> None:
+    def _import_driver(name: str) -> object:
+        if name == "pyodbc":
+            raise ImportError("missing sql server driver")
+        return object()
+
+    with patch("shared.cli.doctor_drivers_cmd.importlib.import_module", side_effect=_import_driver):
+        result = runner.invoke(app, ["doctor", "drivers", "--project-root", str(tmp_path), "--json"])
+
+    assert result.exit_code == 1
+    payload = json.loads(result.stdout)
+    assert payload["status"] == "error"
+    by_driver = {driver["driver_module"]: driver for driver in payload["drivers"]}
+    assert by_driver["pyodbc"]["importable"] is False
+    assert by_driver["pyodbc"]["remediation"] == (
+        "Fix the public CLI package or Homebrew formula resources so this driver is "
+        "bundled with the installed ad-migration runtime."
+    )
+    assert by_driver["oracledb"]["importable"] is True
+    assert "pip install" not in result.stdout
+    assert "uv pip install" not in result.stdout

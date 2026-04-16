@@ -184,3 +184,18 @@ def test_packaging_contract_matches_the_split_distribution_layout(tmp_path: Path
         cwd=venv_dir.parent,
     ).stdout
     assert "Usage:" in doctor_help
+
+    doctor_result = subprocess.run(
+        [str(venv_dir / "bin" / "ad-migration"), "doctor", "drivers", "--json"],
+        check=True,
+        capture_output=True,
+        text=True,
+        env=_subprocess_env(),
+        cwd=venv_dir.parent,
+    )
+    doctor_payload = json.loads(doctor_result.stdout)
+    assert doctor_payload["status"] == "ok"
+    assert {
+        (driver["driver_module"], driver["importable"])
+        for driver in doctor_payload["drivers"]
+    } == {("oracledb", True), ("pyodbc", True)}
