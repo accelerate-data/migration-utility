@@ -2,7 +2,7 @@ You are running an eval harness for `/profile-tables` in the fixture project at 
 
 Run `/profile-tables` for these tables: `{{target_tables}}`.
 
-Read `${CLAUDE_PLUGIN_ROOT}/commands/profile.md`, but treat the following harness rules as authoritative overrides for this eval. Do not ask clarifying questions. Do not pause for confirmation. Execute the task directly.
+Read `${CLAUDE_PLUGIN_ROOT}/commands/profile-tables.md`, but treat the following harness rules as authoritative overrides for this eval. Do not ask clarifying questions. Do not pause for confirmation. Execute the task directly.
 
 Harness overrides:
 - Treat `{{fixture_path}}` as read-only input. Write all generated files to `{{run_path}}`. Do not create or use a worktree.
