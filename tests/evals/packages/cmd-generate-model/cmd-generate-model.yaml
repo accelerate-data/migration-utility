@@ -26,7 +26,8 @@ tests:
       fixture_path: "tests/evals/fixtures/cmd-generate-model/happy-path"
       target_tables: "bronze.Product"
       target_table: "bronze.Product"
-      expected_output_terms: "marked as a dbt source,no migration needed"
+      expected_item_statuses: '{"bronze.Product": "skipped"}'
+      expected_output_terms: "skipped,is_source"
       expect_no_generated_model: "true"
     assert:
       - type: javascript
@@ -41,7 +42,8 @@ tests:
       fixture_path: "tests/evals/fixtures/cmd-generate-model/happy-path"
       target_tables: "bronze.Currency"
       target_table: "bronze.Currency"
-      expected_output_terms: "marked as a dbt seed,no migration needed"
+      expected_item_statuses: '{"bronze.Currency": "skipped"}'
+      expected_output_terms: "skipped,is_seed"
       expect_no_generated_model: "true"
     assert:
       - type: javascript
@@ -102,7 +104,7 @@ tests:
       target_tables: "silver.FactSales"
       target_table: "silver.FactSales"
       expected_item_statuses: '{"silver.FactSales": "ok,partial"}'
-      expected_model_path: "models/marts/fact_sales.sql"
+      expected_model_path: "models/marts/factsales.sql"
       expected_model_terms: "ref("
       forbidden_model_terms: "source('bronze'"
     assert:

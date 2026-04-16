@@ -15,10 +15,10 @@ Generate dbt models for a batch of tables. Launches one sub-agent per table in p
 ## Guards
 
 - `manifest.json` must exist. If missing, fail all items with `MANIFEST_NOT_FOUND`.
-- For each FQN argument: if `catalog/tables/<fqn>.json` has `"is_seed": true`, skip that table and print:
+- For each FQN argument: if `catalog/tables/<fqn>.json` has `"is_seed": true`, skip that table, write the workflow-exempt skip result described in Step 2, and print:
   > `<fqn>` is marked as a dbt seed -- no migration needed. Use `ad-migration add-seed-table` to manage seed tables.
-- For each FQN argument: if `catalog/tables/<fqn>.json` has `"is_source": true`, skip that table and print:
-  > `<fqn>` is marked as a dbt source — no migration needed. Use `ad-migration add-source-table` to manage source tables.
+- For each FQN argument: if `catalog/tables/<fqn>.json` has `"is_source": true`, skip that table, write the workflow-exempt skip result described in Step 2, and print:
+  > `<fqn>` is marked as a dbt source -- no migration needed. Use `ad-migration add-source-table` to manage source tables.
 - `dbt_project.yml` must exist at `./dbt/`. If missing, fail all items with `DBT_PROJECT_MISSING`.
 - `dbt/profiles.yml` must exist. If missing, fail all items with `DBT_PROFILE_MISSING` and tell the user to run `ad-migration setup-target`.
 - `dbt debug` must show "Connection test: OK". If it fails, fail all items with `DBT_CONNECTION_FAILED` and tell the user to check the resolved `runtime.target` credentials and endpoint in `manifest.json` and the matching `dbt/profiles.yml` configuration.
@@ -48,7 +48,25 @@ Use `TaskCreate` and `TaskUpdate` to show live progress. At the start of Step 2,
 
 Create `.migration-runs/` first if it does not already exist.
 
-**Idempotency check:** For each item, read `catalog/tables/<fqn>.json`. If `generate.status == "ok"` and the user did not explicitly request a rerun, skip fresh generation but still carry the item into Step 3 review using the existing written artifacts. Write a skip result:
+**Workflow-exempt source and seed check:** For each item, read
+`catalog/tables/<fqn>.json` before any idempotency check or model generation.
+If the catalog marks the table as a source or seed, do not invoke
+`/generating-model` or `/reviewing-model` for that item. Write one of these
+skip results to `.migration-runs/<schema.table>.<run_id>.json` and continue to
+the next item:
+
+```json
+{"item_id": "<fqn>", "status": "skipped", "output": {"skipped": true, "reason": "is_source", "message": "<fqn> is marked as a dbt source -- no migration needed. Use `ad-migration add-source-table` to manage source tables."}}
+```
+
+```json
+{"item_id": "<fqn>", "status": "skipped", "output": {"skipped": true, "reason": "is_seed", "message": "<fqn> is marked as a dbt seed -- no migration needed. Use `ad-migration add-seed-table` to manage seed tables."}}
+```
+
+**Idempotency check:** For each non-source, non-seed item, read
+`catalog/tables/<fqn>.json`. If `generate.status == "ok"` and the user did not
+explicitly request a rerun, skip fresh generation but still carry the item into
+Step 3 review using the existing written artifacts. Write a skip result:
 
 ```json
 {"item_id": "<fqn>", "status": "ok", "output": {"skipped": true, "reason": "model_already_generated"}}
@@ -72,7 +90,10 @@ Return the item result JSON.
 
 ### Step 3 — Review model
 
-For each item, read `.migration-runs/<item_id>.<run_id>.json` from Step 2. If `status` is `error`, skip the item. For each remaining item, invoke `/reviewing-model <item_id>`, including items whose Step 2 result was a skip.
+For each item, read `.migration-runs/<item_id>.<run_id>.json` from Step 2. If
+`status` is `error` or `skipped`, skip review for that item. For each remaining
+item, invoke `/reviewing-model <item_id>`, including items whose Step 2 result
+was an idempotency skip.
 
 - If verdict is `approved`: proceed to commit/revert below.
 - If Step 2 was a skip and review returns `error` because the persisted artifacts are missing or stale, invoke `/generating-model <item_id>` once to rebuild the artifacts, then invoke `/reviewing-model <item_id>` again.
@@ -102,7 +123,7 @@ In multi-table runs, the parent command owns review and commit/revert after each
 ### Step 4 — Summarize
 
 1. Read each `.migration-runs/<schema.table>.<run_id>.json`.
-2. Write `.migration-runs/summary.<run_id>.json` with `{total, ok, partial, error}` counts and per-item status.
+2. Write `.migration-runs/summary.<run_id>.json` with `{total, ok, partial, error, skipped}` counts and per-item status.
 3. Present human-readable summary:
 
    ```text
