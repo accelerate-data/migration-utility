@@ -36,6 +36,11 @@ logger = logging.getLogger(__name__)
 
 app = typer.Typer(add_completion=False, pretty_exceptions_enable=False)
 
+DEFAULT_SOURCE_FRESHNESS = {
+    "warn_after": {"count": 24, "period": "hour"},
+    "error_after": {"count": 48, "period": "hour"},
+}
+
 
 def _resolve_physical_source_schema(
     project_root: Path,
@@ -102,6 +107,20 @@ def _present_string(value: Any) -> str | None:
         return None
     text = value.strip()
     return text or None
+
+
+def _source_loaded_at_field(cat: dict[str, Any], columns: list[dict[str, Any]]) -> str | None:
+    profile = cat.get("profile")
+    if not isinstance(profile, dict):
+        return None
+    watermark = profile.get("watermark")
+    if not isinstance(watermark, dict):
+        return None
+    column = str(watermark.get("column", "")).strip()
+    if not column:
+        return None
+    emitted_columns = {str(entry["name"]).lower(): str(entry["name"]) for entry in columns}
+    return emitted_columns.get(column.lower())
 
 
 def _single_column_constraint_columns(constraints: list[Any]) -> set[str]:
@@ -297,6 +316,10 @@ def generate_sources(
             columns = _build_source_columns(cat, confirmed_sources)
             if columns:
                 table_entry["columns"] = columns
+            loaded_at_field = _source_loaded_at_field(cat, columns)
+            if loaded_at_field:
+                table_entry["loaded_at_field"] = loaded_at_field
+                table_entry["freshness"] = DEFAULT_SOURCE_FRESHNESS
             tables.append(table_entry)
         source_entry: dict[str, Any] = {
             "name": schema_name,

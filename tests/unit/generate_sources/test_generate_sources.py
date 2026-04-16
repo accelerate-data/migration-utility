@@ -260,6 +260,57 @@ def test_sources_yml_includes_catalog_columns_types_and_not_null_tests() -> None
         tmp.cleanup()
 
 
+def test_sources_yml_uses_profile_watermark_for_freshness_when_column_exists() -> None:
+    """profile.watermark.column becomes loaded_at_field only when it is an emitted source column."""
+    tmp, root = _make_project([
+        {
+            "schema": "bronze",
+            "name": "Customer",
+            "scoping": {"status": "no_writer_found"},
+            "is_source": True,
+            "columns": [
+                {"name": "customer_id", "sql_type": "INT", "is_nullable": False},
+                {"name": "loaded_at", "sql_type": "DATETIME2", "is_nullable": False},
+            ],
+            "profile": {"watermark": {"column": "loaded_at", "source": "llm"}},
+        },
+    ])
+    try:
+        result = generate_sources(root)
+        assert result.sources is not None
+        table = result.sources["sources"][0]["tables"][0]
+        assert table["loaded_at_field"] == "loaded_at"
+        assert table["freshness"] == {
+            "warn_after": {"count": 24, "period": "hour"},
+            "error_after": {"count": 48, "period": "hour"},
+        }
+    finally:
+        tmp.cleanup()
+
+
+def test_sources_yml_skips_freshness_without_usable_profile_watermark() -> None:
+    """Change-capture flags and missing watermark columns do not emit source freshness."""
+    tmp, root = _make_project([
+        {
+            "schema": "bronze",
+            "name": "Customer",
+            "scoping": {"status": "no_writer_found"},
+            "is_source": True,
+            "columns": [{"name": "customer_id", "sql_type": "INT", "is_nullable": False}],
+            "profile": {"watermark": {"column": "missing_loaded_at", "source": "llm"}},
+            "change_capture": {"enabled": True, "mechanism": "change_tracking"},
+        },
+    ])
+    try:
+        result = generate_sources(root)
+        assert result.sources is not None
+        table = result.sources["sources"][0]["tables"][0]
+        assert "loaded_at_field" not in table
+        assert "freshness" not in table
+    finally:
+        tmp.cleanup()
+
+
 def test_sources_yml_adds_unique_for_single_column_pk_and_unique_index() -> None:
     """Single-column primary keys and unique indexes emit unique tests."""
     tmp, root = _make_project([
