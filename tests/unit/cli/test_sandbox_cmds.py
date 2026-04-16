@@ -347,7 +347,7 @@ def test_setup_sandbox_calls_require_sandbox_vars(tmp_path):
 
 
 def test_setup_sandbox_writes_connection_to_manifest(tmp_path):
-    """setup-sandbox must write sandbox connection to manifest before creating backend."""
+    """setup-sandbox writes refreshed connection metadata after successful provisioning."""
     _write_manifest(tmp_path)
     manifest = {
         "runtime": {
