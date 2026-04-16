@@ -11,7 +11,8 @@ from pathlib import Path
 
 REPO_ROOT = Path(__file__).resolve().parents[1]
 TEMPLATE_PATH = REPO_ROOT / "scripts" / "templates" / "homebrew" / "Formula" / "ad-migration.rb.tmpl"
-LOCK_PATH = REPO_ROOT / "lib" / "uv.lock"
+LOCK_PATH = REPO_ROOT / "packages" / "ad-migration-cli" / "uv.lock"
+ROOT_PACKAGES_WITH_SEPARATE_RESOURCES = {"ad-migration-cli", "ad-migration-shared"}
 logger = logging.getLogger(__name__)
 
 
@@ -31,41 +32,56 @@ def _load_lock(*, run_id: str = "-") -> dict[str, object]:
     return lock
 
 
+def _dependency_extras(dependency: dict[str, object]) -> tuple[str, ...]:
+    extras = dependency.get("extra", dependency.get("extras", []))
+    if isinstance(extras, list):
+        return tuple(sorted(str(extra) for extra in extras))
+    return ()
+
+
+def _package_dependencies(package: dict[str, object], extras: tuple[str, ...]) -> list[dict[str, object]]:
+    dependencies = list(package.get("dependencies", []))
+    optional_dependencies = package.get("optional-dependencies", {})
+    if isinstance(optional_dependencies, dict):
+        for extra in extras:
+            dependencies.extend(optional_dependencies.get(extra, []))
+    return dependencies
+
+
 def _runtime_resource_packages(*, run_id: str = "-") -> list[dict[str, str]]:
     lock = _load_lock(run_id=run_id)
     packages = {pkg["name"]: pkg for pkg in lock["package"]}
-    resources: list[dict[str, str]] = []
-    seen = {"ad-migration-shared"}
-    queue = ["ad-migration-shared"]
+    resources: dict[str, dict[str, str]] = {}
+    processed: set[tuple[str, tuple[str, ...]]] = set()
+    queue: list[tuple[str, tuple[str, ...]]] = [("ad-migration-cli", ())]
 
     while queue:
-        package_name = queue.pop(0)
+        package_name, extras = queue.pop(0)
+        key = (package_name, extras)
+        if key in processed:
+            continue
+        processed.add(key)
         package = packages[package_name]
-        for dependency in package.get("dependencies", []):
-            dep_name = dependency["name"]
-            if dep_name in seen:
-                continue
-            seen.add(dep_name)
-            dep_package = packages[dep_name]
-            queue.append(dep_name)
-            sdist = dep_package.get("sdist")
+        if package_name not in ROOT_PACKAGES_WITH_SEPARATE_RESOURCES and package_name not in resources:
+            sdist = package.get("sdist")
             if not sdist:
-                raise RuntimeError(f"No sdist metadata found for {dep_name}")
-            resources.append(
-                {
-                    "name": dep_name,
-                    "url": sdist["url"],
-                    "sha256": sdist["hash"].removeprefix("sha256:"),
-                }
-            )
+                raise RuntimeError(f"No sdist metadata found for {package_name}")
+            resources[package_name] = {
+                "name": package_name,
+                "url": sdist["url"],
+                "sha256": sdist["hash"].removeprefix("sha256:"),
+            }
+        for dependency in _package_dependencies(package, extras):
+            dep_name = dependency["name"]
+            queue.append((dep_name, _dependency_extras(dependency)))
 
-    resources = sorted(resources, key=lambda resource: resource["name"])
+    sorted_resources = sorted(resources.values(), key=lambda resource: resource["name"])
     logger.info(
         "event=homebrew_resource_resolution component=homebrew_tap operation=resolve_resources status=success run_id=%s resource_count=%s",
         run_id,
-        len(resources),
+        len(sorted_resources),
     )
-    return resources
+    return sorted_resources
 
 
 def _render_python_resources(resources: list[dict[str, str]]) -> str:

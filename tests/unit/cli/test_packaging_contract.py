@@ -174,3 +174,13 @@ def test_packaging_contract_matches_the_split_distribution_layout(tmp_path: Path
     version, discover_help = _run_installed_smoke(venv_dir)
     assert version == "0.1.0"
     assert "Usage:" in discover_help
+
+    doctor_help = subprocess.run(
+        [str(venv_dir / "bin" / "ad-migration"), "doctor", "drivers", "--help"],
+        check=True,
+        capture_output=True,
+        text=True,
+        env=_subprocess_env(),
+        cwd=venv_dir.parent,
+    ).stdout
+    assert "Usage:" in doctor_help
