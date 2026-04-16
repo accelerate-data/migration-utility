@@ -6,7 +6,12 @@ from typer.testing import CliRunner
 
 import shared.cli.error_handler as _err_mod
 from shared.cli.main import app
-from shared.output_models.sandbox import SandboxDownOutput, SandboxUpOutput
+from shared.cli.setup_sandbox_cmd import _write_sandbox_connection_to_manifest
+from shared.output_models.sandbox import (
+    SandboxDownOutput,
+    SandboxStatusOutput,
+    SandboxUpOutput,
+)
 
 runner = CliRunner()
 
@@ -53,6 +58,108 @@ def test_setup_sandbox_runs_sandbox_up(tmp_path):
     assert result.exit_code == 0, result.output
     mock_backend.sandbox_up.assert_called_once()
     assert "Review and commit the repo changes before continuing" in result.output
+
+
+def test_setup_sandbox_resets_existing_canonical_sandbox(tmp_path):
+    _write_manifest(tmp_path, with_sandbox=True)
+    manifest = {
+        "runtime": {
+            "sandbox": {
+                "technology": "sql_server",
+                "dialect": "tsql",
+                "connection": {"database": "__test_existing"},
+            }
+        }
+    }
+    mock_backend = MagicMock()
+    mock_backend.sandbox_status.return_value = SandboxStatusOutput(
+        sandbox_database="__test_existing",
+        status="ok",
+        exists=True,
+    )
+    mock_backend.sandbox_reset.return_value = _SANDBOX_UP_OUT.model_copy(
+        update={"sandbox_database": "__test_existing"}
+    )
+
+    with (
+        patch("shared.cli.setup_sandbox_cmd._load_manifest", return_value=manifest),
+        patch("shared.cli.setup_sandbox_cmd._get_sandbox_technology", return_value="sql_server"),
+        patch("shared.cli.setup_sandbox_cmd.require_sandbox_vars"),
+        patch("shared.cli.setup_sandbox_cmd._write_sandbox_connection_to_manifest", return_value=manifest),
+        patch("shared.cli.setup_sandbox_cmd._create_backend", return_value=mock_backend),
+        patch("shared.cli.setup_sandbox_cmd._get_schemas", return_value=["silver"]),
+        patch("shared.cli.setup_sandbox_cmd._write_sandbox_to_manifest") as mock_write_sandbox,
+    ):
+        result = runner.invoke(app, ["setup-sandbox", "--yes", "--project-root", str(tmp_path)])
+
+    assert result.exit_code == 0, result.output
+    mock_backend.sandbox_status.assert_called_once_with("__test_existing")
+    mock_backend.sandbox_reset.assert_called_once_with("__test_existing", schemas=["silver"])
+    mock_backend.sandbox_up.assert_not_called()
+    mock_write_sandbox.assert_called_once_with(tmp_path, "__test_existing")
+
+
+def test_setup_sandbox_creates_new_when_canonical_sandbox_not_found(tmp_path):
+    _write_manifest(tmp_path, with_sandbox=True)
+    manifest = {
+        "runtime": {
+            "sandbox": {
+                "technology": "sql_server",
+                "dialect": "tsql",
+                "connection": {"database": "__test_missing"},
+            }
+        },
+        "sandbox": {"database": "__test_legacy_ignored"},
+    }
+    mock_backend = MagicMock()
+    mock_backend.sandbox_status.return_value = SandboxStatusOutput(
+        sandbox_database="__test_missing",
+        status="not_found",
+        exists=False,
+    )
+    mock_backend.sandbox_up.return_value = _SANDBOX_UP_OUT
+
+    with (
+        patch("shared.cli.setup_sandbox_cmd._load_manifest", return_value=manifest),
+        patch("shared.cli.setup_sandbox_cmd._get_sandbox_technology", return_value="sql_server"),
+        patch("shared.cli.setup_sandbox_cmd.require_sandbox_vars"),
+        patch("shared.cli.setup_sandbox_cmd._write_sandbox_connection_to_manifest", return_value=manifest),
+        patch("shared.cli.setup_sandbox_cmd._create_backend", return_value=mock_backend),
+        patch("shared.cli.setup_sandbox_cmd._get_schemas", return_value=["silver"]),
+        patch("shared.cli.setup_sandbox_cmd._write_sandbox_to_manifest") as mock_write_sandbox,
+    ):
+        result = runner.invoke(app, ["setup-sandbox", "--yes", "--project-root", str(tmp_path)])
+
+    assert result.exit_code == 0, result.output
+    mock_backend.sandbox_status.assert_called_once_with("__test_missing")
+    mock_backend.sandbox_reset.assert_not_called()
+    mock_backend.sandbox_up.assert_called_once_with(schemas=["silver"])
+    mock_write_sandbox.assert_called_once_with(tmp_path, "__test_abc123")
+
+
+def test_write_sandbox_connection_preserves_existing_canonical_name_and_ignores_legacy(tmp_path, monkeypatch):
+    manifest = {
+        "runtime": {
+            "sandbox": {
+                "technology": "sql_server",
+                "dialect": "tsql",
+                "connection": {"database": "__test_existing"},
+            }
+        },
+        "sandbox": {"database": "__test_legacy_ignored"},
+    }
+    (tmp_path / "manifest.json").write_text(json.dumps(manifest), encoding="utf-8")
+    monkeypatch.setenv("SANDBOX_MSSQL_HOST", "127.0.0.1")
+    monkeypatch.setenv("SANDBOX_MSSQL_PORT", "1433")
+    monkeypatch.setenv("SANDBOX_MSSQL_USER", "sa")
+    monkeypatch.setenv("MSSQL_DRIVER", "ODBC Driver 18 for SQL Server")
+
+    updated = _write_sandbox_connection_to_manifest(tmp_path, manifest, "sql_server")
+
+    connection = updated["runtime"]["sandbox"]["connection"]
+    assert connection["database"] == "__test_existing"
+    assert connection["host"] == "127.0.0.1"
+    assert updated["sandbox"]["database"] == "__test_legacy_ignored"
 
 
 def test_teardown_sandbox_requires_confirmation(tmp_path):

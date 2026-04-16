@@ -46,6 +46,18 @@ def _get_sandbox_technology(manifest: dict[str, Any]) -> str:
     return sandbox_role.technology
 
 
+def _get_configured_sandbox_name(manifest: dict[str, Any]) -> str | None:
+    """Return only the canonical runtime sandbox name."""
+    sandbox_role = get_runtime_role(manifest, "sandbox")
+    if sandbox_role is None:
+        return None
+    if sandbox_role.technology == "sql_server":
+        return sandbox_role.connection.database
+    if sandbox_role.technology == "oracle":
+        return sandbox_role.connection.schema_name
+    return None
+
+
 def _write_sandbox_connection_to_manifest(
     root: Path, manifest: dict[str, Any], technology: str
 ) -> dict[str, Any]:
@@ -58,6 +70,7 @@ def _write_sandbox_connection_to_manifest(
         connection = RuntimeConnection(
             host=os.environ.get("SANDBOX_MSSQL_HOST") or None,
             port=os.environ.get("SANDBOX_MSSQL_PORT") or None,
+            database=sandbox_role.connection.database,
             user=os.environ.get("SANDBOX_MSSQL_USER") or None,
             password_env="SANDBOX_MSSQL_PASSWORD",
             driver=os.environ.get("MSSQL_DRIVER", "FreeTDS") or None,
@@ -67,6 +80,7 @@ def _write_sandbox_connection_to_manifest(
             host=os.environ.get("SANDBOX_ORACLE_HOST") or None,
             port=os.environ.get("SANDBOX_ORACLE_PORT") or None,
             service=os.environ.get("SANDBOX_ORACLE_SERVICE") or None,
+            schema_name=sandbox_role.connection.schema_name,
             user=os.environ.get("SANDBOX_ORACLE_USER") or None,
             password_env="SANDBOX_ORACLE_PASSWORD",
         )
@@ -120,11 +134,31 @@ def setup_sandbox(
             raise typer.Exit(code=0)
 
     backend = _create_backend(manifest)
+    sandbox_database = _get_configured_sandbox_name(manifest)
 
-    console.print(f"Provisioning sandbox for schemas: [bold]{', '.join(schemas)}[/bold]...")
-    with console.status("Running sandbox_up..."):
-        with cli_error_handler("provisioning sandbox database"):
-            result = backend.sandbox_up(schemas=schemas)
+    if sandbox_database:
+        console.print(f"Checking sandbox: [bold]{sandbox_database}[/bold]...")
+        with console.status("Checking existing sandbox..."):
+            with cli_error_handler("checking existing sandbox database"):
+                status = backend.sandbox_status(sandbox_database)
+
+        if status.exists:
+            console.print(f"Resetting sandbox: [bold]{sandbox_database}[/bold]...")
+            with console.status("Running sandbox_reset..."):
+                with cli_error_handler("resetting sandbox database"):
+                    result = backend.sandbox_reset(sandbox_database, schemas=schemas)
+        else:
+            console.print(
+                f"Configured sandbox [bold]{sandbox_database}[/bold] was not found; creating a new sandbox..."
+            )
+            with console.status("Running sandbox_up..."):
+                with cli_error_handler("provisioning sandbox database"):
+                    result = backend.sandbox_up(schemas=schemas)
+    else:
+        console.print(f"Provisioning sandbox for schemas: [bold]{', '.join(schemas)}[/bold]...")
+        with console.status("Running sandbox_up..."):
+            with cli_error_handler("provisioning sandbox database"):
+                result = backend.sandbox_up(schemas=schemas)
 
     logger.info(
         "event=sandbox_up status=%s sandbox_database=%s tables=%d views=%d procedures=%d errors=%d",
