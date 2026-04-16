@@ -38,6 +38,12 @@ table was already marked as a seed table, the command flips it from `is_seed: tr
 Both commands require an existing analyzed table catalog entry. They do not create dbt seed CSV
 files or source YAML.
 
+## Target Setup
+
+`ad-migration setup-target` exports confirmed seed tables from the configured source database into
+`dbt/seeds/<table>.csv`, then runs `dbt seed` with the generated project and profile. Seed tables
+materialize in the configured target source schema, which defaults to `bronze`.
+
 ## Profiling Semantics
 
 Profiling a seed table must persist a profile that records seed semantics instead of applying the

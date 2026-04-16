@@ -5,11 +5,15 @@ from __future__ import annotations
 import json
 import logging
 import os
+import subprocess
+from csv import writer as csv_writer
 from dataclasses import dataclass
+from io import StringIO
 from pathlib import Path
 
 from shared.dbops import ColumnSpec, get_dbops
 from shared.generate_sources import generate_sources, write_sources_yml
+from shared.name_resolver import model_name_from_table, normalize
 from shared.output_models.generate_sources import GenerateSourcesOutput
 from shared.output_models.target_setup import SetupTargetOutput
 from shared.runtime_config import dialect_for_technology, get_runtime_role
@@ -112,12 +116,53 @@ class TargetApplyResult:
     existing_tables: list[str]
 
 
+@dataclass(frozen=True)
+class SeedTableSpec:
+    """One catalog seed table that should be exported as a dbt seed CSV."""
+
+    logical_schema: str
+    table_name: str
+    columns: list[str]
+
+    @property
+    def fqn(self) -> str:
+        return f"{self.logical_schema}.{self.table_name.lower()}"
+
+    @property
+    def seed_name(self) -> str:
+        return model_name_from_table(self.fqn)
+
+
+@dataclass(frozen=True)
+class SeedExportResult:
+    """Outcome of exporting dbt seed CSV files from source tables."""
+
+    files: list[str]
+    row_counts: dict[str, int]
+
+
+@dataclass(frozen=True)
+class DbtSeedResult:
+    """Outcome of invoking dbt seed for exported seed CSV files."""
+
+    ran: bool
+    command: list[str]
+
+
 def _require_target_role(project_root: Path) -> RuntimeRole:
     manifest = read_manifest_strict(project_root)
     target_role = get_runtime_role(manifest, "target")
     if target_role is None:
         raise ValueError("manifest.json is missing runtime.target. Run /setup-target first.")
     return target_role
+
+
+def _require_source_role(project_root: Path) -> RuntimeRole:
+    manifest = read_manifest_strict(project_root)
+    source_role = get_runtime_role(manifest, "source")
+    if source_role is None:
+        raise ValueError("manifest.json is missing runtime.source. Run /setup-source first.")
+    return source_role
 
 
 def get_target_source_schema(project_root: Path, default: str = "bronze") -> str:
@@ -179,7 +224,6 @@ def _render_profiles_yml(profile_name: str, target_role: RuntimeRole, target_sou
         host = connection.host or "localhost"
         port = connection.port or "1521"
         service = connection.service or "FREEPDB1"
-        schema = connection.schema_name or user
         return (
             f"{profile_name}:\n"
             "  target: dev\n"
@@ -191,7 +235,7 @@ def _render_profiles_yml(profile_name: str, target_role: RuntimeRole, target_sou
             f"      service: \"{service}\"\n"
             f"      user: \"{user}\"\n"
             f"      password: \"{{{{ env_var('{password_env}') }}}}\"\n"
-            f"      schema: \"{schema}\"\n"
+            f"      schema: \"{target_source_schema}\"\n"
             "      threads: 4\n"
         )
     raise ValueError(f"Unsupported target technology: {technology}")
@@ -205,6 +249,7 @@ def _render_dbt_project_yml(profile_name: str) -> str:
         f"profile: \"{profile_name}\"\n\n"
         "model-paths: [\"models\"]\n"
         "snapshot-paths: [\"snapshots\"]\n"
+        "seed-paths: [\"seeds\"]\n"
         "macro-paths: [\"macros\"]\n"
         "test-paths: [\"tests\"]\n"
         "target-path: \"target\"\n"
@@ -220,7 +265,7 @@ def scaffold_target_project(project_root: Path) -> list[str]:
     dbt_root = project_root / "dbt"
     created_or_updated: list[str] = []
 
-    for relative_dir in ("models/staging", "macros", "snapshots", "tests"):
+    for relative_dir in ("models/staging", "macros", "seeds", "snapshots", "tests"):
         (dbt_root / relative_dir).mkdir(parents=True, exist_ok=True)
 
     dbt_project_path = dbt_root / "dbt_project.yml"
@@ -281,6 +326,128 @@ def _load_source_table_specs(project_root: Path) -> list[TargetTableSpec]:
     return specs
 
 
+def _load_seed_table_specs(project_root: Path) -> list[SeedTableSpec]:
+    tables_dir = project_root / "catalog" / "tables"
+    if not tables_dir.is_dir():
+        return []
+
+    specs: list[SeedTableSpec] = []
+    seen_seed_names: dict[str, str] = {}
+    for table_file in sorted(tables_dir.glob("*.json")):
+        payload = json.loads(table_file.read_text(encoding="utf-8"))
+        if payload.get("excluded") or payload.get("is_seed") is not True:
+            continue
+        logical_schema = str(payload.get("schema", "")).lower()
+        table_name = str(payload.get("name", ""))
+        if not logical_schema or not table_name:
+            continue
+        fqn = normalize(f"{logical_schema}.{table_name}")
+        seed_name = model_name_from_table(fqn)
+        if existing_fqn := seen_seed_names.get(seed_name):
+            raise ValueError(
+                f"Seed table {fqn!r} maps to dbt seed name {seed_name!r}, "
+                f"which is already used by {existing_fqn!r}."
+            )
+        seen_seed_names[seed_name] = fqn
+        columns = [
+            str(column["name"])
+            for column in payload.get("columns", [])
+            if isinstance(column, dict) and column.get("name")
+        ]
+        specs.append(
+            SeedTableSpec(
+                logical_schema=logical_schema,
+                table_name=table_name,
+                columns=columns,
+            )
+        )
+    return specs
+
+
+def _render_seed_csv(columns: list[str], rows: list[tuple[object, ...]]) -> str:
+    buffer = StringIO()
+    writer = csv_writer(buffer, lineterminator="\n")
+    writer.writerow(columns)
+    writer.writerows(rows)
+    return buffer.getvalue()
+
+
+def export_seed_tables(project_root: Path) -> SeedExportResult:
+    """Export confirmed seed catalog tables from source DB into dbt seed CSVs."""
+    seed_specs = _load_seed_table_specs(project_root)
+    if not seed_specs:
+        return SeedExportResult(files=[], row_counts={})
+
+    source_role = _require_source_role(project_root)
+    adapter = get_dbops(source_role.technology).from_role(
+        source_role,
+        project_root=project_root,
+    )
+    dbt_root = project_root / "dbt"
+    seeds_dir = dbt_root / "seeds"
+    seeds_dir.mkdir(parents=True, exist_ok=True)
+
+    files: list[str] = []
+    row_counts: dict[str, int] = {}
+    for spec in seed_specs:
+        columns, rows = adapter.read_table_rows(spec.logical_schema, spec.table_name, spec.columns)
+        seed_path = seeds_dir / f"{spec.seed_name}.csv"
+        content = _render_seed_csv(columns, rows)
+        if not seed_path.exists() or seed_path.read_text(encoding="utf-8") != content:
+            seed_path.write_text(content, encoding="utf-8")
+        relative_path = str(seed_path.relative_to(project_root))
+        files.append(relative_path)
+        row_counts[spec.fqn] = len(rows)
+        logger.info(
+            "event=export_seed_table component=target_setup table=%s seed_file=%s rows=%d status=success",
+            spec.fqn,
+            relative_path,
+            len(rows),
+        )
+
+    return SeedExportResult(files=files, row_counts=row_counts)
+
+
+def materialize_seed_tables(project_root: Path, seed_files: list[str]) -> DbtSeedResult:
+    """Run dbt seed so exported seed CSVs are materialized in the target schema."""
+    if not seed_files:
+        return DbtSeedResult(ran=False, command=[])
+
+    dbt_root = project_root / "dbt"
+    command = [
+        "dbt",
+        "seed",
+        "--project-dir",
+        str(dbt_root),
+        "--profiles-dir",
+        str(dbt_root),
+        "--target",
+        "dev",
+    ]
+    try:
+        completed = subprocess.run(
+            command,
+            cwd=dbt_root,
+            capture_output=True,
+            text=True,
+            check=False,
+        )
+    except FileNotFoundError as exc:
+        raise ValueError("dbt executable not found on PATH; install dbt before running setup-target for seeds.") from exc
+    if completed.returncode != 0:
+        details = (completed.stderr or completed.stdout or "").strip()
+        message = "dbt seed failed while materializing seed tables"
+        if details:
+            message = f"{message}: {details}"
+        raise ValueError(message)
+
+    logger.info(
+        "event=dbt_seed_complete component=target_setup seed_files=%d status=success",
+        len(seed_files),
+    )
+    return DbtSeedResult(ran=True, command=command)
+
+
 def generate_target_sources(project_root: Path) -> GenerateSourcesOutput:
     """Build logical dbt sources remapped to the configured target source schema."""
     return generate_sources(
@@ -331,12 +498,18 @@ def run_setup_target(project_root: Path) -> SetupTargetOutput:
     """Execute the reusable target-setup orchestration for tests and callers."""
     files = scaffold_target_project(project_root)
     sources = write_target_sources_yml(project_root)
+    seeds = export_seed_tables(project_root)
+    seed_materialization = materialize_seed_tables(project_root, seeds.files)
     applied = apply_target_source_tables(project_root)
     return SetupTargetOutput(
-        files=files,
+        files=files + seeds.files,
         sources_path=sources.path,
         target_source_schema=applied.physical_schema,
         created_tables=applied.created_tables,
         existing_tables=applied.existing_tables,
         desired_tables=applied.desired_tables,
+        seed_files=seeds.files,
+        seed_row_counts=seeds.row_counts,
+        dbt_seed_ran=seed_materialization.ran,
+        dbt_seed_command=seed_materialization.command,
     )
