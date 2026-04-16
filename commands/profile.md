@@ -1,5 +1,5 @@
 ---
-name: profile
+name: profile-tables
 description: >
   Batch profiling command — produces migration profiles for each table, view, or materialized view.
   Delegates per-item profiling to the /profiling-table skill (auto-detects table vs view).
@@ -7,7 +7,7 @@ user-invocable: true
 argument-hint: "<schema.table_or_view> [schema.table_or_view ...]"
 ---
 
-# Profile
+# Profile Tables
 
 Produce migration profiles for each table, view, or materialized view. Launches one sub-agent per item in parallel using `/profiling-table` (which auto-detects table vs view).
 
@@ -79,7 +79,7 @@ Return the item result JSON.
 3. Present human-readable summary:
 
    ```text
-   profile complete — N tables processed
+   profile-tables complete — N tables processed
 
      ✓ silver.DimCustomer    ok
      ~ silver.DimProduct     partial (PARTIAL_PROFILE)
@@ -94,7 +94,7 @@ Return the item result JSON.
    > All successful items have been committed and pushed.
    > Raise a PR for this run? (y/n)
 
-   If yes: run `/commit-push-pr profile <comma-separated list of successfully processed tables>`.
+   If yes: run `/commit-push-pr profile-tables <comma-separated list of successfully processed tables>`.
    After the PR is created or updated, tell the user:
 
    ```text
@@ -137,7 +137,7 @@ The actual profile data lives in the catalog file, not duplicated in the run log
 
 ## Error and Warning Codes
 
-Use the canonical `/profile` code list in [../lib/shared/profile_error_codes.md](../lib/shared/profile_error_codes.md).
+Use the canonical `/profile-tables` code list in [../lib/shared/profile_error_codes.md](../lib/shared/profile_error_codes.md).
 
 Each entry in `errors[]` or `warnings[]` uses this shape:
 

@@ -25,7 +25,7 @@
 4. run the independent model review loop
 5. commit successful items and optionally raise a PR
 
-The generator uses the proof-backed refactor persisted by `/refactor`; it does not go back to raw procedure SQL as the primary migration input.
+The generator uses the proof-backed refactor persisted by `/refactor-query`; it does not go back to raw procedure SQL as the primary migration input.
 
 ## What gets written
 

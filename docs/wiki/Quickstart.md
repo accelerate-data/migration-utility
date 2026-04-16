@@ -6,7 +6,7 @@ Happy-path walkthrough for migrating two tables, `silver.DimCustomer` and `silve
 
 You will alternate between two interfaces throughout this walkthrough:
 
-- **Claude Code session** -- where you type `/` commands (like `/scope`, `/profile`). These are AI-driven commands that analyze your code and make decisions interactively.
+- **Claude Code session** -- where you type `/` commands (like `/scope-tables`, `/profile-tables`). These are AI-driven commands that analyze your code and make decisions interactively.
 - **Terminal shell** -- where you run `ad-migration` CLI commands (like `ad-migration setup-source`). These are deterministic tools that connect to databases and write files.
 
 Each step below is tagged with which interface to use.
@@ -49,12 +49,12 @@ See [[DDL Extraction]].
 ## 3. Resolve extracted tables before target setup (Claude Code)
 
 ```text
-/scope silver.DimCustomer silver.FactInternetSales
+/scope-tables silver.DimCustomer silver.FactInternetSales
 ```
 
 Before `ad-migration setup-target` can proceed, every extracted table needs one of these outcomes:
 
-- scoped to a writer via `/scope` or `/analyzing-table`
+- scoped to a writer via `/scope-tables` or `/analyzing-table`
 - excluded from the migration via `ad-migration exclude-table <fqn>`
 - confirmed as a source via `ad-migration add-source-table <fqn>`
 
@@ -81,7 +81,7 @@ See [[dbt Scaffolding]].
 ## 5. Profile the migration targets (Claude Code)
 
 ```text
-/profile silver.DimCustomer silver.FactInternetSales
+/profile-tables silver.DimCustomer silver.FactInternetSales
 ```
 
 This writes the migration profile for each object: classification, keys, watermark, and other downstream signals used by test generation and model generation.
@@ -111,7 +111,7 @@ See [[Test Generation]].
 ## 8. Refactor the source SQL (Claude Code)
 
 ```text
-/refactor silver.DimCustomer silver.FactInternetSales
+/refactor-query silver.DimCustomer silver.FactInternetSales
 ```
 
 This restructures the source SQL into import/logical/final CTE form and proves equivalence against the extracted ground truth. For table migrations, the proof-backed refactor is persisted on the selected writer procedure catalog entry.

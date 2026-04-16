@@ -1,4 +1,4 @@
-You are running an eval harness for the live extract -> `/scope` -> `/profile` pipeline using canonical fixture input at `{{fixture_path}}` and writable run workspace at `{{run_path}}`.
+You are running an eval harness for the live extract -> `/scope-tables` -> `/profile-tables` pipeline using canonical fixture input at `{{fixture_path}}` and writable run workspace at `{{run_path}}`.
 
 Read `${CLAUDE_PLUGIN_ROOT}/commands/scope.md` and `${CLAUDE_PLUGIN_ROOT}/commands/profile.md`, but treat the following harness rules as authoritative overrides for this eval. Do not ask clarifying questions. Do not pause for confirmation. Execute the task directly.
 
@@ -15,7 +15,7 @@ Execution order:
 {{db_env_setup}}
 2. Extract DDL from the live database:
 `uv run --project ${CLAUDE_PLUGIN_ROOT}/lib setup-ddl extract --project-root {{run_path}} {{extract_flags}}`
-3. Run `/scope` for these tables: `{{target_tables}}`.
-4. After `/scope` completes, run `/profile` for the same tables: `{{target_tables}}`.
+3. Run `/scope-tables` for these tables: `{{target_tables}}`.
+4. After `/scope-tables` completes, run `/profile-tables` for the same tables: `{{target_tables}}`.
 
 If one table fails in a later stage, continue processing the remaining tables for that stage and write the relevant summaries.

@@ -2,7 +2,7 @@
 
 Canonical surfaced error/warning codes for the `listing-objects` skill.
 
-This skill is read-only. It does not write catalog state and does not own item-result statuses like `/scope`. The codes here describe user-visible failures from `discover`.
+This skill is read-only. It does not write catalog state and does not own item-result statuses like `/scope-tables`. The codes here describe user-visible failures from `discover`.
 
 ## Surfaced codes
 

@@ -67,7 +67,7 @@ Re-running `ad-migration setup-source` rebuilds `ddl/` and `catalog/` from sourc
 
 ## Known limitation
 
-Dynamic SQL writers may not appear in metadata-driven references. Those are resolved later during `/scope` or `/analyzing-table`.
+Dynamic SQL writers may not appear in metadata-driven references. Those are resolved later during `/scope-tables` or `/analyzing-table`.
 
 ## Next step
 

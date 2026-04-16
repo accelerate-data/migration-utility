@@ -1,6 +1,6 @@
-You are running an eval harness for `/refactor` in the fixture project at `{{fixture_path}}`.
+You are running an eval harness for `/refactor-query` in the fixture project at `{{fixture_path}}`.
 
-Run `/refactor` for these tables: `{{target_tables}}`.
+Run `/refactor-query` for these tables: `{{target_tables}}`.
 
 Read `${CLAUDE_PLUGIN_ROOT}/commands/refactor.md`, but treat the following harness rules as authoritative overrides for this eval. Do not ask clarifying questions. Do not pause for confirmation. Execute the task directly.
 

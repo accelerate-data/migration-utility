@@ -1,5 +1,5 @@
 ---
-name: refactor
+name: refactor-query
 description: >
   SQL refactoring command. Restructures stored procedure SQL into CTE pattern
   with equivalence audit. Delegates per-table refactoring to the
@@ -8,7 +8,7 @@ user-invocable: true
 argument-hint: "<schema.table> [schema.table ...]"
 ---
 
-# Refactor
+# Refactor Query
 
 Restructure stored procedure or view SQL into import/logical/final CTEs with proof-backed equivalence.
 
@@ -123,7 +123,7 @@ If one table fails, continue processing the remaining tables and then write the 
 3. Present human-readable summary:
 
    ```text
-   refactor complete -- N tables processed
+   refactor-query complete -- N tables processed
 
      ok  silver.DimCustomer    compare-sql passed
      ~   silver.DimProduct     semantic review passed; compare-sql skipped
@@ -138,7 +138,7 @@ If one table fails, continue processing the remaining tables and then write the 
    > All successful items have been committed and pushed.
    > Raise a PR for this run? (y/n)
 
-   If yes: run `/commit-push-pr refactor <comma-separated list of successfully processed tables>`.
+   If yes: run `/commit-push-pr refactor-query <comma-separated list of successfully processed tables>`.
    After the PR is created or updated, tell the user:
 
    ```text
@@ -172,7 +172,7 @@ If one table fails, continue processing the remaining tables and then write the 
 
 ## Error and Warning Codes
 
-Use the canonical `/refactor` code list in [../lib/shared/refactor_error_codes.md](../lib/shared/refactor_error_codes.md).
+Use the canonical `/refactor-query` code list in [../lib/shared/refactor_error_codes.md](../lib/shared/refactor_error_codes.md).
 
 Each entry in `errors[]` or `warnings[]` uses this shape:
 

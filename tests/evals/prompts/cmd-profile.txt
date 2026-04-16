@@ -1,6 +1,6 @@
-You are running an eval harness for `/profile` in the fixture project at `{{fixture_path}}`.
+You are running an eval harness for `/profile-tables` in the fixture project at `{{fixture_path}}`.
 
-Run `/profile` for these tables: `{{target_tables}}`.
+Run `/profile-tables` for these tables: `{{target_tables}}`.
 
 Read `${CLAUDE_PLUGIN_ROOT}/commands/profile.md`, but treat the following harness rules as authoritative overrides for this eval. Do not ask clarifying questions. Do not pause for confirmation. Execute the task directly.
 

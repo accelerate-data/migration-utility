@@ -295,7 +295,7 @@ git branch --show-current
 
 If on `main`, notify the user:
 
-> ⚠️ Committing init files directly to `main`. Init scaffolding is typically committed to main — this is expected. For migration work that follows, create a feature branch before running `/scope`, `/profile`, or other pipeline commands.
+> ⚠️ Committing init files directly to `main`. Init scaffolding is typically committed to main — this is expected. For migration work that follows, create a feature branch before running `/scope-tables`, `/profile-tables`, or other pipeline commands.
 
 Commit the files created or modified in Step 5:
 

@@ -180,24 +180,24 @@ What to do next
 
   1. Fix 2 error diagnostic(s) before proceeding:
        PARSE_ERROR on silver.FactSales — DDL failed to parse. Simplify the view DDL
-         and rerun `ad-migration setup-source`, then re-run `/scope silver.FactSales`.
+         and rerun `ad-migration setup-source`, then re-run `/scope-tables silver.FactSales`.
        MULTI_TABLE_WRITE on silver.DimProduct — writer proc targets multiple tables.
-         Use /scope to re-select a single-table writer, or split the proc.
+         Use /scope-tables to re-select a single-table writer, or split the proc.
 
-  2. /scope silver.DimDate silver.vDimSalesTerritory silver.vwFactPromo  [1 excluded — CIRCULAR_REFERENCE]
+  2. /scope-tables silver.DimDate silver.vDimSalesTerritory silver.vwFactPromo  [1 excluded — CIRCULAR_REFERENCE]
 
-  3. /profile silver.DimGeography  (unlocks after scope is complete)
+  3. /profile-tables silver.DimGeography  (unlocks after scope is complete)
 ```
 
 **Rules for each action:**
 
 - **Action 1 — Diagnostic errors**: For each error-severity diagnostic, state the code, the object FQN, and a concise fix (1–2 sentences). This is informational — no run offer. If there are no error diagnostics, skip this action and start from action 2.
 - **Action 2 — Current phase command**: Determine the immediate phase from the batch-plan:
-  - If `scope_phase` is non-empty: current command is `/scope <fqn1> <fqn2> ...` for all scope-phase FQNs.
-  - Else if `profile_phase` is non-empty: current command is `/profile <fqn1> <fqn2> ...`.
+  - If `scope_phase` is non-empty: current command is `/scope-tables <fqn1> <fqn2> ...` for all scope-phase FQNs.
+  - Else if `profile_phase` is non-empty: current command is `/profile-tables <fqn1> <fqn2> ...`.
   - Else if `migrate_batches` is non-empty: use the first batch's `pipeline_status` to pick the command:
     - `test_gen_needed` → `/generate-tests <fqn1> ...`
-    - `refactor_needed` → `/refactor <fqn1> ...`
+    - `refactor_needed` → `/refactor-query <fqn1> ...`
     - `migrate_needed` → `/generate-model <fqn1> ...`
   - If `circular_refs` is non-empty, append inline: `[N excluded — CIRCULAR_REFERENCE]`
   - Max 10 FQNs listed; if more, append `and N more` (all still execute).
@@ -245,8 +245,8 @@ catalog diagnostics  (3 errors, 5 warnings)
 
 After listing the diagnostics, provide LLM-generated triage: for each unique error code present, generate one concise remediation action (1–2 sentences). Group by code, not by object. Examples:
 
-- "MULTI_TABLE_WRITE (1 table): The writer proc targets multiple tables. Use `/scope` to re-select a single-table writer, or split the proc."
-- "DDL_PARSE_ERROR (1 view): The view DDL has unsupported syntax. Review the view definition and simplify before running `/analyzing-view`."
+- "MULTI_TABLE_WRITE (1 table): The writer proc targets multiple tables. Use `/scope-tables` to re-select a single-table writer, or split the proc."
+- "DDL_PARSE_ERROR (1 view): The view DDL has unsupported syntax. Review the view definition, rerun `ad-migration setup-source`, then run `/scope-tables`."
 - "STALE_OBJECT (1 table): Object was removed from the source. Verify it is no longer needed and remove its catalog file if so."
 
 If there are no diagnostics, omit this section entirely.
@@ -367,7 +367,7 @@ status for silver.DimCustomer
     branches: 4, tests: 6
     sandbox: __test_abc123
 
-  refactor ✗ — pending  ⚠ PARSE_ERROR: DDL failed to parse — fix before running /refactoring-sql
+  refactor ✗ — pending  ⚠ PARSE_ERROR: DDL failed to parse — fix before running /refactor-query
     guard failed: TEST_SPEC_NOT_REVIEWED
 
   migrate ✗ — blocked
@@ -405,7 +405,7 @@ Sandbox is not ready for test generation.
 !ad-migration setup-sandbox
 ```
 
-For all object types (tables, views, MVs), route through the same stage commands: `profile_needed` → `/profile <fqn>`, `test_gen_needed` → `/generate-tests <fqn>`, `refactor_needed` → `/refactor <fqn>`, `migrate_needed` → `/generate-model <fqn>`.
+For all object types (tables, views, MVs), route through the same stage commands: `profile_needed` → `/profile-tables <fqn>`, `test_gen_needed` → `/generate-tests <fqn>`, `refactor_needed` → `/refactor-query <fqn>`, `migrate_needed` → `/generate-model <fqn>`.
 
 ## Error handling
 
