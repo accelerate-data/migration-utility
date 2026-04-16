@@ -35,7 +35,7 @@ def sandbox_up(
     logger.info("event=cli_invoked command=sandbox_up")
     root = resolve_project_root(Path(project_root))
     manifest = _load_manifest(root)
-    backend = _create_backend(manifest)
+    backend = _create_backend(manifest, root)
 
     schemas = get_extracted_schemas(manifest)
     if not schemas:
@@ -67,7 +67,7 @@ def sandbox_down(
     root = resolve_project_root(Path(project_root))
     sandbox_db, manifest = _resolve_sandbox_db(root)
     logger.info("event=cli_resolved command=sandbox_down sandbox_db=%s", sandbox_db)
-    backend = _create_backend(manifest)
+    backend = _create_backend(manifest, root)
 
     try:
         result = backend.sandbox_down(sandbox_db=sandbox_db)
@@ -90,7 +90,7 @@ def sandbox_status(
     root = resolve_project_root(Path(project_root))
     sandbox_db, manifest = _resolve_sandbox_db(root)
     logger.info("event=cli_resolved command=sandbox_status sandbox_db=%s", sandbox_db)
-    backend = _create_backend(manifest)
+    backend = _create_backend(manifest, root)
 
     try:
         result = backend.sandbox_status(sandbox_db=sandbox_db)
@@ -114,7 +114,7 @@ def execute(
     root = resolve_project_root(Path(project_root))
     sandbox_db, manifest = _resolve_sandbox_db(root)
     logger.info("event=cli_resolved command=execute sandbox_db=%s scenario=%s", sandbox_db, scenario)
-    backend = _create_backend(manifest)
+    backend = _create_backend(manifest, root)
 
     scenario_path = Path(scenario)
     try:
@@ -147,7 +147,7 @@ def execute_spec(
     root = resolve_project_root(Path(project_root))
     sandbox_db, manifest = _resolve_sandbox_db(root)
     logger.info("event=cli_resolved command=execute_spec sandbox_db=%s spec=%s", sandbox_db, spec)
-    backend = _create_backend(manifest)
+    backend = _create_backend(manifest, root)
 
     spec_path = Path(spec)
     try:
@@ -181,7 +181,7 @@ def compare_sql(
     logger.info("event=cli_invoked command=compare_sql")
     root = resolve_project_root(Path(project_root))
     sandbox_db, manifest = _resolve_sandbox_db(root)
-    backend = _create_backend(manifest)
+    backend = _create_backend(manifest, root)
 
     try:
         output = run_compare_sql(

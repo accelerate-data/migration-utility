@@ -475,6 +475,61 @@ class TestCLIStatusFallback:
         output = json.loads(result.output)
         assert output["errors"][0]["code"] == "SANDBOX_NOT_CONFIGURED"
 
+    def test_sandbox_status_mentions_restart_when_password_env_exists_in_dotenv(self, tmp_path: Path) -> None:
+        from typer.testing import CliRunner
+
+        from shared.test_harness import app
+
+        (tmp_path / "manifest.json").write_text(
+            json.dumps(
+                {
+                    "schema_version": "1.0",
+                    "technology": "sql_server",
+                    "dialect": "tsql",
+                    "runtime": {
+                        "source": {
+                            "technology": "sql_server",
+                            "dialect": "tsql",
+                            "connection": {
+                                "host": "127.0.0.1",
+                                "port": "1433",
+                                "database": "KimballFixture",
+                                "user": "sa",
+                                "password_env": "SOURCE_MSSQL_PASSWORD",
+                            },
+                        },
+                        "sandbox": {
+                            "technology": "sql_server",
+                            "dialect": "tsql",
+                            "connection": {
+                                "host": "127.0.0.1",
+                                "port": "1433",
+                                "database": "__test_existing",
+                                "user": "sa",
+                                "password_env": "SANDBOX_MSSQL_PASSWORD",
+                            },
+                        },
+                    },
+                }
+            ),
+            encoding="utf-8",
+        )
+        (tmp_path / ".env").write_text(
+            "SOURCE_MSSQL_PASSWORD=source-pass\nSANDBOX_MSSQL_PASSWORD=sandbox-pass\n",
+            encoding="utf-8",
+        )
+
+        runner = CliRunner()
+        with patch("shared.test_harness.resolve_project_root", return_value=tmp_path), patch.dict(os.environ, {}, clear=True):
+            result = runner.invoke(app, ["sandbox-status", "--project-root", str(tmp_path)])
+
+        assert result.exit_code == 1
+        payload = json.loads(result.output)
+        message = payload["errors"][0]["message"]
+        assert "SANDBOX_MSSQL_PASSWORD" in message
+        assert "defined in .env" in message
+        assert "Restart Claude" in message
+
 
 # ── execute-spec CLI ─────────────────────────────────────────────────────────
 
