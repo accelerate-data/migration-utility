@@ -358,6 +358,50 @@ def test_sources_yml_adds_relationship_for_confirmed_source_reference() -> None:
         tmp.cleanup()
 
 
+def test_sources_yml_normalizes_relationship_target_casing_to_emitted_source_names() -> None:
+    """Relationship targets use the same canonical schema/table names written to sources.yml."""
+    tmp, root = _make_project([
+        {
+            "schema": "BrOnZe",
+            "name": "CuStOmEr",
+            "scoping": {"status": "no_writer_found"},
+            "is_source": True,
+            "columns": [{"name": "customer_id", "sql_type": "INT", "is_nullable": False}],
+        },
+        {
+            "schema": "BrOnZe",
+            "name": "OrDeR",
+            "scoping": {"status": "no_writer_found"},
+            "is_source": True,
+            "columns": [{"name": "customer_id", "sql_type": "INT", "is_nullable": False}],
+            "foreign_keys": [
+                {
+                    "constraint_name": "FK_OrDeR_CuStOmEr",
+                    "columns": ["customer_id"],
+                    "referenced_schema": "BRONZE",
+                    "referenced_table": "customer",
+                    "referenced_columns": ["customer_id"],
+                }
+            ],
+        },
+    ])
+    try:
+        result = generate_sources(root)
+        assert result.sources is not None
+        order_table = next(
+            table
+            for table in result.sources["sources"][0]["tables"]
+            if table["name"] == "OrDeR"
+        )
+        customer_id = order_table["columns"][0]
+        assert customer_id["tests"] == [
+            "not_null",
+            {"relationships": {"to": "source('bronze', 'CuStOmEr')", "field": "customer_id"}},
+        ]
+    finally:
+        tmp.cleanup()
+
+
 def test_sources_yml_skips_unresolved_and_composite_relationships() -> None:
     """FK tests are skipped when the reference is not source-local and single-column."""
     tmp, root = _make_project([

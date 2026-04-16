@@ -120,7 +120,7 @@ def _single_column_constraint_columns(constraints: list[Any]) -> set[str]:
 
 def _relationship_tests_by_column(
     cat: dict[str, Any],
-    confirmed_sources: set[str],
+    confirmed_sources: dict[str, tuple[str, str]],
 ) -> dict[str, list[dict[str, Any]]]:
     tests_by_column: dict[str, list[dict[str, Any]]] = {}
     for fk in cat.get("foreign_keys", []):
@@ -140,15 +140,17 @@ def _relationship_tests_by_column(
         ):
             continue
         referenced_fqn = f"{referenced_schema.lower()}.{referenced_table.lower()}"
-        if referenced_fqn not in confirmed_sources:
+        emitted_source = confirmed_sources.get(referenced_fqn)
+        if emitted_source is None:
             continue
         local_column = _present_string(columns[0])
         referenced_column = _present_string(referenced_columns[0])
         if not local_column or not referenced_column:
             continue
+        emitted_source_name, emitted_table_name = emitted_source
         test = {
             "relationships": {
-                "to": f"source('{referenced_schema}', '{referenced_table}')",
+                "to": f"source('{emitted_source_name}', '{emitted_table_name}')",
                 "field": referenced_column,
             }
         }
@@ -158,7 +160,7 @@ def _relationship_tests_by_column(
 
 def _build_source_columns(
     cat: dict[str, Any],
-    confirmed_sources: set[str],
+    confirmed_sources: dict[str, tuple[str, str]],
 ) -> list[dict[str, Any]]:
     columns: list[dict[str, Any]] = []
     unique_columns = _single_column_constraint_columns(cat.get("primary_keys", []))
@@ -272,7 +274,14 @@ def generate_sources(
             incomplete=incomplete,
         )
 
-    confirmed_sources = set(included)
+    confirmed_sources: dict[str, tuple[str, str]] = {}
+    for schema_name, cats in sources_by_schema.items():
+        for cat in cats:
+            table_name = str(cat.get("name", ""))
+            confirmed_sources[f"{schema_name}.{table_name.lower()}"] = (
+                schema_name,
+                table_name,
+            )
     source_entries = []
     for schema_name in sorted(sources_by_schema):
         tables = []
