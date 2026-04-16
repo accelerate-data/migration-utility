@@ -14,8 +14,10 @@ Produce migration profiles for each table, view, or materialized view. Launches 
 ## Guards
 
 - `manifest.json` must exist. If missing, fail all items with `MANIFEST_NOT_FOUND`.
-- For each FQN argument: if `catalog/tables/<fqn>.json` has `"is_source": true`, skip that table and print:
-  > `<fqn>` is marked as a dbt source — no migration needed. Use `ad-migration add-source-table` to manage source tables.
+- For each FQN argument:
+  - if `catalog/tables/<fqn>.json` has `"is_seed": true`, record an item result with `status: "ok"`, the table `catalog_path`, no warnings, and no errors; print that the table is marked as a dbt seed and no writer-driven profiling is needed.
+  - if `catalog/tables/<fqn>.json` has `"is_source": true`, skip that table and print:
+    > `<fqn>` is marked as a dbt source -- no migration needed. Use `ad-migration add-source-table` to manage source tables.
 
 Per-item readiness is checked by the skill via `migrate-util ready`.
 
@@ -134,6 +136,7 @@ Return the item result JSON.
 For views: `catalog_path` is `catalog/views/<item_id>.json`.
 
 The actual profile data lives in the catalog file, not duplicated in the run log.
+Seed-table `ok` results follow the same schema and do not duplicate the canonical seed profile payload.
 
 ## Error and Warning Codes
 

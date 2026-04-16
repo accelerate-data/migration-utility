@@ -22,8 +22,10 @@ Persist a fresh profile for one table, view, or materialized view. Treat any exi
    uv run --project "${CLAUDE_PLUGIN_ROOT}/packages/ad-migration-internal" migrate-util ready profile --object <fqn>
    ```
 
-   If `ready` is `false`, report the failing `code` and `reason` and stop.
+   If `ready` is `false` with code `SEED_TABLE`, use the **Seed Pipeline**. For all other failures,
+   report the failing `code` and `reason` and stop.
 2. Detect object type:
+   - readiness code `SEED_TABLE` → use the **Seed Pipeline**
    - `catalog/views/<fqn>.json` exists → use the **View Pipeline**
    - otherwise → use the **Table Pipeline**
 3. Build the profile from current evidence, write it with `profile write`, then report the persisted result.
@@ -34,6 +36,27 @@ Persist a fresh profile for one table, view, or materialized view. Treat any exi
 - Diagnostics in `warnings` or `errors` must include `code`, `severity`, and `message`.
 - If `profile write` rejects the payload, fix the JSON and retry.
 - Do not set `status` yourself. `profile write` derives it.
+
+## Seed Pipeline
+
+If readiness returns `SEED_TABLE`, read `catalog/tables/<table_fqn>.json` and verify it has
+`"is_seed": true`. If the catalog entry is missing, corrupt, or not marked as a seed, report the
+readiness mismatch and stop.
+
+If the profile is missing or its classification is not `{"resolved_kind": "seed", "source": "catalog"}`,
+persist the canonical seed profile:
+
+```bash
+mkdir -p .staging
+cat > .staging/seed_profile.json <<'EOF'
+{"classification":{"resolved_kind":"seed","source":"catalog","rationale":"Table is maintained as a dbt seed."},"warnings":[],"errors":[]}
+EOF
+uv run --project "${CLAUDE_PLUGIN_ROOT}/packages/ad-migration-internal" profile write \
+  --table <table_fqn> \
+  --profile-file .staging/seed_profile.json && rm -rf .staging
+```
+
+Report that the table is seed-backed and no writer-driven profiling was applied.
 
 ## View Pipeline
 
