@@ -4,6 +4,8 @@
 // {
 //   fixture_path,
 //   target_table,
+//   require_config?,
+//   expected_model_path?,
 //   expected_model_terms?,
 //   forbidden_model_terms?,
 //   expected_output_terms?,
@@ -21,6 +23,8 @@ const { normalizeTerms, resolveProjectPath } = require('./schema-helpers');
 module.exports = (output, context) => {
   const fixturePath = resolveProjectPath(context);
   const table = context.vars.target_table;
+  const requireConfig = String(context.vars.require_config || '').toLowerCase() === 'true';
+  const expectedModelPath = String(context.vars.expected_model_path || '').trim();
   const expectedModelTerms = normalizeTerms(context.vars.expected_model_terms);
   const forbiddenModelTermsRaw = String(context.vars.forbidden_model_terms || '')
     .split(',')
@@ -110,7 +114,13 @@ module.exports = (output, context) => {
     `${table.toLowerCase()}.json`,
   );
   let modelFile = matchingFiles[0];
-  if (fs.existsSync(catalogPath)) {
+  if (expectedModelPath) {
+    const expectedModelFile = path.resolve(dbtDir, expectedModelPath);
+    if (!fs.existsSync(expectedModelFile)) {
+      return { pass: false, score: 0, reason: `Expected model path '${expectedModelPath}' not found at ${expectedModelFile}` };
+    }
+    modelFile = expectedModelFile;
+  } else if (fs.existsSync(catalogPath)) {
     const catalog = JSON.parse(fs.readFileSync(catalogPath, 'utf8'));
     const generatedModelPath = catalog?.generate?.model_path;
     if (generatedModelPath) {
@@ -121,9 +131,8 @@ module.exports = (output, context) => {
     }
   }
 
-  // Verify the model contains config()
   const modelContent = fs.readFileSync(modelFile, 'utf8');
-  if (!modelContent.includes('config(')) {
+  if (requireConfig && !modelContent.includes('config(')) {
     return { pass: false, score: 0, reason: `Model file ${modelFile} missing config() block` };
   }
 
@@ -139,7 +148,9 @@ module.exports = (output, context) => {
     const hasUppercase = term !== term.toLowerCase();
     const haystack = hasUppercase ? rawModel : normalizedModel;
     const needle = hasUppercase ? term : term.toLowerCase();
-    if (haystack.includes(needle)) {
+    const compactHaystack = haystack.replace(/\s+/g, '');
+    const compactNeedle = needle.replace(/\s+/g, '');
+    if (haystack.includes(needle) || (compactNeedle && compactHaystack.includes(compactNeedle))) {
       return { pass: false, score: 0, reason: `Forbidden model term '${term}' found in ${path.basename(modelFile)}` };
     }
   }

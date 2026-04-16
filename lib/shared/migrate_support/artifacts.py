@@ -145,7 +145,12 @@ def run_write_generate(
     dbt_root = resolve_dbt_project_path(project_root)
     model_file = dbt_root / model_path
     file_exists = model_file.exists()
-    status = "ok" if file_exists and compiled and tests_passed else "error"
+    if not file_exists or errors:
+        status = "error"
+    elif compiled and tests_passed:
+        status = "ok"
+    else:
+        status = "partial"
 
     generate: dict[str, Any] = {
         "status": status,
@@ -163,15 +168,41 @@ def run_write_generate(
     return result
 
 
-def _spec_given_to_dbt_input(table_ref: str) -> str:
+def _confirmed_source_refs(project_root: Path) -> set[str]:
+    tables_dir = project_root / "catalog" / "tables"
+    if not tables_dir.is_dir():
+        return set()
+
+    refs: set[str] = set()
+    for catalog_file in tables_dir.glob("*.json"):
+        try:
+            data = json.loads(catalog_file.read_text(encoding="utf-8"))
+        except (json.JSONDecodeError, OSError):
+            continue
+        if data.get("is_source") is True:
+            schema = data.get("schema")
+            name = data.get("name")
+            if schema and name:
+                refs.add(normalize(f"{schema}.{name}"))
+    return refs
+
+
+def _spec_given_to_dbt_input(table_ref: str, confirmed_source_refs: set[str] | None = None) -> str:
     """Convert a test-spec given table reference to dbt unit test input."""
+    normalized = normalize(table_ref)
+    if confirmed_source_refs and normalized in confirmed_source_refs:
+        return f"ref('stg_bronze__{model_name_from_table(normalized)}')"
     parts = table_ref.split(".", 1)
     if len(parts) == 2:
         return f"source('{parts[0]}', '{parts[1]}')"
     return f"source('{table_ref}', '{table_ref}')"
 
 
-def _unit_test_to_dbt(entry: dict[str, Any], model_name: str) -> dict[str, Any]:
+def _unit_test_to_dbt(
+    entry: dict[str, Any],
+    model_name: str,
+    confirmed_source_refs: set[str] | None = None,
+) -> dict[str, Any]:
     """Translate one test-spec UnitTestEntry dict to a dbt unit test dict."""
     dbt_test: dict[str, Any] = {
         "name": entry["name"],
@@ -180,7 +211,7 @@ def _unit_test_to_dbt(entry: dict[str, Any], model_name: str) -> dict[str, Any]:
     }
     for given in entry.get("given", []):
         dbt_test["given"].append({
-            "input": _spec_given_to_dbt_input(given["table"]),
+            "input": _spec_given_to_dbt_input(given["table"], confirmed_source_refs),
             "rows": given.get("rows", []),
         })
     expect = entry.get("expect")
@@ -215,11 +246,12 @@ def run_render_unit_tests(
 
     spec_data = json.loads(spec_path.read_text(encoding="utf-8"))
     spec = TestSpec(**spec_data)
+    confirmed_source_refs = _confirmed_source_refs(project_root)
 
     dbt_unit_tests = []
     for ut in spec.unit_tests:
         ut_dict = ut.model_dump(mode="json", exclude_none=True)
-        dbt_unit_tests.append(_unit_test_to_dbt(ut_dict, model_name))
+        dbt_unit_tests.append(_unit_test_to_dbt(ut_dict, model_name, confirmed_source_refs))
 
     if not dbt_unit_tests:
         return RenderUnitTestsOutput(

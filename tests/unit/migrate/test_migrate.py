@@ -211,6 +211,20 @@ class TestRunContext:
         assert result.schema_tests is not None
         assert result.refactored_sql is not None
         assert len(result.refactored_sql) > 0
+        assert result.writer_ddl_slice is None
+
+    def test_context_includes_writer_ddl_slice(self, ddl_path: Path) -> None:
+        """Multi-table writer slice is included for model generation."""
+        proc_path = ddl_path / "catalog" / "procedures" / "dbo.usp_load_fact_sales.json"
+        proc_cat = json.loads(proc_path.read_text(encoding="utf-8"))
+        proc_cat["table_slices"] = {
+            "silver.factsales": "insert into silver.FactSales select sale_id from bronze.Sales"
+        }
+        proc_path.write_text(json.dumps(proc_cat, indent=2) + "\n", encoding="utf-8")
+
+        result = run_context(ddl_path, "silver.FactSales", "dbo.usp_load_fact_sales")
+
+        assert result.writer_ddl_slice == "insert into silver.FactSales select sale_id from bronze.Sales"
 
     def test_dim_scd2_materialization_snapshot(self, ddl_path: Path) -> None:
         result = run_context(ddl_path, "silver.DimCustomer", "dbo.usp_load_dim_customer")
@@ -933,8 +947,8 @@ def test_write_generate_error_file_missing(tmp_path: Path) -> None:
     assert result["status"] == "error"
 
 
-def test_write_generate_error_tests_failed(tmp_path: Path) -> None:
-    """Model file exists but tests_passed=False → status error."""
+def test_write_generate_partial_tests_failed(tmp_path: Path) -> None:
+    """Model file exists but tests_passed=False → status partial."""
     fqn = "dbo.foo"
     _seed_generate_fixture(tmp_path, fqn)
 
@@ -948,7 +962,9 @@ def test_write_generate_error_tests_failed(tmp_path: Path) -> None:
         schema_yml=True,
     )
 
-    assert result["status"] == "error"
+    assert result["status"] == "partial"
+    cat = json.loads((tmp_path / "catalog" / "tables" / f"{fqn}.json").read_text())
+    assert cat["generate"]["status"] == "partial"
 
 
 def test_write_generate_missing_catalog(tmp_path: Path) -> None:

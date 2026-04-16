@@ -20,7 +20,7 @@ defaultTest:
 tests:
   # --- VU-869: pattern-specific code review cases ---
 
-  - description: "[smoke] review-approved — SelectIntoTarget ephemeral staging"
+  - description: "[smoke] review-controls — SelectIntoTarget mart missing control columns"
     vars:
       fixture_path: "tests/evals/fixtures/reviewing-model/review-approved"
       target_table: "silver.SelectIntoTarget"
@@ -29,7 +29,7 @@ tests:
       expect_standards_passed: "false"
       expected_feedback_codes: "MDL_005,MDL_006"
 
-  - description: "review-revision — incorrect materialization flagged"
+  - description: "review-revision — incorrect incremental exception flagged"
     vars:
       fixture_path: "tests/evals/fixtures/reviewing-model/review-revision"
       target_table: "silver.DimCustomer"
@@ -52,11 +52,11 @@ tests:
       fixture_path: "tests/evals/fixtures/reviewing-model/review-feedback-structure"
       target_table: "silver.DimCustomer"
       writer: "silver.usp_load_DimCustomer_Full"
-      expected_status: "approved,approved_with_warnings,revision_requested"
+      expected_status: "revision_requested"
 
   # --- VU-878: correctness, test-integration, and standards scenarios ---
 
-  - description: "review-approved-clean — SelectIntoTarget clean staging passes"
+  - description: "review-approved-clean — SelectIntoTarget clean mart passes"
     vars:
       fixture_path: "tests/evals/fixtures/reviewing-model/review-approved-clean"
       target_table: "silver.SelectIntoTarget"
@@ -85,12 +85,32 @@ tests:
       expect_standards_passed: "false"
       expected_feedback_codes: "SQL_001"
 
+  - description: "review-standards-direct-source — mart uses source() despite staging wrapper"
+    vars:
+      fixture_path: "tests/evals/fixtures/reviewing-model/review-standards-direct-source"
+      target_table: "silver.SelectIntoTarget"
+      writer: "silver.usp_load_SelectIntoTarget"
+      expected_status: "revision_requested"
+      expect_standards_passed: "false"
+      expected_feedback_codes: "MDL_016"
+
+  - description: "review-standards-seed-source — mart uses source() for seed dependency"
+    vars:
+      fixture_path: "tests/evals/fixtures/reviewing-model/review-standards-seed-source"
+      target_table: "silver.SelectIntoTarget"
+      writer: "silver.usp_load_SelectIntoTarget"
+      expected_status: "revision_requested"
+      expect_standards_passed: "false"
+      expected_feedback_codes: "MDL_017"
+
   - description: "review-test-integration — DimProduct unit tests in YAML"
     vars:
       fixture_path: "tests/evals/fixtures/reviewing-model/review-test-integration"
       target_table: "silver.DimProduct"
       writer: "silver.usp_load_DimProduct"
-      expected_status: "approved,approved_with_warnings,revision_requested"
+      expected_status: "revision_requested"
+      expect_standards_passed: "false"
+      expected_feedback_codes: "MDL_005,MDL_006"
 
   # --- VU-880: deferred standards scenarios ---
 
@@ -99,6 +119,6 @@ tests:
       fixture_path: "tests/evals/fixtures/reviewing-model/review-standards-final-cte"
       target_table: "silver.DimProduct"
       writer: "silver.usp_load_DimProduct"
-      expected_status: "approved,approved_with_warnings,revision_requested"
+      expected_status: "revision_requested"
       expect_standards_passed: "false"
       expected_feedback_codes: "CTE_002"

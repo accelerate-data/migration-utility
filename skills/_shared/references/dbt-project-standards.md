@@ -4,7 +4,7 @@ Use these rules for generated dbt artifacts.
 
 ## Project Layout
 
-Generated dbt projects use only these model layer folders:
+Generated dbt projects use these model layer folders:
 
 ```text
 models/
@@ -15,13 +15,14 @@ models/
 
 Do not create source-system, warehouse-schema, or guessed business-domain subfolders during first-pass migration.
 
-Layer YAML files live next to the models they describe:
+Layer YAML files live next to the artifacts they describe:
 
 ```text
 models/staging/_staging__sources.yml
 models/staging/_staging__models.yml
 models/intermediate/_intermediate__models.yml
 models/marts/_marts__models.yml
+snapshots/_snapshots__models.yml
 ```
 
 ## Source Namespace
@@ -90,19 +91,29 @@ models/marts/_marts__models.yml
 
 Mart model names use the normalized target entity name without layer prefixes.
 
-Generated mart SQL should prefer existing staging wrappers over direct source references. If a matching `stg_bronze__<entity>` model exists, use:
+Generated mart SQL uses staging wrappers for confirmed source dependencies. For a confirmed source table, use:
 
 ```sql
 {{ ref('stg_bronze__<entity>') }}
 ```
 
-instead of:
+instead of direct source references:
 
 ```sql
 {{ source('bronze', '<table>') }}
 ```
 
+If the wrapper is missing for a confirmed source dependency, treat that as a setup/artifact problem. Do not silently fall back to direct `source()` in generated mart SQL.
+
 Preserve physical target names or schemas through dbt model config when migration fidelity requires it. Do not encode legacy warehouse schemas as folders.
+
+Reviewer code: use `MDL_016` when mart SQL bypasses a confirmed staging wrapper.
+
+## Snapshots
+
+Snapshot targets are written under `snapshots/` by `migrate write`.
+Snapshot YAML uses a top-level `snapshots:` key in
+`snapshots/_snapshots__models.yml`.
 
 ## Intermediate Models
 
@@ -130,6 +141,24 @@ models:
 ```
 
 Use model-level config only for exceptions such as migration-required aliases, schemas, incremental models, or snapshots.
+
+Do not set redundant `materialized='table'` config on ordinary first-pass mart table models; the `marts` layer default already supplies it. View models, incremental models, aliases, and schema-preservation cases are explicit exceptions.
+
+## Seeds
+
+`setup-target` writes confirmed seed CSVs under:
+
+```text
+seeds/<seed_name>.csv
+seeds/_seeds.yml
+```
+
+Seed CSVs must remain in the dbt seed path, not under `models/`. Document seeds in YAML under a top-level `seeds:` key and include known columns. Include `data_type` when catalog/source metadata provides it.
+
+Downstream models reference seeds with `{{ ref('<seed_name>') }}`.
+If a migrated model joins to a catalog table marked `is_seed: true`, treat that table as an existing dbt seed dependency and use `ref()`. Do not model seed dependencies as `source()` relations or raw warehouse table names.
+
+Reviewer code: use `MDL_017` when mart SQL bypasses a seed `ref()`.
 
 ## Skill Boundaries
 

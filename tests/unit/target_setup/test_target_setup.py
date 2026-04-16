@@ -278,13 +278,25 @@ def test_export_seed_tables_writes_seed_csv_from_source_table(tmp_path: Path) ->
 
     adapter.read_table_rows.assert_called_once_with("silver", "CustomerType", ["id", "name"])
     seed_path = project_root / "dbt" / "seeds" / "customertype.csv"
-    assert result.files == ["dbt/seeds/customertype.csv"]
+    seed_yml_path = project_root / "dbt" / "seeds" / "_seeds.yml"
+    assert result.files == ["dbt/seeds/customertype.csv", "dbt/seeds/_seeds.yml"]
+    assert result.csv_files == ["dbt/seeds/customertype.csv"]
     assert result.row_counts == {"silver.customertype": 3}
     assert seed_path.read_text(encoding="utf-8") == (
         "id,name\n"
         "1,Retail\n"
         '2,"Partner, Channel"\n'
         "3,\n"
+    )
+    assert seed_yml_path.read_text(encoding="utf-8") == (
+        "version: 2\n"
+        "seeds:\n"
+        "- name: customertype\n"
+        "  columns:\n"
+        "  - name: id\n"
+        "    data_type: INT\n"
+        "  - name: name\n"
+        "    data_type: NVARCHAR(50)\n"
     )
 
 
@@ -323,6 +335,16 @@ def test_materialize_seed_tables_skips_when_no_seed_files(tmp_path: Path) -> Non
     assert result.command == []
 
 
+def test_materialize_seed_tables_skips_when_only_seed_properties_file(tmp_path: Path) -> None:
+    project_root = _make_sql_server_project(tmp_path)
+    with patch("shared.target_setup.subprocess.run") as mock_run:
+        result = materialize_seed_tables(project_root, ["dbt/seeds/_seeds.yml"])
+
+    mock_run.assert_not_called()
+    assert result.ran is False
+    assert result.command == []
+
+
 def test_run_setup_target_applies_delta_after_new_source_added(tmp_path: Path) -> None:
     project_root = _make_sql_server_project(tmp_path)
 
@@ -348,7 +370,7 @@ def test_run_setup_target_applies_delta_after_new_source_added(tmp_path: Path) -
             ),
         ),
         patch("shared.target_setup.apply_target_source_tables", side_effect=[first_apply, second_apply]),
-        patch("shared.target_setup.export_seed_tables", return_value=MagicMock(files=[], row_counts={})),
+        patch("shared.target_setup.export_seed_tables", return_value=MagicMock(files=[], csv_files=[], row_counts={})),
         patch("shared.target_setup.materialize_seed_tables", return_value=MagicMock(ran=False, command=[])),
     ):
         first = run_setup_target(project_root)

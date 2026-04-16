@@ -1,5 +1,3 @@
-{{ config(materialized='table') }}
-
 with source_customer as (
     select * from {{ ref('stg_bronze__customer') }}
 ),

@@ -99,6 +99,10 @@
 
 **Issue scope:** This task is a deterministic generator/scaffold contract change. It does not add a user-facing normalization command or skill, and it does not migrate arbitrary existing dbt projects.
 
+**Current rebase decision:** Keep `commands/status.md` from `main`; it is now outside the VU-1101 implementation surface. Preserve the `main` `setup-target` source/seed behavior, then layer the VU-1101 dbt project guarantees on top of it.
+
+**Current Task 1 status:** Source YAML placement, staging wrapper generation, mart artifact placement, target setup layer defaults/directories, seed properties YAML, shared dbt standards, generator/reviewer guidance, assertions, and representative fixture migration are present on the branch. Verification is complete for the VU-1101 scope; the remaining work is commit, Linear update, and implementation handoff.
+
 **Files:**
 
 - Modify: `lib/shared/target_setup.py`
@@ -121,7 +125,7 @@
 - Modify: `tests/evals/assertions/check-dbt-refs.js`
 - Modify: representative fixture trees under `tests/evals/fixtures/`
 
-- [ ] **Step 1: Capture the current generated dbt layout and path assumptions**
+- [x] **Step 1: Capture the current generated dbt layout and path assumptions**
 
 Run:
 
@@ -143,7 +147,9 @@ Expected:
 - some fixtures and tests still expect non-standard folders like `models/silver/`
 - `target_setup.py`, `generate_sources.py`, and `migrate_support/artifacts.py` expose the scaffold, source-YAML, staging-wrapper, and mart artifact decisions that need to change
 
-- [ ] **Step 2: Update unit tests first to codify the dbt-standard layout**
+- [x] **Step 2: Update unit tests first to codify the dbt-standard layout**
+
+Status: done. The branch updates the source YAML, staging wrapper, mart artifact, layer-default, and seed properties YAML expectations, including `dbt/seeds/_seeds.yml` with seed column entries.
 
 Apply these expectation changes before touching implementation:
 
@@ -165,11 +171,14 @@ marts:
 Implementation notes:
 
 - in `tests/unit/target_setup/test_target_setup.py`, assert the scaffolded `dbt_project.yml` sets directory-level defaults for `staging`, `intermediate`, and `marts`
+- in `tests/unit/target_setup/test_target_setup.py`, assert exported seeds write `dbt/seeds/_seeds.yml` with `version: 2`, `seeds:`, seed names, and all seed columns
 - in `tests/unit/generate_sources/test_generate_sources.py`, assert sources are written to `models/staging/_staging__sources.yml` with `name: bronze`, and confirmed sources get pure pass-through `stg_bronze__<entity>.sql` wrappers plus entries in `_staging__models.yml`
 - in `tests/unit/migrate/test_migrate.py` and `tests/unit/output_models/test_model_generation_models.py`, replace old flat artifact paths with the new standard ones
 - in shared-reference tests or direct markdown checks, assert dbt Labs SQL style prefers positional grouping (`group by 1, 2`) and model naming is layer-aware
 
-- [ ] **Step 3: Run the targeted tests and verify they fail on the old layout**
+- [x] **Step 3: Run the targeted tests and verify they fail on the old layout**
+
+Status: done after the rebase. The focused unit suite currently fails on `tests/unit/target_setup/test_target_setup.py::test_scaffold_target_project_writes_dbt_files` because `target_setup.py` was temporarily resolved to `main` and no longer renders the dbt layer defaults.
 
 Run:
 
@@ -186,17 +195,21 @@ Expected:
 - FAIL with path and scaffold mismatches
 - failures are limited to the dbt layout assumptions you just changed
 
-- [ ] **Step 4: Implement the dbt-standard scaffold and artifact paths**
+- [x] **Step 4: Implement the dbt-standard scaffold and artifact paths**
+
+Status: done. `generate_sources.py`, `migrate_support/artifacts.py`, and `target_setup.py` apply the normalized layout. `target_setup.py` preserves `main` source/seed orchestration while adding layer defaults, canonical directories, and seed properties YAML.
 
 Make these code changes:
 
 ```text
 lib/shared/target_setup.py:
   - scaffold `models/staging/`, `models/intermediate/`, `models/marts/`, `macros/`, `snapshots/`, and `tests/`
+  - keep `seed-paths: ["seeds"]` and preserve the `main` seed export/materialization behavior
   - render `dbt_project.yml` with folder-level defaults:
       staging -> view
       intermediate -> ephemeral
       marts -> table
+  - write `dbt/seeds/_seeds.yml` using dbt seed properties shape with every exported seed and its catalog columns
 
 lib/shared/generate_sources.py:
   - write `models/staging/_staging__sources.yml`
@@ -215,10 +228,13 @@ Constraints:
 
 - follow the dbt structure and style guidance captured in `docs/design/dbt-project-standards/README.md` and `skills/_shared/references/dbt-project-standards.md`
 - adopt dbt Labs SQL style wholesale, including trailing commas and positional grouping
+- follow dbt seed documentation for seed CSVs, `dbt seed`, `ref()` usage, and seed properties YAML
 - do not introduce a compatibility shim that preserves the old flat paths unless a specific test proves it is required
 - do not use dbt Project Evaluator as a `setup-target` dependency; it belongs to later refactor validation
 
-- [ ] **Step 5: Update fixture trees and dbt-aware review/assertion docs**
+- [x] **Step 5: Update fixture trees and dbt-aware review/assertion docs**
+
+Status: done for the existing VU-1101 layout scope. The branch includes shared dbt standards, generator/reviewer/refactor guidance updates, dbt-aware assertion updates, and representative fixture moves to `_staging__sources.yml`, `_staging__models.yml`, `stg_bronze__*`, `models/marts/`, and `_marts__models.yml`.
 
 Update:
 
@@ -242,7 +258,9 @@ Required outcomes:
 - mart models are expected to use `ref('stg_bronze__<entity>')` when a matching staging wrapper exists
 - representative fixtures in `generating-model`, `cmd-generate-model`, `refactoring-sql`, and `cmd-status` reflect the new standard layout
 
-- [ ] **Step 6: Run the layout verification suite and commit**
+- [x] **Step 6: Run the layout verification suite and commit**
+
+Status: done. `markdownlint`, `git diff --check`, the focused unit suite, `eval:generating-model`, and `eval:cmd-generate-model` passed. After the final reviewer output-shape tightening, the previously failing `review-approved-clean` targeted reviewing-model eval passed.
 
 Run:
 

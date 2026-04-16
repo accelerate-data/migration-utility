@@ -1,0 +1,26 @@
+version: 2
+
+models:
+  - name: insertselecttarget
+    description: "Mart insert-select projection for silver.InsertSelectTarget."
+    columns:
+      - name: ProductAlternateKey
+        description: "Business key derived from bronze.Product.ProductID."
+        data_tests:
+          - not_null
+          - unique
+      - name: EnglishProductName
+        description: "Product name projected from bronze.Product.ProductName."
+
+unit_tests:
+  - name: test_insert_select_projects_source_row
+    model: insertselecttarget
+    given:
+      - input: ref('stg_bronze__product')
+        rows:
+          - ProductID: 10
+            ProductName: Touring-1000
+    expect:
+      rows:
+        - ProductAlternateKey: "10"
+          EnglishProductName: Touring-1000

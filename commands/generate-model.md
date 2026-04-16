@@ -97,7 +97,7 @@ Use `rm -f` instead of `git checkout` for newly created files with no prior vers
 
 If the item final status is not `error`, stage the generated dbt files, create a checkpoint commit, and push the current branch.
 
-For multi-table sub-agents: include the commit/revert instructions in the sub-agent prompt at the end of the review loop, using "stage <files>, create a checkpoint commit, and push the current branch".
+In multi-table runs, the parent command owns review and commit/revert after each generation result is written. Generation sub-agents only run `/generating-model` and write their item result JSON.
 
 ### Step 4 — Summarize
 
@@ -164,7 +164,7 @@ For snapshots, `artifact_paths.model_sql` uses
     },
     "execution": {
       "dbt_compile_passed": true,
-      "dbt_build_passed": true,
+      "dbt_test_passed": true,
       "self_correction_iterations": 0,
       "dbt_errors": []
     },

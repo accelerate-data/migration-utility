@@ -11,6 +11,8 @@ from dataclasses import dataclass
 from io import StringIO
 from pathlib import Path
 
+import yaml
+
 from shared.dbops import ColumnSpec, get_dbops
 from shared.generate_sources import generate_sources, write_sources_yml
 from shared.name_resolver import model_name_from_table, normalize
@@ -117,12 +119,20 @@ class TargetApplyResult:
 
 
 @dataclass(frozen=True)
+class SeedColumnSpec:
+    """One documented column for a dbt seed."""
+
+    name: str
+    data_type: str | None = None
+
+
+@dataclass(frozen=True)
 class SeedTableSpec:
     """One catalog seed table that should be exported as a dbt seed CSV."""
 
     logical_schema: str
     table_name: str
-    columns: list[str]
+    columns: list[SeedColumnSpec]
 
     @property
     def fqn(self) -> str:
@@ -138,6 +148,7 @@ class SeedExportResult:
     """Outcome of exporting dbt seed CSV files from source tables."""
 
     files: list[str]
+    csv_files: list[str]
     row_counts: dict[str, int]
 
 
@@ -254,6 +265,15 @@ def _render_dbt_project_yml(profile_name: str) -> str:
         "test-paths: [\"tests\"]\n"
         "target-path: \"target\"\n"
         "clean-targets: [\"target\"]\n"
+        "\n"
+        "models:\n"
+        f"  {profile_name}:\n"
+        "    staging:\n"
+        "      +materialized: view\n"
+        "    intermediate:\n"
+        "      +materialized: ephemeral\n"
+        "    marts:\n"
+        "      +materialized: table\n"
     )
 
 
@@ -265,7 +285,15 @@ def scaffold_target_project(project_root: Path) -> list[str]:
     dbt_root = project_root / "dbt"
     created_or_updated: list[str] = []
 
-    for relative_dir in ("models/staging", "macros", "seeds", "snapshots", "tests"):
+    for relative_dir in (
+        "models/staging",
+        "models/intermediate",
+        "models/marts",
+        "macros",
+        "seeds",
+        "snapshots",
+        "tests",
+    ):
         (dbt_root / relative_dir).mkdir(parents=True, exist_ok=True)
 
     dbt_project_path = dbt_root / "dbt_project.yml"
@@ -349,11 +377,21 @@ def _load_seed_table_specs(project_root: Path) -> list[SeedTableSpec]:
                 f"which is already used by {existing_fqn!r}."
             )
         seen_seed_names[seed_name] = fqn
-        columns = [
-            str(column["name"])
-            for column in payload.get("columns", [])
-            if isinstance(column, dict) and column.get("name")
-        ]
+        columns = []
+        for column in payload.get("columns", []):
+            if not isinstance(column, dict) or not column.get("name"):
+                continue
+            data_type = (
+                column.get("sql_type")
+                or column.get("data_type")
+                or column.get("type")
+            )
+            columns.append(
+                SeedColumnSpec(
+                    name=str(column["name"]),
+                    data_type=str(data_type) if data_type else None,
+                )
+            )
         specs.append(
             SeedTableSpec(
                 logical_schema=logical_schema,
@@ -372,11 +410,33 @@ def _render_seed_csv(columns: list[str], rows: list[tuple[object, ...]]) -> str:
     return buffer.getvalue()
 
 
+def _render_seeds_yml(seed_specs: list[SeedTableSpec]) -> str:
+    seeds = []
+    for spec in seed_specs:
+        columns = []
+        for column in spec.columns:
+            entry = {"name": column.name}
+            if column.data_type:
+                entry["data_type"] = column.data_type
+            columns.append(entry)
+        seed_entry: dict[str, object] = {"name": spec.seed_name}
+        if columns:
+            seed_entry["columns"] = columns
+        seeds.append(seed_entry)
+
+    return yaml.dump(
+        {"version": 2, "seeds": seeds},
+        default_flow_style=False,
+        sort_keys=False,
+        allow_unicode=True,
+    )
+
+
 def export_seed_tables(project_root: Path) -> SeedExportResult:
     """Export confirmed seed catalog tables from source DB into dbt seed CSVs."""
     seed_specs = _load_seed_table_specs(project_root)
     if not seed_specs:
-        return SeedExportResult(files=[], row_counts={})
+        return SeedExportResult(files=[], csv_files=[], row_counts={})
 
     source_role = _require_source_role(project_root)
     adapter = get_dbops(source_role.technology).from_role(
@@ -388,15 +448,21 @@ def export_seed_tables(project_root: Path) -> SeedExportResult:
     seeds_dir.mkdir(parents=True, exist_ok=True)
 
     files: list[str] = []
+    csv_files: list[str] = []
     row_counts: dict[str, int] = {}
     for spec in seed_specs:
-        columns, rows = adapter.read_table_rows(spec.logical_schema, spec.table_name, spec.columns)
+        columns, rows = adapter.read_table_rows(
+            spec.logical_schema,
+            spec.table_name,
+            [column.name for column in spec.columns],
+        )
         seed_path = seeds_dir / f"{spec.seed_name}.csv"
         content = _render_seed_csv(columns, rows)
         if not seed_path.exists() or seed_path.read_text(encoding="utf-8") != content:
             seed_path.write_text(content, encoding="utf-8")
         relative_path = str(seed_path.relative_to(project_root))
         files.append(relative_path)
+        csv_files.append(relative_path)
         row_counts[spec.fqn] = len(rows)
         logger.info(
             "event=export_seed_table component=target_setup table=%s seed_file=%s rows=%d status=success",
@@ -405,12 +471,19 @@ def export_seed_tables(project_root: Path) -> SeedExportResult:
             len(rows),
         )
 
-    return SeedExportResult(files=files, row_counts=row_counts)
+    seeds_yml_path = seeds_dir / "_seeds.yml"
+    seeds_yml_content = _render_seeds_yml(seed_specs)
+    if not seeds_yml_path.exists() or seeds_yml_path.read_text(encoding="utf-8") != seeds_yml_content:
+        seeds_yml_path.write_text(seeds_yml_content, encoding="utf-8")
+    files.append(str(seeds_yml_path.relative_to(project_root)))
+
+    return SeedExportResult(files=files, csv_files=csv_files, row_counts=row_counts)
 
 
 def materialize_seed_tables(project_root: Path, seed_files: list[str]) -> DbtSeedResult:
     """Run dbt seed so exported seed CSVs are materialized in the target schema."""
-    if not seed_files:
+    seed_csv_files = [seed_file for seed_file in seed_files if seed_file.endswith(".csv")]
+    if not seed_csv_files:
         return DbtSeedResult(ran=False, command=[])
 
     dbt_root = project_root / "dbt"
@@ -443,7 +516,7 @@ def materialize_seed_tables(project_root: Path, seed_files: list[str]) -> DbtSee
 
     logger.info(
         "event=dbt_seed_complete component=target_setup seed_files=%d status=success",
-        len(seed_files),
+        len(seed_csv_files),
     )
     return DbtSeedResult(ran=True, command=command)
 
@@ -499,7 +572,7 @@ def run_setup_target(project_root: Path) -> SetupTargetOutput:
     files = scaffold_target_project(project_root)
     sources = write_target_sources_yml(project_root)
     seeds = export_seed_tables(project_root)
-    seed_materialization = materialize_seed_tables(project_root, seeds.files)
+    seed_materialization = materialize_seed_tables(project_root, seeds.csv_files)
     applied = apply_target_source_tables(project_root)
     return SetupTargetOutput(
         files=files + seeds.files,
@@ -508,7 +581,7 @@ def run_setup_target(project_root: Path) -> SetupTargetOutput:
         created_tables=applied.created_tables,
         existing_tables=applied.existing_tables,
         desired_tables=applied.desired_tables,
-        seed_files=seeds.files,
+        seed_files=seeds.csv_files,
         seed_row_counts=seeds.row_counts,
         dbt_seed_ran=seed_materialization.ran,
         dbt_seed_command=seed_materialization.command,

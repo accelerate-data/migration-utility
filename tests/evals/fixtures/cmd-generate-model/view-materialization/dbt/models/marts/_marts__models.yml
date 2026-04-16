@@ -1,0 +1,35 @@
+version: 2
+
+models:
+- name: vw_activecustomers
+  description: Single-source filtered customer lookup view.
+  columns:
+  - name: CustomerID
+    description: Primary key, unique customer identifier.
+    data_tests:
+    - unique
+    - not_null
+  - name: FirstName
+    description: Customer first name.
+  - name: LastName
+    description: Customer last name.
+
+unit_tests:
+- name: test_active_customers_only
+  model: vw_activecustomers
+  given:
+  - input: ref('stg_bronze__customerraw')
+    rows:
+    - CustomerID: 1
+      FirstName: Ada
+      LastName: Lovelace
+      IsActive: 1
+    - CustomerID: 2
+      FirstName: Grace
+      LastName: Hopper
+      IsActive: 0
+  expect:
+    rows:
+    - CustomerID: 1
+      FirstName: Ada
+      LastName: Lovelace

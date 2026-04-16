@@ -158,6 +158,7 @@
   ],
   "change_capture": null,
   "sensitivity_classifications": [],
+  "is_source": true,
   "referenced_by": {
     "procedures": {
       "in_scope": [

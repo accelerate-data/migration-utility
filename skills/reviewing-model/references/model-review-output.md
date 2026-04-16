@@ -25,14 +25,31 @@ Each check is:
 
 Always include `passed` explicitly. Do not return `{ "issues": [] }` without the boolean.
 
-Example shape:
+`feedback_for_model_generator` is always an array of objects. Do not use strings.
+Each item must include:
+
+- `code`
+- `message`
+- `severity`
+- `ack_required`
+
+Example revision shape:
 
 ```json
 {
   "item_id": "silver.dimproduct",
   "status": "revision_requested",
   "checks": {
-    "standards": { "passed": false, "issues": [] },
+    "standards": {
+      "passed": false,
+      "issues": [
+        {
+          "code": "REVIEW_STANDARDS_VIOLATION",
+          "message": "SQL style violation",
+          "severity": "error"
+        }
+      ]
+    },
     "correctness": { "passed": true, "issues": [] },
     "test_integration": { "passed": false, "issues": [] }
   },
@@ -44,9 +61,6 @@ Example shape:
       "ack_required": true
     }
   ],
-  "acknowledgements": {
-    "SQL_001": "fixed"
-  },
   "warnings": [
     {
       "code": "REVIEW_KICKED_BACK",
@@ -73,5 +87,7 @@ Statuses:
 
 - `approved`
 - `revision_requested`
-- `approved_with_warnings`
 - `error`
+
+`ModelReviewResult` schema permits `approved_with_warnings` for caller-owned
+aggregation, but `/reviewing-model` must not emit it.

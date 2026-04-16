@@ -20,6 +20,21 @@ defaultTest:
       value: file://../../assertions/check-dbt-refs.js
 
 tests:
+  # ── workflow-exempt inputs: source and seed tables are skipped ──
+  - description: "source-skip — source table is not sent to model generation"
+    vars:
+      fixture_path: "tests/evals/fixtures/cmd-generate-model/happy-path"
+      target_tables: "bronze.Product"
+      target_table: "bronze.Product"
+      expected_output_terms: "marked as a dbt source,no migration needed"
+
+  - description: "seed-skip — seed table is not sent to model generation"
+    vars:
+      fixture_path: "tests/evals/fixtures/cmd-generate-model/happy-path"
+      target_tables: "bronze.Currency"
+      target_table: "bronze.Currency"
+      expected_output_terms: "marked as a dbt seed,no migration needed"
+
   # ── happy path: 2 tables, both generate dbt models ──────────
   - description: "[smoke] happy-path — InsertSelectTarget + UpdateJoinTarget both generate models"
     vars:
@@ -28,6 +43,9 @@ tests:
       target_table: "silver.InsertSelectTarget"
       expected_item_statuses: '{"silver.InsertSelectTarget": "ok,partial", "silver.UpdateJoinTarget": "ok,partial"}'
       expected_output_terms: "ok"
+      expected_model_path: "models/marts/insertselecttarget.sql"
+      expected_model_terms: "ref('stg_bronze__product')"
+      forbidden_model_terms: "materialized='table',source('bronze'"
     assert:
       - type: javascript
         value: file://../../assertions/check-dbt-model.js
@@ -53,6 +71,12 @@ tests:
       expected_item_statuses: '{"silver.DimProduct": "error", "silver.InsertSelectTarget": "ok,partial"}'
       expected_error_codes: "scoping_not_completed"
       expected_output_terms: "error"
+      expected_model_path: "models/marts/insertselecttarget.sql"
+      expected_model_terms: "ref('stg_bronze__product')"
+      forbidden_model_terms: "materialized='table',source('bronze'"
+    assert:
+      - type: javascript
+        value: file://../../assertions/check-dbt-model.js
 
   # ── VU-977: cross-model ref() resolution ─────────────────────
   - description: "cross-model-ref — fact mart uses ref() for existing dim and staging wrappers"
@@ -61,6 +85,7 @@ tests:
       target_tables: "silver.FactSales"
       target_table: "silver.FactSales"
       expected_item_statuses: '{"silver.FactSales": "ok,partial"}'
+      expected_model_path: "models/marts/fact_sales.sql"
       expected_model_terms: "ref("
     assert:
       - type: javascript
@@ -73,7 +98,8 @@ tests:
       target_tables: "silver.InsertSelectTarget"
       target_table: "silver.InsertSelectTarget"
       expected_item_statuses: '{"silver.InsertSelectTarget": "ok,partial"}'
-      expected_model_terms: "with,select,from,materialized="
+      expected_model_path: "models/marts/insertselecttarget.sql"
+      expected_model_terms: "with,select,from"
       forbidden_model_terms: "SELECT,FROM,INSERT,UPDATE"
     assert:
       - type: javascript
@@ -86,7 +112,9 @@ tests:
       target_tables: "silver.SelectIntoTarget"
       target_table: "silver.SelectIntoTarget"
       expected_item_statuses: '{"silver.SelectIntoTarget": "ok,partial"}'
-      expected_model_terms: "ref("
+      expected_model_path: "models/marts/selectintotarget.sql"
+      expected_model_terms: "ref('stg_bronze__product')"
+      forbidden_model_terms: "source('bronze'"
     assert:
       - type: javascript
         value: file://../../assertions/check-dbt-model.js
@@ -98,19 +126,22 @@ tests:
       target_tables: "silver.DimCustomer"
       target_table: "silver.DimCustomer"
       expected_item_statuses: '{"silver.DimCustomer": "ok,partial"}'
-      expected_model_terms: "ref(,materialized="
+      expected_model_path: "models/marts/dimcustomer.sql"
+      expected_model_terms: "ref("
     assert:
       - type: javascript
         value: file://../../assertions/check-dbt-model.js
 
   # ── merge ────────────────────────────────────────────────────
-  - description: "merge — DimProduct dim_scd1 table-materialized model"
+  - description: "merge — DimProduct dim_scd1 mart model"
     vars:
       fixture_path: "tests/evals/fixtures/generating-model/merge"
       target_tables: "silver.DimProduct"
       target_table: "silver.DimProduct"
       expected_item_statuses: '{"silver.DimProduct": "ok,partial"}'
-      expected_model_terms: "materialized='table',ref("
+      expected_model_path: "models/marts/dim_product.sql"
+      expected_model_terms: "ref("
+      forbidden_model_terms: "materialized='table'"
     assert:
       - type: javascript
         value: file://../../assertions/check-dbt-model.js
@@ -122,6 +153,7 @@ tests:
       target_tables: "silver.UpdateJoinTarget"
       target_table: "silver.UpdateJoinTarget"
       expected_item_statuses: '{"silver.UpdateJoinTarget": "ok,partial"}'
+      expected_model_path: "models/marts/updatejointarget.sql"
       expected_model_terms: "materialized='incremental',ref("
     assert:
       - type: javascript
@@ -134,6 +166,7 @@ tests:
       target_tables: "silver.InsertSelectTarget"
       target_table: "silver.InsertSelectTarget"
       expected_item_statuses: '{"silver.InsertSelectTarget": "ok,partial"}'
+      expected_model_path: "models/marts/insertselecttarget.sql"
       expected_model_terms: "_dbt_run_id"
     assert:
       - type: javascript
@@ -146,6 +179,7 @@ tests:
       target_tables: "silver.InsertSelectTarget"
       target_table: "silver.InsertSelectTarget"
       expected_item_statuses: '{"silver.InsertSelectTarget": "ok,partial"}'
+      expected_model_path: "models/marts/insertselecttarget.sql"
       expected_yaml_terms: "version: 2,description"
     assert:
       - type: javascript
@@ -158,6 +192,7 @@ tests:
       target_tables: "silver.DimEmployeeSCD2"
       target_table: "silver.DimEmployeeSCD2"
       expected_item_statuses: '{"silver.DimEmployeeSCD2": "ok,partial"}'
+      expected_model_path: "snapshots/dim_employee_scd2.sql"
       expected_model_terms: "snapshot,strategy"
       forbidden_model_terms: "materialized='table'"
     assert:
@@ -171,7 +206,9 @@ tests:
       target_tables: "silver.vw_activecustomers"
       target_table: "silver.vw_activecustomers"
       expected_item_statuses: '{"silver.vw_activecustomers": "ok,partial"}'
-      expected_model_terms: "materialized='view',ref("
+      expected_model_path: "models/marts/vw_activecustomers.sql"
+      expected_model_terms: "materialized='view',ref('stg_bronze__customerraw')"
+      forbidden_model_terms: "source('bronze'"
     assert:
       - type: javascript
         value: file://../../assertions/check-dbt-model.js

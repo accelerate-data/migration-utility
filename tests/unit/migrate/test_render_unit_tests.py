@@ -85,6 +85,28 @@ def _view_spec() -> dict:
 
 
 class TestRunRenderUnitTests:
+    def test_renders_confirmed_sources_as_staging_ref_inputs(self, tmp_path: Path) -> None:
+        """Confirmed source fixtures feed the staging wrapper used by generated marts."""
+        spec_path = tmp_path / "test-specs" / "silver.dimcustomer.json"
+        spec_path.parent.mkdir(parents=True)
+        spec_path.write_text(json.dumps(_minimal_spec()), encoding="utf-8")
+        catalog_path = tmp_path / "catalog" / "tables" / "bronze.customerraw.json"
+        catalog_path.parent.mkdir(parents=True, exist_ok=True)
+        catalog_path.write_text(
+            json.dumps({"schema": "bronze", "name": "CustomerRaw", "is_source": True}),
+            encoding="utf-8",
+        )
+        yml_path = tmp_path / "dbt" / "models" / "marts" / "_marts__models.yml"
+
+        result = run_render_unit_tests(tmp_path, "silver.DimCustomer", "dimcustomer", spec_path, yml_path)
+
+        assert result.errors == []
+        schema = yaml.safe_load(yml_path.read_text(encoding="utf-8"))
+        unit_tests = schema["models"][0]["unit_tests"]
+        assert unit_tests[0]["given"][0]["input"] == "ref('stg_bronze__customerraw')"
+        assert unit_tests[1]["given"][0]["input"] == "ref('stg_bronze__customerraw')"
+        assert unit_tests[1]["given"][1]["input"] == "source('silver', 'DimCustomer')"
+
     def test_renders_table_proc_scenarios(self, tmp_path: Path) -> None:
         """Proc-based test spec scenarios are translated to dbt unit tests."""
         spec_path = tmp_path / "test-specs" / "silver.dimcustomer.json"

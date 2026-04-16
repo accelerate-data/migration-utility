@@ -13,7 +13,7 @@ with import_employee as (
         LoginID,
         JobTitle,
         MaritalStatus
-    from {{ source('bronze', 'employee') }}
+    from {{ ref('stg_bronze__employee') }}
 ),
 
 logical_new_current_rows as (
@@ -36,8 +36,8 @@ logical_new_current_rows as (
 final as (
     select
         *,
-        {{ invocation_id }} as _dbt_run_id,
-        current_timestamp() as _loaded_at
+        '{{ invocation_id }}' as _dbt_run_id,
+        {{ current_timestamp() }} as _loaded_at
     from logical_new_current_rows
 )
 

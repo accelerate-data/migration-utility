@@ -115,6 +115,16 @@ models:
 
 Use model-level config only for exceptions such as migration-required aliases, schemas, incremental models, or snapshots.
 
+Do not set redundant `materialized='table'` config on ordinary first-pass mart table models; the `marts` layer default already supplies it. View models, incremental models, aliases, and schema-preservation cases are explicit exceptions.
+
+## Seeds
+
+`setup-target` writes confirmed seed CSVs under `dbt/seeds/` with seed properties in `dbt/seeds/_seeds.yml`.
+
+Seed properties use a top-level `seeds:` key and include known columns. Include `data_type` when catalog/source metadata provides it.
+
+Downstream models reference seeds with `ref('<seed_name>')`; seed CSVs are never model files.
+
 ## Skill Guidance
 
 `generating-model` must consume the plugin-local shared dbt standards reference plus the shared model, SQL, and YAML references. It writes first-pass migrated target models into `models/marts/` and should reference existing staging wrappers for confirmed bronze sources.
