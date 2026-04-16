@@ -12,6 +12,7 @@ import typer
 
 from shared.cli import output
 from shared.cli.add_source_table_cmd import add_source_table
+from shared.cli.doctor_drivers_cmd import drivers as doctor_drivers
 from shared.cli.exclude_table_cmd import exclude_table
 from shared.cli.reset_cmd import reset
 from shared.cli.setup_sandbox_cmd import setup_sandbox
@@ -24,6 +25,13 @@ logger = logging.getLogger(__name__)
 app = typer.Typer(
     name="ad-migration",
     help="Migration pipeline CLI for warehouses to dbt.",
+    no_args_is_help=True,
+    add_completion=False,
+    pretty_exceptions_enable=False,
+)
+doctor_app = typer.Typer(
+    name="doctor",
+    help="Diagnose the installed ad-migration runtime.",
     no_args_is_help=True,
     add_completion=False,
     pretty_exceptions_enable=False,
@@ -90,3 +98,5 @@ app.command("teardown-sandbox")(teardown_sandbox)
 app.command("reset")(reset)
 app.command("exclude-table")(exclude_table)
 app.command("add-source-table")(add_source_table)
+doctor_app.command("drivers")(doctor_drivers)
+app.add_typer(doctor_app)

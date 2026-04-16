@@ -60,6 +60,7 @@ def test_repo_map_points_commands_at_the_split_projects() -> None:
         "ad_migration_setup_target": f"cd {PUBLIC_PROJECT_PATH} && uv run ad-migration setup-target",
         "ad_migration_setup_sandbox": f"cd {PUBLIC_PROJECT_PATH} && uv run ad-migration setup-sandbox",
         "ad_migration_teardown_sandbox": f"cd {PUBLIC_PROJECT_PATH} && uv run ad-migration teardown-sandbox",
+        "ad_migration_doctor_drivers": f"cd {PUBLIC_PROJECT_PATH} && uv run ad-migration doctor drivers",
         "ad_migration_reset": f"cd {PUBLIC_PROJECT_PATH} && uv run ad-migration reset",
         "ad_migration_exclude_table": f"cd {PUBLIC_PROJECT_PATH} && uv run ad-migration exclude-table",
         "ad_migration_add_source_table": f"cd {PUBLIC_PROJECT_PATH} && uv run ad-migration add-source-table",
@@ -155,3 +156,20 @@ def test_maintainer_docs_use_the_internal_project_path() -> None:
     init_text = (REPO_ROOT / "commands/init-ad-migration.md").read_text(encoding="utf-8")
     assert INTERNAL_PROJECT_PATH in init_text
     assert "macOS-only" in init_text or "supported only on macOS" in init_text
+
+
+def test_init_command_runs_public_driver_doctor_and_keeps_internal_checks() -> None:
+    init_text = (REPO_ROOT / "commands/init-ad-migration.md").read_text(encoding="utf-8")
+    public_doctor = "ad-migration doctor drivers --project-root . --json"
+
+    assert init_text.count(public_doctor) >= 3
+    assert init_text.index("ad-migration --version") < init_text.index(public_doctor)
+    assert init_text.index("## Step 2: Runtime selection") < init_text.index(
+        "7. `ad-migration doctor drivers --project-root . --json`"
+    )
+    assert "uv run --project \"${CLAUDE_PLUGIN_ROOT}/packages/ad-migration-internal\" python3 -c \"import pydantic, sqlglot, typer\"" in init_text
+    assert "uv run --project \"${CLAUDE_PLUGIN_ROOT}/packages/ad-migration-internal\" python3 -c \"import pyodbc\"" in init_text
+    assert "uv run --project \"${CLAUDE_PLUGIN_ROOT}/packages/ad-migration-internal\" python3 -c \"import oracledb\"" in init_text
+    assert "Fix the public CLI package or Homebrew formula resources" in init_text
+    assert "stop before handing the user to `ad-migration setup-target` or `ad-migration setup-sandbox`" in init_text
+    assert "Do not tell the user to run `pip install`, `uv pip install`, or otherwise mutate the brewed virtualenv" in init_text

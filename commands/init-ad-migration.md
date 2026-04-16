@@ -41,14 +41,21 @@ After installing, verify:
 
 ```bash
 ad-migration --version
+ad-migration doctor drivers --project-root . --json
 ```
+
+If `ad-migration doctor drivers` fails here, apply the public CLI driver doctor failure policy below.
 
 If Homebrew is not available on the user's machine, tell them:
 
 > Install Homebrew first: `/bin/bash -c "$(curl -fsSL https://raw.githubusercontent.com/Homebrew/install/HEAD/install.sh)"`
 > Then re-run `/init-ad-migration`.
 
-Do not continue if `ad-migration --version` still fails after installation.
+Do not continue if `ad-migration --version` or `ad-migration doctor drivers` still fails after installation.
+
+### Public CLI driver doctor failure policy
+
+`ad-migration doctor drivers` checks the public CLI runtime that will later execute setup commands. If it fails, stop before handing the user to `ad-migration setup-target` or `ad-migration setup-sandbox`. Failure guidance must say: "Fix the public CLI package or Homebrew formula resources so this driver is bundled with the installed ad-migration runtime." Do not tell the user to run `pip install`, `uv pip install`, or otherwise mutate the brewed virtualenv.
 
 ## Step 2: Runtime selection
 
@@ -97,6 +104,9 @@ Do NOT install or change anything yet — only gather evidence for items not alr
 4. `uv run "${CLAUDE_PLUGIN_ROOT}/mcp/ddl/server.py" --help` — does the DDL MCP server start cleanly?
 5. `git rev-parse --is-inside-work-tree` — is the current working directory inside a git repository? If not, warn the user that the project folder is not under version control and recommend initialising git before running extraction skills.
 6. `direnv version` — is direnv installed? This is optional; mark as `—` if missing.
+7. `ad-migration doctor drivers --project-root . --json` — are all supported backend Python drivers importable from the public CLI runtime?
+
+Run the public CLI driver doctor after source/target runtime selection, even if it already passed immediately after Homebrew installation. If it fails, apply the public CLI driver doctor failure policy.
 
 ### Source runtime prerequisites
 
@@ -136,6 +146,7 @@ Common prerequisites:
   ddl_mcp:     ✓ starts             /  ✗ fails
   git:         ✓ repo detected      /  — not a git repo (recommended)
   direnv:      ✓ installed (x.y.z)  /  — not found (recommended)
+  public drivers: ✓ importable      /  ✗ missing from public CLI runtime
 ```
 
 **For source = SQL Server:**
@@ -234,6 +245,16 @@ For Oracle target:
 ```bash
 uv run --project "${CLAUDE_PLUGIN_ROOT}/packages/ad-migration-internal" python3 -c "import oracledb"
 ```
+
+These internal/plugin uv checks must remain in place; they validate agent and internal command readiness. They do not replace the public CLI runtime driver doctor.
+
+**Verify public CLI backend drivers**:
+
+```bash
+ad-migration doctor drivers --project-root . --json
+```
+
+This command validates the installed public `ad-migration` runtime. If it fails, apply the public CLI driver doctor failure policy.
 
 **ddl_mcp fails** (after shared sync): re-run the ddl_mcp check. If it still fails, show the error output to the user and tell them to check their Python environment.
 

@@ -12,7 +12,7 @@ from shared.dbops import ColumnSpec, get_dbops
 from shared.generate_sources import generate_sources, write_sources_yml
 from shared.output_models.generate_sources import GenerateSourcesOutput
 from shared.output_models.target_setup import SetupTargetOutput
-from shared.runtime_config import get_runtime_role
+from shared.runtime_config import dialect_for_technology, get_runtime_role
 from shared.runtime_config_models import RuntimeConnection, RuntimeRole, RuntimeSchemas
 from shared.setup_ddl_support.manifest import read_manifest_strict
 
@@ -68,7 +68,7 @@ def write_target_runtime_from_env(
 
     role = RuntimeRole(
         technology=technology,
-        dialect=technology,
+        dialect=dialect_for_technology(technology),
         connection=RuntimeConnection(**connection_kwargs),
         schemas=RuntimeSchemas(source=source_schema, marts=None),
     )

@@ -14,6 +14,7 @@ from shared.target_setup import (
     get_target_source_schema,
     run_setup_target,
     scaffold_target_project,
+    write_target_runtime_from_env,
     write_target_sources_yml,
 )
 
@@ -125,6 +126,42 @@ def test_get_target_source_schema_defaults_to_bronze(tmp_path: Path) -> None:
         {"schema_version": "1.0", "technology": "sql_server", "dialect": "tsql", "runtime": {"target": {"technology": "sql_server", "dialect": "tsql", "connection": {"database": "TargetDB"}}}},
     )
     assert get_target_source_schema(project_root) == "bronze"
+
+
+def test_write_target_runtime_from_env_maps_sql_server_to_tsql_dialect(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    project_root = tmp_path / "project"
+    project_root.mkdir()
+    _write_manifest(
+        project_root,
+        {
+            "schema_version": "1.0",
+            "technology": "sql_server",
+            "dialect": "tsql",
+            "runtime": {
+                "source": {
+                    "technology": "sql_server",
+                    "dialect": "tsql",
+                    "connection": {"database": "SourceDB"},
+                },
+                "sandbox": {
+                    "technology": "sql_server",
+                    "dialect": "tsql",
+                    "connection": {},
+                },
+            },
+        },
+    )
+    monkeypatch.setenv("TARGET_MSSQL_DB", "TargetDB")
+
+    role = write_target_runtime_from_env(project_root, "sql_server")
+
+    manifest = json.loads((project_root / "manifest.json").read_text(encoding="utf-8"))
+    assert role.technology == "sql_server"
+    assert role.dialect == "tsql"
+    assert manifest["runtime"]["target"]["technology"] == "sql_server"
+    assert manifest["runtime"]["target"]["dialect"] == "tsql"
 
 
 def test_generate_target_sources_uses_target_schema_override(tmp_path: Path) -> None:

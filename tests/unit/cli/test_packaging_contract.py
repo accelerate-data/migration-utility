@@ -128,7 +128,7 @@ def test_packaging_contract_matches_the_split_distribution_layout(tmp_path: Path
     assert "scripts" not in shared["project"]
 
     assert public["project"]["name"] == "ad-migration-cli"
-    assert public["project"]["dependencies"] == ["ad-migration-shared==0.1.0"]
+    assert public["project"]["dependencies"] == ["ad-migration-shared[export,oracle]==0.1.0"]
     assert public["project"]["scripts"] == {
         "ad-migration": "ad_migration_cli.main:app",
     }
@@ -174,3 +174,28 @@ def test_packaging_contract_matches_the_split_distribution_layout(tmp_path: Path
     version, discover_help = _run_installed_smoke(venv_dir)
     assert version == "0.1.0"
     assert "Usage:" in discover_help
+
+    doctor_help = subprocess.run(
+        [str(venv_dir / "bin" / "ad-migration"), "doctor", "drivers", "--help"],
+        check=True,
+        capture_output=True,
+        text=True,
+        env=_subprocess_env(),
+        cwd=venv_dir.parent,
+    ).stdout
+    assert "Usage:" in doctor_help
+
+    doctor_result = subprocess.run(
+        [str(venv_dir / "bin" / "ad-migration"), "doctor", "drivers", "--json"],
+        check=True,
+        capture_output=True,
+        text=True,
+        env=_subprocess_env(),
+        cwd=venv_dir.parent,
+    )
+    doctor_payload = json.loads(doctor_result.stdout)
+    assert doctor_payload["status"] == "ok"
+    assert {
+        (driver["driver_module"], driver["importable"])
+        for driver in doctor_payload["drivers"]
+    } == {("oracledb", True), ("pyodbc", True)}
