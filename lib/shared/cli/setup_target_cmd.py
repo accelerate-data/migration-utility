@@ -65,8 +65,13 @@ def setup_target(
         success(f"created  {f}")
     if result.sources_path:
         success(f"sources  {result.sources_path}")
+    for seed_file in result.seed_files:
+        success(f"seed     {seed_file}")
     console.print(
         f"\n  tables in sources.yml: {len(result.desired_tables)} desired, "
         f"{len(result.created_tables)} new, {len(result.existing_tables)} existing"
     )
+    if result.seed_files:
+        seed_status = "materialized" if result.dbt_seed_ran else "not materialized"
+        console.print(f"  seed files: {len(result.seed_files)} exported, {seed_status}")
     remind_review_and_commit()

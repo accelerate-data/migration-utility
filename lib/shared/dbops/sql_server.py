@@ -114,6 +114,28 @@ class SqlServerOperations(DatabaseOperations):
         finally:
             conn.close()
 
+    def read_table_rows(
+        self,
+        schema_name: str,
+        table_name: str,
+        columns: list[str] | None = None,
+    ) -> tuple[list[str], list[tuple[object, ...]]]:
+        self._validate_identifier(schema_name)
+        self._validate_identifier(table_name)
+        selected_columns = list(columns or [])
+        for column in selected_columns:
+            self._validate_identifier(column)
+        select_list = ", ".join(f"[{column}]" for column in selected_columns) if selected_columns else "*"
+        conn = self._connect()
+        try:
+            cursor = conn.cursor()
+            cursor.execute(f"SELECT {select_list} FROM [{schema_name}].[{table_name}]")
+            result_columns = [column[0] for column in cursor.description]
+            rows = [tuple(row) for row in cursor.fetchall()]
+            return result_columns, rows
+        finally:
+            conn.close()
+
     def _map_type(self, source_type: str) -> str:
         normalized = source_type.upper().strip()
         if normalized:
