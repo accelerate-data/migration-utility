@@ -65,6 +65,7 @@ app = typer.Typer(add_completion=False, pretty_exceptions_enable=False)
 # ── Constants ────────────────────────────────────────────────────────────────
 
 RESOLVED_KINDS = frozenset({
+    "seed",
     "dim_non_scd",
     "dim_scd1",
     "dim_scd2",
@@ -87,6 +88,19 @@ PK_TYPES = frozenset({"surrogate", "natural", "composite", "unknown"})
 
 VIEW_CLASSIFICATIONS = frozenset({"stg", "mart"})
 VIEW_SOURCES = frozenset({"llm"})
+
+
+def build_seed_profile(rationale: str = "Table is maintained as a dbt seed.") -> dict[str, Any]:
+    """Build the canonical profile payload for a dbt seed table."""
+    return {
+        "classification": {
+            "resolved_kind": "seed",
+            "source": "catalog",
+            "rationale": rationale,
+        },
+        "warnings": [],
+        "errors": [],
+    }
 
 
 
@@ -415,9 +429,15 @@ def run_write(project_root: Path, table: str, profile_json: dict[str, Any]) -> d
 
     # Determine status from content
     classification = profile_json.get("classification")
-    has_classification = classification is not None and classification.get("resolved_kind") in RESOLVED_KINDS
+    resolved_kind = classification.get("resolved_kind") if isinstance(classification, dict) else None
+    if resolved_kind == "seed" and not existing_table.is_seed:
+        raise ValueError(f"seed classification requires is_seed: true for {norm}")
+
+    has_classification = classification is not None and resolved_kind in RESOLVED_KINDS
     has_primary_key = profile_json.get("primary_key") is not None
-    if has_classification and has_primary_key:
+    if resolved_kind == "seed":
+        status = "ok"
+    elif has_classification and has_primary_key:
         status = "ok"
     elif has_classification:
         status = "partial"

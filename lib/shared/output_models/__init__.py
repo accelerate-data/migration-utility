@@ -106,6 +106,7 @@ _MODEL_MODULES = {
     "UntestableBranch": "test_specs",
     "ValidationSection": "test_specs",
     "WriteSliceOutput": "writeback",
+    "WriteSeedOutput": "writeback",
     "WriteSourceOutput": "writeback",
 }
 
