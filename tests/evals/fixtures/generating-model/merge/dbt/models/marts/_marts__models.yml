@@ -33,7 +33,7 @@ models:
       - name: test_status_current_when_active_product
         model: dim_product
         given:
-          - input: source('bronze', 'product')
+          - input: ref('stg_bronze__product')
             rows:
               - ProductID: 1
                 ProductName: "Road-150"
@@ -72,7 +72,7 @@ models:
       - name: test_status_obsolete_when_discontinued
         model: dim_product
         given:
-          - input: source('bronze', 'product')
+          - input: ref('stg_bronze__product')
             rows:
               - ProductID: 2
                 ProductName: "Mountain-200"
@@ -111,7 +111,7 @@ models:
       - name: test_status_outdated_when_sell_end_present
         model: dim_product
         given:
-          - input: source('bronze', 'product')
+          - input: ref('stg_bronze__product')
             rows:
               - ProductID: 3
                 ProductName: "Touring-300"
@@ -150,7 +150,7 @@ models:
       - name: test_color_defaults_to_empty_string_when_null
         model: dim_product
         given:
-          - input: source('bronze', 'product')
+          - input: ref('stg_bronze__product')
             rows:
               - ProductID: 4
                 ProductName: "Helmet-400"

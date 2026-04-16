@@ -35,9 +35,10 @@ Use `proc_body` as the ground truth. Ignore `refactored_sql`.
 
 Then read the generated artifacts from `dbt/models/`:
 
-- Check both `dbt/models/staging/` and `dbt/models/marts/`.
-- If the only discovered SQL/YAML pair for a table migration uses a legacy `stg_*` filename, review that pair and flag naming/layer violations instead of returning `MODEL_NOT_FOUND`.
-- For view-based staging reviews, `<model_name>.sql` and `_<model_name>.yml` are the valid artifact shapes.
+- Check `dbt/models/marts/<model_name>.sql` with `dbt/models/marts/_marts__models.yml` for first-pass generated table/view targets.
+- Check `dbt/snapshots/` for snapshot targets.
+- Treat `dbt/models/staging/` as source-wrapper territory. If the selected migrated target is only present there, review it and flag naming/layer violations instead of returning `MODEL_NOT_FOUND`.
+- The valid staging artifacts are pass-through `stg_bronze__<entity>.sql` wrappers plus `dbt/models/staging/_staging__sources.yml` and `_staging__models.yml`.
 - Return `MODEL_NOT_FOUND` when the selected artifact is missing either the SQL file or the paired schema YAML.
 
 Derive `model_name` from the SQL filename and verify it matches the naming contract in [model-naming.md](../_shared/references/model-naming.md).
@@ -87,6 +88,7 @@ Use `REVIEW_TEST_INTEGRATION_GAP` in `checks.test_integration.issues[]` for any 
 
 Evaluate the SQL and YAML against the shared standards references:
 
+- [dbt-project-standards.md](../_shared/references/dbt-project-standards.md)
 - [sql-style.md](../_shared/references/sql-style.md)
 - [cte-structure.md](../_shared/references/cte-structure.md)
 - [model-naming.md](../_shared/references/model-naming.md)

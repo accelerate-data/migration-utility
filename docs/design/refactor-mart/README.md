@@ -129,6 +129,8 @@ Validation is scoped to the candidate being applied.
 
 The workflow should report candidate-level success and failure in both command output and plan-file status updates.
 
+Run dbt Project Evaluator after the changed candidate scope builds successfully. Treat evaluator findings as refactor review evidence: fix findings that align with the generated dbt standards, and document exceptions when a rule conflicts with migration fidelity or an explicit project standard.
+
 ## Reason For Markdown Plans
 
 The plan is intentionally human-editable and model-readable. A Python-first plan format would add parser complexity around a document whose real consumer is the LLM.

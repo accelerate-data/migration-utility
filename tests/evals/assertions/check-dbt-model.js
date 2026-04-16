@@ -102,17 +102,36 @@ module.exports = (output, context) => {
     return { pass: false, score: 0, reason: `No SQL file matching '${tableName}' found in ${modelsDir}` };
   }
 
+  const catalogPath = path.resolve(
+    repoRoot,
+    fixturePath,
+    'catalog',
+    'tables',
+    `${table.toLowerCase()}.json`,
+  );
+  let modelFile = matchingFiles[0];
+  if (fs.existsSync(catalogPath)) {
+    const catalog = JSON.parse(fs.readFileSync(catalogPath, 'utf8'));
+    const generatedModelPath = catalog?.generate?.model_path;
+    if (generatedModelPath) {
+      const generatedModelFile = path.resolve(dbtDir, generatedModelPath);
+      if (fs.existsSync(generatedModelFile)) {
+        modelFile = generatedModelFile;
+      }
+    }
+  }
+
   // Verify the model contains config()
-  const modelContent = fs.readFileSync(matchingFiles[0], 'utf8');
+  const modelContent = fs.readFileSync(modelFile, 'utf8');
   if (!modelContent.includes('config(')) {
-    return { pass: false, score: 0, reason: `Model file ${matchingFiles[0]} missing config() block` };
+    return { pass: false, score: 0, reason: `Model file ${modelFile} missing config() block` };
   }
 
   const rawModel = modelContent;
   const normalizedModel = modelContent.toLowerCase();
   for (const term of expectedModelTerms) {
     if (!normalizedModel.includes(term)) {
-      return { pass: false, score: 0, reason: `Expected model term '${term}' not found in ${path.basename(matchingFiles[0])}` };
+      return { pass: false, score: 0, reason: `Expected model term '${term}' not found in ${path.basename(modelFile)}` };
     }
   }
 
@@ -121,7 +140,7 @@ module.exports = (output, context) => {
     const haystack = hasUppercase ? rawModel : normalizedModel;
     const needle = hasUppercase ? term : term.toLowerCase();
     if (haystack.includes(needle)) {
-      return { pass: false, score: 0, reason: `Forbidden model term '${term}' found in ${path.basename(matchingFiles[0])}` };
+      return { pass: false, score: 0, reason: `Forbidden model term '${term}' found in ${path.basename(modelFile)}` };
     }
   }
 
@@ -145,7 +164,9 @@ module.exports = (output, context) => {
 
     const matchingYamlFiles = allYamlFiles.filter(f => {
       const fNorm = f.toLowerCase().replace(/_/g, '');
-      return fNorm.includes(tableNameNorm);
+      if (fNorm.includes(tableNameNorm)) return true;
+      const yamlContent = fs.readFileSync(f, 'utf8').toLowerCase().replace(/_/g, '');
+      return yamlContent.includes(`name: ${tableNameNorm}`);
     });
 
     if (matchingYamlFiles.length === 0) {
@@ -186,5 +207,5 @@ module.exports = (output, context) => {
     }
   }
 
-  return { pass: true, score: 1, reason: `dbt model written: ${path.basename(matchingFiles[0])}` };
+  return { pass: true, score: 1, reason: `dbt model written: ${path.basename(modelFile)}` };
 };

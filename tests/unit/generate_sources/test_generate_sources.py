@@ -215,8 +215,8 @@ def test_strict_mode_does_not_flag_unconfirmed() -> None:
 # ── sources.yml content ───────────────────────────────────────────────────────
 
 
-def test_sources_yml_groups_by_schema() -> None:
-    """Multiple is_source tables from same schema are grouped together."""
+def test_sources_yml_uses_single_bronze_source_namespace() -> None:
+    """All confirmed source tables emit under the canonical bronze source."""
     tmp, root = _make_project([
         {"schema": "silver", "name": "TableA",
          "scoping": {"status": "no_writer_found"}, "is_source": True},
@@ -229,7 +229,9 @@ def test_sources_yml_groups_by_schema() -> None:
         result = generate_sources(root)
         assert result.sources is not None
         schemas = {s["name"] for s in result.sources["sources"]}
-        assert schemas == {"silver", "bronze"}
+        assert schemas == {"bronze"}
+        tables = result.sources["sources"][0]["tables"]
+        assert [table["name"] for table in tables] == ["TableA", "TableB", "TableC"]
     finally:
         tmp.cleanup()
 
@@ -277,7 +279,7 @@ def test_sources_yml_includes_catalog_columns_types_and_not_null_tests() -> None
 
 
 def test_write_sources_yml_writes_enriched_yaml_idempotently(tmp_path: Path) -> None:
-    """write_sources_yml writes enriched YAML and stable repeated output."""
+    """write_sources_yml writes enriched YAML, staging wrappers, and stable repeated output."""
     tables_dir = tmp_path / "catalog" / "tables"
     tables_dir.mkdir(parents=True)
     (tables_dir / "bronze.customer.json").write_text(
@@ -317,16 +319,41 @@ def test_write_sources_yml_writes_enriched_yaml_idempotently(tmp_path: Path) -> 
     assert first.path is not None
     sources_path = Path(first.path)
     first_content = sources_path.read_text(encoding="utf-8")
+    staging_models_path = dbt_dir / "models" / "staging" / "_staging__models.yml"
+    customer_wrapper_path = dbt_dir / "models" / "staging" / "stg_bronze__customer.sql"
+    order_wrapper_path = dbt_dir / "models" / "staging" / "stg_bronze__order.sql"
 
     second = write_sources_yml(tmp_path)
     assert second.path == first.path
     assert sources_path.read_text(encoding="utf-8") == first_content
+    assert sources_path.name == "_staging__sources.yml"
     assert "&id" not in first_content
     assert "*id" not in first_content
     assert "data_type: INT" in first_content
     assert "- not_null" in first_content
     assert "- unique" in first_content
     assert "loaded_at_field: loaded_at" in first_content
+    assert customer_wrapper_path.read_text(encoding="utf-8") == (
+        "with source as (\n"
+        "\n"
+        "    select * from {{ source('bronze', 'Customer') }}\n"
+        "\n"
+        ")\n"
+        "\n"
+        "select * from source\n"
+    )
+    assert order_wrapper_path.read_text(encoding="utf-8") == (
+        "with source as (\n"
+        "\n"
+        "    select * from {{ source('bronze', 'Order') }}\n"
+        "\n"
+        ")\n"
+        "\n"
+        "select * from source\n"
+    )
+    staging_models_content = staging_models_path.read_text(encoding="utf-8")
+    assert "name: stg_bronze__customer" in staging_models_content
+    assert "name: stg_bronze__order" in staging_models_content
 
 
 def test_sources_yml_uses_profile_watermark_for_freshness_when_column_exists() -> None:
@@ -709,4 +736,7 @@ def test_write_sources_yml_creates_file(tmp_path) -> None:
     assert result.path is not None
     sources_path = Path(result.path)
     assert sources_path.exists()
+    assert sources_path.name == "_staging__sources.yml"
+    assert (tmp_path / "dbt" / "models" / "staging" / "stg_bronze__src.sql").exists()
+    assert (tmp_path / "dbt" / "models" / "staging" / "_staging__models.yml").exists()
     assert "silver.src" in result.included

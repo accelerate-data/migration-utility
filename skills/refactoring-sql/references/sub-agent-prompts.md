@@ -44,6 +44,8 @@ You are restructuring a source routine into a clean CTE-based SELECT
 following the import/logical/final CTE pattern.
 
 Read references/routine-migration-ref.md for dialect-specific restructuring rules.
+Follow the shared SQL and CTE style references. Do not decide dbt model
+layer, folder, YAML, or ref/source wrapper placement.
 
 Procedure body:
 <proc_body>
@@ -79,11 +81,12 @@ Instructions:
 3. You MUST create a CTE literally named `final AS (...)`
 4. End with: SELECT * FROM final
 5. Never use SELECT * in import, logical, or final CTEs. The needed columns are knowable from the refactor context and catalog.
-6. Keep source dialect syntax (e.g. ISNULL/NVL, CONVERT/TO_CHAR) — no dialect conversion at this stage
-7. Replace procedure parameters with literal defaults where possible
-8. Flatten nested subqueries into sequential CTEs
-9. Temp tables become logical CTEs
-10. Cursor loops become set-based operations (window functions, JOINs)
+6. Use dbt Labs SQL style: lowercase keywords, four-space indents, trailing commas, and positional grouping
+7. Keep source dialect syntax (e.g. ISNULL/NVL, CONVERT/TO_CHAR) — no dialect conversion at this stage
+8. Replace procedure parameters with literal defaults where possible
+9. Flatten nested subqueries into sequential CTEs
+10. Temp tables become logical CTEs
+11. Cursor loops become set-based operations (window functions, JOINs)
 
 Return ONLY the refactored CTE SELECT SQL, nothing else.
 ```

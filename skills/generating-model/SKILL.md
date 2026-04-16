@@ -46,14 +46,20 @@ Do not use this skill for batch orchestration. `/generate-model` owns batching, 
 
    Use `writer_ddl_slice` when present; otherwise use `refactored_sql`. Never generate from `proc_body`.
 
-3. Generate SQL that preserves the transformed logic.
+3. Generate mart SQL that preserves the transformed logic.
 
-   Apply [sql-style](../_shared/references/sql-style.md), [cte-structure](../_shared/references/cte-structure.md), [model-naming](../_shared/references/model-naming.md), and [model-artifact-invariants](../_shared/references/model-artifact-invariants.md).
+   Apply [dbt-project-standards](../_shared/references/dbt-project-standards.md), [sql-style](../_shared/references/sql-style.md), [cte-structure](../_shared/references/cte-structure.md), [model-naming](../_shared/references/model-naming.md), and [model-artifact-invariants](../_shared/references/model-artifact-invariants.md).
 
    Rules:
-   - Keep one dbt model artifact per target. Do not split one target across multiple helper SQL files.
-   - Use `{{ source('<schema>', '<table>') }}` directly in import CTEs for raw source relations.
+   - Every generated model SQL artifact must start with a dbt `config(` block inside `{{ ... }}` before any CTEs or `select`. Snapshot SQL starts with `{% snapshot <name> %}`, then immediately includes the `config(` block before any CTEs or `select`.
+   - Keep one dbt mart model artifact per target. Do not split one target across multiple helper SQL files.
+   - Do not write migrated target SQL or YAML under `models/staging/`. That folder is only for source YAML and pure `stg_bronze__*` wrappers from `setup-target`. If you are about to write `models/staging/<target>.sql`, stop and use the CLI writer instead.
+   - First-pass generated table/view targets write to `models/marts/<model_name>.sql` through `migrate write`.
+   - Before drafting SQL, inspect `models/staging/_staging__models.yml` and `models/staging/stg_bronze__*.sql`. Use `{{ ref('stg_bronze__<entity>') }}` for confirmed bronze source relations when the pass-through staging wrapper exists.
+   - Translate raw bronze references in `refactored_sql` to staging wrapper refs during generation. Do not leave `{{ source('bronze', '<table>') }}` in a mart when a matching `stg_bronze__<entity>` wrapper exists.
+   - Use `{{ source('bronze', '<table>') }}` directly only when no matching staging wrapper exists.
    - Preserve joins, filters, grouping, and write intent from `refactored_sql`.
+   - Add required control columns from `model-artifact-invariants` with the exact standard expressions: `'{{ invocation_id }}' as _dbt_run_id` for every generated artifact and `{{ current_timestamp() }} as _loaded_at` for table and snapshot materializations.
    - When the target comes from `catalog/views/` (view or materialized view profile), generate the dbt model with `materialized='view'`. Do not use `ephemeral` for generated view models.
    - For snapshots, use [references/snapshot-generation.md](references/snapshot-generation.md).
 
@@ -64,6 +70,8 @@ Do not use this skill for batch orchestration. `/generate-model` owns batching, 
 5. Build schema YAML.
 
    Apply [yaml-style](../_shared/references/yaml-style.md). Add deterministic tests from context: PK -> `unique` and `not_null`, FK -> `relationships`, PII -> `meta`, watermark -> `recency`.
+
+   The generated YAML must describe the mart model. `migrate write` merges it into `models/marts/_marts__models.yml`; do not create one YAML file per generated model.
 
 6. Render canonical unit tests from the approved test spec.
 
@@ -96,6 +104,7 @@ Do not use this skill for batch orchestration. `/generate-model` owns batching, 
    ```
 
    Use the CLI-returned written paths. Do not hardcode output paths.
+   Do not use direct file writes for table or view target SQL/YAML. Direct writes are only allowed for snapshot artifacts when the CLI explicitly cannot write the snapshot path.
 
 8. Validate with dbt using the manifest runtime roles.
 
@@ -110,7 +119,7 @@ Do not use this skill for batch orchestration. `/generate-model` owns batching, 
    cd "${DBT_PROJECT_PATH:-./dbt}" && <ENV_OVERRIDE> dbt build --select <model_name>
    ```
 
-   Use `dbt build` rather than `dbt test` alone so the generated model relation is materialized before generic tests run. If the warehouse is unavailable, run `dbt parse` and skip dbt execution. If compile or build fails for model reasons, revise SQL, re-write, and retry up to 3 total attempts.
+   Use `dbt build` rather than `dbt test` alone so the generated model relation is materialized before generic tests run. If the warehouse is unavailable, run `dbt parse` and skip dbt execution. If build fails because of target environment state rather than model SQL, such as an existing relation case conflict or adapter/runtime DDL limitation, run `dbt parse`, record the skipped build in `warnings[]`, and stop instead of rewriting business SQL. If compile or build fails for model reasons, revise SQL, re-write, and retry up to 3 total attempts.
 
 9. Add gap tests only after canonical tests pass.
 
@@ -144,6 +153,7 @@ The generator owns generation facts, not reviewer judgment.
 ## Common Mistakes
 
 - Using `proc_body` as the generation source. Use `refactored_sql`, or `writer_ddl_slice` for multi-table writers.
+- Creating staging models for migrated target logic. Initial staging wrappers are generated by `setup-target`; transformed migrated targets are marts unless they are snapshots.
 - Hardcoding `migrate write` output paths. The CLI decides written paths; report what it returned.
 - Reducing snapshot models to raw `select * from {{ source(...) }}`. Snapshot config may change, but transformed logic must still be preserved.
 - Hand-writing canonical `unit_tests:` blocks. Use `migrate render-unit-tests`.

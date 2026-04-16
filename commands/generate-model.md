@@ -84,7 +84,13 @@ Once the review outcome is final for an item, derive `<model_name>` from item_id
 If the item final status is `error`, revert any files the skill may have partially written:
 
 ```bash
-git checkout -- dbt/models/staging/<model_name>.sql dbt/models/staging/_<model_name>.yml
+git checkout -- dbt/models/marts/<model_name>.sql dbt/models/marts/_marts__models.yml
+```
+
+For snapshot artifacts, revert the snapshot paths returned by the item result:
+
+```bash
+git checkout -- dbt/snapshots/<snapshot_name>.sql dbt/snapshots/_snapshots__models.yml
 ```
 
 Use `rm -f` instead of `git checkout` for newly created files with no prior version.
@@ -130,6 +136,10 @@ For multi-table sub-agents: include the commit/revert instructions in the sub-ag
 
 ## Item Result Schema
 
+For snapshots, `artifact_paths.model_sql` uses
+`snapshots/<snapshot_name>.sql` and `artifact_paths.model_yaml` uses
+`snapshots/_snapshots__models.yml`.
+
 ```json
 {
   "item_id": "<table_fqn>",
@@ -138,8 +148,8 @@ For multi-table sub-agents: include the commit/revert instructions in the sub-ag
     "table_ref": "<table_fqn>",
     "model_name": "<model_name>",
     "artifact_paths": {
-      "model_sql": "models/staging/<model_name>.sql",
-      "model_yaml": "models/staging/_<model_name>.yml"
+      "model_sql": "models/marts/<model_name>.sql",
+      "model_yaml": "models/marts/_marts__models.yml"
     },
     "generated": {
       "model_sql": {

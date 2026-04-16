@@ -1,6 +1,6 @@
 # dbt Scaffolding
 
-`ad-migration setup-target` scaffolds the dbt project and generates `sources.yml` from the catalog.
+`ad-migration setup-target` scaffolds the dbt project and generates staging source metadata from the catalog.
 
 ## Invocation
 
@@ -10,7 +10,7 @@ ad-migration setup-target
 
 | Option | Required | Description |
 |---|---|---|
-| `--source-schema` | no | Source schema for `sources.yml` (defaults to `bronze`) |
+| `--source-schema` | no | Physical schema for the canonical `bronze` dbt source (defaults to `bronze`) |
 | `--project-root` | no | Defaults to current working directory |
 
 `setup-target` reads the target technology from `manifest.json` as `runtime.target`, which is seeded by `/init-ad-migration`.
@@ -40,31 +40,35 @@ dbt/
   packages.yml
   models/
     staging/
-      sources.yml
+      _staging__sources.yml
+      _staging__models.yml
+      stg_bronze__<entity>.sql
+    intermediate/
     marts/
   macros/
   seeds/
   tests/
 ```
 
-## `sources.yml` behavior
+## Staging source behavior
 
 This is the part that matters most operationally:
 
-- tables with `is_source: true` are included in `sources.yml`
+- tables with `is_source: true` are included in `models/staging/_staging__sources.yml`
+- each included source table gets a pure pass-through `models/staging/stg_bronze__<entity>.sql` wrapper
 - writerless tables with `scoping.status == "no_writer_found"` but no `is_source` flag are left in the unconfirmed bucket
-- resolved migration targets are excluded from `sources.yml` because they are expected to become dbt models
-- excluded tables do not appear in `sources.yml`
+- resolved migration targets are excluded from staging source metadata because they are expected to become dbt mart models
+- excluded tables do not appear in staging source metadata
 
 So `no_writer_found` by itself is not enough. Source tables have to be explicitly confirmed with `ad-migration add-source-table <fqn>` before `ad-migration setup-target`. `setup-target` consumes those decisions; it should not be the step where you make them.
 
-If you confirm additional source tables later, rerun `ad-migration setup-target`. The command is idempotent: it will regenerate `sources.yml` from the latest `is_source` flags and create only the missing target-side source tables.
+If you confirm additional source tables later, rerun `ad-migration setup-target`. The command is idempotent: it will regenerate staging source metadata and wrappers from the latest `is_source` flags and create only the missing target-side source tables.
 
 ## Re-running
 
 Re-running `ad-migration setup-target` is safe:
 
-- it regenerates `sources.yml`
+- it regenerates staging source metadata and wrappers
 - it does not overwrite your edited `profiles.yml`
 - it does not overwrite generated models or snapshots
 - it creates any missing target-side source tables for items already marked `is_source: true`, but it does not backfill data or decide which tables are sources

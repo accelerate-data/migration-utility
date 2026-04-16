@@ -2,7 +2,7 @@
 //
 // Rules enforced on the target model and its staging models:
 //   - All models (mart, staging, snapshot): every source('schema', 'table')
-//     call must reference an entry in _sources.yml.
+//     call must reference an entry in _staging__sources.yml.
 //
 // Only validates files written by the skill for the target table:
 //   - The mart/snapshot/primary model matching target_table
@@ -41,9 +41,9 @@ function extractSourceCalls(sql) {
   return calls;
 }
 
-/** Parse _sources.yml and return a Set of 'schema.table' keys (lowercase). */
+/** Parse _staging__sources.yml and return a Set of 'schema.table' keys (lowercase). */
 function loadValidSources(dbtDir) {
-  const sourcesFile = path.join(dbtDir, 'models', 'staging', '_sources.yml');
+  const sourcesFile = path.join(dbtDir, 'models', 'staging', '_staging__sources.yml');
   const valid = new Set();
   if (!fs.existsSync(sourcesFile)) return valid;
   const doc = yaml.load(fs.readFileSync(sourcesFile, 'utf8'));
@@ -104,7 +104,7 @@ module.exports = (output, context) => {
     const key = `${call.schema}.${call.table}`;
     if (!validSources.has(key)) {
       errors.push(
-        `${path.basename(targetFile)}: ${call.raw} references '${key}' which is not in _sources.yml`
+        `${path.basename(targetFile)}: ${call.raw} references '${key}' which is not in _staging__sources.yml`
       );
     }
   }
@@ -121,7 +121,7 @@ module.exports = (output, context) => {
       const key = `${call.schema}.${call.table}`;
       if (!validSources.has(key)) {
         errors.push(
-          `${path.basename(stagingFile)}: ${call.raw} references '${key}' which is not in _sources.yml`
+          `${path.basename(stagingFile)}: ${call.raw} references '${key}' which is not in _staging__sources.yml`
         );
       }
     }

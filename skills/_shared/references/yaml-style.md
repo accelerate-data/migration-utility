@@ -1,6 +1,6 @@
 # YAML Style
 
-Source: https://docs.getdbt.com/best-practices/how-we-style/5-how-we-style-our-yaml
+Source: https://docs.getdbt.com/best-practices/how-we-style/5-how-we-style-our-yaml?version=1.12
 
 | code | rule | severity |
 |------|------|----------|
@@ -12,3 +12,4 @@ Source: https://docs.getdbt.com/best-practices/how-we-style/5-how-we-style-our-y
 | YML_006 | Lines of YAML should be no longer than 80 characters | info |
 | YML_007 | Use a blank line to separate list items that are dictionaries for readability | info |
 | YML_008 | List items must be indented consistently | warning |
+| YML_009 | Test arguments should use explicit argument lists/maps where dbt supports them instead of compact scalar shorthand | info |

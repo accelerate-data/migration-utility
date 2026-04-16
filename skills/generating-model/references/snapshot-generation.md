@@ -31,7 +31,7 @@ Wrap the transformed query in a snapshot block:
 ) }}
 
 with source_a as (
-    select * from {{ source('bronze', 'source_a') }}
+    select * from {{ ref('stg_bronze__source_a') }}
 ),
 final as (
     select ...

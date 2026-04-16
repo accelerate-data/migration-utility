@@ -106,7 +106,7 @@ catalog/procedures/<schema>.<proc>.json
 
 ### setup-target
 
-Scaffold the dbt project and generate `sources.yml` from the catalog.
+Scaffold the dbt project and generate staging source metadata from the catalog.
 
 ```bash
 ad-migration setup-target
@@ -115,7 +115,7 @@ ad-migration setup-target --source-schema bronze
 
 | Option | Required | Description |
 |---|---|---|
-| `--source-schema` | no | Source schema for `sources.yml` (default: `bronze`) |
+| `--source-schema` | no | Physical schema for the canonical `bronze` dbt source (default: `bronze`) |
 | `--project-root` | no | Defaults to current directory |
 
 Technology comes from `manifest.json` as `runtime.target`, seeded by `/init-ad-migration`.
@@ -147,7 +147,11 @@ manifest.json
 dbt/dbt_project.yml
 dbt/profiles.yml
 dbt/packages.yml
-dbt/models/staging/sources.yml
+dbt/models/staging/_staging__sources.yml
+dbt/models/staging/_staging__models.yml
+dbt/models/staging/stg_bronze__<entity>.sql
+dbt/models/intermediate/
+dbt/models/marts/
 ```
 
 ---
@@ -278,7 +282,7 @@ catalog/tables/<schema>.<table>.json  (is_excluded: true)
 
 Confirm tables as dbt sources (`is_source: true`).
 
-Use this before `ad-migration setup-target` for any writerless table that should stay as a dbt source. `setup-target` reads the existing `is_source` decisions when generating `sources.yml` and creating target-side source tables.
+Use this before `ad-migration setup-target` for any writerless table that should stay as a dbt source. `setup-target` reads the existing `is_source` decisions when generating `_staging__sources.yml`, pass-through staging wrappers, and target-side source tables.
 
 To review the currently confirmed source tables later, run `/listing-objects list sources`.
 

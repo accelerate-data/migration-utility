@@ -1,15 +1,15 @@
 {{ config(materialized='table') }}
 
 with source_customer as (
-    select * from {{ source('bronze', 'customer') }}
+    select * from {{ ref('stg_bronze__customer') }}
 ),
 
 source_person as (
-    select * from {{ source('bronze', 'person') }}
+    select * from {{ ref('stg_bronze__person') }}
 ),
 
 source_orders as (
-    select * from {{ source('bronze', 'salesorderheader') }}
+    select * from {{ ref('stg_bronze__salesorderheader') }}
 ),
 
 customer_person as (

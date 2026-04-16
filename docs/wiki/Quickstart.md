@@ -58,7 +58,7 @@ Before `ad-migration setup-target` can proceed, every extracted table needs one 
 - excluded from the migration via `ad-migration exclude-table <fqn>`
 - confirmed as a source via `ad-migration add-source-table <fqn>`
 
-Tables with `scoping.status == "no_writer_found"` are not automatically included in `sources.yml`; they stay pending until you explicitly confirm them as sources with `ad-migration add-source-table`.
+Tables with `scoping.status == "no_writer_found"` are not automatically included in staging source metadata; they stay pending until you explicitly confirm them as sources with `ad-migration add-source-table`.
 
 After you confirm source tables, use `/listing-objects list sources` to see the current confirmed-source inventory from catalog state.
 
@@ -70,11 +70,11 @@ See [[Scoping]].
 ad-migration setup-target
 ```
 
-This scaffolds `dbt/`, persists `runtime.target`, and generates `models/staging/sources.yml`.
+This scaffolds `dbt/`, persists `runtime.target`, and generates `models/staging/_staging__sources.yml`, `_staging__models.yml`, and pure pass-through `stg_bronze__<entity>.sql` wrappers.
 
-`sources.yml` includes only tables explicitly marked `is_source: true`. `setup-target` assumes you have already finished the scope/exclude/source decision for the extracted tables you want to keep. Writerless tables that have not been confirmed yet remain pending and should be marked first with `ad-migration add-source-table` before you rely on `setup-target`.
+Staging source metadata includes only tables explicitly marked `is_source: true`. `setup-target` assumes you have already finished the scope/exclude/source decision for the extracted tables you want to keep. Writerless tables that have not been confirmed yet remain pending and should be marked first with `ad-migration add-source-table` before you rely on `setup-target`.
 
-If you identify more source tables later, mark them with `ad-migration add-source-table <fqn>` and run `ad-migration setup-target` again. The command is idempotent: it will refresh `sources.yml` and create any newly required target-side source tables without redoing existing ones.
+If you identify more source tables later, mark them with `ad-migration add-source-table <fqn>` and run `ad-migration setup-target` again. The command is idempotent: it will refresh staging source metadata and wrappers and create any newly required target-side source tables without redoing existing ones.
 
 See [[dbt Scaffolding]].
 

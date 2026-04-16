@@ -4,8 +4,11 @@ from __future__ import annotations
 
 import json
 import logging
+import re
 from pathlib import Path
 from typing import Any
+
+import yaml
 
 from shared.catalog import load_and_merge_catalog
 from shared.catalog_models import DiagnosticsEntry
@@ -25,6 +28,56 @@ def _atomic_write(path: Path, content: str) -> None:
     except OSError:
         tmp_path.unlink(missing_ok=True)
         raise
+
+
+def _merge_named_yaml(existing_text: str | None, new_text: str, section: str) -> str:
+    existing = yaml.safe_load(existing_text) if existing_text else None
+    incoming = yaml.safe_load(new_text) if new_text.strip() else None
+
+    schema: dict[str, Any] = existing if isinstance(existing, dict) else {"version": 2}
+    if "version" not in schema:
+        schema["version"] = 2
+
+    entries = schema.setdefault(section, [])
+    if not isinstance(entries, list):
+        entries = []
+        schema[section] = entries
+
+    incoming_models = []
+    if isinstance(incoming, dict) and isinstance(incoming.get(section), list):
+        incoming_models = [
+            model for model in incoming[section]
+            if isinstance(model, dict) and model.get("name")
+        ]
+    elif section == "snapshots" and isinstance(incoming, dict) and isinstance(incoming.get("models"), list):
+        incoming_models = [
+            model for model in incoming["models"]
+            if isinstance(model, dict) and model.get("name")
+        ]
+
+    for incoming_model in incoming_models:
+        incoming_name = incoming_model["name"]
+        for index, existing_model in enumerate(entries):
+            if isinstance(existing_model, dict) and existing_model.get("name") == incoming_name:
+                entries[index] = incoming_model
+                break
+        else:
+            entries.append(incoming_model)
+
+    return yaml.dump(schema, default_flow_style=False, sort_keys=False, allow_unicode=True)
+
+
+def _merge_model_yaml(existing_text: str | None, new_text: str) -> str:
+    return _merge_named_yaml(existing_text, new_text, "models")
+
+
+def _merge_snapshot_yaml(existing_text: str | None, new_text: str) -> str:
+    return _merge_named_yaml(existing_text, new_text, "snapshots")
+
+
+def _snapshot_name(model_sql: str, fallback: str) -> str:
+    match = re.search(r"{%\s*snapshot\s+([A-Za-z_][A-Za-z0-9_]*)\s*%}", model_sql)
+    return match.group(1) if match else fallback
 
 
 def run_write(
@@ -47,18 +100,30 @@ def run_write(
     if not dbt_project_yml.exists():
         raise FileNotFoundError(f"no dbt_project.yml in {dbt_project_path}")
 
-    staging_dir = dbt_project_path / "models" / "staging"
-    staging_dir.mkdir(parents=True, exist_ok=True)
+    is_snapshot = model_sql.lstrip().startswith("{% snapshot")
+    if is_snapshot:
+        snapshot_name = _snapshot_name(model_sql, model_name)
+        artifact_dir = dbt_project_path / "snapshots"
+        sql_path = artifact_dir / f"{snapshot_name}.sql"
+        yml_path = artifact_dir / "_snapshots__models.yml"
+    else:
+        artifact_dir = dbt_project_path / "models" / "marts"
+        sql_path = artifact_dir / f"{model_name}.sql"
+        yml_path = artifact_dir / "_marts__models.yml"
 
-    sql_path = staging_dir / f"{model_name}.sql"
-    yml_path = staging_dir / f"_{model_name}.yml"
-
+    artifact_dir.mkdir(parents=True, exist_ok=True)
     written: list[str] = []
     _atomic_write(sql_path, model_sql)
     written.append(str(sql_path.relative_to(dbt_project_path)))
 
     if schema_yml and schema_yml.strip():
-        _atomic_write(yml_path, schema_yml)
+        existing_yml = yml_path.read_text(encoding="utf-8") if yml_path.exists() else None
+        merged_yml = (
+            _merge_snapshot_yaml(existing_yml, schema_yml)
+            if is_snapshot
+            else _merge_model_yaml(existing_yml, schema_yml)
+        )
+        _atomic_write(yml_path, merged_yml)
         written.append(str(yml_path.relative_to(dbt_project_path)))
 
     return MigrateWriteOutput(written=written, status="ok")

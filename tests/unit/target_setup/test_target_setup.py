@@ -173,7 +173,7 @@ def test_generate_target_sources_uses_target_schema_override(tmp_path: Path) -> 
     _seed_catalog_table(project_root, "Customer")
     result = generate_target_sources(project_root)
     assert result.sources is not None
-    assert result.sources["sources"][0]["name"] == "silver"
+    assert result.sources["sources"][0]["name"] == "bronze"
     assert result.sources["sources"][0]["schema"] == "bronze"
 
 
@@ -184,7 +184,7 @@ def test_write_target_sources_yml_writes_remapped_schema(tmp_path: Path) -> None
     assert result.path is not None
     contents = Path(result.path).read_text(encoding="utf-8")
     assert "schema: bronze" in contents
-    assert "name: silver" in contents
+    assert "name: bronze" in contents
 
 
 def test_scaffold_target_project_writes_dbt_files(tmp_path: Path) -> None:
@@ -195,6 +195,14 @@ def test_scaffold_target_project_writes_dbt_files(tmp_path: Path) -> None:
     profiles = (project_root / "dbt" / "profiles.yml").read_text(encoding="utf-8")
     assert 'type: sqlserver' in profiles
     assert 'schema: "bronze"' in profiles
+    dbt_project = (project_root / "dbt" / "dbt_project.yml").read_text(encoding="utf-8")
+    assert "models:\n" in dbt_project
+    assert "staging:\n      +materialized: view" in dbt_project
+    assert "intermediate:\n      +materialized: ephemeral" in dbt_project
+    assert "marts:\n      +materialized: table" in dbt_project
+    assert (project_root / "dbt" / "models" / "staging").is_dir()
+    assert (project_root / "dbt" / "models" / "intermediate").is_dir()
+    assert (project_root / "dbt" / "models" / "marts").is_dir()
 
 
 def test_scaffold_target_project_writes_sql_server_profile(tmp_path: Path) -> None:
@@ -335,7 +343,9 @@ def test_run_setup_target_applies_delta_after_new_source_added(tmp_path: Path) -
         patch("shared.target_setup.scaffold_target_project", return_value=["dbt/dbt_project.yml"]),
         patch(
             "shared.target_setup.write_target_sources_yml",
-            return_value=MagicMock(path=str(project_root / "dbt" / "models" / "staging" / "sources.yml")),
+            return_value=MagicMock(
+                path=str(project_root / "dbt" / "models" / "staging" / "_staging__sources.yml")
+            ),
         ),
         patch("shared.target_setup.apply_target_source_tables", side_effect=[first_apply, second_apply]),
         patch("shared.target_setup.export_seed_tables", return_value=MagicMock(files=[], row_counts={})),

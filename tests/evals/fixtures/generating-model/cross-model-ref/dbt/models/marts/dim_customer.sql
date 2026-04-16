@@ -1,7 +1,7 @@
 {{ config(materialized='table') }}
 
 with source_customer as (
-    select * from {{ source('bronze', 'customer') }}
+    select * from {{ ref('stg_bronze__customer') }}
 ),
 
 final as (

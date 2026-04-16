@@ -55,13 +55,13 @@ tests:
       expected_output_terms: "error"
 
   # ── VU-977: cross-model ref() resolution ─────────────────────
-  - description: "cross-model-ref — fact mart uses ref() for existing dim, source() for bronze"
+  - description: "cross-model-ref — fact mart uses ref() for existing dim and staging wrappers"
     vars:
       fixture_path: "tests/evals/fixtures/generating-model/cross-model-ref"
       target_tables: "silver.FactSales"
       target_table: "silver.FactSales"
       expected_item_statuses: '{"silver.FactSales": "ok,partial"}'
-      expected_model_terms: "source("
+      expected_model_terms: "ref("
     assert:
       - type: javascript
         value: file://../../assertions/check-dbt-model.js
@@ -86,19 +86,19 @@ tests:
       target_tables: "silver.SelectIntoTarget"
       target_table: "silver.SelectIntoTarget"
       expected_item_statuses: '{"silver.SelectIntoTarget": "ok,partial"}'
-      expected_model_terms: "source("
+      expected_model_terms: "ref("
     assert:
       - type: javascript
         value: file://../../assertions/check-dbt-model.js
 
   # ── truncate-insert ─────────────────────────────────────────
-  - description: "truncate-insert — DimCustomer multi-source mart with source() calls"
+  - description: "truncate-insert — DimCustomer multi-source mart with staging refs"
     vars:
       fixture_path: "tests/evals/fixtures/generating-model/truncate-insert"
       target_tables: "silver.DimCustomer"
       target_table: "silver.DimCustomer"
       expected_item_statuses: '{"silver.DimCustomer": "ok,partial"}'
-      expected_model_terms: "source(,materialized="
+      expected_model_terms: "ref(,materialized="
     assert:
       - type: javascript
         value: file://../../assertions/check-dbt-model.js
@@ -110,7 +110,7 @@ tests:
       target_tables: "silver.DimProduct"
       target_table: "silver.DimProduct"
       expected_item_statuses: '{"silver.DimProduct": "ok,partial"}'
-      expected_model_terms: "materialized='table',source("
+      expected_model_terms: "materialized='table',ref("
     assert:
       - type: javascript
         value: file://../../assertions/check-dbt-model.js
@@ -122,7 +122,7 @@ tests:
       target_tables: "silver.UpdateJoinTarget"
       target_table: "silver.UpdateJoinTarget"
       expected_item_statuses: '{"silver.UpdateJoinTarget": "ok,partial"}'
-      expected_model_terms: "materialized='incremental',source("
+      expected_model_terms: "materialized='incremental',ref("
     assert:
       - type: javascript
         value: file://../../assertions/check-dbt-model.js
@@ -171,7 +171,7 @@ tests:
       target_tables: "silver.vw_activecustomers"
       target_table: "silver.vw_activecustomers"
       expected_item_statuses: '{"silver.vw_activecustomers": "ok,partial"}'
-      expected_model_terms: "materialized='view',source("
+      expected_model_terms: "materialized='view',ref("
     assert:
       - type: javascript
         value: file://../../assertions/check-dbt-model.js

@@ -5,7 +5,7 @@ Fixture layout at fixtures/migrate/:
     ddl/tables.sql, ddl/procedures.sql
     catalog/tables/<table>.json   (with profile sections)
     catalog/procedures/<proc>.json (with statements sections)
-    dbt/dbt_project.yml + dbt/models/staging/
+    dbt/dbt_project.yml + dbt/models/marts/
 """
 
 from __future__ import annotations
@@ -45,7 +45,7 @@ def dbt_project(tmp_path: Path) -> Path:
     (dbt / "dbt_project.yml").write_text(
         "name: 'test_project'\nversion: '1.0.0'\nconfig-version: 2\n"
     )
-    (dbt / "models" / "staging").mkdir(parents=True)
+    (dbt / "models" / "marts").mkdir(parents=True)
     return dbt
 
 
@@ -665,8 +665,12 @@ class TestRunWrite:
 
         assert result.status == "ok"
         assert len(result.written) == 2
-        assert (dbt_project / "models" / "staging" / "factsales.sql").exists()
-        assert (dbt_project / "models" / "staging" / "_factsales.yml").exists()
+        assert result.written == [
+            "models/marts/factsales.sql",
+            "models/marts/_marts__models.yml",
+        ]
+        assert (dbt_project / "models" / "marts" / "factsales.sql").exists()
+        assert (dbt_project / "models" / "marts" / "_marts__models.yml").exists()
 
     def test_write_sql_only_no_yml(self, dbt_project: Path) -> None:
         result = run_write(
@@ -679,7 +683,29 @@ class TestRunWrite:
 
         assert result.status == "ok"
         assert len(result.written) == 1
-        assert (dbt_project / "models" / "staging" / "factsales.sql").exists()
+        assert (dbt_project / "models" / "marts" / "factsales.sql").exists()
+
+    def test_write_snapshot_routes_to_snapshots_dir(self, dbt_project: Path) -> None:
+        model_sql = "{% snapshot dim_employee_scd2 %}\nselect 1 as id\n{% endsnapshot %}"
+        schema_yml = "version: 2\nmodels:\n  - name: dim_employee_scd2\n"
+
+        result = run_write(
+            "silver.DimEmployeeSCD2",
+            Path("/tmp"),
+            dbt_project,
+            model_sql,
+            schema_yml,
+        )
+
+        assert result.status == "ok"
+        assert result.written == [
+            "snapshots/dim_employee_scd2.sql",
+            "snapshots/_snapshots__models.yml",
+        ]
+        assert (dbt_project / "snapshots" / "dim_employee_scd2.sql").exists()
+        snapshot_yml = (dbt_project / "snapshots" / "_snapshots__models.yml").read_text()
+        assert "snapshots:" in snapshot_yml
+        assert "name: dim_employee_scd2" in snapshot_yml
 
     def test_write_empty_sql_raises(self, dbt_project: Path) -> None:
         with pytest.raises(ValueError, match="model SQL is empty"):
@@ -709,18 +735,18 @@ class TestRunWrite:
         run_write("silver.FactSales", Path("/tmp"), dbt_project, model_sql, schema_yml)
         run_write("silver.FactSales", Path("/tmp"), dbt_project, model_sql, schema_yml)
 
-        sql_file = dbt_project / "models" / "staging" / "factsales.sql"
+        sql_file = dbt_project / "models" / "marts" / "factsales.sql"
         assert sql_file.read_text() == model_sql
 
-    def test_write_creates_staging_dir_if_missing(self, tmp_path: Path) -> None:
-        """Write creates models/staging/ if it doesn't exist."""
+    def test_write_creates_marts_dir_if_missing(self, tmp_path: Path) -> None:
+        """Write creates models/marts/ if it doesn't exist."""
         dbt = tmp_path / "dbt_no_staging"
         dbt.mkdir()
         (dbt / "dbt_project.yml").write_text("name: test\n")
 
         result = run_write("silver.FactSales", Path("/tmp"), dbt, "select 1", "")
         assert result.status == "ok"
-        assert (dbt / "models" / "staging" / "factsales.sql").exists()
+        assert (dbt / "models" / "marts" / "factsales.sql").exists()
 
     def test_write_nonexistent_project_exits_2(self, tmp_path: Path) -> None:
         """CLI write to nonexistent dbt project exits with code 2."""
@@ -773,7 +799,7 @@ def test_write_does_not_read_catalog(tmp_path: Path) -> None:
     dbt = tmp_path / "dbt"
     dbt.mkdir()
     (dbt / "dbt_project.yml").write_text("name: test\nversion: '1.0.0'\nconfig-version: 2\n")
-    (dbt / "models" / "staging").mkdir(parents=True)
+    (dbt / "models" / "marts").mkdir(parents=True)
     result = run_write("silver.FactSales", Path("/tmp"), dbt, "select 1", "")
     assert result.status == "ok"
 
@@ -851,12 +877,12 @@ def _seed_generate_fixture(
 
     # dbt project
     dbt = project_root / "dbt"
-    staging = dbt / "models" / "staging"
-    staging.mkdir(parents=True, exist_ok=True)
+    marts = dbt / "models" / "marts"
+    marts.mkdir(parents=True, exist_ok=True)
     (dbt / "dbt_project.yml").write_text("name: test\nversion: '1.0.0'\nconfig-version: 2\n")
 
     if create_model:
-        model_file = staging / "foo.sql"
+        model_file = marts / "foo.sql"
         model_file.write_text("SELECT 1 AS id")
 
     return project_root
@@ -870,7 +896,7 @@ def test_write_generate_ok(tmp_path: Path) -> None:
     result = run_write_generate(
         project_root=tmp_path,
         table_fqn=fqn,
-        model_path="models/staging/foo.sql",
+        model_path="models/marts/foo.sql",
         compiled=True,
         tests_passed=True,
         test_count=3,
@@ -897,7 +923,7 @@ def test_write_generate_error_file_missing(tmp_path: Path) -> None:
     result = run_write_generate(
         project_root=tmp_path,
         table_fqn=fqn,
-        model_path="models/staging/foo.sql",
+        model_path="models/marts/foo.sql",
         compiled=True,
         tests_passed=True,
         test_count=3,
@@ -915,7 +941,7 @@ def test_write_generate_error_tests_failed(tmp_path: Path) -> None:
     result = run_write_generate(
         project_root=tmp_path,
         table_fqn=fqn,
-        model_path="models/staging/foo.sql",
+        model_path="models/marts/foo.sql",
         compiled=True,
         tests_passed=False,
         test_count=3,
@@ -930,16 +956,16 @@ def test_write_generate_missing_catalog(tmp_path: Path) -> None:
     fqn = "dbo.foo"
     # Create dbt project but no catalog
     dbt = tmp_path / "dbt"
-    staging = dbt / "models" / "staging"
-    staging.mkdir(parents=True, exist_ok=True)
+    marts = dbt / "models" / "marts"
+    marts.mkdir(parents=True, exist_ok=True)
     (dbt / "dbt_project.yml").write_text("name: test\n")
-    (staging / "foo.sql").write_text("SELECT 1")
+    (marts / "foo.sql").write_text("SELECT 1")
 
     with pytest.raises(CatalogFileMissingError):
         run_write_generate(
             project_root=tmp_path,
             table_fqn=fqn,
-            model_path="models/staging/foo.sql",
+            model_path="models/marts/foo.sql",
             compiled=True,
             tests_passed=True,
             test_count=3,
@@ -955,7 +981,7 @@ def test_write_generate_view_autodetect(tmp_path: Path) -> None:
     result = run_write_generate(
         project_root=tmp_path,
         table_fqn=fqn,
-        model_path="models/staging/foo.sql",
+        model_path="models/marts/foo.sql",
         compiled=True,
         tests_passed=True,
         test_count=2,
