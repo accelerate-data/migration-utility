@@ -26,7 +26,7 @@ Do not use this skill for batch orchestration. `/generate-model` owns batching, 
 - Readiness failure: surface the failing `code` and `reason`, then stop. If readiness has no canonical code, use the closest shared code; otherwise use `GENERATION_FAILED`.
 - Multi-table writer: use `writer_ddl_slice`; otherwise use `refactored_sql`.
 - Reviewer handoff: use `artifact_paths` and `revision_feedback` exactly as given.
-- Offline compile: fall back to `dbt parse` and skip dbt execution.
+- Offline compile: fall back to `dbt parse` and warn.
 - Before returning `ok` or `partial`, satisfy [../_shared/references/model-artifact-invariants.md](../_shared/references/model-artifact-invariants.md).
 - Missing confirmed staging wrapper: return `status: "error"` with `GENERATION_FAILED`.
 - Do not create or mutate test-spec scenarios. Report uncovered logic as warnings for `/generate-tests`.
@@ -41,80 +41,42 @@ Return exactly one `ModelGenerationOutput`. Use `execution.dbt_test_passed` for 
    uv run --project "${CLAUDE_PLUGIN_ROOT}/packages/ad-migration-internal" migrate-util ready generate --object <table_fqn>
    ```
 
-2. Assemble deterministic context.
+2. Assemble deterministic context and choose the generation source.
 
    ```bash
    uv run --project "${CLAUDE_PLUGIN_ROOT}/packages/ad-migration-internal" migrate context \
      --table <table_fqn>
    ```
 
-   Use `writer_ddl_slice` when present; otherwise use `refactored_sql`. Never generate from `proc_body`.
+   Follow [context-selection.md](references/context-selection.md). Never generate from `proc_body`.
 
 3. Generate target dbt SQL that preserves the transformed logic.
 
    Apply [dbt-project-standards](../_shared/references/dbt-project-standards.md), [sql-style](../_shared/references/sql-style.md), [cte-structure](../_shared/references/cte-structure.md), [model-naming](../_shared/references/model-naming.md), and [model-artifact-invariants](../_shared/references/model-artifact-invariants.md).
 
-   Generation decisions:
-   - Generate from `refactored_sql` or `writer_ddl_slice`; preserve joins, filters, grouping, and write intent.
-   - Use project defaults for ordinary mart tables. Add model-level `config(` only for exceptions: aliases, schemas, incremental models, snapshots, or view materialization.
-   - Use `{{ ref('stg_bronze__<entity>') }}` for confirmed source dependencies and `{{ ref('<seed_name>') }}` for seed dependencies. If a confirmed source wrapper is missing, stop with `GENERATION_FAILED`.
-   - Produce one target artifact: first-pass tables/views are marts; snapshots follow [references/snapshot-generation.md](references/snapshot-generation.md).
-   - Include required control columns from `model-artifact-invariants` with the exact standard expressions.
+   Use project defaults for ordinary mart tables. Add model-level `config(` only for exceptions: aliases, schemas, incremental models, snapshots, or view materialization. For source/seed refs and missing wrapper handling, follow [artifact-writing.md](references/artifact-writing.md). For snapshots, follow [snapshot-generation.md](references/snapshot-generation.md).
 
 4. Run a logical equivalence pass against the selected transformed SQL.
 
-   Check source tables, selected columns, joins, filters, grain, and write semantics. Record `EQUIVALENCE_GAP` in `warnings[]` if a semantic gap remains.
+   Follow [context-selection.md](references/context-selection.md). Record `EQUIVALENCE_GAP` in `warnings[]` if a semantic gap remains.
 
 5. Build schema YAML.
 
-   Apply [yaml-style](../_shared/references/yaml-style.md). Add deterministic tests from context: PK -> `unique` and `not_null`, FK -> `relationships`, PII -> `meta`, watermark -> `recency`.
-
-   The generated YAML must describe the target artifact. `migrate write` merges mart YAML into `models/marts/_marts__models.yml` and snapshot YAML into `snapshots/_snapshots__models.yml`.
+   Apply [yaml-style](../_shared/references/yaml-style.md) and [artifact-writing.md](references/artifact-writing.md). Add deterministic tests from context: PK -> `unique` and `not_null`, FK -> `relationships`, PII -> `meta`, watermark -> `recency`.
 
 6. Render canonical unit tests from the approved test spec.
 
-   ```bash
-   uv run --project "${CLAUDE_PLUGIN_ROOT}/packages/ad-migration-internal" migrate render-unit-tests \
-     --table <table_fqn> \
-     --model-name <model_name> \
-     --spec test-specs/<item_id>.json \
-     --schema-yml .staging/schema.yml \
-     --project-root <project_root>
-   ```
-
-   The CLI is the source of truth for canonical `unit_tests:`. It maps confirmed source fixtures to `ref('stg_bronze__<entity>')`. Do not hand-write them.
+   Follow [artifact-writing.md](references/artifact-writing.md). The CLI is the source of truth for canonical `unit_tests:`. Do not hand-write them.
 
 7. Write artifacts through the CLI.
 
    If the caller supplied a handoff object, use `artifact_paths` and `revision_feedback` exactly as given.
 
-   Then write SQL and YAML through:
-
-   ```bash
-   mkdir -p .staging
-   uv run --project "${CLAUDE_PLUGIN_ROOT}/packages/ad-migration-internal" migrate write \
-     --table <table_fqn> \
-     --model-sql-file .staging/model.sql \
-     --schema-yml-file .staging/schema.yml \
-     --project-root <project_root>
-   ```
-
-   Use the CLI-returned written paths. Do not hardcode output paths or use direct file writes for SQL/YAML; the CLI writes mart and snapshot artifacts.
+   Follow [artifact-writing.md](references/artifact-writing.md). Use the CLI-returned written paths. Do not hardcode output paths or use direct file writes.
 
 8. Validate with dbt using the manifest runtime roles.
 
-   Read `manifest.json` at the project root and use the canonical runtime contract:
-   - `runtime.target` is the dbt validation target
-   - `runtime.sandbox` is the source-relation execution endpoint when the workflow requires sandbox-backed validation
-
-   Do not read flat fields such as `sandbox.database`. Do not derive `target` from `source` or `sandbox`.
-
-   ```bash
-   cd "${DBT_PROJECT_PATH:-./dbt}" && <ENV_OVERRIDE> dbt compile --select <model_name>
-   cd "${DBT_PROJECT_PATH:-./dbt}" && <ENV_OVERRIDE> dbt build --select <model_name>
-   ```
-
-   Use `dbt build`, not `dbt test` alone. Record it in `execution.dbt_test_passed`. If the warehouse is unavailable or the target environment fails independently of model SQL, run `dbt parse`, warn, and do not rewrite business SQL. If compile/build fails for model reasons, revise, re-write, and retry up to 3 total attempts.
+   Follow [validation.md](references/validation.md). Use `dbt build`, not `dbt test` alone. Record it in `execution.dbt_test_passed`.
 
 9. Record test gaps without mutating approved specs.
 
@@ -122,19 +84,7 @@ Return exactly one `ModelGenerationOutput`. Use `execution.dbt_test_passed` for 
 
 10. Write generation status to catalog.
 
-   ```bash
-   uv run --project "${CLAUDE_PLUGIN_ROOT}/packages/ad-migration-internal" migrate write-catalog \
-     --table <table_fqn> \
-     --model-path <relative_model_sql_path> \
-     --compiled <true|false> \
-     --tests-passed <true|false> \
-     --test-count <number> \
-     --schema-yml <true|false> \
-     --project-root <project_root>
-   ```
-
-   Pass `--warnings` and `--errors` as JSON arrays when needed.
-   Catalog status is `ok` only when the written artifact exists and compile/build passed. Written artifacts with compile/build warnings persist as `partial`. Missing or unusable artifacts persist as `error`.
+   Follow [artifact-writing.md](references/artifact-writing.md). Pass `--warnings` and `--errors` as JSON arrays when needed.
 
 ## Review Handoff
 
@@ -162,4 +112,7 @@ The generator owns generation facts, not reviewer judgment.
 
 - [../../lib/shared/output_models/model_generation.py](../../lib/shared/output_models/model_generation.py) — structured input/output contract
 - [../../lib/shared/generate_model_error_codes.md](../../lib/shared/generate_model_error_codes.md) — canonical statuses and surfaced codes
+- [references/context-selection.md](references/context-selection.md) — source SQL selection and equivalence checks
+- [references/artifact-writing.md](references/artifact-writing.md) — unit tests, CLI writes, and catalog status
+- [references/validation.md](references/validation.md) — dbt compile/build/parse handling
 - [references/snapshot-generation.md](references/snapshot-generation.md) — snapshot-specific generation rules
