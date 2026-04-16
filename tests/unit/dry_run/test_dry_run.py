@@ -746,6 +746,26 @@ def test_status_all_objects() -> None:
         assert "silver.dimcustomer" in fqns
 
 
+def test_status_all_objects_excludes_seed_tables() -> None:
+    """Bulk status excludes seed tables from active migration stage counts."""
+    tmp, root = _make_project()
+    with tmp:
+        cat_path = root / "catalog" / "tables" / "silver.dimcustomer.json"
+        cat = json.loads(cat_path.read_text(encoding="utf-8"))
+        cat["is_source"] = False
+        cat["is_seed"] = True
+        cat["profile"] = {
+            "status": "ok",
+            "classification": {"resolved_kind": "seed", "source": "catalog"},
+        }
+        cat_path.write_text(json.dumps(cat), encoding="utf-8")
+
+        result = dry_run.run_status(root)
+
+    fqns = [obj.fqn for obj in result.objects]
+    assert "silver.dimcustomer" not in fqns
+
+
 def test_status_all_objects_skips_summary_count_for_missing_status_shape(monkeypatch: pytest.MonkeyPatch) -> None:
     """Bulk status should not crash if a single-object probe returns StatusOutput."""
     tmp, root = _make_project()

@@ -15,6 +15,8 @@ Generate test scenarios, review for coverage, then bulk-execute approved scenari
 ## Guards
 
 - `manifest.json` must exist. If missing, fail all items with `MANIFEST_NOT_FOUND`.
+- For each FQN argument: if `catalog/tables/<fqn>.json` has `"is_seed": true`, skip that table and print:
+  > `<fqn>` is marked as a dbt seed -- no migration needed. Use `ad-migration add-seed-table` to manage seed tables.
 - For each FQN argument: if `catalog/tables/<fqn>.json` has `"is_source": true`, skip that table and print:
   > `<fqn>` is marked as a dbt source — no migration needed. Use `ad-migration add-source-table` to manage source tables.
 - `manifest.json` must have `runtime.sandbox`. If missing, fail all items with `SANDBOX_NOT_CONFIGURED` and tell user to run `ad-migration setup-sandbox`. The command executes against the active sandbox endpoint, not against the source or target runtime.
