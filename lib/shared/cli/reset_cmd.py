@@ -27,8 +27,8 @@ def _load_manifest(project_root: Path) -> dict[str, Any]:
     return _th_load_manifest(project_root)
 
 
-def _create_backend(manifest: dict[str, Any]) -> Any:
-    return _th_create_backend(manifest)
+def _create_backend(manifest: dict[str, Any], project_root: Path | None = None) -> Any:
+    return _th_create_backend(manifest, project_root)
 
 
 def _get_sandbox_name(manifest: dict[str, Any]) -> str | None:
@@ -58,7 +58,7 @@ def _teardown_sandbox_if_configured(root: Path) -> None:
 
     teardown_ok = False
     try:
-        backend = _create_backend(manifest)
+        backend = _create_backend(manifest, root)
         with cli_error_handler("tearing down sandbox database"):
             result = backend.sandbox_down(sandbox_db)
         teardown_ok = result.status == "ok"

@@ -1,4 +1,5 @@
 import json
+import os
 from pathlib import Path
 from unittest.mock import MagicMock, patch
 
@@ -314,6 +315,51 @@ def test_setup_sandbox_shows_clean_error_on_db_failure(tmp_path):
     assert result.exit_code == 2
     assert "Hint:" in result.output
     assert "Review and commit the repo changes before continuing" not in result.output
+
+
+def test_setup_sandbox_mentions_restart_when_source_env_exists_in_dotenv(tmp_path):
+    manifest = {
+        "runtime": {
+            "source": {
+                "technology": "sql_server",
+                "dialect": "tsql",
+                "connection": {
+                    "password_env": "SOURCE_MSSQL_PASSWORD",
+                },
+            },
+            "sandbox": {
+                "technology": "sql_server",
+                "dialect": "tsql",
+                "connection": {
+                    "password_env": "SANDBOX_MSSQL_PASSWORD",
+                },
+            },
+        }
+    }
+    (tmp_path / "manifest.json").write_text(json.dumps(manifest), encoding="utf-8")
+    (tmp_path / ".env").write_text("SOURCE_MSSQL_PASSWORD=source-pass\n", encoding="utf-8")
+    backend_cls = MagicMock()
+    backend_cls.from_env.side_effect = ValueError(
+        "Required sandbox configuration is missing: "
+        "['environment variable referenced by runtime.source.connection.password_env (SOURCE_MSSQL_PASSWORD)']"
+    )
+
+    with (
+        patch("shared.cli.setup_sandbox_cmd._load_manifest", return_value=manifest),
+        patch("shared.cli.setup_sandbox_cmd._get_sandbox_technology", return_value="sql_server"),
+        patch("shared.cli.setup_sandbox_cmd.require_sandbox_vars"),
+        patch("shared.cli.setup_sandbox_cmd._write_sandbox_connection_to_manifest", return_value=manifest),
+        patch("shared.cli.setup_sandbox_cmd._get_schemas", return_value=["silver"]),
+        patch("shared.cli.setup_sandbox_cmd._write_sandbox_to_manifest"),
+        patch("shared.test_harness_support.manifest.get_backend", return_value=backend_cls),
+        patch.dict(os.environ, {}, clear=True),
+    ):
+        result = runner.invoke(app, ["setup-sandbox", "--yes", "--project-root", str(tmp_path)])
+
+    assert result.exit_code == 1
+    assert "SOURCE_MSSQL_PASSWORD" in result.output
+    assert "defined in .env" in result.output
+    assert "Restart Claude" in result.output
 
 
 def test_setup_sandbox_calls_require_sandbox_vars(tmp_path):
