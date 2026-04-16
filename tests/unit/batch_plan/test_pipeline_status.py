@@ -49,6 +49,27 @@ class TestObjectPipelineStatus:
         )
         assert object_pipeline_status(tmp_path, "silver.refcurrency", "table", dbt_root) == "n_a"
 
+    def test_table_n_a_seed(self, tmp_path):
+        """Seed table returns n_a when pipeline status is queried directly."""
+        dbt_root = tmp_path / "dbt"
+        (tmp_path / "catalog" / "tables").mkdir(parents=True)
+        (tmp_path / "catalog" / "tables" / "silver.lookup.json").write_text(
+            json.dumps(
+                {
+                    "schema": "silver",
+                    "name": "Lookup",
+                    "is_seed": True,
+                    "is_source": False,
+                    "profile": {
+                        "status": "ok",
+                        "classification": {"resolved_kind": "seed", "source": "catalog"},
+                    },
+                },
+            ),
+            encoding="utf-8",
+        )
+        assert object_pipeline_status(tmp_path, "silver.lookup", "table", dbt_root) == "n_a"
+
     def test_table_profile_needed(self, tmp_path):
         """Scoped table with no profile → profile_needed."""
         dbt_root = tmp_path / "dbt"

@@ -192,6 +192,8 @@ def _compute_status_and_diagnostics(
     _gather_diagnostics(cat.profile, diagnostics)
     _gather_diagnostics(cat.refactor, diagnostics)
 
+    if cat.is_seed:
+        return "n_a", diagnostics
     scoping_status = cat.scoping.status if cat.scoping else None
     if scoping_status == "no_writer_found":
         return "n_a", diagnostics

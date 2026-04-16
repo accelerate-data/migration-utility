@@ -201,8 +201,30 @@ def run_ready(project_root: Path, stage: str, object_fqn: str | None = None) -> 
         except (json.JSONDecodeError, OSError, CatalogLoadError):
             cat = None
         if cat is not None:
+            if cat.is_seed:
+                object_detail = _object_detail(
+                    norm,
+                    obj_type,
+                    False,
+                    "not_applicable",
+                    "SEED_TABLE",
+                    not_applicable=True,
+                )
+                return DryRunOutput(
+                    stage=stage,
+                    ready=False,
+                    project=project,
+                    object=object_detail,
+                )
             if cat.is_source:
-                object_detail = _object_detail(norm, obj_type, False, "not_applicable", "SOURCE_TABLE", not_applicable=True)
+                object_detail = _object_detail(
+                    norm,
+                    obj_type,
+                    False,
+                    "not_applicable",
+                    "SOURCE_TABLE",
+                    not_applicable=True,
+                )
                 return DryRunOutput(
                     stage=stage,
                     ready=False,
