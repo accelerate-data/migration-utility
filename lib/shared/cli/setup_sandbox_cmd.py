@@ -127,7 +127,7 @@ def setup_sandbox(
 
     if not yes:
         confirmed = typer.confirm(
-            f"Create sandbox database cloning schemas: {', '.join(schemas) or '(none)'}?"
+            f"Create or reset sandbox database cloning schemas: {', '.join(schemas) or '(none)'}?"
         )
         if not confirmed:
             console.print("Aborted.")
@@ -135,6 +135,7 @@ def setup_sandbox(
 
     backend = _create_backend(manifest)
     sandbox_database = _get_configured_sandbox_name(manifest)
+    operation = "create"
 
     if sandbox_database:
         console.print(f"Checking sandbox: [bold]{sandbox_database}[/bold]...")
@@ -142,7 +143,14 @@ def setup_sandbox(
             with cli_error_handler("checking existing sandbox database"):
                 status = backend.sandbox_status(sandbox_database)
 
+        if status.status == "error":
+            if status.errors:
+                for entry in status.errors:
+                    error(f"[{entry.code}] {entry.message}")
+            raise typer.Exit(code=1)
+
         if status.exists:
+            operation = "reset"
             console.print(f"Resetting sandbox: [bold]{sandbox_database}[/bold]...")
             with console.status("Running sandbox_reset..."):
                 with cli_error_handler("resetting sandbox database"):
@@ -155,13 +163,15 @@ def setup_sandbox(
                 with cli_error_handler("provisioning sandbox database"):
                     result = backend.sandbox_up(schemas=schemas)
     else:
+        operation = "create"
         console.print(f"Provisioning sandbox for schemas: [bold]{', '.join(schemas)}[/bold]...")
         with console.status("Running sandbox_up..."):
             with cli_error_handler("provisioning sandbox database"):
                 result = backend.sandbox_up(schemas=schemas)
 
     logger.info(
-        "event=sandbox_up status=%s sandbox_database=%s tables=%d views=%d procedures=%d errors=%d",
+        "event=sandbox_setup operation=%s status=%s sandbox_database=%s tables=%d views=%d procedures=%d errors=%d",
+        operation,
         result.status,
         result.sandbox_database,
         len(result.tables_cloned),

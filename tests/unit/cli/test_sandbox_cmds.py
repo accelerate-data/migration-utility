@@ -8,6 +8,7 @@ import shared.cli.error_handler as _err_mod
 from shared.cli.main import app
 from shared.cli.setup_sandbox_cmd import _write_sandbox_connection_to_manifest
 from shared.output_models.sandbox import (
+    ErrorEntry,
     SandboxDownOutput,
     SandboxStatusOutput,
     SandboxUpOutput,
@@ -97,6 +98,49 @@ def test_setup_sandbox_resets_existing_canonical_sandbox(tmp_path):
     mock_backend.sandbox_reset.assert_called_once_with("__test_existing", schemas=["silver"])
     mock_backend.sandbox_up.assert_not_called()
     mock_write_sandbox.assert_called_once_with(tmp_path, "__test_existing")
+
+
+def test_setup_sandbox_surfaces_status_errors_without_provisioning(tmp_path):
+    _write_manifest(tmp_path, with_sandbox=True)
+    manifest = {
+        "runtime": {
+            "sandbox": {
+                "technology": "sql_server",
+                "dialect": "tsql",
+                "connection": {"database": "__test_existing"},
+            }
+        }
+    }
+    mock_backend = MagicMock()
+    mock_backend.sandbox_status.return_value = SandboxStatusOutput(
+        sandbox_database="__test_existing",
+        status="error",
+        exists=False,
+        errors=[
+            ErrorEntry(
+                code="SANDBOX_STATUS_FAILED",
+                message="connection failed",
+            )
+        ],
+    )
+
+    with (
+        patch("shared.cli.setup_sandbox_cmd._load_manifest", return_value=manifest),
+        patch("shared.cli.setup_sandbox_cmd._get_sandbox_technology", return_value="sql_server"),
+        patch("shared.cli.setup_sandbox_cmd.require_sandbox_vars"),
+        patch("shared.cli.setup_sandbox_cmd._write_sandbox_connection_to_manifest", return_value=manifest),
+        patch("shared.cli.setup_sandbox_cmd._create_backend", return_value=mock_backend),
+        patch("shared.cli.setup_sandbox_cmd._get_schemas", return_value=["silver"]),
+        patch("shared.cli.setup_sandbox_cmd._write_sandbox_to_manifest") as mock_write_sandbox,
+    ):
+        result = runner.invoke(app, ["setup-sandbox", "--yes", "--project-root", str(tmp_path)])
+
+    assert result.exit_code == 1, result.output
+    assert "SANDBOX_STATUS_FAILED" in result.output
+    mock_backend.sandbox_status.assert_called_once_with("__test_existing")
+    mock_backend.sandbox_reset.assert_not_called()
+    mock_backend.sandbox_up.assert_not_called()
+    mock_write_sandbox.assert_not_called()
 
 
 def test_setup_sandbox_creates_new_when_canonical_sandbox_not_found(tmp_path):
