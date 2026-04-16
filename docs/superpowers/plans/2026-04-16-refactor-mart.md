@@ -1,12 +1,29 @@
 # Refactor Mart Implementation Plan
 
-> **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
+> **For agentic workers:** REQUIRED SUB-SKILL: Use `engineering-skills:implementing-linear-issue` for Linear issue state, branch/worktree setup, checkpoint commits, acceptance-criteria updates, verification, and handoff discipline. After the issue worktree and approved per-issue implementation plan are established, use `superpowers:subagent-driven-development` (recommended) or `superpowers:executing-plans` to execute the relevant task checkboxes. Steps use checkbox (`- [ ]`) syntax for tracking.
 
 **Goal:** Add the mart-driven two-wave refactor workflow and restructure generated dbt projects so their folders, YAML files, defaults, and model placement follow dbt’s published project-structure standards.
 
 **Architecture:** This feature has two coupled parts. First, normalize the generated dbt project layout to the dbt best-practice structure: `models/staging/<source_system>/`, `models/intermediate/<domain>/`, `models/marts/<domain>/`, directory-scoped YAML/docs files, and directory-level defaults in `dbt_project.yml`. Second, add the new `refactor-mart` commands and skills that operate against that normalized layout using an LLM-readable markdown plan file rather than a Python-first schema.
 
 **Tech Stack:** Claude Code slash command specs, migration skills, Markdown plan artifacts, Promptfoo evals, pytest repo-structure regression checks, `markdownlint`, `rg`
+
+**Linear Issue Mapping:**
+
+- `VU-1101` — Normalize generated dbt project layout to staging/intermediate/marts structure
+- `VU-1102` — Add `/refactor-mart-plan` planning workflow
+- `VU-1103` — Add `/refactor-mart` staging candidate execution workflow
+- `VU-1104` — Add `/refactor-mart` higher-layer execution with dependency gating
+
+**Required Linear/Git Workflow:**
+
+- Start each issue with `engineering-skills:implementing-linear-issue <issue-id>`.
+- Create or reuse the issue branch and worktree before inspecting or editing implementation files for that issue.
+- Keep implementation work inside the issue worktree, not the main checkout.
+- Post the approved per-issue implementation plan to Linear before coding.
+- Use checkpoint commits for green reviewable slices and a final implementation commit before handoff.
+- Update the Linear issue with implementation progress, acceptance-criteria status, verification evidence, and quality-gate outcomes.
+- Stop before push, PR creation, or moving the issue to `In Review`; those belong to the PR workflow.
 
 ---
 
@@ -71,7 +88,9 @@
 - any JSON plan schema that competes with the markdown contract
 - a standalone validation skill; validation stays inside the apply skills
 
-### Task 1: Lock Repo Contracts Before Adding New Commands
+### Task 1: Normalize Generated dbt Project Layout (`VU-1101`)
+
+**Issue scope:** This task is a deterministic generator/scaffold contract change. It does not add a user-facing normalization command or skill, and it does not migrate arbitrary existing dbt projects.
 
 **Files:**
 
@@ -227,7 +246,9 @@ Expected:
 
 - commit succeeds with the structure-normalization slice staged
 
-### Task 2: Lock Repo Contracts Before Adding New Commands
+### Task 2: Lock Refactor-Mart Command And Skill Path Contracts (`VU-1102`)
+
+**Issue scope:** This task adds the failing repository-structure contract for the `/refactor-mart-plan` command, `/refactor-mart` command, and the internal skills that are implemented in later tasks.
 
 **Files:**
 
@@ -297,7 +318,9 @@ Expected:
 - commit succeeds with the regression file staged
 - `repo-map.json` is staged only if it was intentionally updated for stale command/skill layout metadata
 
-### Task 3: Add The New Slash Command Specs
+### Task 3: Add The Refactor-Mart Slash Command Specs (`VU-1102`)
+
+**Issue scope:** This task adds the user-facing command specs for the planning workflow and wave-mode execution shell. The execution skills and eval fixtures are added in later tasks.
 
 **Files:**
 
@@ -399,7 +422,9 @@ Expected:
 
 - commit succeeds with only the two command spec files staged
 
-### Task 4: Add The Planning Skill And Plan-File Reference
+### Task 4: Add The Planning Skill And Plan-File Reference (`VU-1102`)
+
+**Issue scope:** This task completes the `/refactor-mart-plan` planning workflow. It must not apply dbt model changes.
 
 **Files:**
 
@@ -512,7 +537,9 @@ Expected:
 
 - commit succeeds with only the planning-skill files staged
 
-### Task 5: Add The Staging Apply Skill And `stg` Command Coverage
+### Task 5: Add The Staging Apply Skill And `stg` Command Coverage (`VU-1103`)
+
+**Issue scope:** This task implements staging-wave execution only. It must reject non-staging candidates and must not execute higher-layer candidates.
 
 **Files:**
 
@@ -623,7 +650,9 @@ Expected:
 
 - commit succeeds with the staging-apply skill and `stg` command eval files staged
 
-### Task 6: Add The Higher-Layer Apply Skill, Dependency Gating, And Full Command Evals
+### Task 6: Add The Higher-Layer Apply Skill, Dependency Gating, And Full Command Evals (`VU-1104`)
+
+**Issue scope:** This task implements higher-layer execution only. It must enforce dependency satisfaction before edits and must not execute staging candidates.
 
 **Files:**
 
@@ -776,3 +805,10 @@ Expected:
 - commands: `refactor-mart-plan`, `refactor-mart`
 - skills: `planning-refactor-mart`, `applying-staging-candidate`, `applying-refactor-mart-candidate`
 - execution modes: `stg`, `int`
+
+**Issue consistency:** The plan maps cleanly to the replacement Linear issue set:
+
+- `VU-1101`: Task 1
+- `VU-1102`: Tasks 2-4
+- `VU-1103`: Task 5
+- `VU-1104`: Task 6
