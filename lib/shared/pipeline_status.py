@@ -76,7 +76,7 @@ def object_pipeline_status(
         refactor_needed — test-gen complete but writer not refactored
         migrate_needed  — refactored but no dbt model / generate not ok
         complete        — dbt model exists
-        n_a             — writerless table (writer-dependent stages N/A)
+        n_a             — writerless or seed table (writer-dependent stages N/A)
     """
     status, _ = _compute_status_and_diagnostics(project_root, fqn, obj_type, dbt_root)
     return status
