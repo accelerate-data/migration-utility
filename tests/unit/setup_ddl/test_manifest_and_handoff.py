@@ -532,6 +532,14 @@ class TestConnectionIdentity:
 
     def test_oracle_identity_reads_dsn(self, monkeypatch):
         get_connection_identity, _, _ = self._import()
+        for env_var in (
+            "SOURCE_ORACLE_HOST",
+            "SOURCE_ORACLE_PORT",
+            "SOURCE_ORACLE_SERVICE",
+            "SOURCE_ORACLE_USER",
+            "SOURCE_ORACLE_SCHEMA",
+        ):
+            monkeypatch.delenv(env_var, raising=False)
         monkeypatch.setenv("ORACLE_DSN", "localhost:1521/FREEPDB1")
         identity = get_connection_identity("oracle", "")
         assert identity["connection"]["dsn"] == "localhost:1521/FREEPDB1"
