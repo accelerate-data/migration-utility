@@ -1,7 +1,11 @@
 {
   "generated_at": "2026-04-16T00:00:00Z",
   "repo_root": "migration-utility",
-  "primary_languages": ["TypeScript", "Python", "Markdown"],
+  "primary_languages": [
+    "TypeScript",
+    "Python",
+    "Markdown"
+  ],
   "package_managers": [
     {
       "name": "uv (shared)",
@@ -214,6 +218,7 @@
     "eval_generating_model": "cd tests/evals && npm run eval:generating-model",
     "eval_generating_tests": "cd tests/evals && npm run eval:generating-tests",
     "eval_reviewing_tests": "cd tests/evals && npm run eval:reviewing-tests",
+    "eval_reviewing_diagnostics": "cd tests/evals && npm run eval:reviewing-diagnostics",
     "eval_reviewing_model": "cd tests/evals && npm run eval:reviewing-model",
     "eval_analyzing_table": "cd tests/evals && npm run eval:analyzing-table",
     "eval_analyzing_table_readiness": "cd tests/evals && npm run eval:analyzing-table-readiness",

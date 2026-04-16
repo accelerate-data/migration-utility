@@ -53,6 +53,8 @@ Fix catalog state when diagnostics show wrong or stale catalog facts, for exampl
 
 Ask the user when multiple plausible catalog fixes exist and the catalog does not identify one clear correction.
 
+When one clear catalog correction exists, apply it. Do not ask permission to edit catalog files that the workflow owns.
+
 Write a reviewed-warning artifact only when:
 
 - the warning is real but acceptable,

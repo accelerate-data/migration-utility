@@ -1,0 +1,62 @@
+{
+  "schema": "gold",
+  "name": "rpt_sales_by_category",
+  "columns": [
+    {
+      "name": "rpt_sales_by_category_key",
+      "sql_type": "INT",
+      "is_nullable": false
+    }
+  ],
+  "primary_keys": [
+    {
+      "constraint_name": "PK_rpt_sales_by_category",
+      "columns": [
+        "rpt_sales_by_category_key"
+      ]
+    }
+  ],
+  "unique_indexes": [],
+  "foreign_keys": [],
+  "auto_increment_columns": [],
+  "change_capture": null,
+  "sensitivity_classifications": [],
+  "referenced_by": {
+    "procedures": {
+      "in_scope": [
+        {
+          "schema": "dbo",
+          "name": "usp_load_dim_customer",
+          "is_selected": true,
+          "is_updated": false
+        },
+        {
+          "schema": "dbo",
+          "name": "usp_load_rpt_sales_by_category",
+          "is_selected": false,
+          "is_updated": true
+        }
+      ],
+      "out_of_scope": []
+    },
+    "views": {
+      "in_scope": [],
+      "out_of_scope": []
+    },
+    "functions": {
+      "in_scope": [],
+      "out_of_scope": []
+    }
+  },
+  "warnings": [
+    {
+      "code": "PARSE_ERROR",
+      "message": "Writer proc body (dbo.usp_load_dim_customer) does not contain any INSERT, UPDATE, or MERGE targeting gold.rpt_sales_by_category. The actual writer appears to be dbo.usp_load_rpt_sales_by_category per catalog referenced_by.",
+      "severity": "warning"
+    }
+  ],
+  "scoping": {
+    "status": "resolved",
+    "selected_writer": "dbo.usp_load_dim_customer"
+  }
+}

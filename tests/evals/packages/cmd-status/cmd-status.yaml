@@ -64,6 +64,13 @@ tests:
       fixture_path: "tests/evals/fixtures/cmd-status/status-diagnostic"
       expected_output_terms: "dimcurrency,refactor,!"
 
+  # ── status-reviewed-warning-hidden: accepted warning is hidden, active warning remains ──
+  - description: "status-reviewed-warning-hidden — hides one reviewed warning and shows remaining active warning"
+    vars:
+      fixture_path: "tests/evals/fixtures/cmd-status/status-reviewed-warning-hidden"
+      expected_output_terms: "reviewed warnings hidden,parse_error"
+      unexpected_output_terms: "proc also writes dim.other"
+
   # ── status-writerless-dep: no blocked-by annotation ─────────────
   - description: "status-writerless-dep — view in schedule with no blocked-by annotation"
     vars:

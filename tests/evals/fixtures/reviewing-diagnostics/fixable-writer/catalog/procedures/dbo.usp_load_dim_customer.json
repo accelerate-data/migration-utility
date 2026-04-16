@@ -1,0 +1,36 @@
+{
+  "schema": "dbo",
+  "name": "usp_load_dim_customer",
+  "statements": [
+    {
+      "type": "Insert",
+      "action": "include",
+      "sql": "INSERT INTO dim.dim_customer SELECT 1 AS dim_customer_key;"
+    }
+  ],
+  "references": {
+    "tables": {
+      "in_scope": [
+        {
+          "schema": "dim",
+          "name": "dim_customer",
+          "is_selected": false,
+          "is_updated": true
+        }
+      ],
+      "out_of_scope": []
+    },
+    "views": {
+      "in_scope": [],
+      "out_of_scope": []
+    },
+    "functions": {
+      "in_scope": [],
+      "out_of_scope": []
+    },
+    "procedures": {
+      "in_scope": [],
+      "out_of_scope": []
+    }
+  }
+}

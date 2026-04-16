@@ -1,0 +1,36 @@
+{
+  "schema": "dbo",
+  "name": "usp_load_rpt_sales_by_category",
+  "statements": [
+    {
+      "type": "Insert",
+      "action": "include",
+      "sql": "INSERT INTO gold.rpt_sales_by_category SELECT 1 AS rpt_sales_by_category_key;"
+    }
+  ],
+  "references": {
+    "tables": {
+      "in_scope": [
+        {
+          "schema": "gold",
+          "name": "rpt_sales_by_category",
+          "is_selected": false,
+          "is_updated": true
+        }
+      ],
+      "out_of_scope": []
+    },
+    "views": {
+      "in_scope": [],
+      "out_of_scope": []
+    },
+    "functions": {
+      "in_scope": [],
+      "out_of_scope": []
+    },
+    "procedures": {
+      "in_scope": [],
+      "out_of_scope": []
+    }
+  }
+}
