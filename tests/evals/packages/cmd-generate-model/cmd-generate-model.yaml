@@ -27,6 +27,14 @@ tests:
       target_tables: "bronze.Product"
       target_table: "bronze.Product"
       expected_output_terms: "marked as a dbt source,no migration needed"
+      expect_no_generated_model: "true"
+    assert:
+      - type: javascript
+        value: file://../../assertions/check-command-summary.js
+      - type: javascript
+        value: file://../../assertions/check-dbt-refs.js
+      - type: javascript
+        value: file://../../assertions/check-dbt-model.js
 
   - description: "seed-skip — seed table is not sent to model generation"
     vars:
@@ -34,6 +42,14 @@ tests:
       target_tables: "bronze.Currency"
       target_table: "bronze.Currency"
       expected_output_terms: "marked as a dbt seed,no migration needed"
+      expect_no_generated_model: "true"
+    assert:
+      - type: javascript
+        value: file://../../assertions/check-command-summary.js
+      - type: javascript
+        value: file://../../assertions/check-dbt-refs.js
+      - type: javascript
+        value: file://../../assertions/check-dbt-model.js
 
   # ── happy path: 2 tables, both generate dbt models ──────────
   - description: "[smoke] happy-path — InsertSelectTarget + UpdateJoinTarget both generate models"
@@ -58,6 +74,7 @@ tests:
       target_table: "silver.CorrelatedSubqueryTarget"
       expected_item_statuses: '{"silver.CorrelatedSubqueryTarget": "ok,partial"}'
       expected_output_terms: "review"
+      expected_model_path: "models/marts/correlatedsubquerytarget.sql"
     assert:
       - type: javascript
         value: file://../../assertions/check-dbt-model.js
@@ -87,6 +104,7 @@ tests:
       expected_item_statuses: '{"silver.FactSales": "ok,partial"}'
       expected_model_path: "models/marts/fact_sales.sql"
       expected_model_terms: "ref("
+      forbidden_model_terms: "source('bronze'"
     assert:
       - type: javascript
         value: file://../../assertions/check-dbt-model.js
@@ -224,6 +242,7 @@ tests:
       target_tables: "sh.CHANNEL_SALES_SUMMARY"
       target_table: "sh.channel_sales_summary"
       expected_item_statuses: '{"sh.CHANNEL_SALES_SUMMARY": "ok,partial"}'
+      expected_model_path: "models/marts/channel_sales_summary.sql"
       expected_model_terms: "with,select,channel_id,channel_desc"
       expected_output_terms: "ok"
     assert:

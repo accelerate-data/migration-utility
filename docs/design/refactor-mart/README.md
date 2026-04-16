@@ -49,7 +49,7 @@ Use a regular shape like this:
 ## Candidate: STG-001
 - [x] Approve: yes
 - Type: stg
-- Output: models/staging/<source_system>/stg_<source_system>__<entity>.sql
+- Output: models/staging/stg_bronze__<entity>.sql
 - Scope: source table <name>
 - Consumers: <consumer>, <consumer>
 - Depends on: none

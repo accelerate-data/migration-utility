@@ -299,6 +299,35 @@ def generate_sources(
             incomplete=incomplete,
         )
 
+    source_name_to_fqn: dict[str, str] = {}
+    for cat in source_tables:
+        schema_name = str(cat.get("schema", "")).lower()
+        table_name = str(cat.get("name", ""))
+        fqn = f"{schema_name}.{table_name.lower()}"
+        source_table_name = table_name.lower()
+        existing_fqn = source_name_to_fqn.get(source_table_name)
+        if existing_fqn is not None and existing_fqn != fqn:
+            message = (
+                "Confirmed source tables must have unique names under the bronze "
+                f"source namespace: {existing_fqn}, {fqn}"
+            )
+            logger.error(
+                "event=generate_sources_duplicate_source_name table=%s existing=%s duplicate=%s",
+                source_table_name,
+                existing_fqn,
+                fqn,
+            )
+            return GenerateSourcesOutput(
+                sources=None,
+                included=included,
+                excluded=excluded,
+                unconfirmed=unconfirmed,
+                incomplete=incomplete,
+                error="SOURCE_NAME_COLLISION",
+                message=message,
+            )
+        source_name_to_fqn[source_table_name] = fqn
+
     confirmed_sources: dict[str, tuple[str, str]] = {}
     for cat in source_tables:
         schema_name = str(cat.get("schema", "")).lower()
@@ -386,6 +415,20 @@ def _staging_models_from_sources(sources: dict[str, Any]) -> dict[str, Any]:
     return {"version": 2, "models": models}
 
 
+def _cleanup_stale_staging_wrappers(staging_dir: Path, expected_wrapper_names: set[str]) -> None:
+    """Remove stale generated bronze staging wrappers from previous source runs."""
+    if not staging_dir.is_dir():
+        return
+    for wrapper_path in staging_dir.glob("stg_bronze__*.sql"):
+        if wrapper_path.name in expected_wrapper_names:
+            continue
+        wrapper_path.unlink()
+        logger.info(
+            "event=generate_sources_removed_stale_wrapper path=%s",
+            wrapper_path,
+        )
+
+
 def write_sources_yml(
     project_root: Path,
     *,
@@ -405,6 +448,14 @@ def write_sources_yml(
     models_path = staging_dir / "_staging__models.yml"
 
     if result.sources is None:
+        _cleanup_stale_staging_wrappers(staging_dir, set())
+        for stale_yaml_path in (sources_path, models_path):
+            if stale_yaml_path.exists():
+                stale_yaml_path.unlink()
+                logger.info(
+                    "event=generate_sources_removed_stale_yaml path=%s",
+                    stale_yaml_path,
+                )
         return result.model_copy(update={"path": None})
 
     staging_dir.mkdir(parents=True, exist_ok=True)
@@ -427,6 +478,7 @@ def write_sources_yml(
             allow_unicode=True,
         )
 
+    expected_wrapper_names: set[str] = set()
     for source in result.sources.get("sources", []):
         if not isinstance(source, dict):
             continue
@@ -434,8 +486,12 @@ def write_sources_yml(
             if not isinstance(table, dict) or not table.get("name"):
                 continue
             table_name = str(table["name"])
-            wrapper_path = staging_dir / f"{_staging_model_name(table_name)}.sql"
+            wrapper_name = f"{_staging_model_name(table_name)}.sql"
+            expected_wrapper_names.add(wrapper_name)
+            wrapper_path = staging_dir / wrapper_name
             wrapper_path.write_text(_render_staging_wrapper(table_name), encoding="utf-8")
+
+    _cleanup_stale_staging_wrappers(staging_dir, expected_wrapper_names)
 
     return result.model_copy(update={"path": str(sources_path)})
 
@@ -474,6 +530,10 @@ def main(
         logger.error("event=generate_sources_io_error error=%s", exc)
         emit({"error": "IO_ERROR", "message": str(exc)})
         raise typer.Exit(code=2) from exc
+
+    if result.error:
+        emit(result)
+        raise typer.Exit(code=1)
 
     if strict and result.incomplete:
         emit({

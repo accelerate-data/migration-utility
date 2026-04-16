@@ -46,6 +46,7 @@ tests:
       writer: "silver.usp_load_InsertSelectTarget"
       expected_model_path: "models/marts/insertselecttarget.sql"
       expected_model_terms: "_dbt_run_id"
+      forbidden_model_terms: "source('bronze'"
       expected_yaml_terms: "version: 2,description"
     assert:
       - type: javascript

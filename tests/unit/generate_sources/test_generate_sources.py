@@ -236,6 +236,25 @@ def test_sources_yml_uses_single_bronze_source_namespace() -> None:
         tmp.cleanup()
 
 
+def test_sources_yml_rejects_duplicate_source_table_names_across_schemas() -> None:
+    """The single bronze source namespace cannot represent duplicate table names."""
+    tmp, root = _make_project([
+        {"schema": "bronze", "name": "Customer",
+         "scoping": {"status": "no_writer_found"}, "is_source": True},
+        {"schema": "archive", "name": "Customer",
+         "scoping": {"status": "no_writer_found"}, "is_source": True},
+    ])
+    try:
+        result = generate_sources(root)
+        assert result.sources is None
+        assert result.error == "SOURCE_NAME_COLLISION"
+        assert result.message is not None
+        assert "archive.customer" in result.message
+        assert "bronze.customer" in result.message
+    finally:
+        tmp.cleanup()
+
+
 def test_excluded_table_with_is_source_not_in_sources() -> None:
     """Table with both excluded: true and is_source: true must NOT appear in sources.yml."""
     tmp, root = _make_project([
@@ -354,6 +373,95 @@ def test_write_sources_yml_writes_enriched_yaml_idempotently(tmp_path: Path) -> 
     staging_models_content = staging_models_path.read_text(encoding="utf-8")
     assert "name: stg_bronze__customer" in staging_models_content
     assert "name: stg_bronze__order" in staging_models_content
+
+
+def test_write_sources_yml_removes_stale_staging_wrappers(tmp_path: Path) -> None:
+    """Source reclassification removes generated wrappers that are no longer declared."""
+    tables_dir = tmp_path / "catalog" / "tables"
+    tables_dir.mkdir(parents=True)
+    customer_catalog = tables_dir / "bronze.customer.json"
+    order_catalog = tables_dir / "bronze.order.json"
+    customer_catalog.write_text(
+        json.dumps({
+            "schema": "bronze",
+            "name": "Customer",
+            "scoping": {"status": "no_writer_found"},
+            "is_source": True,
+        }),
+        encoding="utf-8",
+    )
+    order_catalog.write_text(
+        json.dumps({
+            "schema": "bronze",
+            "name": "Order",
+            "scoping": {"status": "no_writer_found"},
+            "is_source": True,
+        }),
+        encoding="utf-8",
+    )
+    staging_dir = tmp_path / "dbt" / "models" / "staging"
+    staging_dir.mkdir(parents=True)
+
+    write_sources_yml(tmp_path)
+    customer_wrapper_path = staging_dir / "stg_bronze__customer.sql"
+    order_wrapper_path = staging_dir / "stg_bronze__order.sql"
+    assert customer_wrapper_path.exists()
+    assert order_wrapper_path.exists()
+
+    order_catalog.write_text(
+        json.dumps({
+            "schema": "bronze",
+            "name": "Order",
+            "scoping": {"status": "resolved", "selected_writer": "dbo.usp_load_order"},
+        }),
+        encoding="utf-8",
+    )
+
+    write_sources_yml(tmp_path)
+    assert customer_wrapper_path.exists()
+    assert not order_wrapper_path.exists()
+    assert "name: Order" not in (
+        staging_dir / "_staging__sources.yml"
+    ).read_text(encoding="utf-8")
+
+
+def test_write_sources_yml_removes_source_artifacts_when_no_sources_remain(tmp_path: Path) -> None:
+    """When the final source is reclassified, generated source YAML and wrappers are removed."""
+    tables_dir = tmp_path / "catalog" / "tables"
+    tables_dir.mkdir(parents=True)
+    customer_catalog = tables_dir / "bronze.customer.json"
+    customer_catalog.write_text(
+        json.dumps({
+            "schema": "bronze",
+            "name": "Customer",
+            "scoping": {"status": "no_writer_found"},
+            "is_source": True,
+        }),
+        encoding="utf-8",
+    )
+    staging_dir = tmp_path / "dbt" / "models" / "staging"
+    staging_dir.mkdir(parents=True)
+
+    first = write_sources_yml(tmp_path)
+    assert first.path is not None
+    assert (staging_dir / "_staging__sources.yml").exists()
+    assert (staging_dir / "_staging__models.yml").exists()
+    assert (staging_dir / "stg_bronze__customer.sql").exists()
+
+    customer_catalog.write_text(
+        json.dumps({
+            "schema": "bronze",
+            "name": "Customer",
+            "scoping": {"status": "resolved", "selected_writer": "dbo.usp_load_customer"},
+        }),
+        encoding="utf-8",
+    )
+
+    second = write_sources_yml(tmp_path)
+    assert second.path is None
+    assert not (staging_dir / "_staging__sources.yml").exists()
+    assert not (staging_dir / "_staging__models.yml").exists()
+    assert not (staging_dir / "stg_bronze__customer.sql").exists()
 
 
 def test_sources_yml_uses_profile_watermark_for_freshness_when_column_exists() -> None:
@@ -726,7 +834,7 @@ def test_write_sources_yml_creates_file(tmp_path) -> None:
     (dbt_dir / "models" / "staging").mkdir(parents=True)
     subprocess.run(["git", "init"], cwd=tmp_path, capture_output=True, check=True)
     subprocess.run(
-        ["git", "commit", "--allow-empty", "-m", "i"],
+        ["git", "-c", "commit.gpgsign=false", "commit", "--allow-empty", "-m", "i"],
         cwd=tmp_path, capture_output=True, check=True,
         env={"GIT_AUTHOR_NAME": "t", "GIT_AUTHOR_EMAIL": "t@t",
              "GIT_COMMITTER_NAME": "t", "GIT_COMMITTER_EMAIL": "t@t",

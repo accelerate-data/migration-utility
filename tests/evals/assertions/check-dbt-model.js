@@ -14,7 +14,8 @@
 //   expected_stg_files?,
 //   expected_stg_terms?,
 //   forbidden_stg_terms?,
-//   graceful_no_model?
+//   graceful_no_model?,
+//   expect_no_generated_model?
 // }
 const fs = require('fs');
 const path = require('path');
@@ -34,6 +35,7 @@ module.exports = (output, context) => {
   const expectedYamlTerms = normalizeTerms(context.vars.expected_yaml_terms);
   const forbiddenYamlTerms = normalizeTerms(context.vars.forbidden_yaml_terms);
   const gracefulNoModel = String(context.vars.graceful_no_model || '').toLowerCase() === 'true';
+  const expectNoGeneratedModel = String(context.vars.expect_no_generated_model || '').toLowerCase() === 'true';
   const expectedStgFiles = normalizeTerms(context.vars.expected_stg_files);
   const expectedStgTerms = normalizeTerms(context.vars.expected_stg_terms);
   const forbiddenStgTerms = normalizeTerms(context.vars.forbidden_stg_terms);
@@ -52,7 +54,7 @@ module.exports = (output, context) => {
   };
 
   if (!fs.existsSync(dbtDir)) {
-    if (gracefulNoModel) {
+    if (gracefulNoModel || expectNoGeneratedModel) {
       const failure = assertExpectedOutputTerms();
       return failure || { pass: true, score: 1, reason: 'Graceful no-model response accepted (no dbt project present)' };
     }
@@ -66,7 +68,7 @@ module.exports = (output, context) => {
   // Look for model files in the dbt directory
   const modelsDir = path.resolve(dbtDir, 'models');
   if (!fs.existsSync(modelsDir)) {
-    if (gracefulNoModel) {
+    if (gracefulNoModel || expectNoGeneratedModel) {
       const failure = assertExpectedOutputTerms();
       return failure || { pass: true, score: 1, reason: 'Graceful no-model response accepted (no models dir present)' };
     }
@@ -95,6 +97,27 @@ module.exports = (output, context) => {
     const fNorm = f.toLowerCase().replace(/_/g, '');
     return fNorm.includes(tableNameNorm);
   });
+
+  const generatedTargetMatches = matchingFiles.filter(f => {
+    const relativePath = path.relative(modelsDir, f).split(path.sep).join('/');
+    return !relativePath.startsWith('staging/stg_bronze__');
+  });
+
+  if (expectNoGeneratedModel) {
+    const failure = assertExpectedOutputTerms();
+    if (failure) {
+      return failure;
+    }
+    if (generatedTargetMatches.length > 0) {
+      return {
+        pass: false,
+        score: 0,
+        reason: `Expected no generated target model for '${tableName}', found ${generatedTargetMatches.map(f => path.basename(f)).join(', ')}`,
+      };
+    }
+    return { pass: true, score: 1, reason: `No generated target model found for '${tableName}'` };
+  }
+
   if (matchingFiles.length === 0) {
     if (gracefulNoModel) {
       const failure = assertExpectedOutputTerms();
@@ -106,13 +129,6 @@ module.exports = (output, context) => {
     return { pass: false, score: 0, reason: `No SQL file matching '${tableName}' found in ${modelsDir}` };
   }
 
-  const catalogPath = path.resolve(
-    repoRoot,
-    fixturePath,
-    'catalog',
-    'tables',
-    `${table.toLowerCase()}.json`,
-  );
   let modelFile = matchingFiles[0];
   if (expectedModelPath) {
     const expectedModelFile = path.resolve(dbtDir, expectedModelPath);
@@ -120,15 +136,12 @@ module.exports = (output, context) => {
       return { pass: false, score: 0, reason: `Expected model path '${expectedModelPath}' not found at ${expectedModelFile}` };
     }
     modelFile = expectedModelFile;
-  } else if (fs.existsSync(catalogPath)) {
-    const catalog = JSON.parse(fs.readFileSync(catalogPath, 'utf8'));
-    const generatedModelPath = catalog?.generate?.model_path;
-    if (generatedModelPath) {
-      const generatedModelFile = path.resolve(dbtDir, generatedModelPath);
-      if (fs.existsSync(generatedModelFile)) {
-        modelFile = generatedModelFile;
-      }
-    }
+  } else {
+    return {
+      pass: false,
+      score: 0,
+      reason: "expected_model_path must be set for generated model checks",
+    };
   }
 
   const modelContent = fs.readFileSync(modelFile, 'utf8');
