@@ -1,0 +1,53 @@
+{
+  "schema": "dim",
+  "name": "dim_address",
+  "columns": [
+    {
+      "name": "AddressKey",
+      "sql_type": "INT",
+      "is_nullable": false
+    }
+  ],
+  "primary_keys": [
+    {
+      "constraint_name": "PK_dim_address",
+      "columns": [
+        "AddressKey"
+      ]
+    }
+  ],
+  "unique_indexes": [],
+  "foreign_keys": [],
+  "auto_increment_columns": [],
+  "change_capture": null,
+  "sensitivity_classifications": [],
+  "referenced_by": {
+    "procedures": {
+      "in_scope": [],
+      "out_of_scope": []
+    },
+    "views": {
+      "in_scope": [],
+      "out_of_scope": []
+    },
+    "functions": {
+      "in_scope": [],
+      "out_of_scope": []
+    }
+  },
+  "warnings": [
+    {
+      "code": "MULTI_TABLE_WRITE",
+      "message": "proc also writes dim.other",
+      "severity": "warning"
+    },
+    {
+      "code": "PARSE_ERROR",
+      "message": "active warning still needs review",
+      "severity": "warning"
+    }
+  ],
+  "scoping": {
+    "status": "no_writer_found"
+  }
+}

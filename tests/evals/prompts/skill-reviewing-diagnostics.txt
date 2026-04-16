@@ -1,0 +1,13 @@
+You are running in a DDL project with canonical fixture input at {{fixture_path}} and writable run workspace at {{run_path}}.
+
+Run /review-diagnostics for table {{target_table}}.
+
+Read the skill at `${CLAUDE_PLUGIN_ROOT}/skills/reviewing-diagnostics/SKILL.md`. Keep `${CLAUDE_PLUGIN_ROOT}` references as written. Pass `--project-root {{run_path}}` to all CLI commands.
+
+Treat `{{run_path}}` as the authoritative project root for this run. It exists and contains the fixture snapshot for this eval. Do not question whether the run directory exists.
+
+Apply the skill workflow end to end. Prefer catalog fixes over suppression. If the warning is acceptable after review, write `catalog/diagnostic-reviews.json` in the run workspace with specific evidence and rationale.
+
+Do not ask permission to write catalog changes in `{{run_path}}`; permission is already granted for this non-interactive eval. Ask only when the skill says human input is needed because the correct catalog fix is ambiguous. When the catalog fix is clear, state that the fix was applied and report the catalog path that changed.
+
+Skip git operations.

@@ -1,0 +1,18 @@
+{
+  "schema_version": "1.0",
+  "reviews": [
+    {
+      "fqn": "dim.dim_address",
+      "object_type": "table",
+      "code": "MULTI_TABLE_WRITE",
+      "message_hash": "sha256:a82635fe2035ad77dfb6fb7e516fb9e567d5cb5a3969d0c03647ebe0e808594c",
+      "status": "accepted",
+      "reason": "Reviewed table-specific slice; multi-table writer is intentional for this fixture.",
+      "evidence": [
+        "catalog/tables/dim.dim_address.json"
+      ],
+      "reviewed_at": "2026-04-16T00:00:00+00:00",
+      "reviewed_by": "eval"
+    }
+  ]
+}

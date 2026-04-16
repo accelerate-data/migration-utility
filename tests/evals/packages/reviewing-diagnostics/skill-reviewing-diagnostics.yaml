@@ -1,0 +1,36 @@
+# yaml-language-server: $schema=https://promptfoo.dev/config-schema.json
+description: "Reviewing-diagnostics skill — table-centric catalog diagnostic review"
+
+prompts:
+  - id: reviewing-diagnostics
+    label: reviewing-diagnostics
+    raw: file://../../prompts/skill-reviewing-diagnostics.txt
+
+extensions:
+  - file://../../scripts/run-workspace-extension.js:extensionHook
+
+providers:
+  - file://../../providers/haiku-60.yaml
+
+defaultTest:
+  assert:
+    - type: javascript
+      value: file://../../assertions/check-reviewing-diagnostics.js
+
+tests:
+  - description: "[smoke] review-fixable-writer — prefers catalog fix over suppression"
+    vars:
+      fixture_path: "tests/evals/fixtures/reviewing-diagnostics/fixable-writer"
+      target_table: "gold.rpt_sales_by_category"
+      expected_output_terms: "gold.rpt_sales_by_category,dbo.usp_load_rpt_sales_by_category"
+      unexpected_output_terms: ""
+      expect_no_review_artifact: "true"
+
+  - description: "review-acceptable-multitable — writes reviewed warning artifact"
+    vars:
+      fixture_path: "tests/evals/fixtures/reviewing-diagnostics/acceptable-multitable"
+      target_table: "dim.dim_address"
+      expected_output_terms: "dim.dim_address,diagnostic-reviews.json,accepted"
+      expect_review_artifact: "true"
+      expected_artifact_fqn: "dim.dim_address"
+      expected_artifact_code: "MULTI_TABLE_WRITE"

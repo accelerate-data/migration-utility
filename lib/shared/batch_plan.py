@@ -47,6 +47,7 @@ from shared.output_models.dry_run import (
 )
 
 from shared.deps import _has_dbt_model, collect_deps
+from shared.diagnostic_reviews import partition_reviewed_warnings
 from shared.pipeline_status import (
     _compute_diagnostic_stage_flags,
     _compute_status_and_diagnostics,
@@ -278,6 +279,7 @@ def _build_plan_output(
     circular_refs: list[CircularRef] | None = None,
     all_errors: list[CatalogDiagnosticEntry] | None = None,
     all_warnings: list[CatalogDiagnosticEntry] | None = None,
+    reviewed_warnings_hidden: int = 0,
 ) -> BatchPlanOutput:
     """Build the final batch plan output.
 
@@ -323,6 +325,7 @@ def _build_plan_output(
         catalog_diagnostics=CatalogDiagnostics(
             total_errors=len(all_errors or []),
             total_warnings=len(all_warnings or []),
+            reviewed_warnings_hidden=reviewed_warnings_hidden,
             errors=all_errors or [],
             warnings=all_warnings or [],
         ),
@@ -419,12 +422,41 @@ def build_batch_plan(project_root: Path, dbt_root: Path | None = None) -> BatchP
     # Aggregate catalog diagnostics
     all_errors: list[CatalogDiagnosticEntry] = []
     all_warnings: list[CatalogDiagnosticEntry] = []
+    reviewed_warnings_hidden = 0
     for fqn in sorted(obj_diagnostics):
+        object_type = obj_type_map[fqn]
+        visible_warnings, hidden_count = partition_reviewed_warnings(
+            project_root,
+            fqn=fqn,
+            object_type=object_type,
+            warnings=[
+                diagnostic
+                for diagnostic in obj_diagnostics[fqn]
+                if diagnostic.get("severity") != "error"
+            ],
+        )
+        reviewed_warnings_hidden += hidden_count
+        visible_warning_keys = {
+            (
+                warning.get("code"),
+                warning.get("message"),
+                warning.get("severity", "warning"),
+                warning.get("item_id"),
+                warning.get("field"),
+            )
+            for warning in visible_warnings
+        }
         for d in obj_diagnostics[fqn]:
-            entry = CatalogDiagnosticEntry(fqn=fqn, object_type=obj_type_map[fqn], **d)
+            entry = CatalogDiagnosticEntry(fqn=fqn, object_type=object_type, **d)
             if d.get("severity") == "error":
                 all_errors.append(entry)
-            else:
+            elif (
+                d.get("code"),
+                d.get("message"),
+                d.get("severity", "warning"),
+                d.get("item_id"),
+                d.get("field"),
+            ) in visible_warning_keys:
                 all_warnings.append(entry)
 
     logger.info(
@@ -463,4 +495,5 @@ def build_batch_plan(project_root: Path, dbt_root: Path | None = None) -> BatchP
         ],
         all_errors=all_errors,
         all_warnings=all_warnings,
+        reviewed_warnings_hidden=reviewed_warnings_hidden,
     )

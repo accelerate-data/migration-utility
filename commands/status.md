@@ -228,7 +228,7 @@ If the user confirms: execute the command inline in the same session (no sub-age
 
 ### Step 6 — Catalog Diagnostics
 
-If `catalog_diagnostics.total_errors > 0` or `catalog_diagnostics.total_warnings > 0`, present a triage section:
+If `catalog_diagnostics.total_errors > 0`, `catalog_diagnostics.total_warnings > 0`, or `catalog_diagnostics.reviewed_warnings_hidden > 0`, present a triage section:
 
 ```text
 catalog diagnostics  (3 errors, 5 warnings)
@@ -249,7 +249,21 @@ After listing the diagnostics, provide LLM-generated triage: for each unique err
 - "DDL_PARSE_ERROR (1 view): The view DDL has unsupported syntax. Review the view definition, rerun `ad-migration setup-source`, then run `/scope-tables`."
 - "STALE_OBJECT (1 table): Object was removed from the source. Verify it is no longer needed and remove its catalog file if so."
 
-If there are no diagnostics, omit this section entirely.
+If there are no visible diagnostics and no reviewed warnings hidden, omit this section entirely.
+
+For warnings that require human/agent review rather than immediate rerun commands, point the user to the table-centric diagnostic review skill:
+
+```text
+/review-diagnostics <schema.table>
+```
+
+If `catalog_diagnostics.reviewed_warnings_hidden > 0`, add:
+
+```text
+N reviewed warnings hidden - inspect catalog/diagnostic-reviews.json for rationale.
+```
+
+Render that line exactly, replacing `N` with the numeric hidden-warning count.
 
 ### Step 7 — Sources staleness check
 

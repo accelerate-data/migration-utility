@@ -82,6 +82,128 @@ class TestCollectObjectDiagnostics:
             tmp.cleanup()
 
 
+class TestReviewedWarnings:
+    def test_reviewed_warning_is_hidden_from_catalog_diagnostics(self, tmp_path: Path) -> None:
+        (tmp_path / "catalog" / "tables").mkdir(parents=True)
+        (tmp_path / "manifest.json").write_text(
+            json.dumps({"schema_version": "1.0", "technology": "sql_server"}),
+            encoding="utf-8",
+        )
+        warning = {
+            "code": "MULTI_TABLE_WRITE",
+            "message": "proc also writes dim.other",
+            "severity": "warning",
+        }
+        (tmp_path / "catalog" / "tables" / "dim.dim_address.json").write_text(
+            json.dumps({
+                "schema": "dim",
+                "name": "dim_address",
+                "warnings": [warning],
+                "scoping": {"status": "no_writer_found"},
+            }),
+            encoding="utf-8",
+        )
+        from shared.diagnostic_reviews import (
+            ReviewedDiagnostic,
+            diagnostic_identity,
+            write_reviewed_diagnostic,
+        )
+
+        identity = diagnostic_identity("dim.dim_address", warning, object_type="table")
+        write_reviewed_diagnostic(
+            tmp_path,
+            ReviewedDiagnostic(
+                **identity.model_dump(),
+                status="accepted",
+                reason="Reviewed table slice and accepted multi-table writer.",
+                evidence=["catalog/tables/dim.dim_address.json"],
+            ),
+        )
+
+        result = build_batch_plan(tmp_path)
+
+        assert result.catalog_diagnostics.total_warnings == 0
+        assert result.catalog_diagnostics.reviewed_warnings_hidden == 1
+
+    def test_reviewed_warning_reappears_when_message_changes(self, tmp_path: Path) -> None:
+        (tmp_path / "catalog" / "tables").mkdir(parents=True)
+        (tmp_path / "manifest.json").write_text(
+            json.dumps({"schema_version": "1.0", "technology": "sql_server"}),
+            encoding="utf-8",
+        )
+        old_warning = {"code": "PARSE_ERROR", "message": "old parse warning", "severity": "warning"}
+        new_warning = {"code": "PARSE_ERROR", "message": "new parse warning", "severity": "warning"}
+        (tmp_path / "catalog" / "tables" / "fact.fct_sales.json").write_text(
+            json.dumps({
+                "schema": "fact",
+                "name": "fct_sales",
+                "warnings": [new_warning],
+                "scoping": {"status": "no_writer_found"},
+            }),
+            encoding="utf-8",
+        )
+        from shared.diagnostic_reviews import (
+            ReviewedDiagnostic,
+            diagnostic_identity,
+            write_reviewed_diagnostic,
+        )
+
+        identity = diagnostic_identity("fact.fct_sales", old_warning, object_type="table")
+        write_reviewed_diagnostic(
+            tmp_path,
+            ReviewedDiagnostic(
+                **identity.model_dump(),
+                status="accepted",
+                reason="Old review.",
+                evidence=[],
+            ),
+        )
+
+        result = build_batch_plan(tmp_path)
+
+        assert result.catalog_diagnostics.total_warnings == 1
+        assert result.catalog_diagnostics.warnings[0].code == "PARSE_ERROR"
+        assert result.catalog_diagnostics.reviewed_warnings_hidden == 0
+
+    def test_errors_are_not_hidden_by_reviewed_warning_artifact(self, tmp_path: Path) -> None:
+        (tmp_path / "catalog" / "tables").mkdir(parents=True)
+        (tmp_path / "manifest.json").write_text(
+            json.dumps({"schema_version": "1.0", "technology": "sql_server"}),
+            encoding="utf-8",
+        )
+        error = {"code": "PARSE_ERROR", "message": "fatal parse issue", "severity": "error"}
+        (tmp_path / "catalog" / "tables" / "fact.fct_sales.json").write_text(
+            json.dumps({
+                "schema": "fact",
+                "name": "fct_sales",
+                "errors": [error],
+                "scoping": {"status": "error"},
+            }),
+            encoding="utf-8",
+        )
+        from shared.diagnostic_reviews import (
+            ReviewedDiagnostic,
+            diagnostic_identity,
+            write_reviewed_diagnostic,
+        )
+
+        identity = diagnostic_identity("fact.fct_sales", error, object_type="table")
+        write_reviewed_diagnostic(
+            tmp_path,
+            ReviewedDiagnostic(
+                **identity.model_dump(),
+                status="accepted",
+                reason="Attempted review should not suppress errors.",
+                evidence=[],
+            ),
+        )
+
+        result = build_batch_plan(tmp_path)
+
+        assert result.catalog_diagnostics.total_errors == 1
+        assert result.catalog_diagnostics.errors[0].code == "PARSE_ERROR"
+
+
 # ── Excluded objects tests ────────────────────────────────────────────────────
 
 

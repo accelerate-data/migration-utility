@@ -1,0 +1,56 @@
+{
+  "schema": "dim",
+  "name": "dim_address",
+  "columns": [
+    {
+      "name": "dim_address_key",
+      "sql_type": "INT",
+      "is_nullable": false
+    }
+  ],
+  "primary_keys": [
+    {
+      "constraint_name": "PK_dim_address",
+      "columns": [
+        "dim_address_key"
+      ]
+    }
+  ],
+  "unique_indexes": [],
+  "foreign_keys": [],
+  "auto_increment_columns": [],
+  "change_capture": null,
+  "sensitivity_classifications": [],
+  "referenced_by": {
+    "procedures": {
+      "in_scope": [
+        {
+          "schema": "dbo",
+          "name": "usp_load_dim_address_and_credit_card",
+          "is_selected": true,
+          "is_updated": true
+        }
+      ],
+      "out_of_scope": []
+    },
+    "views": {
+      "in_scope": [],
+      "out_of_scope": []
+    },
+    "functions": {
+      "in_scope": [],
+      "out_of_scope": []
+    }
+  },
+  "warnings": [
+    {
+      "code": "MULTI_TABLE_WRITE",
+      "message": "dbo.usp_load_dim_address_and_credit_card also writes dim.dim_credit_card. A table-specific slice was extracted for dim.dim_address.",
+      "severity": "warning"
+    }
+  ],
+  "scoping": {
+    "status": "resolved",
+    "selected_writer": "dbo.usp_load_dim_address_and_credit_card"
+  }
+}

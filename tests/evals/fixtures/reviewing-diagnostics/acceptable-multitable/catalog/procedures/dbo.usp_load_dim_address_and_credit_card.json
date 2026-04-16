@@ -1,0 +1,42 @@
+{
+  "schema": "dbo",
+  "name": "usp_load_dim_address_and_credit_card",
+  "statements": [
+    {
+      "type": "Insert",
+      "action": "include",
+      "sql": "INSERT INTO dim.dim_address SELECT 1 AS dim_address_key; INSERT INTO dim.dim_credit_card SELECT 1 AS dim_credit_card_key;"
+    }
+  ],
+  "references": {
+    "tables": {
+      "in_scope": [
+        {
+          "schema": "dim",
+          "name": "dim_address",
+          "is_selected": false,
+          "is_updated": true
+        },
+        {
+          "schema": "dim",
+          "name": "dim_credit_card",
+          "is_selected": false,
+          "is_updated": true
+        }
+      ],
+      "out_of_scope": []
+    },
+    "views": {
+      "in_scope": [],
+      "out_of_scope": []
+    },
+    "functions": {
+      "in_scope": [],
+      "out_of_scope": []
+    },
+    "procedures": {
+      "in_scope": [],
+      "out_of_scope": []
+    }
+  }
+}

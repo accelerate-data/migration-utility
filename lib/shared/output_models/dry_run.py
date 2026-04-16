@@ -172,6 +172,7 @@ class CatalogDiagnostics(BaseModel):
 
     total_errors: int
     total_warnings: int
+    reviewed_warnings_hidden: int = 0
     warnings: list[CatalogDiagnosticEntry]
     errors: list[CatalogDiagnosticEntry]
 
