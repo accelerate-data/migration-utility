@@ -578,6 +578,9 @@ class OracleSandbox(SandboxBackend):
                 errors.extend(ErrorEntry(**e) for e in p_errors)
 
         except _import_oracledb().DatabaseError as exc:
+            logger.error(
+                "event=oracle_sandbox_up_failed sandbox=%s error=%s", sandbox_schema, exc,
+            )
             self.sandbox_down(sandbox_schema)
             return SandboxUpOutput(
                 sandbox_database=sandbox_schema,

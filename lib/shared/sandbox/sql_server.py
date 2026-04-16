@@ -652,6 +652,9 @@ class SqlServerSandbox(SandboxBackend):
                 errors.extend(ErrorEntry(**e) for e in p_errors)
 
         except _import_pyodbc().Error as exc:
+            logger.error(
+                "event=sandbox_up_failed sandbox_db=%s error=%s", sandbox_db, exc,
+            )
             self.sandbox_down(sandbox_db)
             return SandboxUpOutput(
                 sandbox_database=sandbox_db,
