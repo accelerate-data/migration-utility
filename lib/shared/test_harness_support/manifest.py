@@ -58,8 +58,20 @@ def _dotenv_contains_key(project_root: Path, key: str) -> bool:
     return False
 
 
-def _missing_env_guidance(project_root: Path, message: str) -> str:
-    referenced = sorted(set(re.findall(r"\(([A-Za-z_][A-Za-z0-9_]*)\)", message)))
+def _password_env_names(manifest: dict[str, Any]) -> list[str]:
+    names: list[str] = []
+    for role_name in ("source", "target", "sandbox"):
+        role = get_runtime_role(manifest, role_name)
+        if role is not None and role.connection.password_env:
+            names.append(role.connection.password_env)
+    return names
+
+
+def _missing_env_guidance(project_root: Path, message: str, manifest: dict[str, Any]) -> str:
+    referenced = [
+        key for key in _password_env_names(manifest)
+        if key in message
+    ]
     dotenv_keys = [
         key for key in referenced
         if not os.environ.get(key) and _dotenv_contains_key(project_root, key)
@@ -115,7 +127,11 @@ def _create_backend(manifest: dict[str, Any], project_root: Path | None = None) 
     try:
         return backend_cls.from_env(manifest)
     except ValueError as exc:
-        message = _missing_env_guidance(project_root, str(exc)) if project_root is not None else str(exc)
+        message = (
+            _missing_env_guidance(project_root, str(exc), manifest)
+            if project_root is not None
+            else str(exc)
+        )
         _error_exit("MISSING_ENV_VARS", message, exc)
 
 

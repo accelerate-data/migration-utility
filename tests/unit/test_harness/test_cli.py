@@ -435,7 +435,10 @@ class TestCLIStatusFallback:
             result = runner.invoke(app, ["sandbox-status", "--project-root", str(tmp_path)])
 
         assert result.exit_code == 0
-        backend_mock.sandbox_status.assert_called_once_with(sandbox_db="__test_manifest_run")
+        backend_mock.sandbox_status.assert_called_once_with(
+            sandbox_db="__test_manifest_run",
+            schemas=["dbo", "silver"],
+        )
 
     def test_sandbox_status_no_sandbox_in_manifest_exits(self, tmp_path: Path) -> None:
         from typer.testing import CliRunner
@@ -528,7 +531,7 @@ class TestCLIStatusFallback:
         message = payload["errors"][0]["message"]
         assert "SANDBOX_MSSQL_PASSWORD" in message
         assert "defined in .env" in message
-        assert "Restart Claude" in message
+        assert "direnv" in message
 
 
 # ── execute-spec CLI ─────────────────────────────────────────────────────────

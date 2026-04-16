@@ -15,6 +15,7 @@ from shared.cli.output import console, error, print_table, remind_review_and_com
 from shared.loader_io import write_manifest_sandbox
 from shared.runtime_config import get_extracted_schemas, get_runtime_role, set_runtime_role
 from shared.runtime_config_models import RuntimeConnection, RuntimeRole
+from shared.output_models.sandbox import SandboxUpOutput
 from shared.sandbox.base import SandboxBackend
 from shared.test_harness_support.manifest import _create_backend as _th_create_backend
 from shared.test_harness_support.manifest import _load_manifest as _th_load_manifest
@@ -127,7 +128,7 @@ def setup_sandbox(
 
     manifest = _load_manifest(root)
     technology = _get_sandbox_technology(manifest)
-    require_sandbox_vars(technology)
+    require_sandbox_vars(technology, root)
     manifest = _build_sandbox_connection_manifest(manifest, technology)
 
     schemas = _get_schemas(manifest)
@@ -148,7 +149,7 @@ def setup_sandbox(
         console.print(f"Checking sandbox: [bold]{sandbox_database}[/bold]...")
         with console.status("Checking existing sandbox..."):
             with cli_error_handler("checking existing sandbox database"):
-                status = backend.sandbox_status(sandbox_database)
+                status = backend.sandbox_status(sandbox_database, schemas=schemas)
 
         if status.status == "error":
             if status.errors:
@@ -156,9 +157,24 @@ def setup_sandbox(
                     error(f"[{entry.code}] {entry.message}")
             raise typer.Exit(code=1)
 
-        if status.exists:
-            operation = "reset"
-            console.print(f"Resetting sandbox: [bold]{sandbox_database}[/bold]...")
+        if status.exists and status.has_content is True:
+            operation = "reuse"
+            console.print(
+                f"Sandbox [bold]{sandbox_database}[/bold] already exists with cloned content; reusing it."
+            )
+            result = SandboxUpOutput(
+                sandbox_database=sandbox_database,
+                status="ok",
+                tables_cloned=[],
+                views_cloned=[],
+                procedures_cloned=[],
+                errors=[],
+            )
+        elif status.exists:
+            operation = "repair"
+            console.print(
+                f"Sandbox [bold]{sandbox_database}[/bold] exists without cloned content; repairing it..."
+            )
             with console.status("Running sandbox_reset..."):
                 with cli_error_handler("resetting sandbox database"):
                     result = backend.sandbox_reset(sandbox_database, schemas=schemas)
@@ -200,6 +216,7 @@ def setup_sandbox(
         "Sandbox Setup",
         [
             ("Database", result.sandbox_database),
+            ("Operation", operation),
             ("Tables cloned", str(len(result.tables_cloned))),
             ("Views cloned", str(len(result.views_cloned))),
             ("Procedures cloned", str(len(result.procedures_cloned))),

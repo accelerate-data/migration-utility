@@ -276,6 +276,20 @@ def test_ready_test_gen_no_target_runtime_without_object() -> None:
         assert result.object is None
 
 
+def test_ready_test_gen_missing_target_and_sandbox_reports_target_first() -> None:
+    """test-gen setup guidance reports target before sandbox when both are absent."""
+    tmp, root = _make_project(include_target=False, include_sandbox=False)
+    with tmp:
+        result = dry_run.run_ready(root, "test-gen", object_fqn="silver.DimCustomer")
+
+        assert isinstance(result, DryRunOutput)
+        assert result.ready is False
+        assert result.project is not None
+        assert result.project.reason == "target_not_configured"
+        assert result.project.code == "TARGET_NOT_CONFIGURED"
+        assert result.object is None
+
+
 def test_ready_test_gen_requires_configured_sandbox_runtime() -> None:
     """test-gen is blocked when init only seeded an empty sandbox role."""
     tmp, root = _make_project()

@@ -211,7 +211,11 @@ class SandboxBackend(ABC):
         """Run one test scenario: insert fixtures, exec proc, capture output."""
 
     @abstractmethod
-    def sandbox_status(self, sandbox_db: str) -> SandboxStatusOutput:
+    def sandbox_status(
+        self,
+        sandbox_db: str,
+        schemas: list[str] | None = None,
+    ) -> SandboxStatusOutput:
         """Check whether the sandbox database exists and is accessible."""
 
     @abstractmethod

@@ -7,6 +7,7 @@ from unittest.mock import MagicMock, patch
 
 import pytest
 
+from shared.output_models.sandbox import ErrorEntry, SandboxDownOutput
 from shared.sandbox.base import generate_sandbox_name
 from shared.sandbox.oracle import (
     OracleSandbox,
@@ -322,7 +323,7 @@ class TestOracleSandboxUpCleanup:
         assert 'DROP USER "__test_existing" CASCADE' in execute_calls
         assert 'CREATE USER "__test_existing" IDENTIFIED BY' in "\n".join(execute_calls)
 
-    def test_sandbox_reset_drops_before_invalid_source_schema_fails(self) -> None:
+    def test_sandbox_reset_validates_source_schema_before_drop(self) -> None:
         backend = OracleSandbox(
             host="localhost", port="1521", service="FREEPDB1",
             password="pw", admin_user="sys", source_schema="SH",
@@ -333,7 +334,83 @@ class TestOracleSandboxUpCleanup:
             with pytest.raises(ValueError, match="Unsafe Oracle identifier"):
                 backend.sandbox_reset("__test_existing", schemas=["bad.schema"])
 
-        mock_down.assert_called_once_with("__test_existing")
+        mock_down.assert_not_called()
+
+    def test_sandbox_reset_reports_drop_failure_without_cloning(self) -> None:
+        backend = OracleSandbox(
+            host="localhost", port="1521", service="FREEPDB1",
+            password="pw", admin_user="sys", source_schema="SH",
+        )
+        down_result = SandboxDownOutput(
+            sandbox_database="__test_existing",
+            status="error",
+            errors=[ErrorEntry(code="SANDBOX_DOWN_FAILED", message="drop failed")],
+        )
+
+        with patch.object(backend, "sandbox_down", return_value=down_result), \
+             patch.object(backend, "_sandbox_clone_into") as mock_clone:
+            result = backend.sandbox_reset("__test_existing", schemas=["SH"])
+
+        assert result.status == "error"
+        assert result.errors[0].code == "SANDBOX_RESET_FAILED"
+        mock_clone.assert_not_called()
+
+
+class TestOracleSandboxStatus:
+    def test_sandbox_status_existing_schema_reports_content_counts(self) -> None:
+        backend = OracleSandbox(
+            host="localhost", port="1521", service="FREEPDB1",
+            password="pw", admin_user="sys", source_schema="SH",
+        )
+        cursor = MagicMock()
+        cursor.fetchone.side_effect = [
+            (1,),  # ALL_USERS exists
+            (2,),
+            (1,),
+            (3,),
+        ]
+        conn = MagicMock()
+        conn.cursor.return_value = cursor
+
+        @contextmanager
+        def _fake_connect():
+            yield conn
+
+        with patch.object(backend, "_connect", side_effect=_fake_connect):
+            result = backend.sandbox_status("__test_existing")
+
+        assert result.status == "ok"
+        assert result.exists is True
+        assert result.has_content is True
+        assert result.tables_count == 2
+        assert result.views_count == 1
+        assert result.procedures_count == 3
+
+    def test_sandbox_status_existing_empty_schema_reports_no_content(self) -> None:
+        backend = OracleSandbox(
+            host="localhost", port="1521", service="FREEPDB1",
+            password="pw", admin_user="sys", source_schema="SH",
+        )
+        cursor = MagicMock()
+        cursor.fetchone.side_effect = [
+            (1,),  # ALL_USERS exists
+            (0,),
+            (0,),
+            (0,),
+        ]
+        conn = MagicMock()
+        conn.cursor.return_value = cursor
+
+        @contextmanager
+        def _fake_connect():
+            yield conn
+
+        with patch.object(backend, "_connect", side_effect=_fake_connect):
+            result = backend.sandbox_status("__test_existing")
+
+        assert result.status == "ok"
+        assert result.exists is True
+        assert result.has_content is False
 
 
 class TestExecuteScenarioOracle:

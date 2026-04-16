@@ -91,9 +91,10 @@ def sandbox_status(
     sandbox_db, manifest = _resolve_sandbox_db(root)
     logger.info("event=cli_resolved command=sandbox_status sandbox_db=%s", sandbox_db)
     backend = _create_backend(manifest, root)
+    schemas = get_extracted_schemas(manifest)
 
     try:
-        result = backend.sandbox_status(sandbox_db=sandbox_db)
+        result = backend.sandbox_status(sandbox_db=sandbox_db, schemas=schemas)
     except (ValueError, KeyError) as exc:
         _error_exit("SANDBOX_STATUS_INVALID_INPUT", str(exc), exc)
     emit(result)
