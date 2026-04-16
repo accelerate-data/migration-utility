@@ -428,7 +428,7 @@ def run_status(project_root: Path, fqn: str | None = None) -> StatusOutput | Obj
                     cat_data = _read_catalog_json(path)
                 except CatalogLoadError:
                     cat_data = {}
-                if cat_data.get("is_source"):
+                if cat_data.get("is_source") or cat_data.get("is_seed"):
                     continue
                 obj_status = _single_object_status(
                     project_root,
