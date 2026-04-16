@@ -156,6 +156,7 @@
     "ad_migration_setup_target": "cd packages/ad-migration-cli && uv run ad-migration setup-target [--source-schema bronze]",
     "ad_migration_setup_sandbox": "cd packages/ad-migration-cli && uv run ad-migration setup-sandbox [--yes]",
     "ad_migration_teardown_sandbox": "cd packages/ad-migration-cli && uv run ad-migration teardown-sandbox [--yes]",
+    "ad_migration_doctor_drivers": "cd packages/ad-migration-cli && uv run ad-migration doctor drivers [--project-root <path>] [--json]",
     "ad_migration_reset": "cd packages/ad-migration-cli && uv run ad-migration reset <stage> <fqn> [fqn ...] [--yes]",
     "ad_migration_exclude_table": "cd packages/ad-migration-cli && uv run ad-migration exclude-table <fqn> [--no-commit]",
     "ad_migration_add_source_table": "cd packages/ad-migration-cli && uv run ad-migration add-source-table <fqn> [--no-commit]",
