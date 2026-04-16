@@ -128,7 +128,7 @@ def test_packaging_contract_matches_the_split_distribution_layout(tmp_path: Path
     assert "scripts" not in shared["project"]
 
     assert public["project"]["name"] == "ad-migration-cli"
-    assert public["project"]["dependencies"] == ["ad-migration-shared==0.1.0"]
+    assert public["project"]["dependencies"] == ["ad-migration-shared[export,oracle]==0.1.0"]
     assert public["project"]["scripts"] == {
         "ad-migration": "ad_migration_cli.main:app",
     }
