@@ -623,11 +623,9 @@ class OracleSandbox(SandboxBackend):
 
     def sandbox_reset(self, sandbox_db: str, schemas: list[str]) -> SandboxUpOutput:
         _validate_oracle_sandbox_name(sandbox_db)
-        source_schema = schemas[0] if schemas else self.source_schema
-        _validate_oracle_identifier(source_schema)
         logger.info(
-            "event=oracle_sandbox_reset sandbox=%s source_schema=%s",
-            sandbox_db, source_schema,
+            "event=oracle_sandbox_reset sandbox=%s schemas=%s",
+            sandbox_db, schemas,
         )
         down_result = self.sandbox_down(sandbox_db)
         if down_result.status == "error":
@@ -646,6 +644,7 @@ class OracleSandbox(SandboxBackend):
                 ],
             )
 
+        source_schema = schemas[0] if schemas else self.source_schema
         result = self._sandbox_clone_into(sandbox_db, source_schema)
         logger.info(
             "event=oracle_sandbox_reset_complete sandbox=%s status=%s "

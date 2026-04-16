@@ -322,6 +322,19 @@ class TestOracleSandboxUpCleanup:
         assert 'DROP USER "__test_existing" CASCADE' in execute_calls
         assert 'CREATE USER "__test_existing" IDENTIFIED BY' in "\n".join(execute_calls)
 
+    def test_sandbox_reset_drops_before_invalid_source_schema_fails(self) -> None:
+        backend = OracleSandbox(
+            host="localhost", port="1521", service="FREEPDB1",
+            password="pw", admin_user="sys", source_schema="SH",
+        )
+        mock_down = MagicMock(return_value=MagicMock(status="ok", errors=[]))
+
+        with patch.object(backend, "sandbox_down", mock_down):
+            with pytest.raises(ValueError, match="Unsafe Oracle identifier"):
+                backend.sandbox_reset("__test_existing", schemas=["bad.schema"])
+
+        mock_down.assert_called_once_with("__test_existing")
+
 
 class TestExecuteScenarioOracle:
     def test_execute_scenario_quotes_procedure_name(self) -> None:
