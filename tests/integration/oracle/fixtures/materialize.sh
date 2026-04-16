@@ -77,6 +77,7 @@ BEGIN
         'TABLE',
         'SEQUENCE'
       )
+      AND NOT (object_type = 'SEQUENCE' AND generated = 'Y')
     ORDER BY CASE object_type
       WHEN 'VIEW' THEN 1
       WHEN 'MATERIALIZED VIEW' THEN 2
@@ -127,6 +128,7 @@ BEGIN
       'TABLE',
       'SEQUENCE'
     )
+      AND NOT (object_type = 'SEQUENCE' AND generated = 'Y')
     ORDER BY CASE object_type
       WHEN 'VIEW' THEN 1
       WHEN 'MATERIALIZED VIEW' THEN 2
