@@ -164,6 +164,7 @@
     "ad_migration_reset": "cd packages/ad-migration-cli && uv run ad-migration reset <stage> <fqn> [fqn ...] [--yes]",
     "ad_migration_exclude_table": "cd packages/ad-migration-cli && uv run ad-migration exclude-table <fqn> [--no-commit]",
     "ad_migration_add_source_table": "cd packages/ad-migration-cli && uv run ad-migration add-source-table <fqn> [--no-commit]",
+    "ad_migration_add_seed_table": "cd packages/ad-migration-cli && uv run ad-migration add-seed-table <fqn>",
     "catalog_enrich": "cd packages/ad-migration-internal && uv run catalog-enrich [<args>]",
     "discover": "cd packages/ad-migration-internal && uv run discover <args>",
     "discover_list": "cd packages/ad-migration-internal && uv run discover list --type <type>",

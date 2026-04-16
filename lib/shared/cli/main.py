@@ -11,6 +11,7 @@ import tomllib
 import typer
 
 from shared.cli import output
+from shared.cli.add_seed_table_cmd import add_seed_table
 from shared.cli.add_source_table_cmd import add_source_table
 from shared.cli.doctor_drivers_cmd import drivers as doctor_drivers
 from shared.cli.exclude_table_cmd import exclude_table
@@ -98,5 +99,6 @@ app.command("teardown-sandbox")(teardown_sandbox)
 app.command("reset")(reset)
 app.command("exclude-table")(exclude_table)
 app.command("add-source-table")(add_source_table)
+app.command("add-seed-table")(add_seed_table)
 doctor_app.command("drivers")(doctor_drivers)
 app.add_typer(doctor_app)

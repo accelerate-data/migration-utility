@@ -5,7 +5,9 @@ from unittest.mock import MagicMock, patch
 from typer.testing import CliRunner
 
 from shared.cli.main import app
+from shared.output_models.catalog_writer import WriteSeedOutput, WriteSourceOutput
 from shared.output_models.dry_run import DryRunOutput, ExcludeOutput, ObjectReadiness, ReadinessDetail, ResetMigrationOutput
+from shared.loader_data import CatalogFileMissingError
 from shared.output_models.sandbox import SandboxDownOutput
 
 runner = CliRunner()
@@ -234,8 +236,6 @@ def test_exclude_table_marks_tables(tmp_path):
 
 # ── add-source-table ─────────────────────────────────────────────────────────
 
-from shared.output_models.catalog_writer import WriteSourceOutput
-
 
 def test_add_source_table_marks_valid_tables(tmp_path):
     _write_manifest(tmp_path)
@@ -278,3 +278,95 @@ def test_add_source_table_skips_tables_that_fail_guard(tmp_path):
     assert result.exit_code == 0
     mock_write.assert_not_called()
     assert "Review and commit the repo changes before continuing" not in result.output
+
+
+# ── add-seed-table ────────────────────────────────────────────────────────────
+
+
+def test_add_seed_table_marks_valid_tables(tmp_path):
+    _write_manifest(tmp_path)
+    ready_out = DryRunOutput(
+        stage="scope",
+        ready=True,
+        project=ReadinessDetail(ready=True, reason="ok"),
+        object=ObjectReadiness(object="silver.lookup", object_type="table", ready=True, reason="ok"),
+    )
+    write_out = WriteSeedOutput(written="catalog/tables/silver.lookup.json", is_seed=True, status="ok")
+
+    with (
+        patch("shared.cli.add_seed_table_cmd.run_ready", return_value=ready_out),
+        patch("shared.cli.add_seed_table_cmd.run_write_seed", return_value=write_out) as mock_write,
+    ):
+        result = runner.invoke(app, ["add-seed-table", "silver.lookup", "--project-root", str(tmp_path)])
+
+    assert result.exit_code == 0, result.output
+    mock_write.assert_called_once_with(tmp_path, "silver.lookup", value=True)
+    assert "seed     silver.lookup" in result.output
+    assert "is_seed: true" in result.output
+
+
+def test_add_seed_table_skips_tables_that_fail_guard(tmp_path):
+    _write_manifest(tmp_path)
+    ready_out = DryRunOutput(
+        stage="scope",
+        ready=False,
+        project=ReadinessDetail(ready=True, reason="ok"),
+        object=ObjectReadiness(
+            object="silver.lookup",
+            object_type="table",
+            ready=False,
+            reason="object_not_found",
+            code="OBJECT_NOT_FOUND",
+        ),
+    )
+
+    with (
+        patch("shared.cli.add_seed_table_cmd.run_ready", return_value=ready_out),
+        patch("shared.cli.add_seed_table_cmd.run_write_seed") as mock_write,
+    ):
+        result = runner.invoke(app, ["add-seed-table", "silver.lookup", "--project-root", str(tmp_path)])
+
+    assert result.exit_code == 0, result.output
+    mock_write.assert_not_called()
+    assert "skipped  silver.lookup" in result.output
+
+
+def test_add_seed_table_warns_when_catalog_file_is_missing(tmp_path):
+    _write_manifest(tmp_path)
+    ready_out = DryRunOutput(
+        stage="scope",
+        ready=True,
+        project=ReadinessDetail(ready=True, reason="ok"),
+        object=ObjectReadiness(object="silver.lookup", object_type="table", ready=True, reason="ok"),
+    )
+
+    with (
+        patch("shared.cli.add_seed_table_cmd.run_ready", return_value=ready_out),
+        patch(
+            "shared.cli.add_seed_table_cmd.run_write_seed",
+            side_effect=CatalogFileMissingError("table", "silver.lookup"),
+        ),
+    ):
+        result = runner.invoke(app, ["add-seed-table", "silver.lookup", "--project-root", str(tmp_path)])
+
+    assert result.exit_code == 0, result.output
+    assert "missing  silver.lookup" in result.output
+
+
+def test_add_seed_table_warns_when_write_fails_with_value_error(tmp_path):
+    _write_manifest(tmp_path)
+    ready_out = DryRunOutput(
+        stage="scope",
+        ready=True,
+        project=ReadinessDetail(ready=True, reason="ok"),
+        object=ObjectReadiness(object="silver.lookup", object_type="table", ready=True, reason="ok"),
+    )
+
+    with (
+        patch("shared.cli.add_seed_table_cmd.run_ready", return_value=ready_out),
+        patch("shared.cli.add_seed_table_cmd.run_write_seed", side_effect=ValueError("bad state")),
+    ):
+        result = runner.invoke(app, ["add-seed-table", "silver.lookup", "--project-root", str(tmp_path)])
+
+    assert result.exit_code == 0, result.output
+    assert "skipped  silver.lookup -- bad state" in result.output
