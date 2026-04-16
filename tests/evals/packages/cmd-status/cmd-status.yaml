@@ -98,17 +98,18 @@ tests:
       expected_view_objects: "silver.vDimSalesTerritory,silver.vw_DimPromotion"
 
   # ── status-diagnostic: PARSE_ERROR shows ! indicator ────────────
-  - description: "status-diagnostic — DimCurrency PARSE_ERROR overlays ! on refactor cell"
+  - description: "status-diagnostic — DimCurrency PARSE_ERROR renders summary error cell"
     vars:
       fixture_path: "tests/evals/fixtures/cmd-status/status-diagnostic"
-      expected_output_terms: "dimcurrency,refactor,!"
+      expected_output_terms: "dimcurrency,refactor,error,diagnostics,unresolved,/status silver.dimcurrency"
+      unexpected_output_terms: "DDL failed to parse"
 
-  # ── status-reviewed-warning-hidden: accepted warning is hidden, active warning remains ──
-  - description: "status-reviewed-warning-hidden — hides one reviewed warning and shows remaining active warning"
+  # ── status-reviewed-warning-hidden: accepted warning is resolved, active warning remains ──
+  - description: "status-reviewed-warning-hidden — shows resolved and unresolved warning counts"
     vars:
       fixture_path: "tests/evals/fixtures/cmd-status/status-reviewed-warning-hidden"
-      expected_output_terms: "reviewed,hidden,parse_error"
-      expected_reviewed_warnings_hidden: "1"
+      expected_output_terms: "diagnostics,unresolved,resolved,/status dim.dim_address"
+      expected_resolved_warnings: "1"
       unexpected_output_terms: "proc also writes dim.other"
 
   # ── status-writerless-dep: no blocked-by annotation ─────────────

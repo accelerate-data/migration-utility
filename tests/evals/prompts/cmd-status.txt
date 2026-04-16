@@ -11,9 +11,11 @@ Run /status for table {{target_table}}.
 Run /status for all tables.
 {% endif %}
 
-Read the command at `${CLAUDE_PLUGIN_ROOT}/commands/status.md`. Keep `${CLAUDE_PLUGIN_ROOT}` references as written. Pass `--project-root {{run_path}}` to all CLI commands.
+Read `${CLAUDE_PLUGIN_ROOT}/commands/status.md`, but treat the following harness rules as authoritative overrides for this eval. Do not ask clarifying questions. Do not pause for confirmation. Execute the task directly.
+Keep `${CLAUDE_PLUGIN_ROOT}` references as written. Pass `--project-root {{run_path}}` to all CLI commands.
 
 Skip git operations — operate directly on the writable run workspace.
 Treat this as harness mode: present recommendations, but do not execute the suggested next command and do not delete stale files.
+Harness mode is not user-facing: do not mention harness mode, fixture expectations, or commands you "would" run. Run the required CLI commands and present only the status output requested by `commands/status.md`.
 Follow the command section order exactly. In batch mode, always present the Step 4 summary table before the "What to do next" section.
 Treat `{{run_path}}` as the authoritative project root for this run. It exists and contains the fixture snapshot for this eval. Do not question whether the run directory exists.
