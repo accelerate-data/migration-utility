@@ -260,6 +260,60 @@ def test_sources_yml_includes_catalog_columns_types_and_not_null_tests() -> None
         tmp.cleanup()
 
 
+def test_sources_yml_adds_unique_for_single_column_pk_and_unique_index() -> None:
+    """Single-column primary keys and unique indexes emit unique tests."""
+    tmp, root = _make_project([
+        {
+            "schema": "silver",
+            "name": "Customer",
+            "scoping": {"status": "no_writer_found"},
+            "is_source": True,
+            "columns": [
+                {"name": "customer_id", "sql_type": "INT", "is_nullable": False},
+                {"name": "email", "sql_type": "NVARCHAR(255)", "is_nullable": True},
+            ],
+            "primary_keys": [{"constraint_name": "PK_Customer", "columns": ["customer_id"]}],
+            "unique_indexes": [{"index_name": "UQ_Customer_Email", "columns": ["email"]}],
+        },
+    ])
+    try:
+        result = generate_sources(root)
+        assert result.sources is not None
+        columns = result.sources["sources"][0]["tables"][0]["columns"]
+        assert columns[0]["tests"] == ["not_null", "unique"]
+        assert columns[1]["tests"] == ["unique"]
+    finally:
+        tmp.cleanup()
+
+
+def test_sources_yml_does_not_mark_composite_keys_individually_unique() -> None:
+    """Composite primary keys and unique indexes do not add per-column unique tests."""
+    tmp, root = _make_project([
+        {
+            "schema": "silver",
+            "name": "OrderLine",
+            "scoping": {"status": "no_writer_found"},
+            "is_source": True,
+            "columns": [
+                {"name": "order_id", "sql_type": "INT", "is_nullable": False},
+                {"name": "line_id", "sql_type": "INT", "is_nullable": False},
+                {"name": "sku", "sql_type": "VARCHAR(30)", "is_nullable": True},
+            ],
+            "primary_keys": [{"constraint_name": "PK_OrderLine", "columns": ["order_id", "line_id"]}],
+            "unique_indexes": [{"index_name": "UQ_OrderLine", "columns": ["order_id", "sku"]}],
+        },
+    ])
+    try:
+        result = generate_sources(root)
+        assert result.sources is not None
+        columns = result.sources["sources"][0]["tables"][0]["columns"]
+        assert columns[0]["tests"] == ["not_null"]
+        assert columns[1]["tests"] == ["not_null"]
+        assert "tests" not in columns[2]
+    finally:
+        tmp.cleanup()
+
+
 def test_write_sources_yml_creates_file(tmp_path) -> None:
     """write_sources_yml writes the file and returns the path."""
     tables_dir = tmp_path / "catalog" / "tables"

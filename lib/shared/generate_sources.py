@@ -97,8 +97,24 @@ def _append_test(tests: list[Any], test: Any) -> None:
         tests.append(test)
 
 
+def _single_column_constraint_columns(constraints: list[Any]) -> set[str]:
+    columns: set[str] = set()
+    for constraint in constraints:
+        if not isinstance(constraint, dict):
+            continue
+        constraint_columns = constraint.get("columns")
+        if not isinstance(constraint_columns, list) or len(constraint_columns) != 1:
+            continue
+        column = str(constraint_columns[0]).strip()
+        if column:
+            columns.add(column.lower())
+    return columns
+
+
 def _build_source_columns(cat: dict[str, Any]) -> list[dict[str, Any]]:
     columns: list[dict[str, Any]] = []
+    unique_columns = _single_column_constraint_columns(cat.get("primary_keys", []))
+    unique_columns.update(_single_column_constraint_columns(cat.get("unique_indexes", [])))
     for column in cat.get("columns", []):
         name = column.get("name")
         if not name:
@@ -110,6 +126,8 @@ def _build_source_columns(cat: dict[str, Any]) -> list[dict[str, Any]]:
         tests: list[Any] = []
         if column.get("is_nullable") is False:
             _append_test(tests, "not_null")
+        if str(name).lower() in unique_columns:
+            _append_test(tests, "unique")
         if tests:
             entry["tests"] = tests
         columns.append(entry)
