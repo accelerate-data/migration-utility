@@ -57,6 +57,19 @@ class TestEnumerateCatalog:
         assert inv.source_table_fqns == ["dbo.src"]
         assert inv.table_fqns == []
 
+    def test_classifies_seed_tables(self, tmp_path):
+        """Tables with is_seed=True go to seed_table_fqns."""
+        cat_dir = tmp_path / "catalog" / "tables"
+        cat_dir.mkdir(parents=True)
+        (cat_dir / "dbo.seed_lookup.json").write_text(
+            json.dumps({"schema": "dbo", "name": "seed_lookup", "is_seed": True}),
+            encoding="utf-8",
+        )
+        inv = _enumerate_catalog(tmp_path)
+        assert inv.seed_table_fqns == ["dbo.seed_lookup"]
+        assert inv.source_table_fqns == []
+        assert inv.table_fqns == []
+
     def test_classifies_writerless_tables_as_pipeline_tables(self, tmp_path):
         """Tables with no_writer_found and no is_source stay in table inventory."""
         cat_dir = tmp_path / "catalog" / "tables"
@@ -299,3 +312,13 @@ class TestBuildPlanOutput:
         assert s.excluded_count == 1
         assert s.source_tables == 1
         assert s.source_pending == 1
+
+    def test_plan_output_includes_seed_tables(self, tmp_path):
+        """Plan output exposes seed table count and list separately."""
+        (tmp_path / "catalog" / "tables").mkdir(parents=True)
+        inv = _CatalogInventory()
+        inv.seed_table_fqns.append("dbo.seed_lookup")
+        result = _build_plan_output(inv=inv, project_root=tmp_path)
+        assert result.summary.seed_tables == 1
+        assert result.seed_tables[0].fqn == "dbo.seed_lookup"
+        assert result.seed_tables[0].reason == "is_seed"

@@ -42,6 +42,7 @@ from shared.output_models.dry_run import (
     MigrateBatch,
     NaObject,
     ObjectNode,
+    SeedTable,
     SourcePending,
     SourceTable,
 )
@@ -115,6 +116,7 @@ class _CatalogInventory:
     view_entries: list[tuple[str, str]] = field(default_factory=list)
     excluded_fqns: set[str] = field(default_factory=set)
     source_table_fqns: list[str] = field(default_factory=list)
+    seed_table_fqns: list[str] = field(default_factory=list)
     source_pending_fqns: list[str] = field(default_factory=list)
 
     @property
@@ -141,6 +143,8 @@ def _enumerate_catalog(project_root: Path) -> _CatalogInventory:
                 cat = None
             if cat is not None and cat.excluded:
                 inv.excluded_fqns.add(fqn)
+            elif cat is not None and cat.is_seed:
+                inv.seed_table_fqns.append(fqn)
             elif cat is not None and cat.is_source:
                 inv.source_table_fqns.append(fqn)
             else:
@@ -296,11 +300,16 @@ def _build_plan_output(
             excluded_count=len(inv.excluded_fqns),
             source_tables=len(inv.source_table_fqns),
             source_pending=len(inv.source_pending_fqns),
+            seed_tables=len(inv.seed_table_fqns),
         ),
         scope_phase=scope_phase or [],
         profile_phase=profile_phase or [],
         migrate_batches=migrate_batches or [],
         completed_objects=completed_objects or [],
+        seed_tables=[
+            SeedTable(fqn=fqn, type="table", reason="is_seed")
+            for fqn in sorted(inv.seed_table_fqns)
+        ],
         n_a_objects=[
             NaObject(fqn=fqn, type=_obj_type_map.get(fqn, "table"), reason="writerless")
             for fqn in sorted(n_a_fqns or [])
@@ -357,10 +366,16 @@ def build_batch_plan(project_root: Path, dbt_root: Path | None = None) -> BatchP
     if not inv.all_objects:
         logger.info(
             "event=batch_plan_complete component=batch_plan operation=build_batch_plan "
-            "status=%s total_objects=0 source_tables=%d source_pending=%d",
-            "empty" if not inv.excluded_fqns and not inv.source_table_fqns and not inv.source_pending_fqns else "success",
+            "status=%s total_objects=0 source_tables=%d source_pending=%d seed_tables=%d",
+            "empty"
+            if not inv.excluded_fqns
+            and not inv.source_table_fqns
+            and not inv.source_pending_fqns
+            and not inv.seed_table_fqns
+            else "success",
             len(inv.source_table_fqns),
             len(inv.source_pending_fqns),
+            len(inv.seed_table_fqns),
         )
         return _build_plan_output(inv=inv, project_root=project_root)
 
@@ -462,7 +477,7 @@ def build_batch_plan(project_root: Path, dbt_root: Path | None = None) -> BatchP
     logger.info(
         "event=batch_plan_complete component=batch_plan operation=build_batch_plan "
         "status=success total_objects=%d excluded=%d scope=%d profile=%d "
-        "migrate_candidates=%d migrate_batches=%d source_tables=%d source_pending=%d "
+        "migrate_candidates=%d migrate_batches=%d source_tables=%d source_pending=%d seed_tables=%d "
         "errors=%d warnings=%d",
         len(inv.all_objects),
         len(inv.excluded_fqns),
@@ -472,6 +487,7 @@ def build_batch_plan(project_root: Path, dbt_root: Path | None = None) -> BatchP
         len(migrate_batch_lists),
         len(inv.source_table_fqns),
         len(inv.source_pending_fqns),
+        len(inv.seed_table_fqns),
         len(all_errors),
         len(all_warnings),
     )

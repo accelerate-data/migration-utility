@@ -134,6 +134,35 @@ class TestBuildBatchPlan:
         finally:
             tmp.cleanup()
 
+    def test_seed_tables_reported_separately(self, tmp_path):
+        """Seed tables stay out of active buckets and are reported separately."""
+        (tmp_path / "catalog" / "tables").mkdir(parents=True)
+        (tmp_path / "manifest.json").write_text(
+            json.dumps({"schema_version": "1.0", "technology": "sql_server"}),
+            encoding="utf-8",
+        )
+        (tmp_path / "catalog" / "tables" / "dbo.seed_lookup.json").write_text(
+            json.dumps({"schema": "dbo", "name": "seed_lookup", "is_seed": True}),
+            encoding="utf-8",
+        )
+        (tmp_path / "catalog" / "tables" / "dbo.pipeline.json").write_text(
+            json.dumps({"schema": "dbo", "name": "pipeline"}),
+            encoding="utf-8",
+        )
+
+        result = build_batch_plan(tmp_path)
+
+        active_fqns = {node.fqn for node in result.scope_phase + result.profile_phase + result.completed_objects}
+        active_fqns |= {node.fqn for batch in result.migrate_batches for node in batch.objects}
+        n_a_fqns = {node.fqn for node in result.n_a_objects}
+
+        assert "dbo.seed_lookup" not in active_fqns
+        assert "dbo.seed_lookup" not in n_a_fqns
+        assert result.source_tables == []
+        assert result.summary.seed_tables == 1
+        assert result.seed_tables[0].fqn == "dbo.seed_lookup"
+        assert result.seed_tables[0].reason == "is_seed"
+
     def test_source_pending_empty_for_fixture(self):
         """Confirmed writerless fixture table is not source_pending."""
         tmp, dst = _make_project()

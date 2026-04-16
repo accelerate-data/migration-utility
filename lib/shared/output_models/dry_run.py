@@ -139,6 +139,14 @@ class SourceTable(BaseModel):
     reason: str
 
 
+class SeedTable(BaseModel):
+    model_config = OUTPUT_CONFIG
+
+    fqn: str
+    type: Literal["table"]
+    reason: str
+
+
 class SourcePending(BaseModel):
     model_config = OUTPUT_CONFIG
 
@@ -188,6 +196,7 @@ class BatchSummary(BaseModel):
     excluded_count: int
     source_tables: int
     source_pending: int
+    seed_tables: int
 
 
 class BatchPlanOutput(BaseModel):
@@ -198,6 +207,7 @@ class BatchPlanOutput(BaseModel):
     profile_phase: list[ObjectNode]
     migrate_batches: list[MigrateBatch]
     completed_objects: list[ObjectNode]
+    seed_tables: list[SeedTable]
     source_tables: list[SourceTable]
     source_pending: list[SourcePending]
     n_a_objects: list[NaObject]
