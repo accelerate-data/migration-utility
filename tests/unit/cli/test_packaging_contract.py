@@ -134,7 +134,7 @@ def test_packaging_contract_matches_the_split_distribution_layout(tmp_path: Path
     }
 
     assert internal["project"]["name"] == "ad-migration-internal"
-    assert internal["project"]["dependencies"] == ["ad-migration-shared==0.1.0"]
+    assert internal["project"]["dependencies"] == ["ad-migration-shared[export,oracle]==0.1.0"]
     assert "ad-migration" not in internal["project"].get("scripts", {})
     assert internal["project"]["scripts"] == {
         "catalog-enrich": "ad_migration_internal.entrypoints:catalog_enrich_app",

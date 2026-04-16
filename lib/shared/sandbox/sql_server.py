@@ -608,19 +608,13 @@ class SqlServerSandbox(SandboxBackend):
                 })
         return cloned, errors
 
-    def sandbox_up(
+    def _sandbox_clone_into(
         self,
+        sandbox_db: str,
         schemas: list[str],
     ) -> SandboxUpOutput:
         _validate_identifier(self.source_database)
-        sandbox_db = generate_sandbox_name()
-
-        logger.info(
-            "event=sandbox_up sandbox_db=%s source=%s schemas=%s",
-            sandbox_db, self.source_database, schemas,
-        )
-
-        self._create_sandbox_db(sandbox_db)
+        _validate_sandbox_db_name(sandbox_db)
 
         errors: list[ErrorEntry] = []
         tables_cloned: list[str] = []
@@ -628,6 +622,7 @@ class SqlServerSandbox(SandboxBackend):
         procedures_cloned: list[str] = []
 
         try:
+            self._create_sandbox_db(sandbox_db)
             with self._connect(database=sandbox_db) as sandbox_conn, \
                  self._connect_source(database=self.source_database) as source_conn:
                 sandbox_cursor = sandbox_conn.cursor()
@@ -657,7 +652,9 @@ class SqlServerSandbox(SandboxBackend):
                 errors.extend(ErrorEntry(**e) for e in p_errors)
 
         except _import_pyodbc().Error as exc:
-            logger.error("event=sandbox_up_failed sandbox_db=%s error=%s", sandbox_db, exc)
+            logger.error(
+                "event=sandbox_up_failed sandbox_db=%s error=%s", sandbox_db, exc,
+            )
             self.sandbox_down(sandbox_db)
             return SandboxUpOutput(
                 sandbox_database=sandbox_db,
@@ -669,11 +666,6 @@ class SqlServerSandbox(SandboxBackend):
             )
 
         status = "ok" if not errors else "partial"
-        logger.info(
-            "event=sandbox_up_complete sandbox_db=%s status=%s "
-            "tables=%d views=%d procedures=%d errors=%d",
-            sandbox_db, status, len(tables_cloned), len(views_cloned), len(procedures_cloned), len(errors),
-        )
         return SandboxUpOutput(
             sandbox_database=sandbox_db,
             status=status,
@@ -682,6 +674,62 @@ class SqlServerSandbox(SandboxBackend):
             procedures_cloned=procedures_cloned,
             errors=errors,
         )
+
+    def sandbox_up(
+        self,
+        schemas: list[str],
+    ) -> SandboxUpOutput:
+        sandbox_db = generate_sandbox_name()
+        logger.info(
+            "event=sandbox_up sandbox_db=%s source=%s schemas=%s",
+            sandbox_db, self.source_database, schemas,
+        )
+        result = self._sandbox_clone_into(sandbox_db, schemas)
+        logger.info(
+            "event=sandbox_up_complete sandbox_db=%s status=%s "
+            "tables=%d views=%d procedures=%d errors=%d",
+            sandbox_db, result.status,
+            len(result.tables_cloned), len(result.views_cloned),
+            len(result.procedures_cloned), len(result.errors),
+        )
+        return result
+
+    def sandbox_reset(
+        self,
+        sandbox_db: str,
+        schemas: list[str],
+    ) -> SandboxUpOutput:
+        _validate_sandbox_db_name(sandbox_db)
+        logger.info(
+            "event=sandbox_reset sandbox_db=%s source=%s schemas=%s",
+            sandbox_db, self.source_database, schemas,
+        )
+        down_result = self.sandbox_down(sandbox_db)
+        if down_result.status == "error":
+            return SandboxUpOutput(
+                sandbox_database=sandbox_db,
+                status="error",
+                tables_cloned=[],
+                views_cloned=[],
+                procedures_cloned=[],
+                errors=[
+                    ErrorEntry(
+                        code="SANDBOX_RESET_FAILED",
+                        message="Failed to drop existing sandbox before reset.",
+                    ),
+                    *down_result.errors,
+                ],
+            )
+
+        result = self._sandbox_clone_into(sandbox_db, schemas)
+        logger.info(
+            "event=sandbox_reset_complete sandbox_db=%s status=%s "
+            "tables=%d views=%d procedures=%d errors=%d",
+            sandbox_db, result.status,
+            len(result.tables_cloned), len(result.views_cloned),
+            len(result.procedures_cloned), len(result.errors),
+        )
+        return result
 
     def sandbox_down(self, sandbox_db: str) -> SandboxDownOutput:
         _validate_sandbox_db_name(sandbox_db)
@@ -708,7 +756,11 @@ class SqlServerSandbox(SandboxBackend):
                 errors=[ErrorEntry(code="SANDBOX_DOWN_FAILED", message=str(exc))],
             )
 
-    def sandbox_status(self, sandbox_db: str) -> SandboxStatusOutput:
+    def sandbox_status(
+        self,
+        sandbox_db: str,
+        schemas: list[str] | None = None,
+    ) -> SandboxStatusOutput:
         _validate_sandbox_db_name(sandbox_db)
         logger.info("event=sandbox_status sandbox_db=%s", sandbox_db)
 
@@ -719,13 +771,40 @@ class SqlServerSandbox(SandboxBackend):
                 exists = cursor.fetchone()[0] is not None
 
             if exists:
-                logger.info("event=sandbox_status_complete sandbox_db=%s exists=true", sandbox_db)
+                tables_count, views_count, procedures_count = self._sandbox_content_counts(
+                    sandbox_db,
+                    schemas,
+                )
+                has_content = any(
+                    count > 0 for count in (tables_count, views_count, procedures_count)
+                )
+                logger.info(
+                    "event=sandbox_status_complete sandbox_db=%s exists=true has_content=%s "
+                    "tables=%d views=%d procedures=%d",
+                    sandbox_db,
+                    has_content,
+                    tables_count,
+                    views_count,
+                    procedures_count,
+                )
                 return SandboxStatusOutput(
-                    sandbox_database=sandbox_db, status="ok", exists=True,
+                    sandbox_database=sandbox_db,
+                    status="ok",
+                    exists=True,
+                    has_content=has_content,
+                    tables_count=tables_count,
+                    views_count=views_count,
+                    procedures_count=procedures_count,
                 )
             logger.info("event=sandbox_status_complete sandbox_db=%s exists=false", sandbox_db)
             return SandboxStatusOutput(
-                sandbox_database=sandbox_db, status="not_found", exists=False,
+                sandbox_database=sandbox_db,
+                status="not_found",
+                exists=False,
+                has_content=False,
+                tables_count=0,
+                views_count=0,
+                procedures_count=0,
             )
         except _import_pyodbc().Error as exc:
             logger.error("event=sandbox_status_failed sandbox_db=%s error=%s", sandbox_db, exc)
@@ -735,6 +814,44 @@ class SqlServerSandbox(SandboxBackend):
                 exists=False,
                 errors=[ErrorEntry(code="SANDBOX_STATUS_FAILED", message=str(exc))],
             )
+
+    def _sandbox_content_counts(
+        self,
+        sandbox_db: str,
+        schemas: list[str] | None,
+    ) -> tuple[int, int, int]:
+        schema_filter = ""
+        params: list[str] = []
+        if schemas:
+            placeholders = ", ".join("?" for _ in schemas)
+            schema_filter = f" AND s.name IN ({placeholders})"
+            params = list(schemas)
+
+        queries = [
+            (
+                "SELECT COUNT(*) FROM sys.tables t "
+                "JOIN sys.schemas s ON t.schema_id = s.schema_id "
+                f"WHERE t.is_ms_shipped = 0{schema_filter}"
+            ),
+            (
+                "SELECT COUNT(*) FROM sys.views v "
+                "JOIN sys.schemas s ON v.schema_id = s.schema_id "
+                f"WHERE v.is_ms_shipped = 0{schema_filter}"
+            ),
+            (
+                "SELECT COUNT(*) FROM sys.procedures p "
+                "JOIN sys.schemas s ON p.schema_id = s.schema_id "
+                f"WHERE p.is_ms_shipped = 0{schema_filter}"
+            ),
+        ]
+
+        counts: list[int] = []
+        with self._connect(database=sandbox_db) as conn:
+            cursor = conn.cursor()
+            for query in queries:
+                cursor.execute(query, *params)
+                counts.append(int(cursor.fetchone()[0]))
+        return counts[0], counts[1], counts[2]
 
     def _seed_fixtures(
         self,

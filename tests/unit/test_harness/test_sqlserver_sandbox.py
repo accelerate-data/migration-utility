@@ -81,6 +81,49 @@ class TestSqlServerSandboxUp:
         create_db_calls = [c for c in calls if "CREATE DATABASE" in c]
         assert len(create_db_calls) == 1
 
+    def test_sandbox_reset_recreates_same_database_name(self) -> None:
+        backend = _make_backend()
+        default_cursor = MagicMock()
+        default_cursor.fetchone.return_value = (1,)
+        sandbox_cursor = MagicMock()
+        source_cursor = MagicMock()
+
+        fake_connect = _mock_connect_factory(
+            source_cursor=source_cursor,
+            sandbox_cursor=sandbox_cursor,
+            default_cursor=default_cursor,
+        )
+        source_connect = _mock_connect_factory(source_cursor=source_cursor)
+
+        with patch.object(backend, "_connect", side_effect=fake_connect), \
+             patch.object(backend, "_connect_source", side_effect=source_connect), \
+             patch.object(backend, "_clone_tables", return_value=(["dbo.Customer"], [])), \
+             patch.object(backend, "_clone_views", return_value=([], [])), \
+             patch.object(backend, "_clone_procedures", return_value=(["dbo.usp_load"], [])):
+            result = backend.sandbox_reset("__test_existing", schemas=["dbo"])
+
+        assert result.status == "ok"
+        assert result.sandbox_database == "__test_existing"
+        execute_calls = [call.args[0] for call in default_cursor.execute.call_args_list]
+        assert any("DROP DATABASE [__test_existing]" in sql for sql in execute_calls)
+        assert any("CREATE DATABASE [__test_existing]" in sql for sql in execute_calls)
+
+    def test_sandbox_reset_reports_drop_failure_without_cloning(self) -> None:
+        backend = _make_backend()
+        down_result = SandboxDownOutput(
+            sandbox_database="__test_existing",
+            status="error",
+            errors=[ErrorEntry(code="SANDBOX_DOWN_FAILED", message="drop failed")],
+        )
+
+        with patch.object(backend, "sandbox_down", return_value=down_result), \
+             patch.object(backend, "_sandbox_clone_into") as mock_clone:
+            result = backend.sandbox_reset("__test_existing", schemas=["dbo"])
+
+        assert result.status == "error"
+        assert result.errors[0].code == "SANDBOX_RESET_FAILED"
+        mock_clone.assert_not_called()
+
     def test_sandbox_up_calls_sandbox_down_on_failure(self) -> None:
         """sandbox_up cleans up the orphaned DB when cloning raises."""
         backend = _make_backend()
@@ -117,7 +160,12 @@ class TestSqlServerSandboxStatus:
     def test_sandbox_status_exists(self) -> None:
         backend = _make_backend()
         default_cursor = MagicMock()
-        default_cursor.fetchone.return_value = (1,)  # DB_ID returns non-None
+        default_cursor.fetchone.side_effect = [
+            (1,),  # DB_ID returns non-None
+            (2,),
+            (1,),
+            (3,),
+        ]
 
         fake_connect = _mock_connect_factory(default_cursor=default_cursor)
 
@@ -126,7 +174,32 @@ class TestSqlServerSandboxStatus:
 
         assert result.status == "ok"
         assert result.exists is True
+        assert result.has_content is True
+        assert result.tables_count == 2
+        assert result.views_count == 1
+        assert result.procedures_count == 3
         assert not hasattr(result, "run_id")
+
+    def test_sandbox_status_existing_empty_reports_no_content(self) -> None:
+        backend = _make_backend()
+        default_cursor = MagicMock()
+        default_cursor.fetchone.side_effect = [
+            (1,),  # DB_ID returns non-None
+            (0,),
+            (0,),
+            (0,),
+        ]
+
+        fake_connect = _mock_connect_factory(default_cursor=default_cursor)
+
+        with patch.object(backend, "_connect", side_effect=fake_connect):
+            result = backend.sandbox_status(sandbox_db="__test_abc123", schemas=["silver"])
+
+        assert result.status == "ok"
+        assert result.exists is True
+        assert result.has_content is False
+        calls = default_cursor.execute.call_args_list
+        assert calls[1].args[1:] == ("silver",)
 
     def test_sandbox_status_not_found(self) -> None:
         backend = _make_backend()
@@ -140,6 +213,8 @@ class TestSqlServerSandboxStatus:
 
         assert result.status == "not_found"
         assert result.exists is False
+        assert result.has_content is False
+        assert result.tables_count == 0
 
 
 class TestSqlServerSandboxDown:
@@ -778,8 +853,13 @@ class TestOutputModels:
             "sandbox_database": "__test_abc_123",
             "status": "ok",
             "exists": True,
+            "has_content": True,
+            "tables_count": 3,
+            "views_count": 1,
+            "procedures_count": 2,
         })
         assert result.exists is True
+        assert result.has_content is True
 
     def test_sandbox_status_output_not_found(self) -> None:
         result = SandboxStatusOutput.model_validate({

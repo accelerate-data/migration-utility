@@ -7,7 +7,9 @@ from __future__ import annotations
 
 import logging
 import os
+import re
 import sys
+from pathlib import Path
 
 logger = logging.getLogger(__name__)
 
@@ -27,6 +29,8 @@ _SOURCE_VARS: dict[str, dict[str, str]] = {
         "SOURCE_ORACLE_PASSWORD": "Oracle password",
     },
 }
+
+_ENV_ASSIGNMENT_RE = re.compile(r"^(?:export\s+)?(?P<name>[A-Za-z_][A-Za-z0-9_]*)\s*=")
 
 _SANDBOX_VARS: dict[str, dict[str, str]] = {
     "sql_server": {
@@ -77,7 +81,7 @@ def require_source_vars(technology: str) -> None:
     _check(_SOURCE_VARS[technology], technology, "setup-source")
 
 
-def require_sandbox_vars(technology: str) -> None:
+def require_sandbox_vars(technology: str, project_root: str | Path | None = None) -> None:
     """Validate sandbox env vars. Exits 1 if any are missing or technology unknown."""
     if technology not in _SANDBOX_VARS:
         print(
@@ -89,7 +93,7 @@ def require_sandbox_vars(technology: str) -> None:
             technology,
         )
         sys.exit(1)
-    _check(_SANDBOX_VARS[technology], technology, "setup-sandbox")
+    _check(_SANDBOX_VARS[technology], technology, "setup-sandbox", project_root)
 
 
 def require_target_vars(technology: str) -> None:
@@ -107,7 +111,26 @@ def require_target_vars(technology: str) -> None:
     _check(_TARGET_VARS[technology], technology, "setup-target")
 
 
-def _check(required: dict[str, str], technology: str, command: str) -> None:
+def _dotenv_contains_key(project_root: Path, key: str) -> bool:
+    env_file = project_root / ".env"
+    if not env_file.exists():
+        return False
+    try:
+        for line in env_file.read_text(encoding="utf-8").splitlines():
+            match = _ENV_ASSIGNMENT_RE.match(line.strip())
+            if match and match.group("name") == key:
+                return True
+    except OSError:
+        return False
+    return False
+
+
+def _check(
+    required: dict[str, str],
+    technology: str,
+    command: str,
+    project_root: str | Path | None = None,
+) -> None:
     missing = [var for var in required if not os.environ.get(var)]
     if not missing:
         logger.debug(
@@ -121,6 +144,19 @@ def _check(required: dict[str, str], technology: str, command: str) -> None:
     for var in missing:
         lines.append(f"  {var:<{col}} not set")
     lines.append(f"\nSet these in your shell or .envrc before running {command}.")
+    if project_root is not None:
+        dotenv_keys = [
+            var for var in missing
+            if _dotenv_contains_key(Path(project_root), var)
+        ]
+        if dotenv_keys:
+            joined = ", ".join(dotenv_keys)
+            lines.append(
+                f"\n{joined} {'is' if len(dotenv_keys) == 1 else 'are'} defined in .env, "
+                "but this Claude session does not have the value loaded. Restart Claude from "
+                "the migration project directory after direnv has loaded the environment, "
+                "then rerun the command."
+            )
     print("\n".join(lines), file=sys.stderr)
     logger.error(
         "event=env_check status=failure component=env_check technology=%s command=%s missing_count=%d",

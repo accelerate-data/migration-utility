@@ -17,6 +17,8 @@
 
 const { normalizeTerms } = require('./schema-helpers');
 
+const escapeRegExp = (value) => value.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+
 module.exports = (output, context) => {
   const outputStr = String(output || '').toLowerCase();
   const stageSatisfied = (stage, status) => {
@@ -87,7 +89,13 @@ module.exports = (output, context) => {
   // Check that blocked stage is mentioned as blocked or pending
   if (context.vars.expected_blocked_stage) {
     const stage = context.vars.expected_blocked_stage.toLowerCase();
-    const hasBlocked = outputStr.includes('blocked') || outputStr.includes('pending');
+    const stageBlockedPattern = new RegExp(
+      `${escapeRegExp(stage)}[\\s\\S]{0,160}(blocked|pending|not configured|not ready)`
+    );
+    const blockedStagePattern = new RegExp(
+      `(blocked|pending|not configured|not ready)[\\s\\S]{0,160}${escapeRegExp(stage)}`
+    );
+    const hasBlocked = stageBlockedPattern.test(outputStr) || blockedStagePattern.test(outputStr);
     if (!hasBlocked) {
       return {
         pass: false,
@@ -112,7 +120,7 @@ module.exports = (output, context) => {
   if (context.vars.expected_reviewed_warnings_hidden) {
     const count = String(context.vars.expected_reviewed_warnings_hidden).trim();
     const reviewedPattern = new RegExp(
-      `${count}\\s+reviewed\\s+warnings?\\s+hidden\\s+-\\s+inspect\\s+catalog/diagnostic-reviews\\.json`
+      `${count}\\s+reviewed\\s+warnings?\\s+hidden\\s+(?:-|—|–)\\s+inspect\\s+catalog/diagnostic-reviews\\.json`
     );
     if (!reviewedPattern.test(outputStr)) {
       return {

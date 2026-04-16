@@ -161,12 +161,16 @@ def test_maintainer_docs_use_the_internal_project_path() -> None:
 def test_init_command_runs_public_driver_doctor_and_keeps_internal_checks() -> None:
     init_text = (REPO_ROOT / "commands/init-ad-migration.md").read_text(encoding="utf-8")
     public_doctor = "ad-migration doctor drivers --project-root . --json"
+    internal_pyproject = (
+        REPO_ROOT / "packages/ad-migration-internal/pyproject.toml"
+    ).read_text(encoding="utf-8")
 
     assert init_text.count(public_doctor) >= 3
     assert init_text.index("ad-migration --version") < init_text.index(public_doctor)
     assert init_text.index("## Step 2: Runtime selection") < init_text.index(
         "7. `ad-migration doctor drivers --project-root . --json`"
     )
+    assert '"ad-migration-shared[export,oracle]==0.1.0"' in internal_pyproject
     assert "uv run --project \"${CLAUDE_PLUGIN_ROOT}/packages/ad-migration-internal\" python3 -c \"import pydantic, sqlglot, typer\"" in init_text
     assert "uv run --project \"${CLAUDE_PLUGIN_ROOT}/packages/ad-migration-internal\" python3 -c \"import pyodbc\"" in init_text
     assert "uv run --project \"${CLAUDE_PLUGIN_ROOT}/packages/ad-migration-internal\" python3 -c \"import oracledb\"" in init_text

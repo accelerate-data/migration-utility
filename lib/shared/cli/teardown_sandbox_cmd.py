@@ -23,9 +23,9 @@ def _load_manifest(project_root: Path) -> dict[str, Any]:
     return _th_load_manifest(project_root)
 
 
-def _create_backend(manifest: dict[str, Any]) -> SandboxBackend:
+def _create_backend(manifest: dict[str, Any], project_root: Path | None = None) -> SandboxBackend:
     """Thin wrapper around test_harness_support._create_backend for patching."""
-    return _th_create_backend(manifest)
+    return _th_create_backend(manifest, project_root)
 
 
 def _get_sandbox_name(manifest: dict[str, Any]) -> str | None:
@@ -53,7 +53,7 @@ def teardown_sandbox(
             console.print("Aborted.")
             raise typer.Exit(code=0)
 
-    backend = _create_backend(manifest)
+    backend = _create_backend(manifest, root)
 
     console.print(f"Tearing down sandbox database: [bold]{sandbox_db}[/bold]...")
     with console.status("Running sandbox_down..."):

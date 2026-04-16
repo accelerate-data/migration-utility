@@ -65,6 +65,10 @@ class SandboxStatusOutput(BaseModel):
     sandbox_database: str
     status: Literal["ok", "not_found", "error"]
     exists: bool
+    has_content: bool | None = None
+    tables_count: int | None = Field(default=None, ge=0)
+    views_count: int | None = Field(default=None, ge=0)
+    procedures_count: int | None = Field(default=None, ge=0)
     errors: list[ErrorEntry] = Field(default_factory=list)
 
 

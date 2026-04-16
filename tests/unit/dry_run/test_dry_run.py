@@ -249,6 +249,47 @@ def test_ready_test_gen_no_profile() -> None:
         assert result.object.reason == "profile_not_complete"
 
 
+def test_ready_test_gen_no_target_runtime() -> None:
+    """test-gen is blocked when runtime.target is missing from manifest."""
+    tmp, root = _make_project(include_target=False)
+    with tmp:
+        result = dry_run.run_ready(root, "test-gen", object_fqn="silver.DimCustomer")
+
+        assert isinstance(result, DryRunOutput)
+        assert result.ready is False
+        assert result.project is not None
+        assert result.project.reason == "target_not_configured"
+        assert result.project.code == "TARGET_NOT_CONFIGURED"
+
+
+def test_ready_test_gen_no_target_runtime_without_object() -> None:
+    """test-gen fails with a target code even without an object overlay."""
+    tmp, root = _make_project(include_target=False)
+    with tmp:
+        result = dry_run.run_ready(root, "test-gen")
+
+        assert isinstance(result, DryRunOutput)
+        assert result.ready is False
+        assert result.project is not None
+        assert result.project.reason == "target_not_configured"
+        assert result.project.code == "TARGET_NOT_CONFIGURED"
+        assert result.object is None
+
+
+def test_ready_test_gen_missing_target_and_sandbox_reports_target_first() -> None:
+    """test-gen setup guidance reports target before sandbox when both are absent."""
+    tmp, root = _make_project(include_target=False, include_sandbox=False)
+    with tmp:
+        result = dry_run.run_ready(root, "test-gen", object_fqn="silver.DimCustomer")
+
+        assert isinstance(result, DryRunOutput)
+        assert result.ready is False
+        assert result.project is not None
+        assert result.project.reason == "target_not_configured"
+        assert result.project.code == "TARGET_NOT_CONFIGURED"
+        assert result.object is None
+
+
 def test_ready_test_gen_requires_configured_sandbox_runtime() -> None:
     """test-gen is blocked when init only seeded an empty sandbox role."""
     tmp, root = _make_project()
@@ -269,6 +310,33 @@ def test_ready_test_gen_requires_configured_sandbox_runtime() -> None:
         assert result.project is not None
         assert result.project.reason == "sandbox_not_configured"
         assert result.project.code == "SANDBOX_NOT_CONFIGURED"
+
+
+def test_ready_test_gen_no_sandbox_runtime() -> None:
+    """test-gen is blocked when runtime.sandbox is missing from manifest."""
+    tmp, root = _make_project(include_sandbox=False)
+    with tmp:
+        result = dry_run.run_ready(root, "test-gen", object_fqn="silver.DimCustomer")
+
+        assert isinstance(result, DryRunOutput)
+        assert result.ready is False
+        assert result.project is not None
+        assert result.project.reason == "sandbox_not_configured"
+        assert result.project.code == "SANDBOX_NOT_CONFIGURED"
+
+
+def test_ready_test_gen_no_sandbox_runtime_without_object() -> None:
+    """test-gen fails with a sandbox code even without an object overlay."""
+    tmp, root = _make_project(include_sandbox=False)
+    with tmp:
+        result = dry_run.run_ready(root, "test-gen")
+
+        assert isinstance(result, DryRunOutput)
+        assert result.ready is False
+        assert result.project is not None
+        assert result.project.reason == "sandbox_not_configured"
+        assert result.project.code == "SANDBOX_NOT_CONFIGURED"
+        assert result.object is None
 
 
 def test_ready_test_gen_accepts_oracle_sandbox_with_dsn() -> None:
