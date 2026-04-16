@@ -6,7 +6,6 @@ Tests import shared.generate_sources directly for fast, fixture-based execution.
 from __future__ import annotations
 
 import json
-import os
 import subprocess
 import tempfile
 from pathlib import Path
@@ -280,23 +279,23 @@ def test_write_sources_yml_writes_enriched_yaml_idempotently(tmp_path: Path) -> 
         }),
         encoding="utf-8",
     )
+    (tables_dir / "bronze.order.json").write_text(
+        json.dumps({
+            "schema": "bronze",
+            "name": "Order",
+            "scoping": {"status": "no_writer_found"},
+            "is_source": True,
+            "columns": [
+                {"name": "order_id", "sql_type": "INT", "is_nullable": False},
+                {"name": "loaded_at", "sql_type": "DATETIME2", "is_nullable": False},
+            ],
+            "primary_keys": [{"constraint_name": "PK_Order", "columns": ["order_id"]}],
+            "profile": {"watermark": {"column": "loaded_at"}},
+        }),
+        encoding="utf-8",
+    )
     dbt_dir = tmp_path / "dbt"
     (dbt_dir / "models" / "staging").mkdir(parents=True)
-    subprocess.run(["git", "init"], cwd=tmp_path, capture_output=True, check=True)
-    subprocess.run(
-        ["git", "commit", "--allow-empty", "-m", "i"],
-        cwd=tmp_path,
-        capture_output=True,
-        check=True,
-        env={
-            **os.environ,
-            "GIT_AUTHOR_NAME": "t",
-            "GIT_AUTHOR_EMAIL": "t@t",
-            "GIT_COMMITTER_NAME": "t",
-            "GIT_COMMITTER_EMAIL": "t@t",
-            "HOME": str(Path.home()),
-        },
-    )
 
     first = write_sources_yml(tmp_path)
     assert first.path is not None
@@ -365,47 +364,24 @@ def test_sources_yml_skips_freshness_without_usable_profile_watermark() -> None:
         tmp.cleanup()
 
 
-def test_sources_yml_uses_distinct_freshness_objects_per_source_table() -> None:
-    """Each source table gets its own freshness object so YAML does not share anchors."""
+def test_sources_yml_skips_change_capture_without_profile_watermark() -> None:
+    """Change-capture metadata alone does not emit source freshness."""
     tmp, root = _make_project([
         {
             "schema": "bronze",
             "name": "Customer",
             "scoping": {"status": "no_writer_found"},
             "is_source": True,
-            "columns": [
-                {"name": "customer_id", "sql_type": "INT", "is_nullable": False},
-                {"name": "loaded_at", "sql_type": "DATETIME2", "is_nullable": False},
-            ],
-            "profile": {"watermark": {"column": "loaded_at"}},
-        },
-        {
-            "schema": "bronze",
-            "name": "Order",
-            "scoping": {"status": "no_writer_found"},
-            "is_source": True,
-            "columns": [
-                {"name": "order_id", "sql_type": "INT", "is_nullable": False},
-                {"name": "loaded_at", "sql_type": "DATETIME2", "is_nullable": False},
-            ],
-            "profile": {"watermark": {"column": "loaded_at"}},
+            "columns": [{"name": "customer_id", "sql_type": "INT", "is_nullable": False}],
+            "change_capture": {"enabled": True, "mechanism": "cdc"},
         },
     ])
     try:
         result = generate_sources(root)
         assert result.sources is not None
-        tables = result.sources["sources"][0]["tables"]
-        assert tables[0]["freshness"] == {
-            "warn_after": {"count": 24, "period": "hour"},
-            "error_after": {"count": 48, "period": "hour"},
-        }
-        assert tables[1]["freshness"] == {
-            "warn_after": {"count": 24, "period": "hour"},
-            "error_after": {"count": 48, "period": "hour"},
-        }
-        assert tables[0]["freshness"] is not tables[1]["freshness"]
-        assert tables[0]["freshness"]["warn_after"] is not tables[1]["freshness"]["warn_after"]
-        assert tables[0]["freshness"]["error_after"] is not tables[1]["freshness"]["error_after"]
+        table = result.sources["sources"][0]["tables"][0]
+        assert "loaded_at_field" not in table
+        assert "freshness" not in table
     finally:
         tmp.cleanup()
 
@@ -590,6 +566,42 @@ def test_sources_yml_skips_unresolved_and_composite_relationships() -> None:
         assert columns[0]["tests"] == ["not_null"]
         assert columns[1]["tests"] == ["not_null"]
         assert "tests" not in columns[2]
+    finally:
+        tmp.cleanup()
+
+
+def test_sources_yml_skips_relationship_when_referenced_table_is_not_emitted_source() -> None:
+    """FK targets present in catalog but absent from sources.yml do not emit relationships."""
+    tmp, root = _make_project([
+        {
+            "schema": "bronze",
+            "name": "Customer",
+            "scoping": {"status": "no_writer_found"},
+            "columns": [{"name": "customer_id", "sql_type": "INT", "is_nullable": False}],
+        },
+        {
+            "schema": "bronze",
+            "name": "Order",
+            "scoping": {"status": "no_writer_found"},
+            "is_source": True,
+            "columns": [{"name": "customer_id", "sql_type": "INT", "is_nullable": False}],
+            "foreign_keys": [
+                {
+                    "constraint_name": "FK_Order_Customer",
+                    "columns": ["customer_id"],
+                    "referenced_schema": "bronze",
+                    "referenced_table": "Customer",
+                    "referenced_columns": ["customer_id"],
+                }
+            ],
+        },
+    ])
+    try:
+        result = generate_sources(root)
+        assert result.sources is not None
+        order_table = result.sources["sources"][0]["tables"][0]
+        assert order_table["name"] == "Order"
+        assert order_table["columns"][0]["tests"] == ["not_null"]
     finally:
         tmp.cleanup()
 
