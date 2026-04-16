@@ -288,6 +288,40 @@ class TestOracleSandboxUpCleanup:
         mock_down.assert_called_once()
         assert result.sandbox_database == mock_down.call_args.args[0]
 
+    def test_sandbox_reset_recreates_same_schema_name(self) -> None:
+        backend = OracleSandbox(
+            host="localhost", port="1521", service="FREEPDB1",
+            password="pw", admin_user="sys", source_schema="SH",
+        )
+        sandbox_cursor = MagicMock()
+        sandbox_cursor.fetchone.return_value = (1,)
+        sandbox_conn = MagicMock()
+        sandbox_conn.cursor.return_value = sandbox_cursor
+        source_cursor = MagicMock()
+        source_conn = MagicMock()
+        source_conn.cursor.return_value = source_cursor
+
+        @contextmanager
+        def _fake_sandbox_connect():
+            yield sandbox_conn
+
+        @contextmanager
+        def _fake_source_connect():
+            yield source_conn
+
+        with patch.object(backend, "_connect", side_effect=_fake_sandbox_connect), \
+             patch.object(backend, "_connect_source", side_effect=_fake_source_connect), \
+             patch.object(backend, "_clone_tables", return_value=(["CUSTOMERS"], [])), \
+             patch.object(backend, "_clone_views", return_value=([], [])), \
+             patch.object(backend, "_clone_procedures", return_value=(["LOAD_CUSTOMERS"], [])):
+            result = backend.sandbox_reset("__test_existing", schemas=["SH"])
+
+        assert result.status == "ok"
+        assert result.sandbox_database == "__test_existing"
+        execute_calls = [call.args[0] for call in sandbox_cursor.execute.call_args_list]
+        assert 'DROP USER "__test_existing" CASCADE' in execute_calls
+        assert 'CREATE USER "__test_existing" IDENTIFIED BY' in "\n".join(execute_calls)
+
 
 class TestExecuteScenarioOracle:
     def test_execute_scenario_quotes_procedure_name(self) -> None:

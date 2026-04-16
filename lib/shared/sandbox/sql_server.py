@@ -608,19 +608,13 @@ class SqlServerSandbox(SandboxBackend):
                 })
         return cloned, errors
 
-    def sandbox_up(
+    def _sandbox_clone_into(
         self,
+        sandbox_db: str,
         schemas: list[str],
     ) -> SandboxUpOutput:
         _validate_identifier(self.source_database)
-        sandbox_db = generate_sandbox_name()
-
-        logger.info(
-            "event=sandbox_up sandbox_db=%s source=%s schemas=%s",
-            sandbox_db, self.source_database, schemas,
-        )
-
-        self._create_sandbox_db(sandbox_db)
+        _validate_sandbox_db_name(sandbox_db)
 
         errors: list[ErrorEntry] = []
         tables_cloned: list[str] = []
@@ -628,6 +622,7 @@ class SqlServerSandbox(SandboxBackend):
         procedures_cloned: list[str] = []
 
         try:
+            self._create_sandbox_db(sandbox_db)
             with self._connect(database=sandbox_db) as sandbox_conn, \
                  self._connect_source(database=self.source_database) as source_conn:
                 sandbox_cursor = sandbox_conn.cursor()
@@ -657,7 +652,6 @@ class SqlServerSandbox(SandboxBackend):
                 errors.extend(ErrorEntry(**e) for e in p_errors)
 
         except _import_pyodbc().Error as exc:
-            logger.error("event=sandbox_up_failed sandbox_db=%s error=%s", sandbox_db, exc)
             self.sandbox_down(sandbox_db)
             return SandboxUpOutput(
                 sandbox_database=sandbox_db,
@@ -669,11 +663,6 @@ class SqlServerSandbox(SandboxBackend):
             )
 
         status = "ok" if not errors else "partial"
-        logger.info(
-            "event=sandbox_up_complete sandbox_db=%s status=%s "
-            "tables=%d views=%d procedures=%d errors=%d",
-            sandbox_db, status, len(tables_cloned), len(views_cloned), len(procedures_cloned), len(errors),
-        )
         return SandboxUpOutput(
             sandbox_database=sandbox_db,
             status=status,
@@ -682,6 +671,62 @@ class SqlServerSandbox(SandboxBackend):
             procedures_cloned=procedures_cloned,
             errors=errors,
         )
+
+    def sandbox_up(
+        self,
+        schemas: list[str],
+    ) -> SandboxUpOutput:
+        sandbox_db = generate_sandbox_name()
+        logger.info(
+            "event=sandbox_up sandbox_db=%s source=%s schemas=%s",
+            sandbox_db, self.source_database, schemas,
+        )
+        result = self._sandbox_clone_into(sandbox_db, schemas)
+        logger.info(
+            "event=sandbox_up_complete sandbox_db=%s status=%s "
+            "tables=%d views=%d procedures=%d errors=%d",
+            sandbox_db, result.status,
+            len(result.tables_cloned), len(result.views_cloned),
+            len(result.procedures_cloned), len(result.errors),
+        )
+        return result
+
+    def sandbox_reset(
+        self,
+        sandbox_db: str,
+        schemas: list[str],
+    ) -> SandboxUpOutput:
+        _validate_sandbox_db_name(sandbox_db)
+        logger.info(
+            "event=sandbox_reset sandbox_db=%s source=%s schemas=%s",
+            sandbox_db, self.source_database, schemas,
+        )
+        down_result = self.sandbox_down(sandbox_db)
+        if down_result.status == "error":
+            return SandboxUpOutput(
+                sandbox_database=sandbox_db,
+                status="error",
+                tables_cloned=[],
+                views_cloned=[],
+                procedures_cloned=[],
+                errors=[
+                    ErrorEntry(
+                        code="SANDBOX_RESET_FAILED",
+                        message="Failed to drop existing sandbox before reset.",
+                    ),
+                    *down_result.errors,
+                ],
+            )
+
+        result = self._sandbox_clone_into(sandbox_db, schemas)
+        logger.info(
+            "event=sandbox_reset_complete sandbox_db=%s status=%s "
+            "tables=%d views=%d procedures=%d errors=%d",
+            sandbox_db, result.status,
+            len(result.tables_cloned), len(result.views_cloned),
+            len(result.procedures_cloned), len(result.errors),
+        )
+        return result
 
     def sandbox_down(self, sandbox_db: str) -> SandboxDownOutput:
         _validate_sandbox_db_name(sandbox_db)

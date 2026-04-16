@@ -540,21 +540,13 @@ class OracleSandbox(SandboxBackend):
 
         return cloned, errors
 
-    def sandbox_up(self, schemas: list[str]) -> SandboxUpOutput:
-        """Create sandbox schema and clone tables + procedures from source.
-
-        The first element of ``schemas`` is used as the source schema name,
-        overriding ``self.source_schema``. Subsequent elements are ignored —
-        Oracle sandboxes are single-schema.
-        """
-        source_schema = schemas[0] if schemas else self.source_schema
+    def _sandbox_clone_into(
+        self,
+        sandbox_schema: str,
+        source_schema: str,
+    ) -> SandboxUpOutput:
         _validate_oracle_identifier(source_schema)
-        sandbox_schema = generate_sandbox_name()
-
-        logger.info(
-            "event=oracle_sandbox_up sandbox=%s source_schema=%s",
-            sandbox_schema, source_schema,
-        )
+        _validate_oracle_sandbox_name(sandbox_schema)
 
         errors: list[ErrorEntry] = []
         tables_cloned: list[str] = []
@@ -586,9 +578,6 @@ class OracleSandbox(SandboxBackend):
                 errors.extend(ErrorEntry(**e) for e in p_errors)
 
         except _import_oracledb().DatabaseError as exc:
-            logger.error(
-                "event=oracle_sandbox_up_failed sandbox=%s error=%s", sandbox_schema, exc,
-            )
             self.sandbox_down(sandbox_schema)
             return SandboxUpOutput(
                 sandbox_database=sandbox_schema,
@@ -600,12 +589,6 @@ class OracleSandbox(SandboxBackend):
             )
 
         status = "ok" if not errors else "partial"
-        logger.info(
-            "event=oracle_sandbox_up_complete sandbox=%s status=%s "
-            "tables=%d views=%d procedures=%d errors=%d",
-            sandbox_schema, status, len(tables_cloned), len(views_cloned),
-            len(procedures_cloned), len(errors),
-        )
         return SandboxUpOutput(
             sandbox_database=sandbox_schema,
             status=status,
@@ -614,6 +597,64 @@ class OracleSandbox(SandboxBackend):
             procedures_cloned=procedures_cloned,
             errors=errors,
         )
+
+    def sandbox_up(self, schemas: list[str]) -> SandboxUpOutput:
+        """Create sandbox schema and clone tables + procedures from source.
+
+        The first element of ``schemas`` is used as the source schema name,
+        overriding ``self.source_schema``. Subsequent elements are ignored —
+        Oracle sandboxes are single-schema.
+        """
+        source_schema = schemas[0] if schemas else self.source_schema
+        sandbox_schema = generate_sandbox_name()
+        logger.info(
+            "event=oracle_sandbox_up sandbox=%s source_schema=%s",
+            sandbox_schema, source_schema,
+        )
+        result = self._sandbox_clone_into(sandbox_schema, source_schema)
+        logger.info(
+            "event=oracle_sandbox_up_complete sandbox=%s status=%s "
+            "tables=%d views=%d procedures=%d errors=%d",
+            sandbox_schema, result.status,
+            len(result.tables_cloned), len(result.views_cloned),
+            len(result.procedures_cloned), len(result.errors),
+        )
+        return result
+
+    def sandbox_reset(self, sandbox_db: str, schemas: list[str]) -> SandboxUpOutput:
+        _validate_oracle_sandbox_name(sandbox_db)
+        source_schema = schemas[0] if schemas else self.source_schema
+        _validate_oracle_identifier(source_schema)
+        logger.info(
+            "event=oracle_sandbox_reset sandbox=%s source_schema=%s",
+            sandbox_db, source_schema,
+        )
+        down_result = self.sandbox_down(sandbox_db)
+        if down_result.status == "error":
+            return SandboxUpOutput(
+                sandbox_database=sandbox_db,
+                status="error",
+                tables_cloned=[],
+                views_cloned=[],
+                procedures_cloned=[],
+                errors=[
+                    ErrorEntry(
+                        code="SANDBOX_RESET_FAILED",
+                        message="Failed to drop existing sandbox before reset.",
+                    ),
+                    *down_result.errors,
+                ],
+            )
+
+        result = self._sandbox_clone_into(sandbox_db, source_schema)
+        logger.info(
+            "event=oracle_sandbox_reset_complete sandbox=%s status=%s "
+            "tables=%d views=%d procedures=%d errors=%d",
+            sandbox_db, result.status,
+            len(result.tables_cloned), len(result.views_cloned),
+            len(result.procedures_cloned), len(result.errors),
+        )
+        return result
 
     def sandbox_down(self, sandbox_db: str) -> SandboxDownOutput:
         _validate_oracle_sandbox_name(sandbox_db)

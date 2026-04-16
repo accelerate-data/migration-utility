@@ -191,6 +191,14 @@ class SandboxBackend(ABC):
         """Create the sandbox database and clone schema from the source."""
 
     @abstractmethod
+    def sandbox_reset(
+        self,
+        sandbox_db: str,
+        schemas: list[str],
+    ) -> SandboxUpOutput:
+        """Reset an existing sandbox name and clone schema from the source."""
+
+    @abstractmethod
     def sandbox_down(self, sandbox_db: str) -> SandboxDownOutput:
         """Drop the sandbox database."""
 

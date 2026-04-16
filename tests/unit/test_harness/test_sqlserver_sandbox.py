@@ -81,6 +81,33 @@ class TestSqlServerSandboxUp:
         create_db_calls = [c for c in calls if "CREATE DATABASE" in c]
         assert len(create_db_calls) == 1
 
+    def test_sandbox_reset_recreates_same_database_name(self) -> None:
+        backend = _make_backend()
+        default_cursor = MagicMock()
+        default_cursor.fetchone.return_value = (1,)
+        sandbox_cursor = MagicMock()
+        source_cursor = MagicMock()
+
+        fake_connect = _mock_connect_factory(
+            source_cursor=source_cursor,
+            sandbox_cursor=sandbox_cursor,
+            default_cursor=default_cursor,
+        )
+        source_connect = _mock_connect_factory(source_cursor=source_cursor)
+
+        with patch.object(backend, "_connect", side_effect=fake_connect), \
+             patch.object(backend, "_connect_source", side_effect=source_connect), \
+             patch.object(backend, "_clone_tables", return_value=(["dbo.Customer"], [])), \
+             patch.object(backend, "_clone_views", return_value=([], [])), \
+             patch.object(backend, "_clone_procedures", return_value=(["dbo.usp_load"], [])):
+            result = backend.sandbox_reset("__test_existing", schemas=["dbo"])
+
+        assert result.status == "ok"
+        assert result.sandbox_database == "__test_existing"
+        execute_calls = [call.args[0] for call in default_cursor.execute.call_args_list]
+        assert any("DROP DATABASE [__test_existing]" in sql for sql in execute_calls)
+        assert any("CREATE DATABASE [__test_existing]" in sql for sql in execute_calls)
+
     def test_sandbox_up_calls_sandbox_down_on_failure(self) -> None:
         """sandbox_up cleans up the orphaned DB when cloning raises."""
         backend = _make_backend()
