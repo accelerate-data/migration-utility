@@ -55,6 +55,10 @@ not active migration candidates, but they are not ingestion sources either.
 Batch planning must expose seed tables with their own count and list. They must not be mixed into
 source-table, writerless, or profile-needed buckets.
 
+Catalog browsing must expose seed tables through a dedicated seed listing path. A request to list
+ordinary tables must not treat seed tables as active migration tables, and a request to list sources
+must remain limited to ingestion-owned source tables.
+
 ## dbt Rationale
 
 The distinction follows dbt ownership boundaries. Sources describe warehouse tables loaded by
