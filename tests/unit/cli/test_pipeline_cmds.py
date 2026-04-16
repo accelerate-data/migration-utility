@@ -280,6 +280,34 @@ def test_add_source_table_skips_tables_that_fail_guard(tmp_path):
     assert "Review and commit the repo changes before continuing" not in result.output
 
 
+def test_add_source_table_allows_seed_table_flip(tmp_path):
+    _write_manifest(tmp_path)
+    ready_out = DryRunOutput(
+        stage="scope",
+        ready=False,
+        project=ReadinessDetail(ready=True, reason="ok"),
+        object=ObjectReadiness(
+            object="silver.lookup",
+            object_type="table",
+            ready=False,
+            reason="not_applicable",
+            code="SEED_TABLE",
+            not_applicable=True,
+        ),
+    )
+    write_out = WriteSourceOutput(written="catalog/tables/silver.lookup.json", is_source=True, status="ok")
+
+    with (
+        patch("shared.cli.add_source_table_cmd.run_ready", return_value=ready_out),
+        patch("shared.cli.add_source_table_cmd.run_write_source", return_value=write_out) as mock_write,
+    ):
+        result = runner.invoke(app, ["add-source-table", "silver.lookup", "--project-root", str(tmp_path)])
+
+    assert result.exit_code == 0, result.output
+    mock_write.assert_called_once_with(tmp_path, "silver.lookup", value=True)
+    assert "source   silver.lookup" in result.output
+
+
 # ── add-seed-table ────────────────────────────────────────────────────────────
 
 
@@ -329,6 +357,34 @@ def test_add_seed_table_skips_tables_that_fail_guard(tmp_path):
     assert result.exit_code == 0, result.output
     mock_write.assert_not_called()
     assert "skipped  silver.lookup" in result.output
+
+
+def test_add_seed_table_allows_source_table_flip(tmp_path):
+    _write_manifest(tmp_path)
+    ready_out = DryRunOutput(
+        stage="scope",
+        ready=False,
+        project=ReadinessDetail(ready=True, reason="ok"),
+        object=ObjectReadiness(
+            object="silver.lookup",
+            object_type="table",
+            ready=False,
+            reason="not_applicable",
+            code="SOURCE_TABLE",
+            not_applicable=True,
+        ),
+    )
+    write_out = WriteSeedOutput(written="catalog/tables/silver.lookup.json", is_seed=True, status="ok")
+
+    with (
+        patch("shared.cli.add_seed_table_cmd.run_ready", return_value=ready_out),
+        patch("shared.cli.add_seed_table_cmd.run_write_seed", return_value=write_out) as mock_write,
+    ):
+        result = runner.invoke(app, ["add-seed-table", "silver.lookup", "--project-root", str(tmp_path)])
+
+    assert result.exit_code == 0, result.output
+    mock_write.assert_called_once_with(tmp_path, "silver.lookup", value=True)
+    assert "seed     silver.lookup" in result.output
 
 
 def test_add_seed_table_warns_when_catalog_file_is_missing(tmp_path):

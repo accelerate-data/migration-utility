@@ -175,6 +175,11 @@ def run_write_seed(
             f"Table {table_norm!r} has not been analyzed yet. "
             "Run /analyzing-table first."
         )
+    if value and cat_model.scoping.status != "no_writer_found":
+        raise ValueError(
+            f"Table {table_norm!r} is not writerless. "
+            "Only tables with scoping.status no_writer_found can be marked as seeds."
+        )
 
     result = load_and_merge_catalog(project_root, table_norm, "is_seed", value)
     if value:

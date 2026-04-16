@@ -45,7 +45,11 @@ def add_source_table(
         else:
             raise AssertionError(f"run_ready returned neither object nor project payload for {fqn}")
 
-        if not is_ready:
+        allow_seed_flip = (
+            ready_result.object is not None
+            and ready_result.object.code == "SEED_TABLE"
+        )
+        if not is_ready and not allow_seed_flip:
             warn(f"skipped  {fqn} — {reason}")
             logger.info(
                 "event=add_source_table_skip component=add_source_table_cmd "

@@ -148,6 +148,12 @@ def run_context(project_root: Path, table: str, writer: str | None = None) -> Pr
     Returns a ``ProfileContext`` model instance.
     """
     table_norm = normalize(table)
+    table_cat = load_table_catalog(project_root, table_norm)
+    if table_cat is None:
+        raise CatalogFileMissingError("table", table_norm)
+    if table_cat.is_seed:
+        raise ValueError(f"Cannot build writer-driven profiling context for seed table {table_norm}")
+
     if not writer:
         writer = read_selected_writer(project_root, table_norm)
         if not writer:
@@ -155,11 +161,6 @@ def run_context(project_root: Path, table: str, writer: str | None = None) -> Pr
                 f"No writer provided and no scoping.selected_writer in catalog for {table_norm}"
             )
     writer_norm = normalize(writer)
-
-    # Load table catalog
-    table_cat = load_table_catalog(project_root, table_norm)
-    if table_cat is None:
-        raise CatalogFileMissingError("table", table_norm)
 
     catalog_signals = _extract_catalog_signals(table_cat)
 
@@ -430,6 +431,8 @@ def run_write(project_root: Path, table: str, profile_json: dict[str, Any]) -> d
     # Determine status from content
     classification = profile_json.get("classification")
     resolved_kind = classification.get("resolved_kind") if isinstance(classification, dict) else None
+    if existing_table.is_seed and resolved_kind != "seed":
+        raise ValueError(f"seed table profiles must use seed classification for {norm}")
     if resolved_kind == "seed" and not existing_table.is_seed:
         raise ValueError(f"seed classification requires is_seed: true for {norm}")
 
