@@ -36,10 +36,11 @@ logger = logging.getLogger(__name__)
 
 app = typer.Typer(add_completion=False, pretty_exceptions_enable=False)
 
-DEFAULT_SOURCE_FRESHNESS = {
-    "warn_after": {"count": 24, "period": "hour"},
-    "error_after": {"count": 48, "period": "hour"},
-}
+def _default_source_freshness() -> dict[str, dict[str, int | str]]:
+    return {
+        "warn_after": {"count": 24, "period": "hour"},
+        "error_after": {"count": 48, "period": "hour"},
+    }
 
 
 def _resolve_physical_source_schema(
@@ -319,7 +320,7 @@ def generate_sources(
             loaded_at_field = _source_loaded_at_field(cat, columns)
             if loaded_at_field:
                 table_entry["loaded_at_field"] = loaded_at_field
-                table_entry["freshness"] = DEFAULT_SOURCE_FRESHNESS
+                table_entry["freshness"] = _default_source_freshness()
             tables.append(table_entry)
         source_entry: dict[str, Any] = {
             "name": schema_name,

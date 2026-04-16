@@ -311,6 +311,51 @@ def test_sources_yml_skips_freshness_without_usable_profile_watermark() -> None:
         tmp.cleanup()
 
 
+def test_sources_yml_uses_distinct_freshness_objects_per_source_table() -> None:
+    """Each source table gets its own freshness object so YAML does not share anchors."""
+    tmp, root = _make_project([
+        {
+            "schema": "bronze",
+            "name": "Customer",
+            "scoping": {"status": "no_writer_found"},
+            "is_source": True,
+            "columns": [
+                {"name": "customer_id", "sql_type": "INT", "is_nullable": False},
+                {"name": "loaded_at", "sql_type": "DATETIME2", "is_nullable": False},
+            ],
+            "profile": {"watermark": {"column": "loaded_at"}},
+        },
+        {
+            "schema": "bronze",
+            "name": "Order",
+            "scoping": {"status": "no_writer_found"},
+            "is_source": True,
+            "columns": [
+                {"name": "order_id", "sql_type": "INT", "is_nullable": False},
+                {"name": "loaded_at", "sql_type": "DATETIME2", "is_nullable": False},
+            ],
+            "profile": {"watermark": {"column": "loaded_at"}},
+        },
+    ])
+    try:
+        result = generate_sources(root)
+        assert result.sources is not None
+        tables = result.sources["sources"][0]["tables"]
+        assert tables[0]["freshness"] == {
+            "warn_after": {"count": 24, "period": "hour"},
+            "error_after": {"count": 48, "period": "hour"},
+        }
+        assert tables[1]["freshness"] == {
+            "warn_after": {"count": 24, "period": "hour"},
+            "error_after": {"count": 48, "period": "hour"},
+        }
+        assert tables[0]["freshness"] is not tables[1]["freshness"]
+        assert tables[0]["freshness"]["warn_after"] is not tables[1]["freshness"]["warn_after"]
+        assert tables[0]["freshness"]["error_after"] is not tables[1]["freshness"]["error_after"]
+    finally:
+        tmp.cleanup()
+
+
 def test_sources_yml_adds_unique_for_single_column_pk_and_unique_index() -> None:
     """Single-column primary keys and unique indexes emit unique tests."""
     tmp, root = _make_project([
