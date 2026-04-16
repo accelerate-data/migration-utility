@@ -314,6 +314,92 @@ def test_sources_yml_does_not_mark_composite_keys_individually_unique() -> None:
         tmp.cleanup()
 
 
+def test_sources_yml_adds_relationship_for_confirmed_source_reference() -> None:
+    """Single-column FKs to another confirmed source emit dbt relationships tests."""
+    tmp, root = _make_project([
+        {
+            "schema": "bronze",
+            "name": "Customer",
+            "scoping": {"status": "no_writer_found"},
+            "is_source": True,
+            "columns": [{"name": "customer_id", "sql_type": "INT", "is_nullable": False}],
+        },
+        {
+            "schema": "bronze",
+            "name": "Order",
+            "scoping": {"status": "no_writer_found"},
+            "is_source": True,
+            "columns": [{"name": "customer_id", "sql_type": "INT", "is_nullable": False}],
+            "foreign_keys": [
+                {
+                    "constraint_name": "FK_Order_Customer",
+                    "columns": ["customer_id"],
+                    "referenced_schema": "bronze",
+                    "referenced_table": "Customer",
+                    "referenced_columns": ["customer_id"],
+                }
+            ],
+        },
+    ])
+    try:
+        result = generate_sources(root)
+        assert result.sources is not None
+        order_table = next(
+            table
+            for table in result.sources["sources"][0]["tables"]
+            if table["name"] == "Order"
+        )
+        customer_id = order_table["columns"][0]
+        assert customer_id["tests"] == [
+            "not_null",
+            {"relationships": {"to": "source('bronze', 'Customer')", "field": "customer_id"}},
+        ]
+    finally:
+        tmp.cleanup()
+
+
+def test_sources_yml_skips_unresolved_and_composite_relationships() -> None:
+    """FK tests are skipped when the reference is not source-local and single-column."""
+    tmp, root = _make_project([
+        {
+            "schema": "bronze",
+            "name": "OrderLine",
+            "scoping": {"status": "no_writer_found"},
+            "is_source": True,
+            "columns": [
+                {"name": "order_id", "sql_type": "INT", "is_nullable": False},
+                {"name": "line_id", "sql_type": "INT", "is_nullable": False},
+                {"name": "customer_id", "sql_type": "INT", "is_nullable": True},
+            ],
+            "foreign_keys": [
+                {
+                    "constraint_name": "FK_OrderLine_Order",
+                    "columns": ["order_id", "line_id"],
+                    "referenced_schema": "bronze",
+                    "referenced_table": "Order",
+                    "referenced_columns": ["order_id", "line_id"],
+                },
+                {
+                    "constraint_name": "FK_OrderLine_Customer",
+                    "columns": ["customer_id"],
+                    "referenced_schema": "silver",
+                    "referenced_table": "Customer",
+                    "referenced_columns": ["customer_id"],
+                },
+            ],
+        },
+    ])
+    try:
+        result = generate_sources(root)
+        assert result.sources is not None
+        columns = result.sources["sources"][0]["tables"][0]["columns"]
+        assert columns[0]["tests"] == ["not_null"]
+        assert columns[1]["tests"] == ["not_null"]
+        assert "tests" not in columns[2]
+    finally:
+        tmp.cleanup()
+
+
 def test_write_sources_yml_creates_file(tmp_path) -> None:
     """write_sources_yml writes the file and returns the path."""
     tables_dir = tmp_path / "catalog" / "tables"

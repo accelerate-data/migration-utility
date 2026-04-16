@@ -111,10 +111,52 @@ def _single_column_constraint_columns(constraints: list[Any]) -> set[str]:
     return columns
 
 
-def _build_source_columns(cat: dict[str, Any]) -> list[dict[str, Any]]:
+def _relationship_tests_by_column(
+    cat: dict[str, Any],
+    confirmed_sources: set[str],
+) -> dict[str, list[dict[str, Any]]]:
+    tests_by_column: dict[str, list[dict[str, Any]]] = {}
+    for fk in cat.get("foreign_keys", []):
+        if not isinstance(fk, dict):
+            continue
+        columns = fk.get("columns")
+        referenced_columns = fk.get("referenced_columns")
+        referenced_schema = str(fk.get("referenced_schema", "")).lower()
+        referenced_table = str(fk.get("referenced_table", ""))
+        if (
+            not isinstance(columns, list)
+            or not isinstance(referenced_columns, list)
+            or len(columns) != 1
+            or len(referenced_columns) != 1
+            or not referenced_schema
+            or not referenced_table
+        ):
+            continue
+        referenced_fqn = f"{referenced_schema}.{referenced_table.lower()}"
+        if referenced_fqn not in confirmed_sources:
+            continue
+        local_column = str(columns[0]).strip()
+        referenced_column = str(referenced_columns[0]).strip()
+        if not local_column or not referenced_column:
+            continue
+        test = {
+            "relationships": {
+                "to": f"source('{referenced_schema}', '{referenced_table}')",
+                "field": referenced_column,
+            }
+        }
+        tests_by_column.setdefault(local_column.lower(), []).append(test)
+    return tests_by_column
+
+
+def _build_source_columns(
+    cat: dict[str, Any],
+    confirmed_sources: set[str],
+) -> list[dict[str, Any]]:
     columns: list[dict[str, Any]] = []
     unique_columns = _single_column_constraint_columns(cat.get("primary_keys", []))
     unique_columns.update(_single_column_constraint_columns(cat.get("unique_indexes", [])))
+    relationships_by_column = _relationship_tests_by_column(cat, confirmed_sources)
     for column in cat.get("columns", []):
         name = column.get("name")
         if not name:
@@ -128,6 +170,8 @@ def _build_source_columns(cat: dict[str, Any]) -> list[dict[str, Any]]:
             _append_test(tests, "not_null")
         if str(name).lower() in unique_columns:
             _append_test(tests, "unique")
+        for relationship_test in relationships_by_column.get(str(name).lower(), []):
+            _append_test(tests, relationship_test)
         if tests:
             entry["tests"] = tests
         columns.append(entry)
@@ -221,6 +265,7 @@ def generate_sources(
             incomplete=incomplete,
         )
 
+    confirmed_sources = set(included)
     source_entries = []
     for schema_name in sorted(sources_by_schema):
         tables = []
@@ -233,7 +278,7 @@ def generate_sources(
                 "name": table_name,
                 "description": f"{table_name} from source system",
             }
-            columns = _build_source_columns(cat)
+            columns = _build_source_columns(cat, confirmed_sources)
             if columns:
                 table_entry["columns"] = columns
             tables.append(table_entry)
