@@ -16,7 +16,7 @@ Read-only catalog viewer. Displays whatever state exists in the catalog.
 
 | Subcommand | Argument | Description |
 |---|---|---|
-| `list` | `tables`, `sources`, `procedures`, `views`, or `functions` | Enumerate objects by type |
+| `list` | `tables`, `sources`, `seeds`, `procedures`, `views`, or `functions` | Enumerate objects by type |
 | `show` | `<schema.object>` | Display catalog state for one object |
 | `refs` | `<schema.object>` | Show procedures/views that reference an object |
 
@@ -40,6 +40,8 @@ uv run --project "${CLAUDE_PLUGIN_ROOT}/packages/ad-migration-internal" discover
 Present as a numbered list. If the user selects an object, proceed to `show`. If they ask what references it, proceed to `refs`.
 
 `list sources` returns only confirmed source tables persisted as `is_source: true` in the catalog.
+`list seeds` returns only confirmed seed tables persisted as `is_seed: true` in the catalog.
+Neither result should be described as an active migration table list.
 
 If `objects[]` is empty, say there are no objects of that type in the current catalog state. Do not troubleshoot fixtures or infer missing extraction steps unless the user asks.
 
@@ -57,6 +59,7 @@ For a direct `show <schema.object>` request, run `discover show` once and treat 
 Do not inspect sibling files, diagnose catalog/setup problems, or infer missing extraction steps unless `discover show` itself fails.
 
 If `discover show` includes `is_source: true`, surface that the table is a confirmed source.
+If `discover show` includes `is_seed: true`, surface that the table is a confirmed dbt seed.
 
 **Tables:** columns, plus scoping results and analyzed statements if present.
 

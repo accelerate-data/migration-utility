@@ -79,6 +79,7 @@ class DiscoverShowOutput(BaseModel):
     type: Literal["table", "procedure", "view", "function"]
     raw_ddl: str
     is_source: bool | None = None
+    is_seed: bool | None = None
     columns: list[ColumnDef] = Field(default_factory=list)
     params: list[ParamDef] = Field(default_factory=list)
     refs: ProcRefs | BasicRefs | None = None
