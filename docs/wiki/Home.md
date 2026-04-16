@@ -39,7 +39,7 @@ The workflow has two layers:
   -> /generate-model
 ```
 
-Batch commands create git worktrees to isolate their work and manage their own batch git workflow. The `ad-migration` CLI does not commit, push, open PRs, or clean worktrees for you.
+Batch commands check your git branch before writing. If you are on the default branch, they ask whether to continue there or create a feature-branch worktree; if you are already on a feature branch, they use the current checkout. The `ad-migration` CLI does not commit, push, open PRs, or clean worktrees for you.
 
 ## Interactive vs batch
 
@@ -61,6 +61,7 @@ The plugin exposes these `/` commands inside Claude Code:
 - `/refactor-query`
 - `/generate-model`
 - `/status`
+- `/review-diagnostics`
 - `/cleanup-worktrees`
 
 See [[Command Reference]] for a one-page summary.
@@ -75,7 +76,7 @@ The following CLI commands run directly in your terminal (not inside Claude Code
 - `ad-migration exclude-table`
 - `ad-migration add-source-table`
 
-The interactive commands (`/listing-objects`, `/analyzing-table`, `/profiling-table`) are useful for exploring one object at a time or debugging a specific table's catalog state.
+The interactive workflows (`/listing-objects`, `/analyzing-table`, `/profiling-table`) are useful for exploring one object at a time or debugging a specific table's catalog state.
 
 ## Where to start
 

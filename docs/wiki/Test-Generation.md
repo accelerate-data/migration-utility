@@ -20,7 +20,7 @@
 1. generate the test scenarios
 2. run the independent review loop
 3. execute approved scenarios in the sandbox
-4. write dbt-ready YAML test artifacts
+4. write the reviewed JSON test spec with captured expectations
 
 The batch command handles the orchestration, commits successful outputs, and can raise a PR at the end.
 
@@ -28,10 +28,9 @@ The batch command handles the orchestration, commits successful outputs, and can
 
 | File | Purpose |
 |---|---|
-| `test-specs/<item_id>.json` | intermediate spec with fixtures, branch manifest, and captured expectations |
-| `test-specs/<item_id>.yml` | dbt-ready committed artifact |
+| `test-specs/<item_id>.json` | reviewed spec with fixtures, branch manifest, unit test definitions, and captured expectations |
 
-The JSON spec is the working artifact for the pipeline. The YAML file is the user-facing dbt artifact that gets committed for downstream model generation.
+The JSON spec is the committed test-generation artifact. `/generate-model` consumes it and renders dbt `unit_tests:` into the generated schema YAML.
 
 ## Sandbox teardown
 

@@ -2,7 +2,7 @@
 
 ## Purpose
 
-Discovers which stored procedures write to a target table, analyzes each candidate via the procedure analysis reference (call graph resolution, statement classification, persistence), resolves which writer owns the table, and persists the scoping decision to the table catalog file. This skill determines the `selected_writer` that all downstream skills (profiling, test generation, model generation) depend on.
+Discovers which stored procedures write to a target table, analyzes each candidate via the procedure analysis reference (call graph resolution, statement classification, persistence), resolves which writer owns the table, and persists the scoping decision to the table catalog file. This workflow determines the `selected_writer` that downstream profiling, test generation, and model generation depend on.
 
 ## Invocation
 
@@ -10,13 +10,13 @@ Discovers which stored procedures write to a target table, analyzes each candida
 /analyzing-table <schema.table>
 ```
 
-Argument is the fully-qualified table name (e.g., `silver.DimCustomer`, `[dbo].[FactSales]`). The skill asks if missing.
+Argument is the fully-qualified table name (e.g., `silver.DimCustomer`, `[dbo].[FactSales]`). The workflow asks if missing.
 
 ## Prerequisites
 
 - `manifest.json` must exist in the project root. If missing, run `ad-migration setup-source` first.
 - `catalog/tables/<table>.json` must exist. If missing, run `/listing-objects list tables` to see available tables.
-- The skill checks scoping readiness and stops with an error code if the object is not ready.
+- The workflow checks scoping readiness and stops with an error code if the object is not ready.
 
 ## Pipeline
 
@@ -30,7 +30,7 @@ Reads reference data from the catalog for the target table. Extracts the `writer
 
 ### 3. Analyze each writer candidate
 
-For each writer candidate, the skill runs a 6-step analysis pipeline:
+For each writer candidate, the workflow runs a 6-step analysis pipeline:
 
 1. **Fetch object data** — reads refs, statements, needs_llm, raw_ddl from the catalog
 2. **Classify statements** — `needs_llm: false` (AST-parsed) or `needs_llm: true` (LLM-based from raw_ddl)
@@ -67,7 +67,7 @@ Writer candidates for silver.DimCustomer:
 | 2+ writers | Present candidates and ask the user to pick |
 | 0 writers | Report `no_writer_found` (handled in Step 2) |
 
-The skill waits for explicit user confirmation before proceeding.
+The workflow waits for explicit user confirmation before proceeding.
 
 ### 6. Persist scoping to catalog
 

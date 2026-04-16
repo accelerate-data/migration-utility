@@ -20,8 +20,9 @@ Plugin commands run inside Claude Code and handle LLM-driven pipeline stages.
 | `/refactor-query` | Persist proof-backed import/logical/final refactors |
 | `/generate-model` | Generate dbt artifacts from approved refactors and tests |
 | `/status` | Show current readiness and the next best action |
+| `/review-diagnostics` | Review active diagnostics for one migration object |
 
-### Source and scope management
+### Repository maintenance
 
 | Command | Purpose |
 |---|---|

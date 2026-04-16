@@ -10,7 +10,7 @@ Profiles a single table for migration by assembling deterministic context from c
 /profiling-table <schema.table>
 ```
 
-Argument is the fully-qualified table name. The skill asks if missing. The writer procedure is read automatically from the catalog's `scoping.selected_writer` field.
+Argument is the fully-qualified table name. The workflow asks if missing. The writer procedure is read automatically from the catalog's `scoping.selected_writer` field.
 
 You can also use natural language in your Claude Code session, such as "profile a table", "classify this table", or "what kind of model is this table".
 
@@ -19,7 +19,7 @@ You can also use natural language in your Claude Code session, such as "profile 
 - `manifest.json` must exist in the project root. If missing, run `ad-migration setup-source` first.
 - `catalog/tables/<table>.json` must exist. If missing, run `/listing-objects list tables` to see available tables.
 - `scoping.selected_writer` must be set in the table catalog. If missing, run [[Analyzing Table]] first.
-- The skill checks profiling readiness and stops with an error code if the object is not ready.
+- The workflow checks profiling readiness and stops with an error code if the object is not ready.
 
 ## Pipeline
 
@@ -75,7 +75,7 @@ The profile is written to the `profile` section of the table catalog file.
 
 ## The Six Profiling Questions
 
-The skill answers six questions about each table. Four are required (Q1, Q2, Q4, Q5) and two are nice-to-have (Q3, Q6):
+The workflow answers six questions about each table. Four are required (Q1, Q2, Q4, Q5) and two are nice-to-have (Q3, Q6):
 
 | # | Question | Why it matters |
 |---|---|---|
@@ -96,5 +96,5 @@ For detailed signal tables, output field definitions, and a full JSON example, s
 | IO/parse error | IO/parse error reading catalog files | Check file permissions and JSON validity in `catalog/` |
 | Profile write validation failure | Invalid field values in the assembled profile | Re-run `/profiling-table`; if it persists, check the catalog for corruption |
 | Profile write IO error | Catalog unreadable or write failure | Check file permissions on `catalog/tables/<table>.json` |
-| Ambiguous classification | Write pattern signals conflict with column shape signals | The skill stops and asks the user for guidance rather than auto-resolving |
+| Ambiguous classification | Write pattern signals conflict with column shape signals | The workflow stops and asks the user for guidance rather than auto-resolving |
 | Missing watermark | No WHERE clause filter or datetime column found | Profile is written with `status: "partial"`. Model will fall back to full-refresh `table` materialization |

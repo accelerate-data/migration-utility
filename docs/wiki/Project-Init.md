@@ -50,7 +50,7 @@ It also writes a partial `manifest.json` with source technology and dialect so `
 
 ## Worktree flow
 
-The scaffolded repo does not include a repo-local worktree wrapper script. Batch commands create and manage worktrees automatically, and the scaffolded git-workflow guidance documents the resulting worktree location and cleanup behavior.
+The scaffolded repo does not include a repo-local worktree wrapper script. Batch commands check the current branch and can create a feature-branch worktree when you choose that option from the default-branch prompt. The scaffolded git-workflow guidance documents the resulting worktree location and cleanup behavior.
 
 ## Idempotency
 

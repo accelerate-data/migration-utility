@@ -1,6 +1,6 @@
 # Browsing the Catalog
 
-The `/listing-objects` skill is a read-only catalog viewer for exploring tables, procedures, views, and functions before running pipeline stages. It never writes to the catalog.
+`/listing-objects` is a read-only catalog viewer for exploring tables, procedures, views, and functions before running pipeline stages. It never writes to the catalog.
 
 ## Subcommands
 

@@ -104,7 +104,7 @@ See [[Sandbox Setup]].
 /generate-tests silver.DimCustomer silver.FactInternetSales
 ```
 
-This generates scenarios, runs the independent review loop, executes approved scenarios in the sandbox, and writes dbt-ready YAML test artifacts.
+This generates scenarios, runs the independent review loop, executes approved scenarios in the sandbox, and writes reviewed JSON test specs with captured expectations.
 
 See [[Test Generation]].
 
