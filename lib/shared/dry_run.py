@@ -78,6 +78,13 @@ def ready_cmd(
 
     result = run_ready(root, stage, object_fqn=object_fqn)
     emit(result)
+    if (
+        not result.ready
+        and stage == "test-gen"
+        and result.project is not None
+        and result.project.code in {"TARGET_NOT_CONFIGURED", "SANDBOX_NOT_CONFIGURED"}
+    ):
+        raise typer.Exit(code=1)
 
 
 @app.command("status")

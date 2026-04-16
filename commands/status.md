@@ -20,6 +20,9 @@ Use the canonical `/status` code list in [../lib/shared/status_error_codes.md](.
 - **No caching.** Every `/status` invocation MUST execute the CLI commands (`migrate-util status`, `migrate-util batch-plan`, etc.) fresh. Never reuse output from a previous `/status` run in the same conversation. The catalog can change between invocations — always read from disk.
 - `manifest.json` must exist. If missing, tell the user to run `ad-migration setup-source` first.
 - `catalog/tables/` must contain at least one `.json` file. If empty, tell the user to run `ad-migration setup-source` first.
+- **Status output first.** `/status` is a status report, not only a readiness check. In batch mode, always present the Step 4 summary table before "What to do next"; never answer with only recommendations. In single-table mode, always present the Step 2 per-stage breakdown before any recommendation, including when the next action is test generation and readiness passes. The single-table breakdown must include all pipeline stages in this order: `scope`, `profile`, `test-gen`, `refactor`, `migrate`. Never replace the breakdown with a readiness summary.
+- **Test generation setup comes first.** Whenever an object or batch is at `test_gen_needed`, run `migrate-util ready test-gen` before recommending any next command. If readiness returns `TARGET_NOT_CONFIGURED` or `SANDBOX_NOT_CONFIGURED`, make the matching setup command (`!ad-migration setup-target` or `!ad-migration setup-sandbox`) the only actionable command in the response. Do not name the blocked test-generation command in follow-up prose until setup readiness passes; naming that command before setup is ready is still a recommendation. Say "rerun `/status` after setup" instead. This overrides every other status, dependency, and note rule.
+- **Reviewed diagnostics stay hidden.** Use only `batch-plan`'s visible `catalog_diagnostics.errors` and `catalog_diagnostics.warnings` arrays for diagnostic listings and triage. If `catalog_diagnostics.reviewed_warnings_hidden > 0`, show only the hidden-count line from Step 6. Do not inspect or summarize `catalog/diagnostic-reviews.json` unless the user explicitly asks. Do not reveal hidden reviewed warning codes, messages, affected objects, rationales, review file contents, or derived explanations based on those hidden details in `/status`. If an object is writerless while a related reviewed warning is hidden, say only that no suitable writer is available.
 
 ## Pipeline — No table argument (batch summary)
 
@@ -166,46 +169,39 @@ Summary counts: the denominator excludes N/A objects and source/pending tables (
 
 ### Step 5 — What to do next
 
-Using the batch-plan output from Step 3, build a single prioritised action list. Present at most 3 actions in this order:
+Using the batch-plan output from Step 3, rank the possible next actions and present exactly one next step. `/status` should report the full state, then choose one thing the user can do now.
+
+Rank candidates in this order:
 
 1. **Fix diagnostic errors** (if `catalog_diagnostics.total_errors > 0`)
-2. **Current pipeline phase** (the phase with the most objects needing work right now)
-3. **Next pipeline phase** (the phase that unlocks after action 2 completes)
+2. **Current pipeline phase** (the phase with objects needing work right now)
+3. **Next pipeline phase** (only if no current-phase action exists)
 
-Skip any action if there is nothing in that category.
+Skip any candidate if there is nothing in that category. Do not include a second runnable command as a follow-up, preview, or "after that" instruction.
 
 **Format:**
 
 ```text
 What to do next
 
-  1. Fix 2 error diagnostic(s) before proceeding:
-       PARSE_ERROR on silver.FactSales — DDL failed to parse. Simplify the view DDL
-         and rerun `ad-migration setup-source`, then re-run `/scope-tables silver.FactSales`.
-       MULTI_TABLE_WRITE on silver.DimProduct — writer proc targets multiple tables.
-         Use /scope-tables to re-select a single-table writer, or split the proc.
-
-  2. /scope-tables silver.DimDate silver.vDimSalesTerritory silver.vwFactPromo  [1 excluded — CIRCULAR_REFERENCE]
-
-  3. /profile-tables silver.DimGeography  (unlocks after scope is complete)
+  Fix 2 error diagnostic(s) before proceeding:
+    PARSE_ERROR on silver.FactSales — DDL failed to parse. Simplify the view DDL and rerun setup-source.
+    MULTI_TABLE_WRITE on silver.DimProduct — writer proc targets multiple tables. Select a single-table writer or split the proc.
 ```
 
-**Rules for each action:**
+**Rules for choosing the single next step:**
 
-- **Action 1 — Diagnostic errors**: For each error-severity diagnostic, state the code, the object FQN, and a concise fix (1–2 sentences). This is informational — no run offer. If there are no error diagnostics, skip this action and start from action 2.
-- **Action 2 — Current phase command**: Determine the immediate phase from the batch-plan:
+- **Diagnostic errors**: If any error-severity diagnostic exists, make fixing diagnostics the single next step. State the code, the object FQN, and a concise fix (1–2 sentences). This is informational — no run offer and no additional pipeline command. If there are no error diagnostics, choose the current phase command.
+- **Current phase command**: Determine the immediate phase from the batch-plan:
   - If `scope_phase` is non-empty: current command is `/scope-tables <fqn1> <fqn2> ...` for all scope-phase FQNs.
   - Else if `profile_phase` is non-empty: current command is `/profile-tables <fqn1> <fqn2> ...`.
   - Else if `migrate_batches` is non-empty: use the first batch's `pipeline_status` to pick the command:
-    - `test_gen_needed` → first run `uv run --project "${CLAUDE_PLUGIN_ROOT}/packages/ad-migration-internal" migrate-util ready test-gen --project-root {{run_path}} --object <fqn1>`.
-      If the code is `TARGET_NOT_CONFIGURED`, current command is `!ad-migration setup-target`.
-      If it is `SANDBOX_NOT_CONFIGURED`, current command is `!ad-migration setup-sandbox`.
-      Only when readiness is `ok` is current command `/generate-tests <fqn1> ...`.
+    - `test_gen_needed` → first run `uv run --project "${CLAUDE_PLUGIN_ROOT}/packages/ad-migration-internal" migrate-util ready test-gen --project-root <project-root> --object <fqn1>`. If it returns `TARGET_NOT_CONFIGURED`, show `!ad-migration setup-target` and stop the action list there. If it returns `SANDBOX_NOT_CONFIGURED`, show `!ad-migration setup-sandbox` and stop the action list there. These setup failures take precedence over dependency notes or other pipeline commands. In either setup case, the setup command is the only actionable command; tell the user to rerun `/status` after setup rather than naming the blocked command. Only when readiness returns ready should you recommend `/generate-tests <fqn1> ...`.
     - `refactor_needed` → `/refactor-query <fqn1> ...`
     - `migrate_needed` → `/generate-model <fqn1> ...`
   - If `circular_refs` is non-empty, append inline: `[N excluded — CIRCULAR_REFERENCE]`
   - Max 10 FQNs listed; if more, append `and N more` (all still execute).
-- **Action 3 — Next phase command**: The phase that will become unblocked after action 2 completes. Use the same command format. Omit if there is no obvious next phase.
+- **Next phase command**: Use this only when no diagnostic or current-phase command exists. Use the same command format. If that phase is `test_gen_needed`, run the same readiness check first and fall back to `!ad-migration setup-target` or `!ad-migration setup-sandbox`; if a setup command is needed, show only that setup command and do not name the blocked test-generation command.
 
 After the "What to do next" section, show these notes if applicable:
 
@@ -213,20 +209,20 @@ After the "What to do next" section, show these notes if applicable:
 
   ```text
   pending source confirmation (N tables)
-    Run `!ad-migration add-source-table <fqn>` to confirm, then rerun `!ad-migration setup-target`.
+    Confirm source tables before target setup can complete.
     silver.AuditLog
     silver.TempStaging
   ```
 
 - If `summary.excluded_count > 0`, show: "N objects excluded from pipeline — edit catalog JSON to re-include"
 
-**Run offer**: After presenting the actions, if action 1 is **not** a diagnostic error (i.e. the first actionable item is a runnable plugin command), ask:
+**Run offer**: After presenting the next step, if it is a runnable plugin command, ask:
 
 ```text
-Run the first command now? (y/n)
+Run this command now? (y/n)
 ```
 
-If action 1 IS a diagnostic error, do not show the run offer. The user must fix the errors first.
+If the next step is a diagnostic fix, do not show the run offer. The user must fix the errors first.
 
 If the user confirms: execute the command inline in the same session (no sub-agent). Proceed to run the relevant plugin command directly.
 
@@ -271,6 +267,8 @@ Render that line exactly, replacing `N` with the numeric hidden-warning count.
 Do not list hidden reviewed warning codes, messages, affected objects, or
 rationales in `/status`; by definition those warnings have been acknowledged
 and should remain hidden unless the user opens `catalog/diagnostic-reviews.json`.
+Do not inspect or summarize `catalog/diagnostic-reviews.json` during `/status`.
+The path is a pointer for the user, not an instruction to reveal its contents.
 
 ### Step 7 — Sources staleness check
 
@@ -360,6 +358,7 @@ uv run --project "${CLAUDE_PLUGIN_ROOT}/packages/ad-migration-internal" migrate-
 ```
 
 This returns a single object's stage statuses. For each stage, the status value and the actual catalog section content are included for the detail view.
+Use the matching node from `batch-plan` as the authority for the first incomplete stage and next command. Do not infer that a stage is complete from file existence or later artifacts when `migrate-util status <table>` omits that stage. If the node's `pipeline_status` is `test_gen_needed`, the first incomplete stage is `test-gen`; show `test-gen` as pending and recommend test generation after the readiness check.
 
 If this status output shows `test-gen` as the first incomplete stage or the next
 recommended phase, run the readiness check before rendering the final answer:
@@ -375,7 +374,7 @@ refactor artifacts already exist.
 
 ### Step 2 — Present per-stage breakdown
 
-For each stage, present the status and detail content:
+For each stage, present the status and detail content before any next-action or readiness prose. This section is mandatory even when all prerequisites for the next command are satisfied. Always include all five stages in order: `scope`, `profile`, `test-gen`, `refactor`, `migrate`; do not stop after the first incomplete stage.
 
 ```text
 status for silver.DimCustomer
@@ -429,16 +428,34 @@ For completed stages, show the key signals from the status detail content:
 
 ### Step 3 — Recommend next action
 
-Based on the first incomplete stage, recommend the specific command to run next for this table.
+Based on the first incomplete stage from the matching `batch-plan` node, recommend the specific command to run next for this table. The `pipeline_status` value controls the command even if the single-object status output or files on disk appear to contain later-stage artifacts.
 
 If the first incomplete stage is `test-gen`, treat readiness as a strict
-priority order and do not recommend `/generate-tests` until it is `ok`.
-You MUST run `migrate-util ready test-gen --project-root {{run_path}} --object
-<table>` for the table in focus and use that JSON as authoritative. Do not
+priority order and do not recommend the test-generation command until it is
+`ok`.
+You MUST run `migrate-util ready test-gen --project-root <project-root> --object
+<fqn>` for the table in focus and use that JSON as authoritative. Do not
 infer test-gen readiness from catalog sections, test specs, refactor status, or
 dbt files. If the code is `TARGET_NOT_CONFIGURED`, recommend `!ad-migration
 setup-target` and stop. If the code is `SANDBOX_NOT_CONFIGURED`, recommend
-`!ad-migration setup-sandbox` and stop.
+`!ad-migration setup-sandbox` and stop. In either setup case, the recommendation
+section must contain only the setup command. Do not name the blocked
+test-generation command in follow-up prose. Tell the user to rerun `/status`
+after setup instead.
+
+If readiness returns `TARGET_NOT_CONFIGURED`, use:
+
+```text
+Target is not ready for test generation.
+!ad-migration setup-target
+```
+
+If readiness returns `SANDBOX_NOT_CONFIGURED`, use:
+
+```text
+Sandbox is not ready for test generation.
+!ad-migration setup-sandbox
+```
 
 If `test-harness sandbox-status` fails with `MISSING_ENV_VARS` and its message
 says the password variable is defined in `.env` but not loaded in this Claude
@@ -449,8 +466,8 @@ rerun `/status` or the blocked command. The sandbox already exists in
 
 If `test-harness sandbox-status` returns a true missing/not-running sandbox
 without stale-session `.env` guidance, recommend `!ad-migration setup-sandbox`
-and stop. Only recommend `/generate-tests <fqn>` after target setup, sandbox
-setup, and sandbox reachability are complete.
+and stop. Do not preview the blocked test generation command. Only name that
+command after target setup, sandbox setup, and sandbox reachability are complete.
 
 For all object types (tables, views, MVs), route through the same stage
 commands: `profile_needed` → `/profile-tables <fqn>`, `test_gen_needed` →

@@ -10,6 +10,7 @@
 //   unexpected_output_terms?,   — comma-separated terms that must NOT appear in output text
 //   expected_blocked_stage?,    — stage name that should be reported as blocked/pending
 //   expected_recommendation?,   — term that should appear in the recommendation
+//   expected_first_command?,    — command that should appear first among actionable commands
 //   expected_na_object?,        — FQN that should appear with N/A status
 //   expected_view_objects?,     — comma-separated view FQNs that should appear in output
 //   expected_reviewed_warnings_hidden?, — numeric hidden reviewed warning count
@@ -18,6 +19,13 @@
 const { normalizeTerms } = require('./schema-helpers');
 
 const escapeRegExp = (value) => value.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+
+const actionableSection = (outputStr) => {
+  const recommendationMatch = outputStr.match(
+    /\b(what to do next|recommend(?:ed|ation)?|next action)\b/,
+  );
+  return recommendationMatch ? outputStr.slice(recommendationMatch.index) : outputStr;
+};
 
 module.exports = (output, context) => {
   const outputStr = String(output || '').toLowerCase();
@@ -74,10 +82,13 @@ module.exports = (output, context) => {
     }
   }
 
-  // Check unexpected output terms (must NOT appear)
+  // Check unexpected output terms. Command-like terms are recommendation
+  // constraints, so scope them to the action section instead of incidental
+  // command examples, tool output, or fixture setup text.
   const unexpectedOutputTerms = normalizeTerms(context.vars.unexpected_output_terms);
   for (const term of unexpectedOutputTerms) {
-    if (outputStr.includes(term)) {
+    const searchTarget = /^[!/]/.test(term) ? actionableSection(outputStr) : outputStr;
+    if (searchTarget.includes(term)) {
       return {
         pass: false,
         score: 0,
@@ -120,13 +131,53 @@ module.exports = (output, context) => {
   if (context.vars.expected_reviewed_warnings_hidden) {
     const count = String(context.vars.expected_reviewed_warnings_hidden).trim();
     const reviewedPattern = new RegExp(
-      `${count}\\s+reviewed\\s+warnings?\\s+hidden\\s+(?:-|—|–)\\s+inspect\\s+catalog/diagnostic-reviews\\.json`
+      `${count}\\s+reviewed\\s+warnings?\\s+hidden\\s+(?:-|—|–)\\s+inspect\\s+\`?catalog/diagnostic-reviews\\.json\`?`
     );
     if (!reviewedPattern.test(outputStr)) {
       return {
         pass: false,
         score: 0,
         reason: `Expected reviewed warnings hidden count '${count}' not found in output`,
+      };
+    }
+  }
+
+  if (context.vars.expected_first_command) {
+    const actionableOutput = actionableSection(outputStr);
+    const commandCandidates = [
+      '!ad-migration setup-target',
+      '!ad-migration setup-sandbox',
+      '!ad-migration add-source-table',
+      '/scope-tables',
+      '/profile-tables',
+      '/generate-tests',
+      '/refactor-query',
+      '/generate-model',
+    ];
+    let firstCommand = null;
+    let firstIndex = Number.POSITIVE_INFINITY;
+    for (const candidate of commandCandidates) {
+      const index = actionableOutput.indexOf(candidate);
+      if (index !== -1 && index < firstIndex) {
+        firstIndex = index;
+        firstCommand = candidate;
+      }
+    }
+
+    if (!firstCommand) {
+      return {
+        pass: false,
+        score: 0,
+        reason: 'No actionable command found in status output',
+      };
+    }
+
+    const expectedFirstCommand = context.vars.expected_first_command.toLowerCase();
+    if (firstCommand !== expectedFirstCommand) {
+      return {
+        pass: false,
+        score: 0,
+        reason: `Expected first command '${expectedFirstCommand}' but found '${firstCommand}'`,
       };
     }
   }

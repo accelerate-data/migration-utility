@@ -850,6 +850,62 @@ def test_cli_ready_project_only() -> None:
         assert output["project"]["reason"] == "ok"
 
 
+def test_cli_ready_test_gen_missing_target_exits_with_code() -> None:
+    """CLI ready test-gen exits non-zero with a clear target setup code."""
+    tmp, root = _make_project(include_target=False)
+    with tmp:
+        result = _cli_runner.invoke(
+            dry_run.app,
+            ["ready", "test-gen", "--project-root", str(root)],
+        )
+        assert result.exit_code == 1
+        output = json.loads(result.stdout)
+        assert output["ready"] is False
+        assert output["project"]["code"] == "TARGET_NOT_CONFIGURED"
+
+
+def test_cli_ready_test_gen_missing_sandbox_exits_with_code() -> None:
+    """CLI ready test-gen exits non-zero with a clear sandbox setup code."""
+    tmp, root = _make_project(include_sandbox=False)
+    with tmp:
+        result = _cli_runner.invoke(
+            dry_run.app,
+            ["ready", "test-gen", "--project-root", str(root)],
+        )
+        assert result.exit_code == 1
+        output = json.loads(result.stdout)
+        assert output["ready"] is False
+        assert output["project"]["code"] == "SANDBOX_NOT_CONFIGURED"
+
+
+def test_cli_ready_generate_missing_target_preserves_zero_exit() -> None:
+    """CLI ready generate keeps JSON-only readiness behavior for setup failures."""
+    tmp, root = _make_project(include_target=False)
+    with tmp:
+        result = _cli_runner.invoke(
+            dry_run.app,
+            ["ready", "generate", "--project-root", str(root)],
+        )
+        assert result.exit_code == 0
+        output = json.loads(result.stdout)
+        assert output["ready"] is False
+        assert output["project"]["code"] == "TARGET_NOT_CONFIGURED"
+
+
+def test_cli_ready_refactor_missing_sandbox_preserves_zero_exit() -> None:
+    """CLI ready refactor keeps JSON-only readiness behavior for setup failures."""
+    tmp, root = _make_project(include_sandbox=False)
+    with tmp:
+        result = _cli_runner.invoke(
+            dry_run.app,
+            ["ready", "refactor", "--project-root", str(root)],
+        )
+        assert result.exit_code == 0
+        output = json.loads(result.stdout)
+        assert output["ready"] is False
+        assert output["project"]["code"] == "SANDBOX_NOT_CONFIGURED"
+
+
 # ── CLI: status subcommand ───────────────────────────────────────────────────
 
 
