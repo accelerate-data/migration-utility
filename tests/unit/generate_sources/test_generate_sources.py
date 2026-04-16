@@ -6,6 +6,7 @@ Tests import shared.generate_sources directly for fast, fixture-based execution.
 from __future__ import annotations
 
 import json
+import os
 import subprocess
 import tempfile
 from pathlib import Path
@@ -258,6 +259,59 @@ def test_sources_yml_includes_catalog_columns_types_and_not_null_tests() -> None
         ]
     finally:
         tmp.cleanup()
+
+
+def test_write_sources_yml_writes_enriched_yaml_idempotently(tmp_path: Path) -> None:
+    """write_sources_yml writes enriched YAML and stable repeated output."""
+    tables_dir = tmp_path / "catalog" / "tables"
+    tables_dir.mkdir(parents=True)
+    (tables_dir / "bronze.customer.json").write_text(
+        json.dumps({
+            "schema": "bronze",
+            "name": "Customer",
+            "scoping": {"status": "no_writer_found"},
+            "is_source": True,
+            "columns": [
+                {"name": "customer_id", "sql_type": "INT", "is_nullable": False},
+                {"name": "loaded_at", "sql_type": "DATETIME2", "is_nullable": False},
+            ],
+            "primary_keys": [{"constraint_name": "PK_Customer", "columns": ["customer_id"]}],
+            "profile": {"watermark": {"column": "loaded_at"}},
+        }),
+        encoding="utf-8",
+    )
+    dbt_dir = tmp_path / "dbt"
+    (dbt_dir / "models" / "staging").mkdir(parents=True)
+    subprocess.run(["git", "init"], cwd=tmp_path, capture_output=True, check=True)
+    subprocess.run(
+        ["git", "commit", "--allow-empty", "-m", "i"],
+        cwd=tmp_path,
+        capture_output=True,
+        check=True,
+        env={
+            **os.environ,
+            "GIT_AUTHOR_NAME": "t",
+            "GIT_AUTHOR_EMAIL": "t@t",
+            "GIT_COMMITTER_NAME": "t",
+            "GIT_COMMITTER_EMAIL": "t@t",
+            "HOME": str(Path.home()),
+        },
+    )
+
+    first = write_sources_yml(tmp_path)
+    assert first.path is not None
+    sources_path = Path(first.path)
+    first_content = sources_path.read_text(encoding="utf-8")
+
+    second = write_sources_yml(tmp_path)
+    assert second.path == first.path
+    assert sources_path.read_text(encoding="utf-8") == first_content
+    assert "&id" not in first_content
+    assert "*id" not in first_content
+    assert "data_type: INT" in first_content
+    assert "- not_null" in first_content
+    assert "- unique" in first_content
+    assert "loaded_at_field: loaded_at" in first_content
 
 
 def test_sources_yml_uses_profile_watermark_for_freshness_when_column_exists() -> None:
