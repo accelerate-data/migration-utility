@@ -42,11 +42,20 @@ _SANDBOX_DOWN_OUT = SandboxDownOutput(sandbox_database="__test_abc123", status="
 
 def test_setup_sandbox_runs_sandbox_up(tmp_path):
     _write_manifest(tmp_path)
+    manifest = {
+        "runtime": {
+            "sandbox": {
+                "technology": "sql_server",
+                "dialect": "tsql",
+                "connection": {},
+            }
+        }
+    }
     mock_backend = MagicMock()
     mock_backend.sandbox_up.return_value = _SANDBOX_UP_OUT
 
     with (
-        patch("shared.cli.setup_sandbox_cmd._load_manifest", return_value={}),
+        patch("shared.cli.setup_sandbox_cmd._load_manifest", return_value=manifest),
         patch("shared.cli.setup_sandbox_cmd._get_sandbox_technology", return_value="sql_server"),
         patch("shared.cli.setup_sandbox_cmd.require_sandbox_vars"),
         patch("shared.cli.setup_sandbox_cmd._write_sandbox_connection_to_manifest", return_value={}),
@@ -111,6 +120,8 @@ def test_setup_sandbox_surfaces_status_errors_without_provisioning(tmp_path):
             }
         }
     }
+    manifest_path = tmp_path / "manifest.json"
+    before = manifest_path.read_bytes()
     mock_backend = MagicMock()
     mock_backend.sandbox_status.return_value = SandboxStatusOutput(
         sandbox_database="__test_existing",
@@ -128,7 +139,6 @@ def test_setup_sandbox_surfaces_status_errors_without_provisioning(tmp_path):
         patch("shared.cli.setup_sandbox_cmd._load_manifest", return_value=manifest),
         patch("shared.cli.setup_sandbox_cmd._get_sandbox_technology", return_value="sql_server"),
         patch("shared.cli.setup_sandbox_cmd.require_sandbox_vars"),
-        patch("shared.cli.setup_sandbox_cmd._write_sandbox_connection_to_manifest", return_value=manifest),
         patch("shared.cli.setup_sandbox_cmd._create_backend", return_value=mock_backend),
         patch("shared.cli.setup_sandbox_cmd._get_schemas", return_value=["silver"]),
         patch("shared.cli.setup_sandbox_cmd._write_sandbox_to_manifest") as mock_write_sandbox,
@@ -141,6 +151,7 @@ def test_setup_sandbox_surfaces_status_errors_without_provisioning(tmp_path):
     mock_backend.sandbox_reset.assert_not_called()
     mock_backend.sandbox_up.assert_not_called()
     mock_write_sandbox.assert_not_called()
+    assert manifest_path.read_bytes() == before
 
 
 def test_setup_sandbox_creates_new_when_canonical_sandbox_not_found(tmp_path):
@@ -277,12 +288,21 @@ def _patch_pyodbc_programming():
 
 def test_setup_sandbox_shows_clean_error_on_db_failure(tmp_path):
     _FakePyodbcProgramming, driver_patch = _patch_pyodbc_programming()
+    manifest = {
+        "runtime": {
+            "sandbox": {
+                "technology": "sql_server",
+                "dialect": "tsql",
+                "connection": {},
+            }
+        }
+    }
     mock_backend = MagicMock()
     mock_backend.sandbox_up.side_effect = _FakePyodbcProgramming("login failed")
 
     with (
         driver_patch,
-        patch("shared.cli.setup_sandbox_cmd._load_manifest", return_value={}),
+        patch("shared.cli.setup_sandbox_cmd._load_manifest", return_value=manifest),
         patch("shared.cli.setup_sandbox_cmd._get_sandbox_technology", return_value="sql_server"),
         patch("shared.cli.setup_sandbox_cmd.require_sandbox_vars"),
         patch("shared.cli.setup_sandbox_cmd._write_sandbox_connection_to_manifest", return_value={}),
@@ -299,11 +319,20 @@ def test_setup_sandbox_shows_clean_error_on_db_failure(tmp_path):
 def test_setup_sandbox_calls_require_sandbox_vars(tmp_path):
     """setup-sandbox must call require_sandbox_vars with the sandbox technology."""
     _write_manifest(tmp_path)
+    manifest = {
+        "runtime": {
+            "sandbox": {
+                "technology": "sql_server",
+                "dialect": "tsql",
+                "connection": {},
+            }
+        }
+    }
     mock_backend = MagicMock()
     mock_backend.sandbox_up.return_value = _SANDBOX_UP_OUT
 
     with (
-        patch("shared.cli.setup_sandbox_cmd._load_manifest", return_value={}),
+        patch("shared.cli.setup_sandbox_cmd._load_manifest", return_value=manifest),
         patch("shared.cli.setup_sandbox_cmd._get_sandbox_technology", return_value="sql_server"),
         patch("shared.cli.setup_sandbox_cmd.require_sandbox_vars") as mock_require,
         patch("shared.cli.setup_sandbox_cmd._write_sandbox_connection_to_manifest", return_value={}),
@@ -320,11 +349,20 @@ def test_setup_sandbox_calls_require_sandbox_vars(tmp_path):
 def test_setup_sandbox_writes_connection_to_manifest(tmp_path):
     """setup-sandbox must write sandbox connection to manifest before creating backend."""
     _write_manifest(tmp_path)
+    manifest = {
+        "runtime": {
+            "sandbox": {
+                "technology": "sql_server",
+                "dialect": "tsql",
+                "connection": {},
+            }
+        }
+    }
     mock_backend = MagicMock()
     mock_backend.sandbox_up.return_value = _SANDBOX_UP_OUT
 
     with (
-        patch("shared.cli.setup_sandbox_cmd._load_manifest", return_value={}),
+        patch("shared.cli.setup_sandbox_cmd._load_manifest", return_value=manifest),
         patch("shared.cli.setup_sandbox_cmd._get_sandbox_technology", return_value="sql_server"),
         patch("shared.cli.setup_sandbox_cmd.require_sandbox_vars"),
         patch("shared.cli.setup_sandbox_cmd._write_sandbox_connection_to_manifest", return_value={}) as mock_write,

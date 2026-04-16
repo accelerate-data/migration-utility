@@ -58,10 +58,10 @@ def _get_configured_sandbox_name(manifest: dict[str, Any]) -> str | None:
     return None
 
 
-def _write_sandbox_connection_to_manifest(
-    root: Path, manifest: dict[str, Any], technology: str
+def _build_sandbox_connection_manifest(
+    manifest: dict[str, Any], technology: str
 ) -> dict[str, Any]:
-    """Read SANDBOX_* env vars and write runtime.sandbox.connection into manifest.json."""
+    """Return a manifest with refreshed sandbox connection metadata."""
     sandbox_role = get_runtime_role(manifest, "sandbox")
     if sandbox_role is None:
         raise ValueError("manifest.json is missing runtime.sandbox")
@@ -93,7 +93,14 @@ def _write_sandbox_connection_to_manifest(
         connection=connection,
         schemas=sandbox_role.schemas,
     )
-    updated_manifest = set_runtime_role(manifest, "sandbox", updated_role)
+    return set_runtime_role(manifest, "sandbox", updated_role)
+
+
+def _write_sandbox_connection_to_manifest(
+    root: Path, manifest: dict[str, Any], technology: str
+) -> dict[str, Any]:
+    """Read SANDBOX_* env vars and write runtime.sandbox.connection into manifest.json."""
+    updated_manifest = _build_sandbox_connection_manifest(manifest, technology)
     manifest_path = root / "manifest.json"
     manifest_path.write_text(
         json.dumps(updated_manifest, indent=2, ensure_ascii=False) + "\n",
@@ -121,7 +128,7 @@ def setup_sandbox(
     manifest = _load_manifest(root)
     technology = _get_sandbox_technology(manifest)
     require_sandbox_vars(technology)
-    manifest = _write_sandbox_connection_to_manifest(root, manifest, technology)
+    manifest = _build_sandbox_connection_manifest(manifest, technology)
 
     schemas = _get_schemas(manifest)
 
@@ -186,6 +193,7 @@ def setup_sandbox(
                 error(f"[{entry.code}] {entry.message}")
         raise typer.Exit(code=1)
 
+    _write_sandbox_connection_to_manifest(root, manifest, technology)
     _write_sandbox_to_manifest(root, result.sandbox_database)
 
     print_table(
