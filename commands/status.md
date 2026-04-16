@@ -65,11 +65,12 @@ The `batch-plan` command returns:
 
 ```json
 {
-  "summary": {"total_objects": 10, "tables": 7, "views": 3, "mvs": 0, "writerless_tables": 1, "excluded_count": 0, "source_tables": 0, "source_pending": 0},
+  "summary": {"total_objects": 10, "tables": 7, "views": 3, "mvs": 0, "writerless_tables": 1, "excluded_count": 0, "source_tables": 0, "source_pending": 0, "seed_tables": 0},
   "scope_phase": [{"fqn": "...", "type": "table", "pipeline_status": "scope_needed", "has_dbt_model": false, "direct_deps": [], "blocking_deps": [], "diagnostics": [], "diagnostic_stage_flags": {}}],
   "profile_phase": [],
   "migrate_batches": [{"batch": 0, "objects": []}],
   "completed_objects": [],
+  "seed_tables": [{"fqn": "...", "type": "table", "reason": "is_seed"}],
   "n_a_objects": [{"fqn": "...", "type": "table", "reason": "writerless"}],
   "excluded_objects": [{"fqn": "...", "type": "table", "note": "excluded from pipeline"}],
   "source_tables": [], "source_pending": [], "circular_refs": [],

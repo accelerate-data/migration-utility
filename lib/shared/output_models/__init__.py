@@ -36,6 +36,7 @@ _MODEL_MODULES = {
     "ObjectStatus": "dry_run",
     "SourcePending": "dry_run",
     "SourceTable": "dry_run",
+    "SeedTable": "dry_run",
     "StageStatuses": "dry_run",
     "StatusOutput": "dry_run",
     "StatusSummary": "dry_run",
