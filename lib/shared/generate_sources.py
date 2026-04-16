@@ -84,6 +84,38 @@ def list_confirmed_source_tables(project_root: Path) -> list[str]:
     return included
 
 
+def _column_data_type(column: dict[str, Any]) -> str | None:
+    value = column.get("sql_type") or column.get("data_type") or column.get("type")
+    if value is None:
+        return None
+    text = str(value).strip()
+    return text or None
+
+
+def _append_test(tests: list[Any], test: Any) -> None:
+    if test not in tests:
+        tests.append(test)
+
+
+def _build_source_columns(cat: dict[str, Any]) -> list[dict[str, Any]]:
+    columns: list[dict[str, Any]] = []
+    for column in cat.get("columns", []):
+        name = column.get("name")
+        if not name:
+            continue
+        entry: dict[str, Any] = {"name": str(name)}
+        data_type = _column_data_type(column)
+        if data_type:
+            entry["data_type"] = data_type
+        tests: list[Any] = []
+        if column.get("is_nullable") is False:
+            _append_test(tests, "not_null")
+        if tests:
+            entry["tests"] = tests
+        columns.append(entry)
+    return columns
+
+
 def generate_sources(
     project_root: Path,
     *,
@@ -130,8 +162,8 @@ def generate_sources(
         source_schema_override,
     )
 
-    # logical schema_name → list of table names
-    sources_by_schema: dict[str, list[str]] = {}
+    # logical schema_name → list of catalog table dicts
+    sources_by_schema: dict[str, list[dict[str, Any]]] = {}
 
     for table_file in sorted(tables_dir.glob("*.json")):
         try:
@@ -154,7 +186,7 @@ def generate_sources(
             continue
         if cat.get("is_source") is True:
             included.append(fqn)
-            sources_by_schema.setdefault(schema, []).append(name)
+            sources_by_schema.setdefault(schema, []).append(cat)
         elif status == "resolved":
             excluded.append(fqn)
         elif status == "no_writer_found":
@@ -173,10 +205,20 @@ def generate_sources(
 
     source_entries = []
     for schema_name in sorted(sources_by_schema):
-        tables = [
-            {"name": t, "description": f"{t} from source system"}
-            for t in sorted(sources_by_schema[schema_name])
-        ]
+        tables = []
+        for cat in sorted(
+            sources_by_schema[schema_name],
+            key=lambda item: str(item.get("name", "")).lower(),
+        ):
+            table_name = str(cat.get("name", ""))
+            table_entry: dict[str, Any] = {
+                "name": table_name,
+                "description": f"{table_name} from source system",
+            }
+            columns = _build_source_columns(cat)
+            if columns:
+                table_entry["columns"] = columns
+            tables.append(table_entry)
         source_entry: dict[str, Any] = {
             "name": schema_name,
             "description": f"Source tables from {schema_name} schema",

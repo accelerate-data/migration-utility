@@ -232,6 +232,34 @@ def test_excluded_table_with_is_source_not_in_sources() -> None:
         tmp.cleanup()
 
 
+def test_sources_yml_includes_catalog_columns_types_and_not_null_tests() -> None:
+    """Confirmed source tables emit catalog columns with type metadata and not_null tests."""
+    tmp, root = _make_project([
+        {
+            "schema": "silver",
+            "name": "Customer",
+            "scoping": {"status": "no_writer_found"},
+            "is_source": True,
+            "columns": [
+                {"name": "customer_id", "sql_type": "INT", "is_nullable": False},
+                {"name": "email", "data_type": "NVARCHAR(255)", "is_nullable": True},
+                {"name": "status", "type": "VARCHAR(20)", "is_nullable": False},
+            ],
+        },
+    ])
+    try:
+        result = generate_sources(root)
+        assert result.sources is not None
+        table = result.sources["sources"][0]["tables"][0]
+        assert table["columns"] == [
+            {"name": "customer_id", "data_type": "INT", "tests": ["not_null"]},
+            {"name": "email", "data_type": "NVARCHAR(255)"},
+            {"name": "status", "data_type": "VARCHAR(20)", "tests": ["not_null"]},
+        ]
+    finally:
+        tmp.cleanup()
+
+
 def test_write_sources_yml_creates_file(tmp_path) -> None:
     """write_sources_yml writes the file and returns the path."""
     tables_dir = tmp_path / "catalog" / "tables"
