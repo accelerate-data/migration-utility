@@ -67,6 +67,27 @@ class _FakeSqlConn:
         return None
 
 
+class _RecordingSqlCursor(_FakeSqlCursor):
+    def __init__(self, executed_sql: list[str]) -> None:
+        super().__init__()
+        self.executed_sql = executed_sql
+
+    def execute(self, sql: str):
+        self.executed_sql.append(sql)
+        return super().execute(sql)
+
+
+class _RecordingSqlConn:
+    def __init__(self) -> None:
+        self.executed_sql: list[str] = []
+
+    def cursor(self):
+        return _RecordingSqlCursor(self.executed_sql)
+
+    def close(self) -> None:
+        return None
+
+
 def test_run_extract_fails_loudly_on_manifest_read_error(tmp_path: Path) -> None:
     import sys
     sys.path.insert(0, str(Path(__file__).resolve().parents[3] / "lib"))
@@ -101,6 +122,24 @@ def test_sqlserver_optional_metadata_unsupported_feature_writes_empty_files(tmp_
 
     assert json.loads((tmp_path / "change_tracking.json").read_text(encoding="utf-8")) == []
     assert json.loads((tmp_path / "sensitivity.json").read_text(encoding="utf-8")) == []
+
+
+def test_sqlserver_pk_unique_query_skips_filtered_and_included_index_columns(tmp_path: Path) -> None:
+    """Unique-test metadata should only include globally unique key columns."""
+    from shared import sqlserver_extract
+
+    conn = _RecordingSqlConn()
+
+    with (
+        patch.object(sqlserver_extract, "_sql_server_connect", return_value=conn),
+        patch.object(sqlserver_extract, "_rows_to_dicts", return_value=[]),
+    ):
+        sqlserver_extract.run_sqlserver_extraction(tmp_path, database="MigrationTest", schemas=["dbo"])
+
+    pk_unique_sql = next(sql for sql in conn.executed_sql if "sys.indexes i" in sql)
+    assert "i.has_filter = 0" in pk_unique_sql
+    assert "ic.key_ordinal > 0" in pk_unique_sql
+    assert "ic.is_included_column = 0" in pk_unique_sql
 
 
 def test_sqlserver_optional_metadata_unexpected_error_raises(tmp_path: Path) -> None:
