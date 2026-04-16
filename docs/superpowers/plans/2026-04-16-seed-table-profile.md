@@ -23,7 +23,10 @@
 - `lib/shared/pipeline_status.py`: classify seed tables as not applicable when queried directly.
 - `lib/shared/batch_plan.py`: enumerate seed tables separately from source, writerless, and active pipeline objects.
 - `lib/shared/output_models/dry_run.py`: add `seed_tables` summary/list output.
+- `lib/shared/discover_support/browse.py`: add seed-table catalog listing support.
+- `lib/shared/output_models/discover.py`: surface `is_seed` in `discover show` table output.
 - `commands/profile.md`: update batch profiling command contract for seed-table skip/report behavior.
+- `skills/listing-objects/SKILL.md`: document `list seeds` alongside `list sources`.
 - `skills/profiling-table/SKILL.md`: update single-object profiling behavior for seed tables.
 - `repo-map.json`: add the new CLI command entry.
 - Tests under `tests/unit/`: cover catalog mutation, CLI routing, profile persistence, readiness, and batch output.
@@ -709,7 +712,178 @@ git add lib/shared/batch_plan.py lib/shared/output_models/dry_run.py tests/unit/
 git commit -m "VU-1094: expose seed tables in batch plans"
 ```
 
-## Task 5: Command And Skill Contracts
+## Task 5: Listing Objects Seed Filter
+
+**Files:**
+
+- Modify: `lib/shared/discover_support/browse.py`
+- Modify: `lib/shared/output_models/discover.py`
+- Modify: `skills/listing-objects/SKILL.md`
+- Test: `tests/unit/discover/test_discover.py`
+
+- [ ] **Step 1: Add failing discover list/show tests**
+
+In `tests/unit/discover/test_discover.py`, add seed-listing tests near the existing source-listing
+tests:
+
+```python
+def test_list_seeds_returns_confirmed_seeds_only() -> None:
+    with tempfile.TemporaryDirectory() as tmp:
+        root = Path(tmp)
+        _make_table_cat(
+            root,
+            "silver.seedlookup",
+            {"status": "no_writer_found"},
+            {"is_seed": True, "is_source": False},
+        )
+        _make_table_cat(
+            root,
+            "silver.dimsource",
+            {"status": "no_writer_found"},
+            {"is_source": True, "is_seed": False},
+        )
+        result = discover.run_list(root, discover.ObjectType.seeds)
+        assert result.objects == ["silver.seedlookup"]
+
+
+def test_list_seeds_skips_excluded_seed_tables() -> None:
+    with tempfile.TemporaryDirectory() as tmp:
+        root = Path(tmp)
+        _make_table_cat(
+            root,
+            "silver.seedlookup",
+            {"status": "no_writer_found"},
+            {"is_seed": True, "excluded": True},
+        )
+        result = discover.run_list(root, discover.ObjectType.seeds)
+        assert result.objects == []
+
+
+def test_show_seed_table_includes_seed_marker() -> None:
+    with tempfile.TemporaryDirectory() as tmp:
+        root = Path(tmp)
+        _make_table_cat(
+            root,
+            "silver.seedlookup",
+            {"status": "no_writer_found"},
+            {"is_seed": True, "is_source": False, "columns": [{"name": "SeedKey", "sql_type": "INT"}]},
+        )
+        result = discover.run_show(root, "silver.seedlookup")
+        assert result.is_seed is True
+        assert result.is_source is None
+```
+
+- [ ] **Step 2: Run failing discover tests**
+
+Run:
+
+```bash
+cd lib && uv run pytest ../tests/unit/discover/test_discover.py::test_list_seeds_returns_confirmed_seeds_only ../tests/unit/discover/test_discover.py::test_list_seeds_skips_excluded_seed_tables ../tests/unit/discover/test_discover.py::test_show_seed_table_includes_seed_marker -q
+```
+
+Expected: fail because `ObjectType.seeds`, seed list filtering, and `DiscoverShowOutput.is_seed`
+do not exist.
+
+- [ ] **Step 3: Implement seed listing**
+
+In `lib/shared/discover_support/browse.py`, extend `ObjectType`:
+
+```python
+class ObjectType(str, Enum):
+    tables = "tables"
+    sources = "sources"
+    seeds = "seeds"
+    procedures = "procedures"
+    views = "views"
+    functions = "functions"
+```
+
+Add a helper next to source listing behavior:
+
+```python
+def list_confirmed_seed_tables(project_root: Path) -> list[str]:
+    """Return non-excluded catalog tables explicitly marked as dbt seeds."""
+    catalog_dir = project_root / "catalog" / "tables"
+    if not catalog_dir.is_dir():
+        return []
+    seeds: list[str] = []
+    for path in sorted(catalog_dir.glob("*.json")):
+        fqn = path.stem
+        try:
+            cat = load_table_catalog(project_root, fqn)
+        except Exception:
+            continue
+        if cat is not None and cat.is_seed and not cat.excluded:
+            seeds.append(fqn)
+    return seeds
+```
+
+Then update `run_list`:
+
+```python
+    if object_type == ObjectType.sources:
+        return DiscoverListOutput(objects=list_confirmed_source_tables(project_root))
+    if object_type == ObjectType.seeds:
+        return DiscoverListOutput(objects=list_confirmed_seed_tables(project_root))
+```
+
+In `_show_table`, surface seed state distinctly:
+
+```python
+    if table_cat.is_seed:
+        result["is_seed"] = True
+```
+
+In `lib/shared/output_models/discover.py`, add:
+
+```python
+    is_seed: bool | None = None
+```
+
+immediately after `is_source`.
+
+- [ ] **Step 4: Update listing skill docs**
+
+In `skills/listing-objects/SKILL.md`, update the list argument table to include `seeds`:
+
+```md
+| `list` | `tables`, `sources`, `seeds`, `procedures`, `views`, or `functions` | Enumerate objects by type |
+```
+
+Update the list behavior section:
+
+```md
+`list sources` returns only confirmed source tables persisted as `is_source: true` in the catalog.
+`list seeds` returns only confirmed seed tables persisted as `is_seed: true` in the catalog.
+Neither result should be described as an active migration table list.
+```
+
+Update the show behavior section:
+
+```md
+If `discover show` includes `is_source: true`, surface that the table is a confirmed source.
+If `discover show` includes `is_seed: true`, surface that the table is a confirmed dbt seed.
+```
+
+- [ ] **Step 5: Run tests, markdownlint, and commit**
+
+Run:
+
+```bash
+cd lib && uv run pytest ../tests/unit/discover/test_discover.py::test_list_seeds_returns_confirmed_seeds_only ../tests/unit/discover/test_discover.py::test_list_seeds_skips_excluded_seed_tables ../tests/unit/discover/test_discover.py::test_show_seed_table_includes_seed_marker -q
+markdownlint skills/listing-objects/SKILL.md
+```
+
+Expected: pass.
+
+Commit:
+
+```bash
+git add lib/shared/discover_support/browse.py lib/shared/output_models/discover.py skills/listing-objects/SKILL.md tests/unit/discover/test_discover.py
+git commit -m "VU-1094: add seed object listing"
+```
+
+## Task 6: Command And Skill Contracts
 
 **Files:**
 
@@ -778,7 +952,7 @@ git commit -m "VU-1094: document seed profiling workflow"
 If eval fixtures changed, stage the exact changed files under `tests/evals/packages/cmd-profile/`
 in the same commit.
 
-## Task 6: Full Verification And Linear Evidence
+## Task 7: Full Verification And Linear Evidence
 
 **Files:**
 
@@ -799,7 +973,7 @@ Expected: pass.
 Run:
 
 ```bash
-markdownlint docs/design/seed-table-catalog-state/README.md docs/design/README.md commands/profile.md skills/profiling-table/SKILL.md
+markdownlint docs/design/seed-table-catalog-state/README.md docs/design/README.md commands/profile.md skills/listing-objects/SKILL.md skills/profiling-table/SKILL.md
 cd tests/evals && npm run eval:cmd-profile
 ```
 
@@ -839,7 +1013,7 @@ Update the VU-1094 main issue description by checking off only acceptance criter
 If final fixes were needed after review, stage the exact files changed by those fixes and commit:
 
 ```bash
-git add lib/shared/catalog_models.py lib/shared/output_models/writeback.py lib/shared/output_models/catalog_writer.py lib/shared/profile.py lib/shared/catalog_writer.py lib/shared/cli/add_source_table_cmd.py lib/shared/cli/add_seed_table_cmd.py lib/shared/cli/main.py lib/shared/dry_run_core.py lib/shared/pipeline_status.py lib/shared/batch_plan.py lib/shared/output_models/dry_run.py commands/profile.md skills/profiling-table/SKILL.md repo-map.json tests/unit/discover/test_discover.py tests/unit/profile/test_profile.py tests/unit/cli/test_pipeline_cmds.py tests/unit/dry_run/test_dry_run.py tests/unit/batch_plan/test_pipeline_status.py tests/unit/batch_plan/test_catalog_and_phases.py tests/unit/batch_plan/test_scheduling.py
+git add lib/shared/catalog_models.py lib/shared/output_models/writeback.py lib/shared/output_models/catalog_writer.py lib/shared/output_models/__init__.py lib/shared/profile.py lib/shared/catalog_writer.py lib/shared/discover.py lib/shared/discover_support/browse.py lib/shared/output_models/discover.py lib/shared/cli/add_source_table_cmd.py lib/shared/cli/add_seed_table_cmd.py lib/shared/cli/main.py lib/shared/dry_run_core.py lib/shared/pipeline_status.py lib/shared/batch_plan.py lib/shared/output_models/dry_run.py commands/profile.md skills/listing-objects/SKILL.md skills/profiling-table/SKILL.md repo-map.json tests/unit/discover/test_discover.py tests/unit/output_models/test_writeback_exports.py tests/unit/profile/test_profile.py tests/unit/cli/test_pipeline_cmds.py tests/unit/dry_run/test_dry_run.py tests/unit/batch_plan/test_pipeline_status.py tests/unit/batch_plan/test_catalog_and_phases.py tests/unit/batch_plan/test_scheduling.py
 git commit -m "VU-1094: finalize seed table profiling"
 ```
 
