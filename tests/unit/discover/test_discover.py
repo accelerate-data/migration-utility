@@ -134,6 +134,103 @@ def test_list_sources_skips_corrupt_catalog_files() -> None:
     assert result.objects == ["silver.dimsource"]
 
 
+def test_list_seeds_returns_confirmed_seeds_only() -> None:
+    with tempfile.TemporaryDirectory() as tmp:
+        root = Path(tmp)
+        _make_table_cat(
+            root,
+            "silver.seedlookup",
+            {"status": "no_writer_found"},
+            {"is_seed": True, "is_source": False},
+        )
+        _make_table_cat(
+            root,
+            "silver.dimsource",
+            {"status": "no_writer_found"},
+            {"is_source": True, "is_seed": False},
+        )
+        result = discover.run_list(root, discover.ObjectType.seeds)
+        assert result.objects == ["silver.seedlookup"]
+
+
+def test_list_seeds_skips_excluded_seed_tables() -> None:
+    with tempfile.TemporaryDirectory() as tmp:
+        root = Path(tmp)
+        _make_table_cat(
+            root,
+            "silver.seedlookup",
+            {"status": "no_writer_found"},
+            {"is_seed": True, "excluded": True},
+        )
+        result = discover.run_list(root, discover.ObjectType.seeds)
+        assert result.objects == []
+
+
+def test_list_seeds_honors_catalog_dir_override(monkeypatch: pytest.MonkeyPatch) -> None:
+    with tempfile.TemporaryDirectory() as tmp:
+        root = Path(tmp)
+        catalog_dir = root / "custom-catalog"
+        tables_dir = catalog_dir / "tables"
+        tables_dir.mkdir(parents=True)
+        monkeypatch.setenv("CATALOG_DIR", str(catalog_dir))
+        (tables_dir / "silver.seedlookup.json").write_text(
+            json.dumps({
+                "schema": "Silver",
+                "name": "SeedLookup",
+                "is_seed": True,
+            }),
+            encoding="utf-8",
+        )
+
+        result = discover.run_list(root, discover.ObjectType.seeds)
+
+    assert result.objects == ["silver.seedlookup"]
+
+
+def test_list_seeds_skips_corrupt_catalog_files(monkeypatch: pytest.MonkeyPatch, caplog: pytest.LogCaptureFixture) -> None:
+    with tempfile.TemporaryDirectory() as tmp:
+        root = Path(tmp)
+        catalog_dir = root / "custom-catalog"
+        tables_dir = catalog_dir / "tables"
+        tables_dir.mkdir(parents=True)
+        monkeypatch.setenv("CATALOG_DIR", str(catalog_dir))
+        (tables_dir / "silver.seedlookup.json").write_text(
+            json.dumps({
+                "schema": "Silver",
+                "name": "SeedLookup",
+                "is_seed": True,
+            }),
+            encoding="utf-8",
+        )
+        (tables_dir / "silver.seedbroken.json").write_text("{broken", encoding="utf-8")
+
+        with caplog.at_level("WARNING"):
+            result = discover.run_list(root, discover.ObjectType.seeds)
+
+    assert result.objects == ["silver.seedlookup"]
+    assert any("reason=parse_error" in record.message for record in caplog.records)
+
+
+def test_show_seed_table_includes_seed_marker() -> None:
+    with tempfile.TemporaryDirectory() as tmp:
+        root = Path(tmp)
+        ddl_dir = root / "ddl"
+        ddl_dir.mkdir()
+        (ddl_dir / "tables.sql").write_text(
+            "CREATE TABLE silver.SeedLookup (SeedKey INT NOT NULL)\nGO\n",
+            encoding="utf-8",
+        )
+        _make_table_cat(
+            root,
+            "silver.seedlookup",
+            {"status": "no_writer_found"},
+            {"is_seed": True, "is_source": False, "columns": [{"name": "SeedKey", "sql_type": "INT"}]},
+        )
+        result = discover.run_show(root, "silver.seedlookup")
+        assert result.is_seed is True
+        assert result.is_source is None
+
+
 # ── test_list_flat_procedures ─────────────────────────────────────────────
 
 
@@ -1144,6 +1241,81 @@ def test_write_source_false_resets_flag() -> None:
         assert result.is_source is False
         written = json.loads(cat_path.read_text(encoding="utf-8"))
         assert written["is_source"] is False
+
+
+def test_write_source_clears_seed_flag() -> None:
+    """run_write_source clears is_seed when marking a table as source."""
+    with tempfile.TemporaryDirectory() as tmp:
+        root = Path(tmp)
+        cat_path = _make_table_cat(
+            root,
+            "silver.lookup",
+            {"status": "no_writer_found"},
+            {"is_seed": True, "is_source": False},
+        )
+        result = discover.run_write_source(root, "silver.lookup", True)
+        written = json.loads(cat_path.read_text(encoding="utf-8"))
+        assert result.is_source is True
+        assert written["is_source"] is True
+        assert written["is_seed"] is False
+
+
+def test_write_seed_sets_seed_and_clears_source_with_profile() -> None:
+    """run_write_seed marks a table as seed and persists seed profile semantics."""
+    with tempfile.TemporaryDirectory() as tmp:
+        root = Path(tmp)
+        cat_path = _make_table_cat(
+            root,
+            "silver.lookup",
+            {"status": "no_writer_found"},
+            {"is_source": True},
+        )
+        result = discover.run_write_seed(root, "silver.lookup", True)
+        written = json.loads(cat_path.read_text(encoding="utf-8"))
+        assert result.is_seed is True
+        assert written["is_seed"] is True
+        assert written["is_source"] is False
+        assert written["profile"]["status"] == "ok"
+        assert written["profile"]["classification"]["resolved_kind"] == "seed"
+        assert written["profile"]["classification"]["source"] == "catalog"
+
+
+def test_write_seed_rejects_resolved_migration_table() -> None:
+    """run_write_seed only marks writerless catalog tables as seeds."""
+    with tempfile.TemporaryDirectory() as tmp:
+        root = Path(tmp)
+        _make_table_cat(
+            root,
+            "silver.dimcustomer",
+            {"status": "resolved", "selected_writer": "silver.usp_load_dimcustomer"},
+            {"is_source": False},
+        )
+        with pytest.raises(ValueError, match="no_writer_found"):
+            discover.run_write_seed(root, "silver.dimcustomer", True)
+
+
+def test_write_seed_false_resets_flag_without_clearing_profile() -> None:
+    """run_write_seed with value=False writes is_seed false and leaves other state alone."""
+    with tempfile.TemporaryDirectory() as tmp:
+        root = Path(tmp)
+        cat_path = _make_table_cat(
+            root,
+            "silver.lookup",
+            {"status": "no_writer_found"},
+            {
+                "is_seed": True,
+                "is_source": False,
+                "profile": {
+                    "status": "ok",
+                    "classification": {"resolved_kind": "seed", "source": "catalog"},
+                },
+            },
+        )
+        result = discover.run_write_seed(root, "silver.lookup", False)
+        written = json.loads(cat_path.read_text(encoding="utf-8"))
+        assert result.is_seed is False
+        assert written["is_seed"] is False
+        assert written["profile"]["classification"]["resolved_kind"] == "seed"
 
 
 def test_write_source_missing_catalog_raises() -> None:

@@ -66,6 +66,15 @@ class DatabaseOperations(ABC):
     ) -> None:
         """Create one physical source table for dbt source() resolution."""
 
+    @abstractmethod
+    def read_table_rows(
+        self,
+        schema_name: str,
+        table_name: str,
+        columns: list[str] | None = None,
+    ) -> tuple[list[str], list[tuple[object, ...]]]:
+        """Read table rows for dbt seed CSV export."""
+
     def _read_secret(self, env_var_name: str | None) -> str | None:
         if not env_var_name:
             return None

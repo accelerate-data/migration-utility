@@ -201,8 +201,30 @@ def run_ready(project_root: Path, stage: str, object_fqn: str | None = None) -> 
         except (json.JSONDecodeError, OSError, CatalogLoadError):
             cat = None
         if cat is not None:
+            if cat.is_seed:
+                object_detail = _object_detail(
+                    norm,
+                    obj_type,
+                    False,
+                    "not_applicable",
+                    "SEED_TABLE",
+                    not_applicable=True,
+                )
+                return DryRunOutput(
+                    stage=stage,
+                    ready=False,
+                    project=project,
+                    object=object_detail,
+                )
             if cat.is_source:
-                object_detail = _object_detail(norm, obj_type, False, "not_applicable", "SOURCE_TABLE", not_applicable=True)
+                object_detail = _object_detail(
+                    norm,
+                    obj_type,
+                    False,
+                    "not_applicable",
+                    "SOURCE_TABLE",
+                    not_applicable=True,
+                )
                 return DryRunOutput(
                     stage=stage,
                     ready=False,
@@ -354,6 +376,18 @@ def _single_object_status(
                 cat = load_table_catalog(project_root, norm_fqn)
             except (json.JSONDecodeError, OSError, CatalogLoadError):
                 cat = None
+        if cat and (cat.is_source or cat.is_seed):
+            return ObjectStatus(
+                fqn=norm_fqn,
+                type=obj_type,
+                stages=StageStatuses(
+                    scope="N/A",
+                    profile="N/A",
+                    test_gen="N/A",
+                    refactor="N/A",
+                    generate="N/A",
+                ),
+            )
         scope = _display_scope_status(cat.scoping.status if cat and cat.scoping else None)
         profile = cat.profile.status if cat and cat.profile else None
         test_gen = cat.test_gen.status if cat and cat.test_gen else None
@@ -406,7 +440,7 @@ def run_status(project_root: Path, fqn: str | None = None) -> StatusOutput | Obj
                     cat_data = _read_catalog_json(path)
                 except CatalogLoadError:
                     cat_data = {}
-                if cat_data.get("is_source"):
+                if cat_data.get("is_source") or cat_data.get("is_seed"):
                     continue
                 obj_status = _single_object_status(
                     project_root,

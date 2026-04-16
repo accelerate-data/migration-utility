@@ -1,0 +1,13 @@
+{
+  "schema": "dbo",
+  "name": "usp_load_customer",
+  "mode": "deterministic",
+  "routing_reasons": [],
+  "statements": [
+    {
+      "action": "migrate",
+      "source": "ast",
+      "sql": "INSERT INTO silver.dim_customer SELECT * FROM bronze.raw_customer"
+    }
+  ]
+}

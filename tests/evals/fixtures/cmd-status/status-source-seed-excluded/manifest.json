@@ -1,0 +1,30 @@
+{
+  "technology": "sql_server",
+  "dialect": "tsql",
+  "runtime": {
+    "source": {
+      "technology": "sql_server",
+      "dialect": "tsql",
+      "connection": {
+        "database": "AdventureWorks2022",
+        "schema": "MigrationTest"
+      }
+    },
+    "target": {
+      "technology": "sql_server",
+      "dialect": "tsql",
+      "connection": {
+        "database": "TargetDb",
+        "schema": "bronze"
+      }
+    },
+    "sandbox": {
+      "technology": "sql_server",
+      "dialect": "tsql",
+      "connection": {
+        "database": "SandboxDb",
+        "schema": "MigrationTest"
+      }
+    }
+  }
+}

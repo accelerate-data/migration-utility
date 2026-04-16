@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import json
 import logging
 from enum import Enum
 from pathlib import Path
@@ -25,6 +26,7 @@ from shared.loader import (
     load_ddl,
 )
 from shared.generate_sources import list_confirmed_source_tables
+from shared.env_config import resolve_catalog_dir
 from shared.name_resolver import normalize
 from shared.output_models.discover import (
     BasicRefs,
@@ -42,6 +44,7 @@ logger = logging.getLogger(__name__)
 class ObjectType(str, Enum):
     tables = "tables"
     sources = "sources"
+    seeds = "seeds"
     procedures = "procedures"
     views = "views"
     functions = "functions"
@@ -79,8 +82,33 @@ def run_list(project_root: Path, object_type: ObjectType) -> DiscoverListOutput:
     """Return the list subcommand result."""
     if object_type == ObjectType.sources:
         return DiscoverListOutput(objects=list_confirmed_source_tables(project_root))
+    if object_type == ObjectType.seeds:
+        return DiscoverListOutput(objects=list_confirmed_seed_tables(project_root))
     catalog, _ = _load(project_root)
     return DiscoverListOutput(objects=sorted(_bucket(catalog, object_type).keys()))
+
+
+def list_confirmed_seed_tables(project_root: Path) -> list[str]:
+    """Return non-excluded catalog tables explicitly marked as dbt seeds."""
+    tables_dir = resolve_catalog_dir(project_root) / "tables"
+    if not tables_dir.is_dir():
+        return []
+    seeds: list[str] = []
+    for path in sorted(tables_dir.glob("*.json")):
+        try:
+            cat = json.loads(path.read_text(encoding="utf-8"))
+        except (json.JSONDecodeError, UnicodeDecodeError):
+            logger.warning(
+                "event=generate_sources_skip_file path=%s reason=parse_error",
+                path,
+            )
+            continue
+        if cat.get("excluded") or cat.get("is_seed") is not True:
+            continue
+        schema = cat.get("schema", "").lower()
+        name = cat.get("name", "")
+        seeds.append(f"{schema}.{name.lower()}")
+    return seeds
 
 
 def _show_table(project_root: Path, norm: str) -> dict[str, Any]:
@@ -90,6 +118,8 @@ def _show_table(project_root: Path, norm: str) -> dict[str, Any]:
     result: dict[str, Any] = {"columns": table_cat.columns}
     if table_cat.is_source:
         result["is_source"] = True
+    if table_cat.is_seed:
+        result["is_seed"] = True
     return result
 
 

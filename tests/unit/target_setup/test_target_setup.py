@@ -10,8 +10,10 @@ import pytest
 
 from shared.target_setup import (
     apply_target_source_tables,
+    export_seed_tables,
     generate_target_sources,
     get_target_source_schema,
+    materialize_seed_tables,
     run_setup_target,
     scaffold_target_project,
     write_target_runtime_from_env,
@@ -32,6 +34,7 @@ def _seed_catalog_table(
     *,
     schema: str = "silver",
     is_source: bool = True,
+    is_seed: bool = False,
 ) -> None:
     (project_root / "catalog" / "tables").mkdir(parents=True, exist_ok=True)
     (project_root / "catalog" / "tables" / f"{schema.lower()}.{name.lower()}.json").write_text(
@@ -41,6 +44,7 @@ def _seed_catalog_table(
                 "name": name,
                 "scoping": {"status": "no_writer_found"},
                 "is_source": is_source,
+                "is_seed": is_seed,
                 "columns": [
                     {"name": "id", "sql_type": "INT", "is_nullable": False},
                     {"name": "name", "sql_type": "NVARCHAR(50)", "is_nullable": True},
@@ -202,6 +206,14 @@ def test_scaffold_target_project_writes_sql_server_profile(tmp_path: Path) -> No
     assert 'database: "TargetDB"' in profiles
 
 
+def test_scaffold_target_project_configures_seed_schema_with_profile_schema(tmp_path: Path) -> None:
+    project_root = _make_sql_server_project(tmp_path)
+    scaffold_target_project(project_root)
+    project_yml = (project_root / "dbt" / "dbt_project.yml").read_text(encoding="utf-8")
+    assert 'seed-paths: ["seeds"]' in project_yml
+    assert '+schema: "bronze"' not in project_yml
+
+
 def test_scaffold_target_project_writes_oracle_profile(tmp_path: Path) -> None:
     project_root = _make_oracle_project(tmp_path)
     scaffold_target_project(project_root)
@@ -209,6 +221,7 @@ def test_scaffold_target_project_writes_oracle_profile(tmp_path: Path) -> None:
     assert 'type: oracle' in profiles
     assert "env_var('ORACLE_TARGET_PASSWORD')" in profiles
     assert 'service: "TARGETPDB"' in profiles
+    assert 'schema: "BRONZE"' in profiles
 
 
 def test_apply_target_source_tables_creates_missing_tables_via_adapter(tmp_path: Path) -> None:
@@ -242,6 +255,66 @@ def test_apply_target_source_tables_is_idempotent(tmp_path: Path) -> None:
     assert result.existing_tables == ["bronze.Customer"]
 
 
+def test_export_seed_tables_writes_seed_csv_from_source_table(tmp_path: Path) -> None:
+    project_root = _make_sql_server_project(tmp_path)
+    _seed_catalog_table(project_root, "CustomerType", is_source=False, is_seed=True)
+    adapter = MagicMock()
+    adapter.read_table_rows.return_value = (
+        ["id", "name"],
+        [(1, "Retail"), (2, "Partner, Channel"), (3, None)],
+    )
+
+    with patch("shared.target_setup.get_dbops") as mock_get_dbops:
+        mock_get_dbops.return_value.from_role.return_value = adapter
+        result = export_seed_tables(project_root)
+
+    adapter.read_table_rows.assert_called_once_with("silver", "CustomerType", ["id", "name"])
+    seed_path = project_root / "dbt" / "seeds" / "customertype.csv"
+    assert result.files == ["dbt/seeds/customertype.csv"]
+    assert result.row_counts == {"silver.customertype": 3}
+    assert seed_path.read_text(encoding="utf-8") == (
+        "id,name\n"
+        "1,Retail\n"
+        '2,"Partner, Channel"\n'
+        "3,\n"
+    )
+
+
+def test_materialize_seed_tables_runs_dbt_seed(tmp_path: Path) -> None:
+    project_root = _make_sql_server_project(tmp_path)
+    (project_root / "dbt").mkdir()
+    completed = MagicMock(returncode=0, stdout="seeded", stderr="")
+
+    with patch("shared.target_setup.subprocess.run", return_value=completed) as mock_run:
+        result = materialize_seed_tables(project_root, ["dbt/seeds/customertype.csv"])
+
+    expected_cmd = [
+        "dbt",
+        "seed",
+        "--project-dir",
+        str(project_root / "dbt"),
+        "--profiles-dir",
+        str(project_root / "dbt"),
+        "--target",
+        "dev",
+    ]
+    mock_run.assert_called_once()
+    assert mock_run.call_args.args[0] == expected_cmd
+    assert mock_run.call_args.kwargs["cwd"] == project_root / "dbt"
+    assert result.ran is True
+    assert result.command == expected_cmd
+
+
+def test_materialize_seed_tables_skips_when_no_seed_files(tmp_path: Path) -> None:
+    project_root = _make_sql_server_project(tmp_path)
+    with patch("shared.target_setup.subprocess.run") as mock_run:
+        result = materialize_seed_tables(project_root, [])
+
+    mock_run.assert_not_called()
+    assert result.ran is False
+    assert result.command == []
+
+
 def test_run_setup_target_applies_delta_after_new_source_added(tmp_path: Path) -> None:
     project_root = _make_sql_server_project(tmp_path)
 
@@ -265,6 +338,8 @@ def test_run_setup_target_applies_delta_after_new_source_added(tmp_path: Path) -
             return_value=MagicMock(path=str(project_root / "dbt" / "models" / "staging" / "sources.yml")),
         ),
         patch("shared.target_setup.apply_target_source_tables", side_effect=[first_apply, second_apply]),
+        patch("shared.target_setup.export_seed_tables", return_value=MagicMock(files=[], row_counts={})),
+        patch("shared.target_setup.materialize_seed_tables", return_value=MagicMock(ran=False, command=[])),
     ):
         first = run_setup_target(project_root)
         second = run_setup_target(project_root)

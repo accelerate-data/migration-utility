@@ -200,6 +200,81 @@ def test_write_valid_profile_merges() -> None:
         tmp.cleanup()
 
 
+def test_write_seed_profile_allowed_for_seed_table() -> None:
+    """Seed tables can persist a seed classification profile."""
+    tmp, root = _make_writable_copy()
+    with tmp:
+        cat_path = root / "catalog" / "tables" / "silver.factsales.json"
+        cat = json.loads(cat_path.read_text(encoding="utf-8"))
+        cat["is_seed"] = True
+        cat["is_source"] = False
+        cat_path.write_text(json.dumps(cat), encoding="utf-8")
+        result = profile.run_write(
+            root,
+            "silver.FactSales",
+            {"classification": {"resolved_kind": "seed", "source": "catalog", "rationale": "Static seed data."}},
+        )
+        written = json.loads(cat_path.read_text(encoding="utf-8"))
+        assert result["table"] == "silver.factsales"
+        assert written["profile"]["status"] == "ok"
+        assert written["profile"]["classification"]["resolved_kind"] == "seed"
+
+
+def test_write_non_seed_profile_rejected_for_seed_table() -> None:
+    """Seed tables cannot be overwritten with writer-driven profile content."""
+    tmp, root = _make_writable_copy()
+    with tmp:
+        cat_path = root / "catalog" / "tables" / "silver.factsales.json"
+        cat = json.loads(cat_path.read_text(encoding="utf-8"))
+        cat["is_seed"] = True
+        cat["is_source"] = False
+        cat_path.write_text(json.dumps(cat), encoding="utf-8")
+
+        with pytest.raises(ValueError, match="seed table profiles must use seed classification"):
+            profile.run_write(
+                root,
+                "silver.FactSales",
+                {
+                    "classification": {
+                        "resolved_kind": "fact_transaction",
+                        "rationale": "Fact table.",
+                        "source": "llm",
+                    },
+                    "primary_key": {
+                        "columns": ["sale_id"],
+                        "primary_key_type": "surrogate",
+                        "source": "catalog",
+                    },
+                },
+            )
+
+
+def test_write_seed_profile_rejected_for_non_seed_table() -> None:
+    """Non-seed tables cannot be profiled with seed classification."""
+    tmp, root = _make_writable_copy()
+    with tmp:
+        with pytest.raises(ValueError, match="seed classification requires is_seed"):
+            profile.run_write(
+                root,
+                "silver.FactSales",
+                {"classification": {"resolved_kind": "seed", "source": "catalog"}},
+            )
+
+
+def test_context_rejected_for_seed_table() -> None:
+    """Seed tables do not assemble writer-driven profiling context."""
+    tmp, root = _make_writable_copy()
+    with tmp:
+        cat_path = root / "catalog" / "tables" / "silver.factsales.json"
+        cat = json.loads(cat_path.read_text(encoding="utf-8"))
+        cat["is_seed"] = True
+        cat["is_source"] = False
+        cat_path.write_text(json.dumps(cat), encoding="utf-8")
+
+        with pytest.raises(ValueError, match="seed table"):
+            profile.run_context(root, "silver.FactSales")
+
+
 # ── Write: missing required field ────────────────────────────────────────────
 
 

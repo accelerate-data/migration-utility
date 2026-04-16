@@ -1,0 +1,15 @@
+{
+  "schema": "silver",
+  "name": "seed_currency",
+  "is_seed": true,
+  "profile": {
+    "status": "ok",
+    "classification": {
+      "resolved_kind": "seed",
+      "source": "catalog"
+    }
+  },
+  "scoping": {
+    "status": "no_writer_found"
+  }
+}

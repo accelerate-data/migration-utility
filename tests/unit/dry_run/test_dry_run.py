@@ -591,6 +591,27 @@ def test_ready_source_table() -> None:
         assert result.object.code == "SOURCE_TABLE"
 
 
+def test_ready_seed_table() -> None:
+    """Seed table returns not_applicable with SEED_TABLE code."""
+    tmp, root = _make_project()
+    with tmp:
+        cat_path = root / "catalog" / "tables" / "silver.dimcustomer.json"
+        cat = json.loads(cat_path.read_text(encoding="utf-8"))
+        cat["is_source"] = False
+        cat["is_seed"] = True
+        cat["profile"] = {
+            "status": "ok",
+            "classification": {"resolved_kind": "seed", "source": "catalog"},
+        }
+        cat_path.write_text(json.dumps(cat), encoding="utf-8")
+        result = dry_run.run_ready(root, "profile", object_fqn="silver.DimCustomer")
+        assert isinstance(result, DryRunOutput)
+        assert result.ready is False
+        assert result.object is not None
+        assert result.object.reason == "not_applicable"
+        assert result.object.code == "SEED_TABLE"
+
+
 def test_ready_excluded_table() -> None:
     """Excluded table returns not_applicable."""
     tmp, root = _make_project()
@@ -723,6 +744,71 @@ def test_status_all_objects() -> None:
         # Check that silver.dimcustomer is in the list
         fqns = [obj.fqn for obj in result.objects]
         assert "silver.dimcustomer" in fqns
+
+
+def test_status_all_objects_excludes_seed_tables() -> None:
+    """Bulk status excludes seed tables from active migration stage counts."""
+    tmp, root = _make_project()
+    with tmp:
+        cat_path = root / "catalog" / "tables" / "silver.dimcustomer.json"
+        cat = json.loads(cat_path.read_text(encoding="utf-8"))
+        cat["is_source"] = False
+        cat["is_seed"] = True
+        cat["profile"] = {
+            "status": "ok",
+            "classification": {"resolved_kind": "seed", "source": "catalog"},
+        }
+        cat_path.write_text(json.dumps(cat), encoding="utf-8")
+
+        result = dry_run.run_status(root)
+
+    fqns = [obj.fqn for obj in result.objects]
+    assert "silver.dimcustomer" not in fqns
+
+
+def test_status_source_table_detail_is_workflow_exempt() -> None:
+    """Single-object status reports source tables as workflow-exempt."""
+    tmp, root = _make_project()
+    with tmp:
+        cat_path = root / "catalog" / "tables" / "silver.dimcustomer.json"
+        cat = json.loads(cat_path.read_text(encoding="utf-8"))
+        cat["is_source"] = True
+        cat_path.write_text(json.dumps(cat), encoding="utf-8")
+
+        result = dry_run.run_status(root, "silver.DimCustomer")
+
+    assert result.fqn == "silver.dimcustomer"
+    assert result.type == "table"
+    assert result.stages.scope == "N/A"
+    assert result.stages.profile == "N/A"
+    assert result.stages.test_gen == "N/A"
+    assert result.stages.refactor == "N/A"
+    assert result.stages.generate == "N/A"
+
+
+def test_status_seed_table_detail_is_workflow_exempt() -> None:
+    """Single-object status reports seed tables as workflow-exempt."""
+    tmp, root = _make_project()
+    with tmp:
+        cat_path = root / "catalog" / "tables" / "silver.dimcustomer.json"
+        cat = json.loads(cat_path.read_text(encoding="utf-8"))
+        cat["is_source"] = False
+        cat["is_seed"] = True
+        cat["profile"] = {
+            "status": "ok",
+            "classification": {"resolved_kind": "seed", "source": "catalog"},
+        }
+        cat_path.write_text(json.dumps(cat), encoding="utf-8")
+
+        result = dry_run.run_status(root, "silver.DimCustomer")
+
+    assert result.fqn == "silver.dimcustomer"
+    assert result.type == "table"
+    assert result.stages.scope == "N/A"
+    assert result.stages.profile == "N/A"
+    assert result.stages.test_gen == "N/A"
+    assert result.stages.refactor == "N/A"
+    assert result.stages.generate == "N/A"
 
 
 def test_status_all_objects_skips_summary_count_for_missing_status_shape(monkeypatch: pytest.MonkeyPatch) -> None:

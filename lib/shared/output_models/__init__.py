@@ -36,8 +36,13 @@ _MODEL_MODULES = {
     "ObjectStatus": "dry_run",
     "SourcePending": "dry_run",
     "SourceTable": "dry_run",
+    "SeedTable": "dry_run",
     "StageStatuses": "dry_run",
     "StatusOutput": "dry_run",
+    "StatusDiagnosticRow": "dry_run",
+    "StatusNextAction": "dry_run",
+    "StatusPipelineRow": "dry_run",
+    "StatusSummaryDashboard": "dry_run",
     "StatusSummary": "dry_run",
     "SyncExcludedWarningsOutput": "dry_run",
     "GenerateSourcesOutput": "generate_sources",
@@ -106,6 +111,7 @@ _MODEL_MODULES = {
     "UntestableBranch": "test_specs",
     "ValidationSection": "test_specs",
     "WriteSliceOutput": "writeback",
+    "WriteSeedOutput": "writeback",
     "WriteSourceOutput": "writeback",
 }
 

@@ -275,6 +275,8 @@ def generate_sources(
 
         if cat.get("excluded"):
             continue
+        if cat.get("is_seed") is True:
+            continue
         if cat.get("is_source") is True:
             included.append(fqn)
             sources_by_schema.setdefault(schema, []).append(cat)

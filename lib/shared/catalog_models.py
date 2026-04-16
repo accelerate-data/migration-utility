@@ -336,6 +336,7 @@ class TableCatalog(BaseModel):
     generate: GenerateSection | None = None
     excluded: bool = False
     is_source: bool = False
+    is_seed: bool = False
     ddl_hash: str | None = None
     stale: bool = False
     warnings: list[Any] = []
