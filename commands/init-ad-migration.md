@@ -44,7 +44,7 @@ ad-migration --version
 ad-migration doctor drivers --project-root . --json
 ```
 
-If `ad-migration doctor drivers` fails here, stop. This checks the public CLI runtime that will later execute setup commands. Failure guidance must say: "Fix the public CLI package or Homebrew formula resources so this driver is bundled with the installed ad-migration runtime." Do not tell the user to mutate the brewed virtualenv.
+If `ad-migration doctor drivers` fails here, apply the public CLI driver doctor failure policy below.
 
 If Homebrew is not available on the user's machine, tell them:
 
@@ -52,6 +52,10 @@ If Homebrew is not available on the user's machine, tell them:
 > Then re-run `/init-ad-migration`.
 
 Do not continue if `ad-migration --version` or `ad-migration doctor drivers` still fails after installation.
+
+### Public CLI driver doctor failure policy
+
+`ad-migration doctor drivers` checks the public CLI runtime that will later execute setup commands. If it fails, stop before handing the user to `ad-migration setup-target` or `ad-migration setup-sandbox`. Failure guidance must say: "Fix the public CLI package or Homebrew formula resources so this driver is bundled with the installed ad-migration runtime." Do not tell the user to run `pip install`, `uv pip install`, or otherwise mutate the brewed virtualenv.
 
 ## Step 2: Runtime selection
 
@@ -102,7 +106,7 @@ Do NOT install or change anything yet — only gather evidence for items not alr
 6. `direnv version` — is direnv installed? This is optional; mark as `—` if missing.
 7. `ad-migration doctor drivers --project-root . --json` — are all supported backend Python drivers importable from the public CLI runtime?
 
-Run the public CLI driver doctor after source/target runtime selection, even if it already passed immediately after Homebrew installation. Do not continue to `ad-migration setup-target` or `ad-migration setup-sandbox` if it fails. Failure guidance must say: "Fix the public CLI package or Homebrew formula resources so this driver is bundled with the installed ad-migration runtime." Do not tell the user to mutate the brewed virtualenv.
+Run the public CLI driver doctor after source/target runtime selection, even if it already passed immediately after Homebrew installation. If it fails, apply the public CLI driver doctor failure policy.
 
 ### Source runtime prerequisites
 
@@ -250,7 +254,7 @@ These internal/plugin uv checks must remain in place; they validate agent and in
 ad-migration doctor drivers --project-root . --json
 ```
 
-This command validates the installed public `ad-migration` runtime. If it fails, stop before handing the user to `ad-migration setup-target` or `ad-migration setup-sandbox`. Tell maintainers to fix the public CLI package or Homebrew formula resources so the driver is bundled; do not tell end users to run `pip install`, `uv pip install`, or otherwise mutate the brewed virtualenv.
+This command validates the installed public `ad-migration` runtime. If it fails, apply the public CLI driver doctor failure policy.
 
 **ddl_mcp fails** (after shared sync): re-run the ddl_mcp check. If it still fails, show the error output to the user and tell them to check their Python environment.
 
