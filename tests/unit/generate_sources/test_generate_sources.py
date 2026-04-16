@@ -65,6 +65,22 @@ def test_no_writer_found_without_flag_goes_to_unconfirmed() -> None:
         tmp.cleanup()
 
 
+def test_seed_table_ignored_not_unconfirmed() -> None:
+    """Seed tables are not treated as pending source decisions."""
+    tmp, root = _make_project([
+        {"schema": "silver", "name": "Lookup",
+         "scoping": {"status": "no_writer_found"}, "is_seed": True},
+    ])
+    try:
+        result = generate_sources(root)
+        assert "silver.lookup" not in result.included
+        assert "silver.lookup" not in result.unconfirmed
+        assert "silver.lookup" not in result.incomplete
+        assert result.sources is None
+    finally:
+        tmp.cleanup()
+
+
 def test_resolved_table_excluded() -> None:
     """Resolved table (has writer) goes to excluded list."""
     tmp, root = _make_project([

@@ -1280,6 +1280,20 @@ def test_write_seed_sets_seed_and_clears_source_with_profile() -> None:
         assert written["profile"]["classification"]["source"] == "catalog"
 
 
+def test_write_seed_rejects_resolved_migration_table() -> None:
+    """run_write_seed only marks writerless catalog tables as seeds."""
+    with tempfile.TemporaryDirectory() as tmp:
+        root = Path(tmp)
+        _make_table_cat(
+            root,
+            "silver.dimcustomer",
+            {"status": "resolved", "selected_writer": "silver.usp_load_dimcustomer"},
+            {"is_source": False},
+        )
+        with pytest.raises(ValueError, match="no_writer_found"):
+            discover.run_write_seed(root, "silver.dimcustomer", True)
+
+
 def test_write_seed_false_resets_flag_without_clearing_profile() -> None:
     """run_write_seed with value=False writes is_seed false and leaves other state alone."""
     with tempfile.TemporaryDirectory() as tmp:
