@@ -1,0 +1,11 @@
+{
+  "schema": "silver",
+  "name": "dim_customer",
+  "scoping": {
+    "status": "resolved",
+    "selected_writer": "dbo.usp_load_customer"
+  },
+  "profile": {
+    "status": "ok"
+  }
+}

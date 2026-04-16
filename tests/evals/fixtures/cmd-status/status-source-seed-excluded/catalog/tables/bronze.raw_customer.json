@@ -1,0 +1,8 @@
+{
+  "schema": "bronze",
+  "name": "raw_customer",
+  "is_source": true,
+  "scoping": {
+    "status": "no_writer_found"
+  }
+}

@@ -13,7 +13,7 @@
 //   expected_first_command?,    — command that should appear first among actionable commands
 //   expected_na_object?,        — FQN that should appear with N/A status
 //   expected_view_objects?,     — comma-separated view FQNs that should appear in output
-//   expected_reviewed_warnings_hidden?, — numeric hidden reviewed warning count
+//   expected_resolved_warnings?, — numeric resolved warning count
 // }
 
 const { normalizeTerms } = require('./schema-helpers');
@@ -128,16 +128,14 @@ module.exports = (output, context) => {
     }
   }
 
-  if (context.vars.expected_reviewed_warnings_hidden) {
-    const count = String(context.vars.expected_reviewed_warnings_hidden).trim();
-    const reviewedPattern = new RegExp(
-      `${count}\\s+reviewed\\s+warnings?\\s+hidden\\b`
-    );
-    if (!reviewedPattern.test(outputStr)) {
+  if (context.vars.expected_resolved_warnings) {
+    const count = String(context.vars.expected_resolved_warnings).trim();
+    const resolvedPattern = new RegExp(`${count}\\s+resolved\\b`);
+    if (!resolvedPattern.test(outputStr)) {
       return {
         pass: false,
         score: 0,
-        reason: `Expected reviewed warnings hidden count '${count}' not found in output`,
+        reason: `Expected resolved warning count '${count}' not found in output`,
       };
     }
   }

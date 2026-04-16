@@ -38,4 +38,3 @@ def test_snapshot_preserves_seed_flag_for_table_catalogs(tmp_path: Path) -> None
     restored = json.loads(table_path.read_text(encoding="utf-8"))
     assert restored["is_seed"] is True
     assert restored["is_source"] is False
-

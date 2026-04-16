@@ -185,6 +185,61 @@ class CatalogDiagnostics(BaseModel):
     errors: list[CatalogDiagnosticEntry]
 
 
+StatusStageCell = Literal[
+    "ok",
+    "pending",
+    "blocked",
+    "setup-blocked",
+    "warning",
+    "error",
+    "N/A",
+]
+
+
+class StatusPipelineRow(BaseModel):
+    model_config = OUTPUT_CONFIG
+
+    fqn: str
+    type: Literal["table", "view", "mv"]
+    scope: StatusStageCell
+    profile: StatusStageCell
+    test_gen: StatusStageCell
+    refactor: StatusStageCell
+    migrate: StatusStageCell
+
+
+class StatusDiagnosticRow(BaseModel):
+    model_config = OUTPUT_CONFIG
+
+    fqn: str
+    type: Literal["table", "view", "mv"]
+    errors_unresolved: int = 0
+    warnings_unresolved: int = 0
+    warnings_resolved: int = 0
+    details_command: str
+
+
+class StatusNextAction(BaseModel):
+    model_config = OUTPUT_CONFIG
+
+    kind: Literal["command", "diagnostics", "none"]
+    command: str | None = None
+    reason: str
+
+
+class StatusSummaryDashboard(BaseModel):
+    model_config = OUTPUT_CONFIG
+
+    pipeline_rows: list[StatusPipelineRow] = Field(default_factory=list)
+    diagnostic_rows: list[StatusDiagnosticRow] = Field(default_factory=list)
+    next_action: StatusNextAction = Field(
+        default_factory=lambda: StatusNextAction(
+            kind="none",
+            reason="no_action",
+        ),
+    )
+
+
 class BatchSummary(BaseModel):
     model_config = OUTPUT_CONFIG
 
@@ -203,6 +258,7 @@ class BatchPlanOutput(BaseModel):
     model_config = OUTPUT_CONFIG
 
     summary: BatchSummary
+    status_summary: StatusSummaryDashboard = Field(default_factory=StatusSummaryDashboard)
     scope_phase: list[ObjectNode]
     profile_phase: list[ObjectNode]
     migrate_batches: list[MigrateBatch]
