@@ -131,7 +131,7 @@ module.exports = (output, context) => {
   if (context.vars.expected_reviewed_warnings_hidden) {
     const count = String(context.vars.expected_reviewed_warnings_hidden).trim();
     const reviewedPattern = new RegExp(
-      `${count}\\s+reviewed\\s+warnings?\\s+hidden\\s+(?:-|—|–)\\s+inspect\\s+\`?catalog/diagnostic-reviews\\.json\`?`
+      `${count}\\s+reviewed\\s+warnings?\\s+hidden\\b`
     );
     if (!reviewedPattern.test(outputStr)) {
       return {

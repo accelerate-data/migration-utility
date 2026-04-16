@@ -24,6 +24,37 @@ Use the canonical `/status` code list in [../lib/shared/status_error_codes.md](.
 - **Test generation setup comes first.** Whenever an object or batch is at `test_gen_needed`, run `migrate-util ready test-gen` before recommending any next command. If readiness returns `TARGET_NOT_CONFIGURED` or `SANDBOX_NOT_CONFIGURED`, make the matching setup command (`!ad-migration setup-target` or `!ad-migration setup-sandbox`) the only actionable command in the response. Do not name the blocked test-generation command in follow-up prose until setup readiness passes; naming that command before setup is ready is still a recommendation. Say "rerun `/status` after setup" instead. This overrides every other status, dependency, and note rule.
 - **Reviewed diagnostics stay hidden.** Use only `batch-plan`'s visible `catalog_diagnostics.errors` and `catalog_diagnostics.warnings` arrays for diagnostic listings and triage. If `catalog_diagnostics.reviewed_warnings_hidden > 0`, show only the hidden-count line from Step 6. Do not inspect or summarize `catalog/diagnostic-reviews.json` unless the user explicitly asks. Do not reveal hidden reviewed warning codes, messages, affected objects, rationales, review file contents, or derived explanations based on those hidden details in `/status`. If an object is writerless while a related reviewed warning is hidden, say only that no suitable writer is available.
 
+## Deterministic Result Ranking
+
+For a table-specific `/status <table>` request, compute the recommendation from
+deterministic CLI results in this priority order:
+
+| Rank | Deterministic result | Controls |
+|---|---|---|
+| 1 | `batch-plan.catalog_diagnostics.total_errors` | Diagnostic fixes before any pipeline command |
+| 2 | Matching `batch-plan` node `pipeline_status` | First incomplete stage and candidate command |
+| 3 | `ready test-gen` JSON, when `pipeline_status == "test_gen_needed"` | Whether setup-target/setup-sandbox blocks `/generate-tests` |
+| 4 | `migrate-util status <table>` JSON | Detail text for stages that are not overridden above |
+| 5 | Files on disk, test specs, dbt files, refactor artifacts, source notes | Context only; never command selection |
+
+When the matching `batch-plan` node has `pipeline_status == "test_gen_needed"`,
+always run:
+
+```bash
+migrate-util ready test-gen --project-root <project-root> --object <table>
+```
+
+Then apply this decision table:
+
+| `ready test-gen` result | Stage display | Only actionable command |
+|---|---|---|
+| `project.code == "TARGET_NOT_CONFIGURED"` | `test-gen` not ready; later stages blocked | `!ad-migration setup-target` |
+| `project.code == "SANDBOX_NOT_CONFIGURED"` | `test-gen` not ready; later stages blocked | `!ad-migration setup-sandbox` |
+| readiness true | `test-gen` pending; later stages blocked | `/generate-tests <table>` |
+
+Do not use status-detail sections, test specs, dbt files, refactor artifacts, or
+source-table notes to override this table.
+
 ## Pipeline — No table argument (batch summary)
 
 ### Step 1 — Enumerate objects
@@ -81,8 +112,13 @@ The `batch-plan` command returns:
 The `ready` command returns:
 
 ```json
-{"ready": true, "reason": "ok", "code": null}
+{"stage": "test-gen", "ready": false, "project": {"ready": false, "reason": "target_not_configured", "code": "TARGET_NOT_CONFIGURED"}}
 ```
+
+For test-generation readiness, read the blocking setup code from
+`project.code`. Do not treat the target or sandbox as ready when top-level
+`ready` is missing, or when either top-level `ready` or `project.ready` is
+`false`.
 
 The `exclude` command returns:
 
@@ -261,15 +297,15 @@ For warnings that require human/agent review rather than immediate rerun command
 If `catalog_diagnostics.reviewed_warnings_hidden > 0`, add:
 
 ```text
-N reviewed warnings hidden - inspect catalog/diagnostic-reviews.json for rationale.
+N reviewed warnings hidden.
 ```
 
 Render that line exactly, replacing `N` with the numeric hidden-warning count.
 Do not list hidden reviewed warning codes, messages, affected objects, or
 rationales in `/status`; by definition those warnings have been acknowledged
 and should remain hidden unless the user opens `catalog/diagnostic-reviews.json`.
-Do not inspect or summarize `catalog/diagnostic-reviews.json` during `/status`.
-The path is a pointer for the user, not an instruction to reveal its contents.
+Do not inspect, summarize, mention, or point to `catalog/diagnostic-reviews.json`
+during `/status`.
 
 ### Step 7 — Sources staleness check
 
@@ -359,19 +395,9 @@ uv run --project "${CLAUDE_PLUGIN_ROOT}/packages/ad-migration-internal" migrate-
 ```
 
 This returns a single object's stage statuses. For each stage, the status value and the actual catalog section content are included for the detail view.
-Use the matching node from `batch-plan` as the authority for the first incomplete stage and next command. Do not infer that a stage is complete from file existence or later artifacts when `migrate-util status <table>` omits that stage. If the node's `pipeline_status` is `test_gen_needed`, the first incomplete stage is `test-gen`; show `test-gen` as pending and recommend test generation after the readiness check.
-
-If this status output shows `test-gen` as the first incomplete stage or the next
-recommended phase, run the readiness check before rendering the final answer:
-
-```bash
-uv run --project "${CLAUDE_PLUGIN_ROOT}/packages/ad-migration-internal" migrate-util ready test-gen --project-root {{run_path}} --object <table>
-```
-
-The readiness JSON is authoritative for whether test generation can run now. If
-readiness is not `ok`, show the readiness failure on the `test-gen` stage and in
-the recommendation even when catalog sections, test specs, dbt files, or
-refactor artifacts already exist.
+Use the Deterministic Result Ranking table above as the authority for the first
+incomplete stage, stage display, and next command. Do not infer that a stage is
+complete from file existence or later artifacts when `batch-plan` says otherwise.
 
 ### Step 2 — Present per-stage breakdown
 
@@ -407,11 +433,16 @@ status for silver.DimCustomer
 ```
 
 For the first failing stage, explain what prerequisite is missing and suggest the specific command to run.
+The stage marker (`✓`, pending, blocked, or not ready) must come from the
+Deterministic Result Ranking table, not from artifact detail files. When
+`batch-plan` says `pipeline_status == "test_gen_needed"`, do not render
+`test-gen ✓` or `readiness: ready` unless the `ready test-gen` JSON has passed.
 
 If the stage status indicates not applicable, show it as `N/A` and continue to the next stage.
 Do not surface internal scope-completion labels like `resolved` or `analyzed` in the `/status` display; completed scope is always shown as `ok`.
 
-For completed stages, show the key signals from the status detail content:
+For completed stages that are not overridden by the Deterministic Result
+Ranking table, show the key signals from the status detail content:
 
 - **scope (table):** status, selected_writer, candidate count, statement resolution counts
 - **scope (view):** status, is_materialized_view, logic_summary, references summary
@@ -429,29 +460,20 @@ For completed stages, show the key signals from the status detail content:
 
 ### Step 3 — Recommend next action
 
-Based on the first incomplete stage from the matching `batch-plan` node, recommend the specific command to run next for this table. The `pipeline_status` value controls the command even if the single-object status output or files on disk appear to contain later-stage artifacts.
+Based on the first incomplete stage from the matching `batch-plan` node,
+recommend the specific command to run next for this table. The `pipeline_status`
+value controls the command even if the single-object status output or files on
+disk appear to contain later-stage artifacts.
 
-If the first incomplete stage is `test-gen`, treat readiness as a strict
-priority order and do not recommend the test-generation command until it is
-`ok`.
-You MUST run `migrate-util ready test-gen --project-root <project-root> --object
-<fqn>` for the table in focus and use that JSON as authoritative. Do not
-infer test-gen readiness from catalog sections, test specs, refactor status, or
-dbt files. If the code is `TARGET_NOT_CONFIGURED`, recommend `!ad-migration
-setup-target` and stop. If the code is `SANDBOX_NOT_CONFIGURED`, recommend
-`!ad-migration setup-sandbox` and stop. In either setup case, the recommendation
-section must contain only the setup command. Do not name the blocked
-test-generation command in follow-up prose. Tell the user to rerun `/status`
-after setup instead.
-
-If readiness returns `TARGET_NOT_CONFIGURED`, use:
+When `pipeline_status == "test_gen_needed"`, apply the Deterministic Result
+Ranking decision table above. For a target setup block, use:
 
 ```text
 Target is not ready for test generation.
 !ad-migration setup-target
 ```
 
-If readiness returns `SANDBOX_NOT_CONFIGURED`, use:
+For a sandbox setup block, use:
 
 ```text
 Sandbox is not ready for test generation.
