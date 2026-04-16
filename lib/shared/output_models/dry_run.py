@@ -214,7 +214,6 @@ class StatusDiagnosticRow(BaseModel):
     fqn: str
     type: Literal["table", "view", "mv"]
     errors_unresolved: int = 0
-    errors_resolved: int = 0
     warnings_unresolved: int = 0
     warnings_resolved: int = 0
     details_command: str

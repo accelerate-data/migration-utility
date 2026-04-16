@@ -22,6 +22,13 @@ argument-hint: "[schema.table]"
 | Commands | Stage work uses slash commands. Never print `!ad-migration generate-tests`. |
 | Harness | Do not print command plans, fixture analysis, or harness-mode notes. |
 
+## Mode Selection
+
+| Invocation | Mode |
+|---|---|
+| `/status` with no object argument | Summary mode |
+| `/status <schema.table>` with an object argument | Detail mode |
+
 ## Run Commands
 
 | Mode | Required commands |
@@ -71,9 +78,19 @@ Summary next action:
 |---|---|---|
 | Find row | `status_summary.pipeline_rows[]` | Match requested object case-insensitively. This row controls displayed stage cells. |
 | Find object | batch-plan object collections | Match requested object case-insensitively. This object controls `pipeline_status`. |
+| Source or seed object | `batch-plan.source_tables[]` or `batch-plan.seed_tables[]` | Use the Workflow-Exempt Detail table, then stop. Do not recommend pipeline commands. |
 | Stage rows | Stage Display table | One row each for `scope`, `profile`, `test-gen`, `refactor`, `migrate`. |
 | Diagnostics | Diagnostic Callout table | Append callouts only to the matching stage line. |
 | Next action | Detail Next Action table | Print exactly one next action. |
+
+Workflow-exempt detail:
+
+| Field | Output |
+|---|---|
+| Status token | Print literal `workflow-exempt`. |
+| Stage rows | `scope: N/A`, `profile: N/A`, `test-gen: N/A`, `refactor: N/A`, `migrate: N/A`. |
+| Next action | `No action is currently available.` |
+| Forbidden output | `/scope-tables`, `/profile-tables`, `/generate-tests`, `/refactor-query`, `/generate-model`, `Run this command now?` |
 
 Stage display:
 
@@ -122,7 +139,6 @@ Test-gen next action:
 | `pipeline_row.test_gen == "setup-blocked"` and `ready.project.code == "TARGET_NOT_CONFIGURED"` | `test-gen: setup-blocked` | `!ad-migration setup-target` | `/generate-tests`, `ready`, `ready to proceed`, `ready for generation` |
 | `pipeline_row.test_gen == "setup-blocked"` and `ready.project.code == "SANDBOX_NOT_CONFIGURED"` | `test-gen: setup-blocked` | `!ad-migration setup-sandbox` | `/generate-tests`, `ready`, `ready to proceed`, `ready for generation` |
 | `ready.ready == true` | `test-gen: pending` | `/generate-tests <schema.table>` | `!ad-migration generate-tests` |
-| sandbox status says `.env` password exists but is not loaded | `test-gen: setup-blocked` | Tell user to restart Claude from the migration project after direnv loads the environment, then rerun `/status`. | `!ad-migration setup-sandbox`, `/generate-tests` |
 | any other readiness failure | keep CLI stage cell | Report the readiness error briefly. | `/generate-tests` |
 
 ## Forbidden Inferences

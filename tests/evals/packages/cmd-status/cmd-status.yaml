@@ -97,6 +97,21 @@ tests:
       expected_na_object: "silver.RefCurrency"
       expected_view_objects: "silver.vDimSalesTerritory,silver.vw_DimPromotion"
 
+  # ── status-source-seed-excluded: source/seed omitted from summary ─────
+  - description: "status-source-seed-excluded — source and seed tables stay out of summary pipeline rows"
+    vars:
+      fixture_path: "tests/evals/fixtures/cmd-status/status-source-seed-excluded"
+      expected_output_terms: "silver.dim_customer,scope,profile,test-gen"
+      unexpected_output_terms: "bronze.raw_customer,silver.seed_currency"
+
+  # ── status-source-detail-exempt: source object detail is N/A ─────
+  - description: "status-source-detail-exempt — source table detail reports workflow-exempt status"
+    vars:
+      fixture_path: "tests/evals/fixtures/cmd-status/status-source-seed-excluded"
+      target_table: "bronze.raw_customer"
+      expected_output_terms: "workflow-exempt,N/A,scope,profile,test-gen"
+      unexpected_output_terms: "/scope-tables,/profile-tables,/generate-tests,/refactor-query,/generate-model"
+
   # ── status-diagnostic: PARSE_ERROR shows ! indicator ────────────
   - description: "status-diagnostic — DimCurrency PARSE_ERROR renders summary error cell"
     vars:

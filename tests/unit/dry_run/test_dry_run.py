@@ -766,6 +766,51 @@ def test_status_all_objects_excludes_seed_tables() -> None:
     assert "silver.dimcustomer" not in fqns
 
 
+def test_status_source_table_detail_is_workflow_exempt() -> None:
+    """Single-object status reports source tables as workflow-exempt."""
+    tmp, root = _make_project()
+    with tmp:
+        cat_path = root / "catalog" / "tables" / "silver.dimcustomer.json"
+        cat = json.loads(cat_path.read_text(encoding="utf-8"))
+        cat["is_source"] = True
+        cat_path.write_text(json.dumps(cat), encoding="utf-8")
+
+        result = dry_run.run_status(root, "silver.DimCustomer")
+
+    assert result.fqn == "silver.dimcustomer"
+    assert result.type == "table"
+    assert result.stages.scope == "N/A"
+    assert result.stages.profile == "N/A"
+    assert result.stages.test_gen == "N/A"
+    assert result.stages.refactor == "N/A"
+    assert result.stages.generate == "N/A"
+
+
+def test_status_seed_table_detail_is_workflow_exempt() -> None:
+    """Single-object status reports seed tables as workflow-exempt."""
+    tmp, root = _make_project()
+    with tmp:
+        cat_path = root / "catalog" / "tables" / "silver.dimcustomer.json"
+        cat = json.loads(cat_path.read_text(encoding="utf-8"))
+        cat["is_source"] = False
+        cat["is_seed"] = True
+        cat["profile"] = {
+            "status": "ok",
+            "classification": {"resolved_kind": "seed", "source": "catalog"},
+        }
+        cat_path.write_text(json.dumps(cat), encoding="utf-8")
+
+        result = dry_run.run_status(root, "silver.DimCustomer")
+
+    assert result.fqn == "silver.dimcustomer"
+    assert result.type == "table"
+    assert result.stages.scope == "N/A"
+    assert result.stages.profile == "N/A"
+    assert result.stages.test_gen == "N/A"
+    assert result.stages.refactor == "N/A"
+    assert result.stages.generate == "N/A"
+
+
 def test_status_all_objects_skips_summary_count_for_missing_status_shape(monkeypatch: pytest.MonkeyPatch) -> None:
     """Bulk status should not crash if a single-object probe returns StatusOutput."""
     tmp, root = _make_project()

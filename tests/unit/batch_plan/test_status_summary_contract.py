@@ -139,10 +139,16 @@ def test_status_summary_diagnostics_counts_without_messages(tmp_path: Path) -> N
         "message": "proc also writes dim.other",
         "severity": "warning",
     }
+    active_error = {
+        "code": "PARSE_ERROR",
+        "message": "DDL failed to parse near token",
+        "severity": "error",
+    }
     _write_table(
         table_dir / "dim.dim_address.json",
         "dim.dim_address",
         {
+            "errors": [active_error],
             "warnings": [active_warning, resolved_warning],
             "scoping": {"status": "no_writer_found"},
         },
@@ -165,8 +171,11 @@ def test_status_summary_diagnostics_counts_without_messages(tmp_path: Path) -> N
     result = build_batch_plan(tmp_path)
 
     assert result.status_summary.diagnostic_rows[0].fqn == "dim.dim_address"
+    assert result.status_summary.diagnostic_rows[0].errors_unresolved == 1
     assert result.status_summary.diagnostic_rows[0].warnings_unresolved == 1
     assert result.status_summary.diagnostic_rows[0].warnings_resolved == 1
+    assert result.status_summary.diagnostic_rows[0].details_command == "/status dim.dim_address"
     serialized = result.status_summary.model_dump_json()
+    assert "DDL failed to parse near token" not in serialized
     assert "active warning still needs review" not in serialized
     assert "proc also writes dim.other" not in serialized

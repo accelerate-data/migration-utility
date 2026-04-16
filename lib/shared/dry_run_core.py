@@ -376,6 +376,18 @@ def _single_object_status(
                 cat = load_table_catalog(project_root, norm_fqn)
             except (json.JSONDecodeError, OSError, CatalogLoadError):
                 cat = None
+        if cat and (cat.is_source or cat.is_seed):
+            return ObjectStatus(
+                fqn=norm_fqn,
+                type=obj_type,
+                stages=StageStatuses(
+                    scope="N/A",
+                    profile="N/A",
+                    test_gen="N/A",
+                    refactor="N/A",
+                    generate="N/A",
+                ),
+            )
         scope = _display_scope_status(cat.scoping.status if cat and cat.scoping else None)
         profile = cat.profile.status if cat and cat.profile else None
         test_gen = cat.test_gen.status if cat and cat.test_gen else None
