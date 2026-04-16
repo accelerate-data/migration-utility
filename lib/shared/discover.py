@@ -13,6 +13,7 @@ from shared.catalog import resolve_catalog_path
 from shared.catalog_writer import (
     run_write_scoping,
     run_write_source,
+    run_write_seed,
     run_write_statements,
     run_write_table_slice,
     run_write_view_scoping,

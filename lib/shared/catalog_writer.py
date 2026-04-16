@@ -22,9 +22,10 @@ from shared.catalog import (
     write_proc_table_slice,
 )
 from shared.loader import CatalogFileMissingError
-from shared.catalog_models import StatementEntry, TableScopingSection, ViewScopingSection
+from shared.catalog_models import StatementEntry, TableProfileSection, TableScopingSection, ViewScopingSection
 from shared.name_resolver import normalize
-from shared.output_models.writeback import WriteSliceOutput, WriteSourceOutput
+from shared.output_models.writeback import WriteSeedOutput, WriteSliceOutput, WriteSourceOutput
+from shared.profile import build_seed_profile
 
 logger = logging.getLogger(__name__)
 
@@ -145,6 +146,8 @@ def run_write_source(
         )
 
     result = load_and_merge_catalog(project_root, table_norm, "is_source", value)
+    if value:
+        result = load_and_merge_catalog(project_root, table_norm, "is_seed", False)
 
     logger.info(
         "event=write_source_complete component=catalog_writer operation=run_write_source "
@@ -154,6 +157,41 @@ def run_write_source(
     )
 
     return WriteSourceOutput(written=result["catalog_path"], is_source=value, status="ok")
+
+
+def run_write_seed(
+    project_root: Path,
+    table_fqn: str,
+    value: bool,
+) -> WriteSeedOutput:
+    """Set or clear the is_seed flag on a table catalog file."""
+    table_norm = normalize(table_fqn)
+    cat_model = load_table_catalog(project_root, table_norm)
+    if cat_model is None:
+        raise CatalogFileMissingError("table", table_norm)
+
+    if cat_model.scoping is None:
+        raise ValueError(
+            f"Table {table_norm!r} has not been analyzed yet. "
+            "Run /analyzing-table first."
+        )
+
+    result = load_and_merge_catalog(project_root, table_norm, "is_seed", value)
+    if value:
+        result = load_and_merge_catalog(project_root, table_norm, "is_source", False)
+        seed_profile = build_seed_profile()
+        seed_profile["status"] = "ok"
+        TableProfileSection.model_validate(seed_profile)
+        result = load_and_merge_catalog(project_root, table_norm, "profile", seed_profile)
+
+    logger.info(
+        "event=write_seed_complete component=catalog_writer operation=run_write_seed "
+        "table=%s is_seed=%s status=success",
+        table_norm,
+        value,
+    )
+
+    return WriteSeedOutput(written=result["catalog_path"], is_seed=value, status="ok")
 
 
 def run_write_table_slice(

@@ -15,6 +15,14 @@ class WriteSourceOutput(BaseModel):
     status: Literal["ok"]
 
 
+class WriteSeedOutput(BaseModel):
+    model_config = OUTPUT_CONFIG
+
+    written: str
+    is_seed: bool
+    status: Literal["ok"]
+
+
 class WriteSliceOutput(BaseModel):
     model_config = OUTPUT_CONFIG
 
