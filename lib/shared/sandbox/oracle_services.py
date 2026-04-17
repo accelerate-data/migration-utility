@@ -25,12 +25,11 @@ import re
 import uuid
 from collections.abc import Generator
 from contextlib import contextmanager
+from pathlib import PurePosixPath
 from typing import TYPE_CHECKING, Any
 
 if TYPE_CHECKING:
     import oracledb
-
-import sqlglot
 
 from shared.output_models.sandbox import (
     ErrorEntry,
@@ -39,7 +38,6 @@ from shared.output_models.sandbox import (
     SandboxUpOutput,
     TestHarnessExecuteOutput,
 )
-from pathlib import PurePosixPath
 
 from shared.sandbox.base import (
     SandboxBackend,
@@ -48,6 +46,7 @@ from shared.sandbox.base import (
     build_execute_error,
     build_execute_output,
     capture_rows as _capture_rows_base,
+    generate_sandbox_name,
     validate_fixture_rows,
     validate_readonly_sql as _validate_readonly_sql_base,
 )
@@ -75,15 +74,19 @@ logger = logging.getLogger(__name__)
 # Oracle 23ai allows identifiers up to 128 bytes.
 _ORA_IDENTIFIER_RE = re.compile(r"^[a-zA-Z_$#][a-zA-Z0-9_$#]*$")
 _ORA_SANDBOX_NAME_RE = re.compile(r"^SBX_[A-F0-9]{12}$")
+# ORA-65011: pluggable database does not exist
+# ORA-65020: pluggable database already closed
+_ORA_DROP_IGNORABLE_CODES: frozenset[int] = frozenset((65011, 65020))
 
 
 def _generate_oracle_pdb_name() -> str:
-    """Generate an Oracle-safe PDB name: ``SBX_<12 uppercase hex>``.
+    """Generate an Oracle-safe PDB name via ``generate_sandbox_name()``.
 
-    Oracle rejects PDB names starting with ``__`` (ORA-65000), so PDBs use
-    this generator instead of the generic ``generate_sandbox_name()``.
+    Oracle rejects PDB names starting with ``__`` (ORA-65000), so
+    ``generate_sandbox_name()`` was updated to produce ``SBX_<12 uppercase hex>``
+    which is safe for both Oracle PDBs and SQL Server databases.
     """
-    return f"SBX_{uuid.uuid4().hex[:12].upper()}"
+    return generate_sandbox_name()
 
 
 def _validate_oracle_identifier(name: str) -> None:
@@ -442,9 +445,6 @@ class _OracleSandboxCore(SandboxBackend):
         PDB names are valid unquoted identifiers — no double-quoting needed.
         """
         _validate_oracle_sandbox_name(sandbox_name)
-        # ORA-65011: pluggable database does not exist
-        # ORA-65020: pluggable database already closed
-        _IGNORABLE_ORA_CODES = frozenset((65011, 65020))
         try:
             with self._connect_cdb() as conn:
                 cursor = conn.cursor()
@@ -457,7 +457,7 @@ class _OracleSandboxCore(SandboxBackend):
             logger.info("event=oracle_sandbox_pdb_dropped sandbox=%s", sandbox_name)
         except _import_oracledb().DatabaseError as exc:
             ora_code = getattr(exc.args[0], "code", 0) if exc.args else 0
-            if ora_code not in _IGNORABLE_ORA_CODES:
+            if ora_code not in _ORA_DROP_IGNORABLE_CODES:
                 raise
             logger.debug(
                 "event=oracle_sandbox_pdb_drop_ignored sandbox=%s ora_code=%s",

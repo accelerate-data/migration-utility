@@ -200,6 +200,9 @@ class OracleLifecycleService:
                 source_cursor = source_conn.cursor()
                 self._backend._create_sandbox_schema(sandbox_cursor, source_schema)
 
+                # PDB-level isolation: the schema created inside the sandbox PDB
+                # uses the same name as the source schema, so sandbox_schema and
+                # source_schema are intentionally the same here.
                 t_cloned, t_errors = self._backend._clone_tables(
                     source_cursor, sandbox_cursor, source_schema, source_schema,
                 )
