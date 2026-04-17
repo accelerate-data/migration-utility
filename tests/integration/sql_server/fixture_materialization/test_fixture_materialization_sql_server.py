@@ -23,6 +23,7 @@ from tests.helpers import (
     SQL_SERVER_FIXTURE_SILVER_PATTERN_PROC,
 )
 from tests.integration.runtime_helpers import (
+    _require_env,
     build_sql_server_connection_string,
     sql_server_is_available,
 )
@@ -73,12 +74,12 @@ def _build_sql_server_fixture_role() -> RuntimeRole:
         technology="sql_server",
         dialect="tsql",
         connection=RuntimeConnection(
-            host=os.environ.get("MSSQL_HOST", "localhost"),
-            port=os.environ.get("MSSQL_PORT", "1433"),
+            host=_require_env("MSSQL_HOST"),
+            port=_require_env("MSSQL_PORT"),
             database=SQL_SERVER_FIXTURE_DATABASE,
             schema=SQL_SERVER_FIXTURE_SCHEMA,
-            user=os.environ.get("MSSQL_USER", "sa"),
-            driver=os.environ.get("MSSQL_DRIVER", "FreeTDS"),
+            user=_require_env("MSSQL_USER"),
+            driver=_require_env("MSSQL_DRIVER"),
             password_env="SA_PASSWORD",
         ),
     )

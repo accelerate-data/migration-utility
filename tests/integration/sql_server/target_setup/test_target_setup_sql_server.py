@@ -18,6 +18,7 @@ from shared.db_connect import build_sql_server_connection_string
 from shared.target_setup import run_setup_target
 from tests.helpers import SQL_SERVER_FIXTURE_DATABASE, SQL_SERVER_FIXTURE_SCHEMA
 from tests.integration.runtime_helpers import (
+    _require_env,
     ensure_sql_server_migration_test_materialized,
     sql_server_is_available,
 )
@@ -47,12 +48,12 @@ def _require_sql_server_target_env() -> None:
 def _target_connection(database: str | None = None):
     return pyodbc.connect(
         build_sql_server_connection_string(
-            host=os.environ.get("TARGET_MSSQL_HOST", os.environ.get("MSSQL_HOST", "localhost")),
-            port=os.environ.get("TARGET_MSSQL_PORT", os.environ.get("MSSQL_PORT", "1433")),
+            host=os.environ.get("TARGET_MSSQL_HOST", _require_env("MSSQL_HOST")),
+            port=os.environ.get("TARGET_MSSQL_PORT", _require_env("MSSQL_PORT")),
             database=database or os.environ.get("TARGET_MSSQL_DB", SQL_SERVER_FIXTURE_DATABASE),
-            user=os.environ.get("TARGET_MSSQL_USER", os.environ.get("MSSQL_USER", "sa")),
+            user=os.environ.get("TARGET_MSSQL_USER", _require_env("MSSQL_USER")),
             password=os.environ["TARGET_MSSQL_PASSWORD"],
-            driver=os.environ.get("MSSQL_DRIVER", "FreeTDS"),
+            driver=_require_env("MSSQL_DRIVER"),
         ),
         autocommit=True,
     )
@@ -60,7 +61,7 @@ def _target_connection(database: str | None = None):
 
 def _ensure_target_database() -> str:
     database = os.environ.get("TARGET_MSSQL_DB", SQL_SERVER_FIXTURE_DATABASE)
-    with _target_connection(os.environ.get("MSSQL_ADMIN_DATABASE", "master")) as conn:
+    with _target_connection(_require_env("MSSQL_ADMIN_DATABASE")) as conn:
         cursor = conn.cursor()
         cursor.execute("SELECT DB_ID(?)", database)
         if cursor.fetchone()[0] is None:
@@ -95,12 +96,12 @@ def _write_manifest(project_root: Path, target_database: str) -> None:
                 "technology": "sql_server",
                 "dialect": "tsql",
                 "connection": {
-                    "host": os.environ.get("SOURCE_MSSQL_HOST", os.environ.get("MSSQL_HOST", "localhost")),
-                    "port": os.environ.get("SOURCE_MSSQL_PORT", os.environ.get("MSSQL_PORT", "1433")),
+                    "host": os.environ.get("SOURCE_MSSQL_HOST", _require_env("MSSQL_HOST")),
+                    "port": os.environ.get("SOURCE_MSSQL_PORT", _require_env("MSSQL_PORT")),
                     "database": os.environ.get("SOURCE_MSSQL_DB", SQL_SERVER_FIXTURE_DATABASE),
                     "schema": SQL_SERVER_FIXTURE_SCHEMA,
-                    "user": os.environ.get("SOURCE_MSSQL_USER", os.environ.get("MSSQL_USER", "sa")),
-                    "driver": os.environ.get("MSSQL_DRIVER", "FreeTDS"),
+                    "user": os.environ.get("SOURCE_MSSQL_USER", _require_env("MSSQL_USER")),
+                    "driver": _require_env("MSSQL_DRIVER"),
                     "password_env": "SOURCE_MSSQL_PASSWORD",
                 },
             },
@@ -108,11 +109,11 @@ def _write_manifest(project_root: Path, target_database: str) -> None:
                 "technology": "sql_server",
                 "dialect": "tsql",
                 "connection": {
-                    "host": os.environ.get("TARGET_MSSQL_HOST", os.environ.get("MSSQL_HOST", "localhost")),
-                    "port": os.environ.get("TARGET_MSSQL_PORT", os.environ.get("MSSQL_PORT", "1433")),
+                    "host": os.environ.get("TARGET_MSSQL_HOST", _require_env("MSSQL_HOST")),
+                    "port": os.environ.get("TARGET_MSSQL_PORT", _require_env("MSSQL_PORT")),
                     "database": target_database,
-                    "user": os.environ.get("TARGET_MSSQL_USER", os.environ.get("MSSQL_USER", "sa")),
-                    "driver": os.environ.get("MSSQL_DRIVER", "FreeTDS"),
+                    "user": os.environ.get("TARGET_MSSQL_USER", _require_env("MSSQL_USER")),
+                    "driver": _require_env("MSSQL_DRIVER"),
                     "password_env": "TARGET_MSSQL_PASSWORD",
                 },
                 "schemas": {"source": "bronze"},

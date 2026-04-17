@@ -1,16 +1,19 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-: "${MSSQL_HOST:=localhost}"
-: "${MSSQL_PORT:=1433}"
-: "${MSSQL_DB:=AdventureWorks2022}"
-: "${MSSQL_SCHEMA:=MigrationTest}"
-: "${MSSQL_USER:=sa}"
+_require_var() {
+  if [[ -z "${!1:-}" ]]; then
+    echo "Required environment variable $1 is not set. Check .envrc and .env" >&2
+    exit 1
+  fi
+}
 
-if [[ -z "${SA_PASSWORD:-}" ]]; then
-  echo "SA_PASSWORD must be set" >&2
-  exit 1
-fi
+_require_var MSSQL_HOST
+_require_var MSSQL_PORT
+_require_var MSSQL_DB
+_require_var MSSQL_SCHEMA
+_require_var MSSQL_USER
+_require_var SA_PASSWORD
 
 SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
 REPO_ROOT="$(cd "${SCRIPT_DIR}/../../../.." && pwd)"
@@ -73,14 +76,20 @@ except ImportError as exc:
 sql_path = Path(sys.argv[1])
 database_name = sys.argv[2]
 
+def _require_env(name):
+    value = os.environ.get(name, "")
+    if not value:
+        raise SystemExit(f"Required environment variable {name} is not set. Check .envrc and .env")
+    return value
+
 conn = pyodbc.connect(
     build_sql_server_connection_string(
-        host=os.environ.get("MSSQL_HOST", "localhost"),
-        port=os.environ.get("MSSQL_PORT", "1433"),
+        host=_require_env("MSSQL_HOST"),
+        port=_require_env("MSSQL_PORT"),
         database=database_name,
-        user=os.environ.get("MSSQL_USER", "sa"),
-        password=os.environ["SA_PASSWORD"],
-        driver=os.environ.get("MSSQL_DRIVER", "FreeTDS"),
+        user=_require_env("MSSQL_USER"),
+        password=_require_env("SA_PASSWORD"),
+        driver=_require_env("MSSQL_DRIVER"),
     ),
     autocommit=True,
 )
