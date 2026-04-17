@@ -5,8 +5,7 @@ output and sys.columns metadata, which have whitespace patterns that hand-crafte
 staging data cannot replicate.
 
 Run with: cd lib && uv run pytest ../tests/integration/sql_server/catalog_diff -v -k test_catalog_diff
-Requires: SA_PASSWORD env var and a configured SQL Server container with the
-canonical MigrationTest schema fixture materialized.
+Requires role-specific SQL Server source and sandbox env vars.
 """
 
 from __future__ import annotations
@@ -208,7 +207,7 @@ def _run_write_catalog(staging_dir: Path, project_root: Path, database: str) -> 
 
 skip_no_mssql = pytest.mark.skipif(
     not _have_mssql_env(),
-    reason="MSSQL integration DB not reachable (MSSQL_HOST, SA_PASSWORD and a listening server required)",
+    reason="SQL Server source env not configured or not reachable",
 )
 
 
@@ -217,16 +216,17 @@ class TestDiffAwareReexportIntegration:
     """End-to-end diff-aware reexport against a real SQL Server."""
 
     def _get_schemas(self, conn: pyodbc.Connection) -> str:
-        """Find schemas with at least one procedure."""
-        rows = _query_rows(conn, """
-            SELECT DISTINCT SCHEMA_NAME(o.schema_id) AS s
-            FROM sys.objects o
-            WHERE o.type = 'P'
-              AND SCHEMA_NAME(o.schema_id) NOT IN ('sys', 'INFORMATION_SCHEMA')
-        """)
-        schemas = [r["s"] for r in rows]
-        assert schemas, "No user schemas with procedures found in test DB"
-        return ",".join(schemas)
+        rows = _query_rows(
+            conn,
+            f"""
+            SELECT COUNT(*) AS object_count
+            FROM sys.objects
+            WHERE schema_id = SCHEMA_ID('{SQL_SERVER_FIXTURE_SCHEMA}')
+              AND is_ms_shipped = 0
+            """,
+        )
+        assert rows[0]["object_count"] > 0, f"No objects found in {SQL_SERVER_FIXTURE_SCHEMA}"
+        return SQL_SERVER_FIXTURE_SCHEMA
 
     def test_first_run_produces_hashes_from_real_ddl(self) -> None:
         """Verify ddl_hash is written for real OBJECT_DEFINITION() output."""

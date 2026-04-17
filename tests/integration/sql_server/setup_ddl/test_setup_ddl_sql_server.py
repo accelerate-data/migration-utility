@@ -3,7 +3,6 @@
 from __future__ import annotations
 
 import json
-import os
 
 import pytest
 
@@ -15,6 +14,7 @@ from tests.helpers import (
     SQL_SERVER_FIXTURE_SILVER_DIMCURRENCY,
     SQL_SERVER_FIXTURE_SILVER_PATTERN_PROC,
 )
+from tests.integration.runtime_helpers import ensure_sql_server_migration_test_materialized
 
 pytestmark = pytest.mark.integration
 
@@ -23,10 +23,13 @@ def _catalog_name(object_name: str) -> str:
     return f"{SQL_SERVER_FIXTURE_SCHEMA.lower()}.{object_name.lower()}.json"
 
 
+def _ensure_sql_server_fixture_materialized() -> None:
+    ensure_sql_server_migration_test_materialized()
+
+
 class TestListDatabasesIntegration:
     def test_sql_server_returns_list(self, tmp_path):
-        if not os.environ.get("MSSQL_HOST"):
-            pytest.skip("MSSQL_HOST not set")
+        _ensure_sql_server_fixture_materialized()
         (tmp_path / "manifest.json").write_text(
             '{"technology": "sql_server", "dialect": "tsql"}', encoding="utf-8"
         )
@@ -41,8 +44,7 @@ class TestListDatabasesIntegration:
 
 class TestListSchemasSqlServerIntegration:
     def test_returns_schemas_with_counts(self, tmp_path):
-        if not os.environ.get("MSSQL_HOST"):
-            pytest.skip("MSSQL_HOST not set")
+        _ensure_sql_server_fixture_materialized()
         (tmp_path / "manifest.json").write_text(
             '{"technology": "sql_server", "dialect": "tsql"}', encoding="utf-8"
         )
@@ -67,8 +69,7 @@ class TestListSchemasSqlServerIntegration:
 
 class TestExtractSqlServerIntegration:
     def test_produces_ddl_and_catalog(self, tmp_path):
-        if not os.environ.get("MSSQL_HOST"):
-            pytest.skip("MSSQL_HOST not set")
+        _ensure_sql_server_fixture_materialized()
         (tmp_path / "manifest.json").write_text(
             '{"technology": "sql_server", "dialect": "tsql"}', encoding="utf-8"
         )
@@ -92,8 +93,7 @@ class TestExtractSqlServerIntegration:
         assert manifest["runtime"]["source"]["connection"]["database"] == SQL_SERVER_FIXTURE_DATABASE
 
     def test_catalog_tables_non_empty(self, tmp_path):
-        if not os.environ.get("MSSQL_HOST"):
-            pytest.skip("MSSQL_HOST not set")
+        _ensure_sql_server_fixture_materialized()
         (tmp_path / "manifest.json").write_text(
             '{"technology": "sql_server", "dialect": "tsql"}', encoding="utf-8"
         )
@@ -111,8 +111,7 @@ class TestExtractSqlServerIntegration:
         assert _catalog_name(SQL_SERVER_FIXTURE_SILVER_DIMCURRENCY) in table_names
 
     def test_procedure_catalog_has_routing_flags(self, tmp_path):
-        if not os.environ.get("MSSQL_HOST"):
-            pytest.skip("MSSQL_HOST not set")
+        _ensure_sql_server_fixture_materialized()
         (tmp_path / "manifest.json").write_text(
             '{"technology": "sql_server", "dialect": "tsql"}', encoding="utf-8"
         )
@@ -133,8 +132,7 @@ class TestExtractSqlServerIntegration:
         assert "mode" in data, f"Procedure catalog missing 'mode' field: {data.keys()}"
 
     def test_enriched_fields_preserved_on_reextract(self, tmp_path):
-        if not os.environ.get("MSSQL_HOST"):
-            pytest.skip("MSSQL_HOST not set")
+        _ensure_sql_server_fixture_materialized()
         (tmp_path / "manifest.json").write_text(
             '{"technology": "sql_server", "dialect": "tsql"}', encoding="utf-8"
         )

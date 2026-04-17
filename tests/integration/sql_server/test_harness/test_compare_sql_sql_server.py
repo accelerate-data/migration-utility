@@ -5,11 +5,10 @@ Covers DML extraction patterns (INSERT, MERGE, UPDATE, DELETE), identity columns
 FK constraints, NULL handling, MONEY types, and transaction rollback.
 
 Run with: cd lib && uv run pytest ../tests/integration/sql_server/test_harness -v -k compare_sql
-Requires: MSSQL_HOST, SA_PASSWORD, MSSQL_DB env vars (or Docker 'sql-test' on localhost:1433).
+Requires role-specific SQL Server source and sandbox env vars or a reachable local test instance.
 """
 
 from __future__ import annotations
-import os
 from pathlib import Path
 from typing import Any
 
@@ -17,18 +16,15 @@ import pytest
 
 pyodbc = pytest.importorskip("pyodbc", reason="pyodbc not installed — skipping integration tests")
 
-from shared.fixture_materialization import materialize_migration_test
 from shared.sandbox.sql_server import SqlServerSandbox
-from shared.runtime_config_models import RuntimeConnection, RuntimeRole
-from tests.helpers import REPO_ROOT, SQL_SERVER_FIXTURE_DATABASE, SQL_SERVER_FIXTURE_SCHEMA
+from tests.helpers import SQL_SERVER_FIXTURE_SCHEMA
 from tests.integration.runtime_helpers import (
-    _require_env,
-    sql_server_is_available,
+    build_sql_server_sandbox_manifest,
+    ensure_sql_server_migration_test_materialized,
+    sql_server_sandbox_is_available,
 )
 
 pytestmark = pytest.mark.integration
-
-_SQL_SERVER_FIXTURE_READY = False
 
 BRONZE_CURRENCY = f"[{SQL_SERVER_FIXTURE_SCHEMA}].[bronze_currency]"
 BRONZE_PRODUCT = f"[{SQL_SERVER_FIXTURE_SCHEMA}].[bronze_product]"
@@ -44,72 +40,14 @@ SILVER_CONFIG = f"[{SQL_SERVER_FIXTURE_SCHEMA}].[silver_config]"
 SILVER_USP_LOAD_DIMPRODUCT = f"[{SQL_SERVER_FIXTURE_SCHEMA}].[silver_usp_load_dimproduct]"
 
 
-def _have_mssql_env() -> bool:
-    return sql_server_is_available(pyodbc)
-
-
-def _ensure_sql_server_fixture_materialized() -> None:
-    global _SQL_SERVER_FIXTURE_READY
-    if _SQL_SERVER_FIXTURE_READY:
-        return
-
-    role = RuntimeRole(
-        technology="sql_server",
-        dialect="tsql",
-        connection=RuntimeConnection(
-            host=_require_env("MSSQL_HOST"),
-            port=_require_env("MSSQL_PORT"),
-            database=SQL_SERVER_FIXTURE_DATABASE,
-            schema=SQL_SERVER_FIXTURE_SCHEMA,
-            user=_require_env("MSSQL_USER"),
-            driver=_require_env("MSSQL_DRIVER"),
-            password_env="SA_PASSWORD",
-        ),
-    )
-    result = materialize_migration_test(role, REPO_ROOT)
-    if result.returncode != 0:
-        raise RuntimeError(
-            "SQL Server MigrationTest materialization failed:\n"
-            f"stdout:\n{result.stdout}\n"
-            f"stderr:\n{result.stderr}"
-        )
-    _SQL_SERVER_FIXTURE_READY = True
-
-
 def _make_backend() -> SqlServerSandbox:
-    _ensure_sql_server_fixture_materialized()
-    return SqlServerSandbox.from_env({
-        "runtime": {
-            "source": {
-                "technology": "sql_server",
-                "dialect": "tsql",
-                "connection": {
-                    "host": _require_env("MSSQL_HOST"),
-                    "port": _require_env("MSSQL_PORT"),
-                    "database": SQL_SERVER_FIXTURE_DATABASE,
-                    "user": _require_env("MSSQL_USER"),
-                    "driver": _require_env("MSSQL_DRIVER"),
-                    "password_env": "SA_PASSWORD",
-                },
-            },
-            "sandbox": {
-                "technology": "sql_server",
-                "dialect": "tsql",
-                "connection": {
-                    "host": _require_env("MSSQL_HOST"),
-                    "port": _require_env("MSSQL_PORT"),
-                    "user": _require_env("MSSQL_USER"),
-                    "driver": _require_env("MSSQL_DRIVER"),
-                    "password_env": "SA_PASSWORD",
-                },
-            },
-        }
-    })
+    ensure_sql_server_migration_test_materialized()
+    return SqlServerSandbox.from_env(build_sql_server_sandbox_manifest())
 
 
 skip_no_mssql = pytest.mark.skipif(
-    not _have_mssql_env(),
-    reason="MSSQL integration DB not reachable (MSSQL_HOST, SA_PASSWORD and a listening server required)",
+    not sql_server_sandbox_is_available(pyodbc),
+    reason="SQL Server sandbox env not configured or not reachable",
 )
 
 
