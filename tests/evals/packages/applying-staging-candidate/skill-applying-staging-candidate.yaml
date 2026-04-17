@@ -1,0 +1,35 @@
+# yaml-language-server: $schema=https://promptfoo.dev/config-schema.json
+description: "Applying-staging-candidate skill -- candidate-scoped staging execution"
+
+prompts:
+  - id: applying-staging-candidate
+    label: applying-staging-candidate
+    raw: file://../../prompts/skill-applying-staging-candidate.txt
+
+extensions:
+  - file://../../scripts/run-workspace-extension.js:extensionHook
+
+providers:
+  - file://../../providers/haiku-120.yaml
+
+defaultTest:
+  assert:
+    - type: javascript
+      value: file://../../assertions/check-refactor-mart-stg-execution.js
+
+tests:
+  - description: "[smoke] happy path -- one staging candidate rewires multiple consumers"
+    vars:
+      fixture_path: "tests/evals/fixtures/cmd-refactor-mart/stg-happy-path"
+      plan_file: "docs/design/refactor-mart-stg-happy-path.md"
+      candidate_id: "STG-001"
+      expected_candidate_statuses: "STG-001:applied,INT-001:planned,MART-001:planned"
+      expected_output_terms: "applied,stg_bronze__orders,int_sales_orders,fct_sales"
+
+  - description: "guard -- non-staging candidate is rejected without status mutation"
+    vars:
+      fixture_path: "tests/evals/fixtures/cmd-refactor-mart/stg-happy-path"
+      plan_file: "docs/design/refactor-mart-stg-happy-path.md"
+      candidate_id: "INT-001"
+      expected_candidate_statuses: "STG-001:planned,INT-001:planned,MART-001:planned"
+      expected_output_terms: "NON_STAGING_CANDIDATE,non-staging"

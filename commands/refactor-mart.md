@@ -73,7 +73,7 @@ For `int` mode, check dependencies before applying each selected candidate:
 
 For each selected, unblocked candidate:
 
-- `stg` mode: delegate to the future staging-candidate apply workflow for
+- `stg` mode: run the `applying-staging-candidate` skill for
   `<plan-file> <candidate-id>`.
 - `int` mode: delegate to the future higher-layer candidate apply workflow for
   `<plan-file> <candidate-id>`.

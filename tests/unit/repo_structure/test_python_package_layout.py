@@ -145,6 +145,8 @@ def test_maintainer_docs_use_the_internal_project_path() -> None:
         "skills/refactoring-sql/references/context-fields.md",
         "skills/planning-refactor-mart/SKILL.md",
         "skills/planning-refactor-mart/references/plan-file-contract.md",
+        "skills/applying-staging-candidate/SKILL.md",
+        "skills/applying-staging-candidate/references/staging-validation-contract.md",
     ]
 
     for relative_path in internal_files:
@@ -181,3 +183,40 @@ def test_init_command_runs_public_driver_doctor_and_keeps_internal_checks() -> N
     assert "Fix the public CLI package or Homebrew formula resources" in init_text
     assert "stop before handing the user to `ad-migration setup-target` or `ad-migration setup-sandbox`" in init_text
     assert "Do not tell the user to run `pip install`, `uv pip install`, or otherwise mutate the brewed virtualenv" in init_text
+
+
+def test_refactor_mart_staging_execution_artifacts_exist() -> None:
+    expected_paths = [
+        "skills/applying-staging-candidate/SKILL.md",
+        "skills/applying-staging-candidate/references/staging-validation-contract.md",
+        "tests/evals/prompts/skill-applying-staging-candidate.txt",
+        "tests/evals/prompts/cmd-refactor-mart-stg.txt",
+        "tests/evals/packages/applying-staging-candidate/skill-applying-staging-candidate.yaml",
+        "tests/evals/packages/cmd-refactor-mart/cmd-refactor-mart.yaml",
+    ]
+
+    for relative_path in expected_paths:
+        assert (REPO_ROOT / relative_path).exists(), relative_path
+
+    package_json = json.loads(
+        (REPO_ROOT / "tests/evals/package.json").read_text(encoding="utf-8")
+    )
+    scripts = package_json["scripts"]
+    assert "eval:applying-staging-candidate" in scripts
+    assert "eval:cmd-refactor-mart" in scripts
+
+
+def test_refactor_mart_eval_packages_are_in_smoke() -> None:
+    package_json = json.loads(
+        (REPO_ROOT / "tests/evals/package.json").read_text(encoding="utf-8")
+    )
+    smoke_script = package_json["scripts"]["eval:smoke"]
+
+    expected_packages = [
+        "packages/planning-refactor-mart/skill-planning-refactor-mart.yaml",
+        "packages/applying-staging-candidate/skill-applying-staging-candidate.yaml",
+        "packages/cmd-refactor-mart/cmd-refactor-mart.yaml",
+    ]
+
+    for package_path in expected_packages:
+        assert package_path in smoke_script, package_path
