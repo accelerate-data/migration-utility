@@ -293,7 +293,8 @@ class TestOracleSandboxUpCleanup:
         backend._execution = MagicMock()
         backend._execution.execute_scenario.return_value = "scenario-result"
         backend._execution.execute_select.return_value = "select-result"
-        backend._execution.compare_two_sql.return_value = "compare-result"
+        backend._comparison = MagicMock()
+        backend._comparison.compare_two_sql.return_value = "compare-result"
 
         scenario = {
             "name": "case",
@@ -315,7 +316,7 @@ class TestOracleSandboxUpCleanup:
         backend._execution.execute_select.assert_called_once_with(
             "__test_existing", "SELECT 1 FROM dual", fixtures,
         )
-        backend._execution.compare_two_sql.assert_called_once_with(
+        backend._comparison.compare_two_sql.assert_called_once_with(
             "__test_existing", "SELECT 1 FROM dual", "SELECT 1 FROM dual", fixtures,
         )
 
