@@ -10,8 +10,21 @@ from shared.output_models.target_setup import SetupTargetOutput
 runner = CliRunner()
 
 _SETUP_TARGET_OUT = SetupTargetOutput(
-    files=["dbt/dbt_project.yml"],
-    sources_path="dbt/models/staging/sources.yml",
+    files=[
+        "dbt/dbt_project.yml",
+        "dbt/models/staging/_staging__sources.yml",
+        "dbt/models/staging/_staging__models.yml",
+        "dbt/models/staging/stg_bronze__dim_customer.sql",
+        "dbt/models/staging/stg_bronze__fact_sales.sql",
+    ],
+    written_paths=[
+        "dbt/dbt_project.yml",
+        "dbt/models/staging/_staging__sources.yml",
+        "dbt/models/staging/_staging__models.yml",
+        "dbt/models/staging/stg_bronze__dim_customer.sql",
+        "dbt/models/staging/stg_bronze__fact_sales.sql",
+    ],
+    sources_path="/tmp/project/dbt/models/staging/_staging__sources.yml",
     target_source_schema="bronze",
     created_tables=["silver.DimCustomer"],
     existing_tables=[],
@@ -48,7 +61,9 @@ def test_setup_target_sql_server_uses_manifest_runtime_target(tmp_path):
     assert "Updated repo state" in result.output
     assert "manifest.json" in result.output
     assert "dbt/dbt_project.yml" in result.output
-    assert "dbt/models/staging/sources.yml" in result.output
+    assert "dbt/models/staging/ - 4 files" in result.output
+    reminder = result.output.split("Updated repo state", 1)[1]
+    assert "/tmp/project" not in reminder
     assert "Review and commit the repo changes before continuing" in result.output
     assert "git add" not in result.output
     assert "git commit" not in result.output

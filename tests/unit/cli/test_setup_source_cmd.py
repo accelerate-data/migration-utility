@@ -9,8 +9,17 @@ from shared.output_models.init import ScaffoldHooksOutput, ScaffoldProjectOutput
 
 runner = CliRunner()
 
-_SCAFFOLD_OUT = ScaffoldProjectOutput(files_created=["CLAUDE.md", ".envrc"], files_updated=[], files_skipped=[])
-_HOOKS_OUT = ScaffoldHooksOutput(hook_created=True, hooks_path_configured=True)
+_SCAFFOLD_OUT = ScaffoldProjectOutput(
+    files_created=["CLAUDE.md", ".envrc"],
+    files_updated=[],
+    files_skipped=[],
+    written_paths=["CLAUDE.md", ".envrc"],
+)
+_HOOKS_OUT = ScaffoldHooksOutput(
+    hook_created=True,
+    hooks_path_configured=True,
+    written_paths=[".githooks/pre-commit"],
+)
 _EXTRACT_OUT = {
     "tables": 5,
     "procedures": 3,
@@ -64,6 +73,8 @@ def test_setup_source_sql_server_runs_extraction(tmp_path, monkeypatch):
     assert "ddl/tables.sql" in result.output
     assert "catalog/tables/silver.customer.json" in result.output
     assert "CLAUDE.md" in result.output
+    assert ".envrc" in result.output
+    assert ".githooks/pre-commit" in result.output
     assert "Review and commit the repo changes before continuing" in result.output
     assert "git add" not in result.output
     assert "git commit" not in result.output

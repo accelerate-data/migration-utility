@@ -1426,6 +1426,7 @@ def test_run_exclude_table_sets_flag(tmp_path: Path) -> None:
     result = dry_run.run_exclude(dst, ["silver.AuditLog"])
     assert result.marked == ["silver.auditlog"]
     assert result.not_found == []
+    assert result.written_paths == ["catalog/tables/silver.auditlog.json"]
     cat = json.loads((dst / "catalog" / "tables" / "silver.auditlog.json").read_text())
     assert cat.get("excluded") is True
 
@@ -1436,6 +1437,7 @@ def test_run_exclude_view_sets_flag(tmp_path: Path) -> None:
     result = dry_run.run_exclude(dst, ["silver.vw_legacy"])
     assert result.marked == ["silver.vw_legacy"]
     assert result.not_found == []
+    assert result.written_paths == ["catalog/views/silver.vw_legacy.json"]
     cat = json.loads((dst / "catalog" / "views" / "silver.vw_legacy.json").read_text())
     assert cat.get("excluded") is True
 
@@ -1446,6 +1448,10 @@ def test_run_exclude_multiple_fqns(tmp_path: Path) -> None:
     result = dry_run.run_exclude(dst, ["silver.AuditLog", "silver.vw_legacy"])
     assert sorted(result.marked) == ["silver.auditlog", "silver.vw_legacy"]
     assert result.not_found == []
+    assert sorted(result.written_paths) == [
+        "catalog/tables/silver.auditlog.json",
+        "catalog/views/silver.vw_legacy.json",
+    ]
 
 
 def test_run_exclude_not_found_reported(tmp_path: Path) -> None:
@@ -1513,6 +1519,8 @@ def test_run_reset_migration_profile_clears_downstream_and_preserves_scoping(tmp
     assert "table.test_gen" in target.cleared_sections
     assert "procedure:dbo.usp_load_dimcustomer.refactor" in target.cleared_sections
     assert target.deleted_files == ["test-specs/silver.dimcustomer.json"]
+    assert "catalog/procedures/dbo.usp_load_dimcustomer.json" in target.mutated_files
+    assert "catalog/tables/silver.dimcustomer.json" in target.mutated_files
 
     table_cat = json.loads((dst / "catalog" / "tables" / "silver.dimcustomer.json").read_text())
     assert "scoping" in table_cat
@@ -1529,6 +1537,7 @@ def test_run_reset_migration_refactor_only_clears_writer_refactor(tmp_path: Path
     result = dry_run.run_reset_migration(dst, "refactor", ["silver.DimCustomer"])
 
     assert result.reset == ["silver.dimcustomer"]
+    assert "catalog/procedures/dbo.usp_load_dimcustomer.json" in result.targets[0].mutated_files
     table_cat = json.loads((dst / "catalog" / "tables" / "silver.dimcustomer.json").read_text())
     assert "profile" in table_cat
     assert "test_gen" in table_cat

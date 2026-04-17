@@ -103,12 +103,11 @@ def setup_source(
             result = run_extract(root, database, schema_list)
 
     _report_extract(result)
-    written_paths = _repo_mutation_paths(
-        scaffold_result.files_created,
-        scaffold_result.files_updated,
-        hooks_result.hook_created,
-        result.get("written_paths", []),
-    )
+    written_paths = [
+        *scaffold_result.written_paths,
+        *hooks_result.written_paths,
+        *(str(path) for path in result.get("written_paths", [])),
+    ]
     remind_review_and_commit(written_paths)
 
 
@@ -143,23 +142,3 @@ def _report_extract(result: dict[str, Any]) -> None:
             count = len(count)
         rows.append((label, str(count)))
     print_table("Extraction Summary", rows, columns=("Object Type", "Count"))
-
-
-def _scaffold_path(entry: str) -> str:
-    return entry.split(" (", 1)[0]
-
-
-def _repo_mutation_paths(
-    files_created: list[str],
-    files_updated: list[str],
-    hook_created: bool,
-    extract_paths: list[str],
-) -> list[str]:
-    paths = [
-        *extract_paths,
-        *(_scaffold_path(path) for path in files_created),
-        *(_scaffold_path(path) for path in files_updated),
-    ]
-    if hook_created:
-        paths.append(".githooks/pre-commit")
-    return paths

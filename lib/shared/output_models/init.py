@@ -2,7 +2,7 @@
 
 from typing import Literal
 
-from pydantic import BaseModel
+from pydantic import BaseModel, Field
 
 from shared.output_models.shared import OUTPUT_CONFIG
 
@@ -13,6 +13,7 @@ class ScaffoldProjectOutput(BaseModel):
     files_created: list[str]
     files_updated: list[str]
     files_skipped: list[str]
+    written_paths: list[str] = Field(default_factory=list)
 
 
 class ScaffoldHooksOutput(BaseModel):
@@ -20,6 +21,7 @@ class ScaffoldHooksOutput(BaseModel):
 
     hook_created: bool
     hooks_path_configured: bool
+    written_paths: list[str] = Field(default_factory=list)
 
 
 class FreeTdsCheckOutput(BaseModel):

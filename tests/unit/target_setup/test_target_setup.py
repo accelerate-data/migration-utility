@@ -384,6 +384,9 @@ def test_run_setup_target_applies_delta_after_new_source_added(tmp_path: Path) -
     assert first.created_tables == ["bronze.Customer"]
     assert "dbt/models/staging/_staging__models.yml" in first.files
     assert "dbt/models/staging/stg_bronze__customer.sql" in first.files
+    assert "dbt/models/staging/_staging__models.yml" in first.written_paths
+    assert "dbt/models/staging/stg_bronze__customer.sql" in first.written_paths
+    assert first.sources_path not in first.written_paths
     assert second.created_tables == ["bronze.Orders"]
     assert "bronze.Customer" in second.existing_tables
 

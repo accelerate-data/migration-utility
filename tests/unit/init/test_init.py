@@ -43,6 +43,7 @@ class TestScaffoldProject:
         assert ".claude/rules/git-workflow.md" in result.files_created
         assert result.files_updated == []
         assert result.files_skipped == []
+        assert sorted(result.written_paths) == sorted(result.files_created)
 
         # Verify file contents match sql_server templates
         assert (tmp_path / "CLAUDE.md").read_text() == config.claude_md_fn()
@@ -70,12 +71,14 @@ class TestScaffoldProject:
         assert result.files_created == []
         assert result.files_updated == []
         assert len(result.files_skipped) == 6
+        assert result.written_paths == []
 
     def test_merges_missing_gitignore_entries(self, tmp_path: Path) -> None:
         (tmp_path / ".gitignore").write_text("# Custom\n.DS_Store\n")
         result = run_scaffold_project(tmp_path)
         updated = [f for f in result.files_updated if f.startswith(".gitignore")]
         assert len(updated) == 1
+        assert ".gitignore" in result.written_paths
         content = (tmp_path / ".gitignore").read_text()
         assert "# Custom" in content
         assert ".mcp.json" not in content
@@ -87,6 +90,7 @@ class TestScaffoldProject:
         result = run_scaffold_project(tmp_path)
 
         assert ".envrc (+local .env loader)" in result.files_updated
+        assert ".envrc" in result.written_paths
         envrc = (tmp_path / ".envrc").read_text()
         assert "export MSSQL_HOST=localhost" in envrc
         assert "source_env_if_exists .env" in envrc
@@ -113,6 +117,8 @@ class TestScaffoldProjectOracle:
         result = run_scaffold_project(tmp_path, technology="oracle")
         assert "CLAUDE.md" in result.files_created
         assert ".envrc" in result.files_created
+        assert "CLAUDE.md" in result.written_paths
+        assert ".envrc" in result.written_paths
 
         # Oracle-specific content
         envrc = (tmp_path / ".envrc").read_text()
@@ -148,6 +154,7 @@ class TestScaffoldHooks:
         subprocess.run(["git", "init"], cwd=tmp_path, capture_output=True, check=True)
         result = run_scaffold_hooks(tmp_path)
         assert result.hook_created is True
+        assert result.written_paths == [".githooks/pre-commit"]
         assert result.hooks_path_configured is True
 
         hook_path = tmp_path / ".githooks" / "pre-commit"
@@ -160,6 +167,7 @@ class TestScaffoldHooks:
         run_scaffold_hooks(tmp_path)
         result = run_scaffold_hooks(tmp_path)
         assert result.hook_created is False
+        assert result.written_paths == []
         assert result.hooks_path_configured is True
 
     def test_no_git_repo_still_creates_hook(self, tmp_path: Path) -> None:

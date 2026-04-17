@@ -197,12 +197,14 @@ def run_scaffold_project(project_root: Path, technology: str = "sql_server") -> 
     files_created: list[str] = []
     files_updated: list[str] = []
     files_skipped: list[str] = []
+    written_paths: list[str] = []
 
     # CLAUDE.md
     claude_md_path = project_root / "CLAUDE.md"
     if not claude_md_path.exists():
         claude_md_path.write_text(config.claude_md_fn(), encoding="utf-8")
         files_created.append("CLAUDE.md")
+        written_paths.append("CLAUDE.md")
         logger.info("event=scaffold_file file=CLAUDE.md status=created technology=%s", technology)
     else:
         content = claude_md_path.read_text(encoding="utf-8")
@@ -221,6 +223,7 @@ def run_scaffold_project(project_root: Path, technology: str = "sql_server") -> 
     if not readme_path.exists():
         readme_path.write_text(config.readme_md_fn(), encoding="utf-8")
         files_created.append("README.md")
+        written_paths.append("README.md")
         logger.info("event=scaffold_file file=README.md status=created technology=%s", technology)
     else:
         files_skipped.append("README.md")
@@ -233,6 +236,7 @@ def run_scaffold_project(project_root: Path, technology: str = "sql_server") -> 
             encoding="utf-8",
         )
         files_created.append("repo-map.json")
+        written_paths.append("repo-map.json")
         logger.info("event=scaffold_file file=repo-map.json status=created technology=%s", technology)
     else:
         files_skipped.append("repo-map.json")
@@ -242,6 +246,7 @@ def run_scaffold_project(project_root: Path, technology: str = "sql_server") -> 
     if not gitignore_path.exists():
         gitignore_path.write_text("\n".join(GITIGNORE_ENTRIES) + "\n", encoding="utf-8")
         files_created.append(".gitignore")
+        written_paths.append(".gitignore")
         logger.info("event=scaffold_file file=.gitignore status=created")
     else:
         existing = gitignore_path.read_text(encoding="utf-8")
@@ -255,6 +260,7 @@ def run_scaffold_project(project_root: Path, technology: str = "sql_server") -> 
             addition = "\n" + "\n".join(new_entries) + "\n"
             gitignore_path.write_text(existing.rstrip("\n") + addition, encoding="utf-8")
             files_updated.append(f".gitignore (+{len(new_entries)} entries)")
+            written_paths.append(".gitignore")
             logger.info(
                 "event=scaffold_file file=.gitignore status=updated entries_added=%d",
                 len(new_entries),
@@ -267,6 +273,7 @@ def run_scaffold_project(project_root: Path, technology: str = "sql_server") -> 
     if not envrc_path.exists():
         envrc_path.write_text(config.envrc_fn(), encoding="utf-8")
         files_created.append(".envrc")
+        written_paths.append(".envrc")
         logger.info("event=scaffold_file file=.envrc status=created technology=%s", technology)
     else:
         envrc_text = envrc_path.read_text(encoding="utf-8")
@@ -277,6 +284,7 @@ def run_scaffold_project(project_root: Path, technology: str = "sql_server") -> 
             updated_envrc += f"{_ENVRC_DOTENV_LINE}\n"
             envrc_path.write_text(updated_envrc, encoding="utf-8")
             files_updated.append(".envrc (+local .env loader)")
+            written_paths.append(".envrc")
             logger.info(
                 "event=scaffold_file file=.envrc status=updated technology=%s",
                 technology,
@@ -291,6 +299,7 @@ def run_scaffold_project(project_root: Path, technology: str = "sql_server") -> 
         content = GIT_WORKFLOW_MD.format(worktree_base="../worktrees")
         workflow_path.write_text(content, encoding="utf-8")
         files_created.append(".claude/rules/git-workflow.md")
+        written_paths.append(".claude/rules/git-workflow.md")
         logger.info(
             "event=scaffold_file file=.claude/rules/git-workflow.md status=created"
         )
@@ -301,6 +310,7 @@ def run_scaffold_project(project_root: Path, technology: str = "sql_server") -> 
         files_created=files_created,
         files_updated=files_updated,
         files_skipped=files_skipped,
+        written_paths=written_paths,
     )
 
 
@@ -442,12 +452,14 @@ def run_scaffold_hooks(project_root: Path, technology: str = "sql_server") -> Sc
     hook_path = hook_dir / "pre-commit"
     hook_created = False
     hooks_path_configured = False
+    written_paths: list[str] = []
 
     if not hook_path.exists():
         hook_dir.mkdir(parents=True, exist_ok=True)
         hook_path.write_text(config.pre_commit_hook_fn(), encoding="utf-8")
         hook_path.chmod(hook_path.stat().st_mode | stat.S_IEXEC)
         hook_created = True
+        written_paths.append(".githooks/pre-commit")
         logger.info("event=scaffold_hook file=.githooks/pre-commit status=created technology=%s", technology)
     else:
         logger.info("event=scaffold_hook file=.githooks/pre-commit status=skipped")
@@ -472,6 +484,7 @@ def run_scaffold_hooks(project_root: Path, technology: str = "sql_server") -> Sc
     return ScaffoldHooksOutput(
         hook_created=hook_created,
         hooks_path_configured=hooks_path_configured,
+        written_paths=written_paths,
     )
 
 

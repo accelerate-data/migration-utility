@@ -576,9 +576,18 @@ def run_setup_target(project_root: Path) -> SetupTargetOutput:
     applied = apply_target_source_tables(project_root)
     source_files = sources.written_paths if isinstance(sources.written_paths, list) else []
     if not source_files and sources.path:
-        source_files = [sources.path]
+        source_path = Path(sources.path)
+        if source_path.is_absolute():
+            try:
+                source_files = [str(source_path.resolve().relative_to(project_root.resolve()))]
+            except ValueError:
+                source_files = [str(source_path)]
+        else:
+            source_files = [str(source_path)]
+    written_paths = [*files, *source_files, *seeds.files]
     return SetupTargetOutput(
         files=files + source_files + seeds.files,
+        written_paths=written_paths,
         sources_path=sources.path,
         target_source_schema=applied.physical_schema,
         created_tables=applied.created_tables,
