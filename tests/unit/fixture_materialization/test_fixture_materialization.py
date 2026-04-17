@@ -155,6 +155,26 @@ def test_sql_server_materializer_pyodbc_fallback_uses_shared_connection_builder(
     assert 'Path.cwd() / "lib"' not in script_text
 
 
+def test_sql_server_materializer_bootstraps_source_reader_login() -> None:
+    script_path = (
+        Path(__file__).resolve().parents[3]
+        / "tests/integration/sql_server/fixtures/materialize.sh"
+    )
+    sql_path = (
+        Path(__file__).resolve().parents[3]
+        / "tests/integration/sql_server/fixtures/create-migration-test.sql"
+    )
+    script_text = script_path.read_text(encoding="utf-8")
+    sql_text = sql_path.read_text(encoding="utf-8")
+
+    assert "SOURCE_MSSQL_USER" in script_text
+    assert "SOURCE_MSSQL_PASSWORD" in script_text
+    assert "CREATE LOGIN" in sql_text
+    assert "CREATE USER" in sql_text
+    assert "GRANT SELECT ON SCHEMA::[__MSSQL_SCHEMA__]" in sql_text
+    assert "GRANT VIEW DEFINITION ON SCHEMA::[__MSSQL_SCHEMA__]" in sql_text
+
+
 def test_oracle_materializer_avoids_dropping_the_target_schema_user() -> None:
     script_path = (
         Path(__file__).resolve().parents[3]

@@ -1,13 +1,38 @@
 -- ============================================================
--- Section A: single-schema fixture bootstrap
+-- Section A: source-reader and single-schema fixture bootstrap
 -- Idempotent: recreates canonical objects inside [__MSSQL_SCHEMA__]
 -- ============================================================
+
+USE [master];
+GO
+
+IF N'__SOURCE_MSSQL_USER_LITERAL__' <> N''
+   AND N'__SOURCE_MSSQL_PASSWORD_LITERAL__' <> N''
+   AND SUSER_ID(N'__SOURCE_MSSQL_USER_LITERAL__') IS NULL
+BEGIN
+    EXEC(N'CREATE LOGIN [__SOURCE_MSSQL_USER__] WITH PASSWORD = N''__SOURCE_MSSQL_PASSWORD_LITERAL__'', CHECK_POLICY = OFF');
+END;
+GO
 
 USE [__MSSQL_DB__];
 GO
 
 IF SCHEMA_ID(N'__MSSQL_SCHEMA__') IS NULL
     EXEC(N'CREATE SCHEMA [__MSSQL_SCHEMA__]');
+GO
+
+IF N'__SOURCE_MSSQL_USER_LITERAL__' <> N''
+   AND N'__SOURCE_MSSQL_PASSWORD_LITERAL__' <> N''
+BEGIN
+    IF USER_ID(N'__SOURCE_MSSQL_USER_LITERAL__') IS NULL
+        EXEC(N'CREATE USER [__SOURCE_MSSQL_USER__] FOR LOGIN [__SOURCE_MSSQL_USER__]');
+    ELSE
+        EXEC(N'ALTER USER [__SOURCE_MSSQL_USER__] WITH LOGIN = [__SOURCE_MSSQL_USER__]');
+
+    GRANT CONNECT TO [__SOURCE_MSSQL_USER__];
+    GRANT SELECT ON SCHEMA::[__MSSQL_SCHEMA__] TO [__SOURCE_MSSQL_USER__];
+    GRANT VIEW DEFINITION ON SCHEMA::[__MSSQL_SCHEMA__] TO [__SOURCE_MSSQL_USER__];
+END;
 GO
 
 DECLARE @schema_name sysname = N'__MSSQL_SCHEMA__';

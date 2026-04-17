@@ -22,9 +22,11 @@ import pytest
 from tests.helpers import SHARED_LIB_DIR, SQL_SERVER_FIXTURE_SCHEMA
 from tests.integration.runtime_helpers import (
     SQL_SERVER_MIGRATION_DATABASE,
+    build_sql_server_admin_connection_string,
     build_sql_server_connection_string,
     ensure_sql_server_migration_test_materialized,
     sql_server_is_available,
+    sql_server_sandbox_is_available,
 )
 
 pyodbc = pytest.importorskip("pyodbc", reason="pyodbc not installed — skipping integration tests")
@@ -33,12 +35,17 @@ pytestmark = pytest.mark.integration
 
 
 def _have_mssql_env() -> bool:
-    return sql_server_is_available(pyodbc)
+    return sql_server_is_available(pyodbc) and sql_server_sandbox_is_available(pyodbc)
 
 
 def _connect() -> pyodbc.Connection:
     ensure_sql_server_migration_test_materialized()
     return pyodbc.connect(build_sql_server_connection_string(), autocommit=True)
+
+
+def _connect_admin() -> pyodbc.Connection:
+    ensure_sql_server_migration_test_materialized()
+    return pyodbc.connect(build_sql_server_admin_connection_string(), autocommit=True)
 
 
 def _query_rows(conn: pyodbc.Connection, sql: str) -> list[dict[str, Any]]:
@@ -308,6 +315,7 @@ class TestDiffAwareReexportIntegration:
     def test_altered_proc_detected_as_changed(self) -> None:
         """Alter a procedure, re-extract, verify it's classified as changed."""
         conn = _connect()
+        admin_conn = _connect_admin()
         database = SQL_SERVER_MIGRATION_DATABASE
         schemas = self._get_schemas(conn)
 
@@ -340,7 +348,7 @@ class TestDiffAwareReexportIntegration:
             altered_def = original_def.replace("CREATE", "ALTER", 1)
             # Add a unique comment to change the definition
             altered_def += "\n-- diff_test_marker"
-            cursor = conn.cursor()
+            cursor = admin_conn.cursor()
             try:
                 cursor.execute(altered_def)
 
@@ -356,6 +364,7 @@ class TestDiffAwareReexportIntegration:
                 restore_def = original_def.replace("CREATE", "ALTER", 1)
                 cursor.execute(restore_def)
 
+        admin_conn.close()
         conn.close()
 
 
@@ -372,6 +381,7 @@ class TestViewCatalogEnrichmentIntegration:
         catalog/views/<fqn>.json has non-empty sql and columns fields.
         """
         conn = _connect()
+        admin_conn = _connect_admin()
         database = SQL_SERVER_MIGRATION_DATABASE
         view_schema = SQL_SERVER_FIXTURE_SCHEMA
         view_name = "vw_integration_test_view"
@@ -391,7 +401,7 @@ class TestViewCatalogEnrichmentIntegration:
             )
 
         source_table = f"[{tables[0]['schema_name']}].[{tables[0]['table_name']}]"
-        cursor = conn.cursor()
+        cursor = admin_conn.cursor()
 
         # Drop any leftover view from a previous failed run.
         cursor.execute(f"DROP VIEW IF EXISTS [{view_schema}].[{view_name}]")
@@ -451,4 +461,5 @@ class TestViewCatalogEnrichmentIntegration:
                     assert "is_nullable" in col, "Column entry missing 'is_nullable'"
         finally:
             cursor.execute(f"DROP VIEW IF EXISTS [{view_schema}].[{view_name}]")
+            admin_conn.close()
             conn.close()
