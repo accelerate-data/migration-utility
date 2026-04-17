@@ -163,7 +163,7 @@ def test_oracle_materializer_avoids_dropping_the_target_schema_user() -> None:
     script_text = script_path.read_text(encoding="utf-8")
 
     assert 'DROP USER "${ORACLE_SCHEMA}" CASCADE' not in script_text
-    assert 'ALTER USER "${ORACLE_SCHEMA}" IDENTIFIED BY "${ORACLE_SCHEMA_PASSWORD}" ACCOUNT UNLOCK' in script_text
+    assert 'ALTER USER "${ORACLE_SCHEMA}" IDENTIFIED BY "${SOURCE_ORACLE_PASSWORD}" ACCOUNT UNLOCK' in script_text
     assert "FROM all_objects" in script_text
     assert "owner = UPPER('${ORACLE_SCHEMA}')" in script_text
 

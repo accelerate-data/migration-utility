@@ -23,14 +23,12 @@ from shared.init import (
     get_source_config,
     HostPlatform,
     build_init_platform_gate_message,
-    run_discover_mssql_driver_override,
     run_scaffold_hooks,
     run_scaffold_project,
     supports_homebrew_install,
     supports_native_windows,
     write_local_env_overrides,
 )
-from shared.output_models.init import LocalOverrideDiscoveryOutput
 
 RUNNER = CliRunner()
 
@@ -387,55 +385,53 @@ class TestWriteLocalEnvOverrides:
         changed = write_local_env_overrides(
             tmp_path,
             {
-                "MSSQL_DRIVER": "ODBC Driver 18 for SQL Server",
+                "LOCAL_TOOL_PATH": "/opt/tool/bin",
             },
         )
 
         assert changed is True
-        assert (tmp_path / ".env").read_text() == (
-            'MSSQL_DRIVER="ODBC Driver 18 for SQL Server"\n'
-        )
+        assert (tmp_path / ".env").read_text() == 'LOCAL_TOOL_PATH="/opt/tool/bin"\n'
 
     def test_updates_existing_keys_without_touching_other_lines(self, tmp_path: Path) -> None:
         env_path = tmp_path / ".env"
         env_path.write_text(
             'KEEP_ME="1"\n'
-            'MSSQL_DRIVER="FreeTDS"\n',
+            'LOCAL_TOOL_PATH="/old/path"\n',
             encoding="utf-8",
         )
 
         changed = write_local_env_overrides(
             tmp_path,
-            {"MSSQL_DRIVER": "ODBC Driver 18 for SQL Server"},
+            {"LOCAL_TOOL_PATH": "/opt/tool/bin"},
         )
 
         assert changed is True
         assert env_path.read_text() == (
             'KEEP_ME="1"\n'
-            'MSSQL_DRIVER="ODBC Driver 18 for SQL Server"\n'
+            'LOCAL_TOOL_PATH="/opt/tool/bin"\n'
         )
 
     def test_returns_false_when_no_changes_are_needed(self, tmp_path: Path) -> None:
         env_path = tmp_path / ".env"
-        env_path.write_text('MSSQL_DRIVER="FreeTDS"\n', encoding="utf-8")
+        env_path.write_text('LOCAL_TOOL_PATH="/opt/tool/bin"\n', encoding="utf-8")
 
         changed = write_local_env_overrides(
             tmp_path,
-            {"MSSQL_DRIVER": "FreeTDS"},
+            {"LOCAL_TOOL_PATH": "/opt/tool/bin"},
         )
 
         assert changed is False
-        assert env_path.read_text() == 'MSSQL_DRIVER="FreeTDS"\n'
+        assert env_path.read_text() == 'LOCAL_TOOL_PATH="/opt/tool/bin"\n'
 
     def test_escapes_quotes_and_backslashes(self, tmp_path: Path) -> None:
         changed = write_local_env_overrides(
             tmp_path,
-            {"MSSQL_DRIVER": 'ODBC Driver 18 \\"for\\" SQL Server'},
+            {"LOCAL_TOOL_PATH": 'C:\\Program Files\\"tool"'},
         )
 
         assert changed is True
         assert (tmp_path / ".env").read_text() == (
-            'MSSQL_DRIVER="ODBC Driver 18 \\\\\\"for\\\\\\" SQL Server"\n'
+            'LOCAL_TOOL_PATH="C:\\\\Program Files\\\\\\"tool\\""\n'
         )
 
     def test_cli_writes_local_env_overrides(self, tmp_path: Path) -> None:
@@ -444,7 +440,7 @@ class TestWriteLocalEnvOverrides:
             [
                 "write-local-env-overrides",
                 "--project-root", str(tmp_path),
-                "--overrides-json", '{"MSSQL_DRIVER":"FreeTDS"}',
+                "--overrides-json", '{"LOCAL_TOOL_PATH":"/opt/tool/bin"}',
             ],
         )
 
@@ -472,117 +468,9 @@ class TestWriteLocalEnvOverrides:
             [
                 "write-local-env-overrides",
                 "--project-root", str(tmp_path),
-                "--overrides-json", '{"MSSQL_DRIVER":123}',
+                "--overrides-json", '{"LOCAL_TOOL_PATH":123}',
             ],
         )
 
         assert result.exit_code == 1
         assert "must be a JSON object of string keys and string values" in result.stderr
-
-
-class TestDiscoverMssqlDriverOverride:
-    def test_uses_non_default_env_override(self, monkeypatch: pytest.MonkeyPatch) -> None:
-        monkeypatch.setenv("MSSQL_DRIVER", "ODBC Driver 18 for SQL Server")
-        monkeypatch.setattr(
-            "shared.init._query_odbc_drivers",
-            lambda: ["ODBC Driver 18 for SQL Server"],
-        )
-
-        result = run_discover_mssql_driver_override()
-
-        assert result.status == "resolved"
-        assert result.value == "ODBC Driver 18 for SQL Server"
-
-    def test_rejects_unknown_env_driver_override(self, monkeypatch: pytest.MonkeyPatch) -> None:
-        monkeypatch.setenv("MSSQL_DRIVER", "bogus")
-        monkeypatch.setattr("shared.init._query_odbc_drivers", lambda: ["FreeTDS"])
-
-        result = run_discover_mssql_driver_override()
-
-        assert result.status == "manual"
-        assert result.message == (
-            'Set MSSQL_DRIVER="ODBC Driver 18 for SQL Server" after installing a SQL Server ODBC driver.'
-        )
-
-    def test_rejects_default_env_driver_when_freetds_not_available(
-        self,
-        monkeypatch: pytest.MonkeyPatch,
-    ) -> None:
-        monkeypatch.setenv("MSSQL_DRIVER", "FreeTDS")
-        monkeypatch.setattr("shared.init._query_odbc_drivers", lambda: ["SQLite3"])
-
-        result = run_discover_mssql_driver_override()
-
-        assert result.status == "manual"
-
-    def test_rejects_default_env_driver_when_different_driver_is_installed(
-        self,
-        monkeypatch: pytest.MonkeyPatch,
-    ) -> None:
-        monkeypatch.setenv("MSSQL_DRIVER", "FreeTDS")
-        monkeypatch.setattr(
-            "shared.init._query_odbc_drivers",
-            lambda: ["ODBC Driver 18 for SQL Server"],
-        )
-
-        result = run_discover_mssql_driver_override()
-
-        assert result.status == "manual"
-
-    def test_defaults_when_freetds_registered(
-        self,
-        monkeypatch: pytest.MonkeyPatch,
-    ) -> None:
-        monkeypatch.delenv("MSSQL_DRIVER", raising=False)
-        monkeypatch.setattr("shared.init._query_odbc_drivers", lambda: ["FreeTDS"])
-
-        result = run_discover_mssql_driver_override()
-
-        assert result.status == "default"
-        assert result.value is None
-
-    def test_resolves_microsoft_driver_from_odbcinst(
-        self,
-        monkeypatch: pytest.MonkeyPatch,
-    ) -> None:
-        monkeypatch.delenv("MSSQL_DRIVER", raising=False)
-        monkeypatch.setattr(
-            "shared.init._query_odbc_drivers",
-            lambda: ["ODBC Driver 18 for SQL Server"],
-        )
-
-        result = run_discover_mssql_driver_override()
-
-        assert result.status == "resolved"
-        assert result.value == "ODBC Driver 18 for SQL Server"
-
-    def test_reports_manual_override_when_no_supported_driver_found(
-        self,
-        monkeypatch: pytest.MonkeyPatch,
-    ) -> None:
-        monkeypatch.delenv("MSSQL_DRIVER", raising=False)
-        monkeypatch.setattr("shared.init._query_odbc_drivers", lambda: ["SQLite3"])
-
-        result = run_discover_mssql_driver_override()
-
-        assert result.status == "manual"
-        assert result.message == (
-            'Set MSSQL_DRIVER="ODBC Driver 18 for SQL Server" after installing a SQL Server ODBC driver.'
-        )
-
-    def test_cli_returns_discovery_payload(self, monkeypatch: pytest.MonkeyPatch) -> None:
-        monkeypatch.setattr(
-            "shared.init.run_discover_mssql_driver_override",
-            lambda: LocalOverrideDiscoveryOutput(
-                key="MSSQL_DRIVER",
-                status="resolved",
-                value="ODBC Driver 18 for SQL Server",
-            ),
-        )
-
-        result = RUNNER.invoke(app, ["discover-mssql-driver-override"])
-
-        assert result.exit_code == 0, result.stdout
-        payload = json.loads(result.stdout)
-        assert payload["key"] == "MSSQL_DRIVER"
-        assert payload["status"] == "resolved"

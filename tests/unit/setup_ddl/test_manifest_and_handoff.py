@@ -515,7 +515,6 @@ def test_sql_server_connection_identity_omits_driver(monkeypatch):
     monkeypatch.setenv("SOURCE_MSSQL_PORT", "1433")
     monkeypatch.setenv("SOURCE_MSSQL_USER", "warehouse_user")
     monkeypatch.setenv("SOURCE_MSSQL_PASSWORD", "secret")
-    monkeypatch.setenv("MSSQL_DRIVER", "ODBC Driver 18 for SQL Server")
 
     identity = get_connection_identity("sql_server", "WarehouseDb")
 

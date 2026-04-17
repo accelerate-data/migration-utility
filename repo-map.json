@@ -175,7 +175,6 @@
     "discover_write_statements": "cd packages/ad-migration-internal && uv run discover write-statements --name <procedure_name> --statements-file <path>",
     "generate_sources": "cd packages/ad-migration-internal && uv run generate-sources [--write] [--strict] [--project-root <path>]",
     "init_check_freetds": "cd packages/ad-migration-internal && uv run init check-freetds [--register-missing]",
-    "init_discover_mssql_driver_override": "cd packages/ad-migration-internal && uv run init discover-mssql-driver-override",
     "init_scaffold_project": "cd packages/ad-migration-internal && uv run init scaffold-project --project-root . --technology <technology>",
     "init_scaffold_hooks": "cd packages/ad-migration-internal && uv run init scaffold-hooks --project-root . --technology <technology>",
     "init_write_local_env_overrides": "cd packages/ad-migration-internal && uv run init write-local-env-overrides --project-root . --overrides-json <json>",

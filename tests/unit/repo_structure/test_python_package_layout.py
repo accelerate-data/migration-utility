@@ -75,7 +75,6 @@ def test_repo_map_points_commands_at_the_split_projects() -> None:
         "discover_write_slice": f"cd {INTERNAL_PROJECT_PATH} && uv run discover write-slice",
         "discover_write_statements": f"cd {INTERNAL_PROJECT_PATH} && uv run discover write-statements",
         "init_check_freetds": f"cd {INTERNAL_PROJECT_PATH} && uv run init check-freetds",
-        "init_discover_mssql_driver_override": f"cd {INTERNAL_PROJECT_PATH} && uv run init discover-mssql-driver-override",
         "init_scaffold_project": f"cd {INTERNAL_PROJECT_PATH} && uv run init scaffold-project",
         "init_scaffold_hooks": f"cd {INTERNAL_PROJECT_PATH} && uv run init scaffold-hooks",
         "init_write_local_env_overrides": f"cd {INTERNAL_PROJECT_PATH} && uv run init write-local-env-overrides",
@@ -109,6 +108,7 @@ def test_repo_map_points_commands_at_the_split_projects() -> None:
 
     assert expected_public_command_names.issubset(repo_map["commands"])
     assert expected_internal_command_names.issubset(repo_map["commands"])
+    assert "init_discover_mssql_driver_override" not in repo_map["commands"]
 
     for command_name, expected_prefix in public_cli_commands.items():
         assert repo_map["commands"][command_name].startswith(expected_prefix)

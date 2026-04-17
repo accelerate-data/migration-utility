@@ -296,7 +296,6 @@ def test_build_sql_server_sandbox_connection_omits_driver(monkeypatch):
     monkeypatch.setenv("SANDBOX_MSSQL_PORT", "1433")
     monkeypatch.setenv("SANDBOX_MSSQL_USER", "sandbox_admin")
     monkeypatch.setenv("SANDBOX_MSSQL_PASSWORD", "sandbox-password")
-    monkeypatch.setenv("MSSQL_DRIVER", "ODBC Driver 18 for SQL Server")
 
     manifest = {
         "runtime": {
@@ -332,7 +331,6 @@ def test_write_sandbox_connection_preserves_existing_canonical_name_and_ignores_
     monkeypatch.setenv("SANDBOX_MSSQL_HOST", "127.0.0.1")
     monkeypatch.setenv("SANDBOX_MSSQL_PORT", "1433")
     monkeypatch.setenv("SANDBOX_MSSQL_USER", "sa")
-    monkeypatch.setenv("MSSQL_DRIVER", "ODBC Driver 18 for SQL Server")
 
     updated = _write_sandbox_connection_to_manifest(tmp_path, manifest, "sql_server")
 
