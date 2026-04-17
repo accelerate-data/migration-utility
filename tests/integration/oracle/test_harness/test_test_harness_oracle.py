@@ -25,15 +25,15 @@ from tests.integration.runtime_helpers import (
 
 pytestmark = pytest.mark.oracle
 
-BRONZE_CURRENCY = "BRONZE_CURRENCY"
-BRONZE_PROMOTION = "BRONZE_PROMOTION"
-SILVER_DIMCURRENCY = "SILVER_DIMCURRENCY"
-SILVER_DIMPROMOTION = "SILVER_DIMPROMOTION"
-SILVER_CONFIG = "SILVER_CONFIG"
-SILVER_VW_DIMPROMOTION = "SILVER_VW_DIMPROMOTION"
-SILVER_USP_LOAD_DIMCURRENCY = "SILVER_USP_LOAD_DIMCURRENCY"
-SILVER_USP_LOAD_DIMPROMOTION = "SILVER_USP_LOAD_DIMPROMOTION"
-SILVER_USP_UNIONALL = "SILVER_USP_UNIONALL"
+BRONZE_CURRENCY = f"{ORACLE_MIGRATION_SCHEMA}.BRONZE_CURRENCY"
+BRONZE_PROMOTION = f"{ORACLE_MIGRATION_SCHEMA}.BRONZE_PROMOTION"
+SILVER_DIMCURRENCY = f"{ORACLE_MIGRATION_SCHEMA}.SILVER_DIMCURRENCY"
+SILVER_DIMPROMOTION = f"{ORACLE_MIGRATION_SCHEMA}.SILVER_DIMPROMOTION"
+SILVER_CONFIG = f"{ORACLE_MIGRATION_SCHEMA}.SILVER_CONFIG"
+SILVER_VW_DIMPROMOTION = f"{ORACLE_MIGRATION_SCHEMA}.SILVER_VW_DIMPROMOTION"
+SILVER_USP_LOAD_DIMCURRENCY = f"{ORACLE_MIGRATION_SCHEMA}.SILVER_USP_LOAD_DIMCURRENCY"
+SILVER_USP_LOAD_DIMPROMOTION = f"{ORACLE_MIGRATION_SCHEMA}.SILVER_USP_LOAD_DIMPROMOTION"
+SILVER_USP_UNIONALL = f"{ORACLE_MIGRATION_SCHEMA}.SILVER_USP_UNIONALL"
 
 
 def _have_oracle_env() -> bool:
@@ -82,7 +82,7 @@ class TestOracleSandboxLifecycle:
                 cursor = conn.cursor()
                 cursor.execute(
                     "SELECT COUNT(*) FROM ALL_TABLES WHERE OWNER = :1",
-                    [sandbox_schema],
+                    [ORACLE_MIGRATION_SCHEMA],
                 )
                 table_count = cursor.fetchone()[0]
                 assert table_count > 0
@@ -158,10 +158,10 @@ class TestOracleExecuteScenario:
     def test_full_lifecycle_execute_load_dimcurrency(self) -> None:
         """sandbox_up → execute_scenario against canonical currency tables → sandbox_down."""
         backend = _make_backend()
-        proc_name = "PROC_LOAD_DIMCURRENCY"
+        bare_proc = "PROC_LOAD_DIMCURRENCY"
         self._create_temp_proc(
             backend,
-            proc_name,
+            bare_proc,
             (
                 f'DELETE FROM {SILVER_DIMCURRENCY}; '
                 f'INSERT INTO {SILVER_DIMCURRENCY} ("CURRENCYKEY", "CURRENCYALTERNATEKEY", "CURRENCYNAME") '
@@ -178,7 +178,7 @@ class TestOracleExecuteScenario:
             scenario = {
                 "name": "test_load_dimcurrency",
                 "target_table": SILVER_DIMCURRENCY,
-                "procedure": proc_name,
+                "procedure": f"{ORACLE_MIGRATION_SCHEMA}.{bare_proc}",
                 "given": [
                     {
                         "table": BRONZE_CURRENCY,
@@ -213,7 +213,7 @@ class TestOracleExecuteScenario:
 
         finally:
             backend.sandbox_down(sandbox_db=up_result.sandbox_database)
-            self._drop_temp_proc(backend, proc_name)
+            self._drop_temp_proc(backend, bare_proc)
 
     def test_execute_rolls_back_fixture_data(self) -> None:
         """Fixture rows seeded during execute_scenario are rolled back."""
@@ -247,7 +247,7 @@ class TestOracleExecuteScenario:
             with backend._connect_sandbox(sandbox_schema) as conn:
                 cursor = conn.cursor()
                 cursor.execute(
-                    f'SELECT COUNT(*) FROM "{sandbox_schema}"."{BRONZE_CURRENCY}" '
+                    f'SELECT COUNT(*) FROM "{ORACLE_MIGRATION_SCHEMA}"."BRONZE_CURRENCY" '
                     f"WHERE \"CURRENCYCODE\" = 'ZZZ'"
                 )
                 assert cursor.fetchone()[0] == 0, "Fixture row should be rolled back"
@@ -257,8 +257,8 @@ class TestOracleExecuteScenario:
     def test_execute_empty_fixtures(self) -> None:
         """Scenario with no fixture rows still runs the procedure (produces 0 rows)."""
         backend = _make_backend()
-        proc_name = "PROC_EMPTY_FIXTURES"
-        self._create_temp_proc(backend, proc_name, "NULL;")
+        bare_proc = "PROC_EMPTY_FIXTURES"
+        self._create_temp_proc(backend, bare_proc, "NULL;")
 
         try:
             up_result = backend.sandbox_up(schemas=[ORACLE_MIGRATION_SCHEMA])
@@ -267,7 +267,7 @@ class TestOracleExecuteScenario:
             scenario = {
                 "name": "test_empty",
                 "target_table": SILVER_DIMCURRENCY,
-                "procedure": proc_name,
+                "procedure": f"{ORACLE_MIGRATION_SCHEMA}.{bare_proc}",
                 "given": [],
             }
 
@@ -276,7 +276,7 @@ class TestOracleExecuteScenario:
             assert result.row_count == 0
         finally:
             backend.sandbox_down(sandbox_db=up_result.sandbox_database)
-            self._drop_temp_proc(backend, proc_name)
+            self._drop_temp_proc(backend, bare_proc)
 
 
 @skip_no_oracle
@@ -309,12 +309,12 @@ class TestOracleCompareTwoSql:
             ]
             sql_a = (
                 f'SELECT "CURRENCYCODE", "CURRENCYNAME" '
-                f'FROM "{sandbox_schema}"."{BRONZE_CURRENCY}" '
+                f'FROM "{ORACLE_MIGRATION_SCHEMA}"."BRONZE_CURRENCY" '
                 f'ORDER BY "CURRENCYCODE"'
             )
             sql_b = (
                 f'SELECT "CURRENCYCODE", "CURRENCYNAME" '
-                f'FROM "{sandbox_schema}"."{BRONZE_CURRENCY}" '
+                f'FROM "{ORACLE_MIGRATION_SCHEMA}"."BRONZE_CURRENCY" '
                 f'ORDER BY "CURRENCYCODE"'
             )
 
@@ -360,12 +360,12 @@ class TestOracleCompareTwoSql:
             ]
             sql_a = (
                 f'SELECT "CURRENCYCODE", "CURRENCYNAME" '
-                f'FROM "{sandbox_schema}"."{BRONZE_CURRENCY}"'
+                f'FROM "{ORACLE_MIGRATION_SCHEMA}"."BRONZE_CURRENCY"'
             )
             # Returns only one row
             sql_b = (
                 f'SELECT "CURRENCYCODE", "CURRENCYNAME" '
-                f'FROM "{sandbox_schema}"."{BRONZE_CURRENCY}" '
+                f'FROM "{ORACLE_MIGRATION_SCHEMA}"."BRONZE_CURRENCY" '
                 f'WHERE "CURRENCYCODE" = \'USD\''
             )
 
@@ -394,7 +394,7 @@ class TestOracleEnsureViewTablesIntegration:
             # Unquoted identifiers so ALL_VIEWS stores them without quotes
             cursor.execute(
                 f"CREATE OR REPLACE VIEW {backend.source_schema}.{view_name} "
-                f"AS SELECT CURRENCYCODE, CURRENCYNAME FROM {backend.source_schema}.{BRONZE_CURRENCY}"
+                f"AS SELECT CURRENCYCODE, CURRENCYNAME FROM {BRONZE_CURRENCY}"
             )
 
     def _drop_view(self, backend: OracleSandbox, view_name: str) -> None:
@@ -453,13 +453,16 @@ class TestOracleEnsureViewTablesIntegration:
             sandbox_schema = up_result.sandbox_database
             assert up_result.status in ("ok", "partial"), up_result.errors
 
+            qualified_view = f"{ORACLE_MIGRATION_SCHEMA}.{view_name}"
+            qualified_proc = f"{ORACLE_MIGRATION_SCHEMA}.{proc_name}"
+
             scenario = {
                 "name": "test_view_fixture",
                 "target_table": SILVER_DIMCURRENCY,
-                "procedure": proc_name,
+                "procedure": qualified_proc,
                 "given": [
                     {
-                        "table": view_name,
+                        "table": qualified_view,
                         "rows": [
                             {
                                 "CURRENCYCODE": "VWT",
@@ -600,7 +603,7 @@ class TestOraclePdbLifecycle:
                 cursor = conn.cursor()
                 cursor.execute(
                     "SELECT COUNT(*) FROM ALL_TABLES WHERE OWNER = :1",
-                    [sandbox_name],
+                    [ORACLE_MIGRATION_SCHEMA],
                 )
                 table_count = cursor.fetchone()[0]
                 assert table_count > 0, "Expected cloned tables in sandbox PDB"
@@ -640,7 +643,7 @@ class TestOracleExecuteSelectIntegration:
             ]
             sql = (
                 f'SELECT "CURRENCYALTERNATEKEY", "CURRENCYNAME" '
-                f'FROM "{sandbox_schema}"."{SILVER_DIMCURRENCY}" '
+                f'FROM "{ORACLE_MIGRATION_SCHEMA}"."SILVER_DIMCURRENCY" '
                 f'ORDER BY "CURRENCYALTERNATEKEY"'
             )
 
@@ -683,11 +686,11 @@ class TestOracleExecuteSelectIntegration:
             ]
             sql_a = (
                 f'SELECT "CURRENCYALTERNATEKEY", "CURRENCYNAME" '
-                f'FROM "{sandbox_schema}"."{SILVER_DIMCURRENCY}"'
+                f'FROM "{ORACLE_MIGRATION_SCHEMA}"."SILVER_DIMCURRENCY"'
             )
             sql_b = (
                 "WITH src AS ("
-                f'  SELECT "CURRENCYALTERNATEKEY", "CURRENCYNAME" FROM "{sandbox_schema}"."{SILVER_DIMCURRENCY}"'
+                f'  SELECT "CURRENCYALTERNATEKEY", "CURRENCYNAME" FROM "{ORACLE_MIGRATION_SCHEMA}"."SILVER_DIMCURRENCY"'
                 ") "
                 'SELECT "CURRENCYALTERNATEKEY", "CURRENCYNAME" FROM src'
             )
@@ -716,7 +719,7 @@ class TestOracleExecuteSelectIntegration:
 
             result = backend.execute_select(
                 sandbox_db=sandbox_schema,
-                sql=f'SELECT "CURRENCYALTERNATEKEY" FROM "{sandbox_schema}"."{SILVER_DIMCURRENCY}"',
+                sql=f'SELECT "CURRENCYALTERNATEKEY" FROM "{ORACLE_MIGRATION_SCHEMA}"."SILVER_DIMCURRENCY"',
                 fixtures=[],
             )
 
@@ -746,7 +749,7 @@ class TestOracleExecuteSelectIntegration:
             ]
             backend.execute_select(
                 sandbox_db=sandbox_schema,
-                sql=f'SELECT "CURRENCYALTERNATEKEY" FROM "{sandbox_schema}"."{SILVER_DIMCURRENCY}"',
+                sql=f'SELECT "CURRENCYALTERNATEKEY" FROM "{ORACLE_MIGRATION_SCHEMA}"."SILVER_DIMCURRENCY"',
                 fixtures=fixtures,
             )
 
@@ -754,7 +757,7 @@ class TestOracleExecuteSelectIntegration:
             with backend._connect_sandbox(sandbox_schema) as conn:
                 cursor = conn.cursor()
                 cursor.execute(
-                    f'SELECT COUNT(*) FROM "{sandbox_schema}"."{SILVER_DIMCURRENCY}" '
+                    f'SELECT COUNT(*) FROM "{ORACLE_MIGRATION_SCHEMA}"."SILVER_DIMCURRENCY" '
                     f"WHERE \"CURRENCYALTERNATEKEY\" = 'ZZZ'"
                 )
                 assert cursor.fetchone()[0] == 0, "Fixture row should be rolled back"

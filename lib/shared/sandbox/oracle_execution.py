@@ -13,8 +13,9 @@ from shared.sandbox.base import (
 )
 from shared.sandbox.oracle_services import (
     _import_oracledb,
+    _parse_qualified_name,
     _validate_fixtures,
-    _validate_oracle_identifier,
+    _validate_oracle_qualified_name,
     _validate_oracle_sandbox_name,
     _validate_readonly_sql,
 )
@@ -44,8 +45,8 @@ class OracleExecutionService:
         procedure = scenario["procedure"]
         given = scenario["given"]
 
-        _validate_oracle_identifier(target_table)
-        _validate_oracle_identifier(procedure)
+        _validate_oracle_qualified_name(target_table)
+        _validate_oracle_qualified_name(procedure)
         _validate_fixtures(given)
 
         try:
@@ -72,9 +73,11 @@ class OracleExecutionService:
                 conn.autocommit = False
                 cursor = conn.cursor()
                 try:
-                    self._backend._fixtures.seed_fixtures(cursor, sandbox_db, given)
-                    cursor.execute(f'BEGIN "{sandbox_db}"."{procedure}"; END;')
-                    cursor.execute(f'SELECT * FROM "{sandbox_db}".{target_table}')
+                    self._backend._fixtures.seed_fixtures(cursor, given)
+                    proc_schema, proc_name = _parse_qualified_name(procedure)
+                    cursor.execute(f'BEGIN "{proc_schema}"."{proc_name}"; END;')
+                    tbl_schema, tbl_name = _parse_qualified_name(target_table)
+                    cursor.execute(f'SELECT * FROM "{tbl_schema}"."{tbl_name}"')
                     result_rows = _capture_rows_base(cursor)
                 finally:
                     conn.rollback()
@@ -124,7 +127,7 @@ class OracleExecutionService:
                 conn.autocommit = False
                 cursor = conn.cursor()
                 try:
-                    self._backend._fixtures.seed_fixtures(cursor, sandbox_db, fixtures)
+                    self._backend._fixtures.seed_fixtures(cursor, fixtures)
                     cursor.execute(sql)
                     result_rows = _capture_rows_base(cursor)
                 finally:

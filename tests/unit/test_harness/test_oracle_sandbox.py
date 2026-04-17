@@ -312,8 +312,8 @@ class TestOracleSandboxUpCleanup:
 
         scenario = {
             "name": "case",
-            "target_table": "CHANNELS",
-            "procedure": "LOAD_CHANNELS",
+            "target_table": "SH.CHANNELS",
+            "procedure": "SH.LOAD_CHANNELS",
             "given": [],
         }
         fixtures: list[dict[str, object]] = []
@@ -514,15 +514,15 @@ class TestExecuteScenarioOracle:
                 sandbox_db="SBX_ABC123000000",
                 scenario={
                     "name": "quoted_proc",
-                    "procedure": "Proc$Load",
-                    "target_table": "CHANNELS",
+                    "procedure": "SH.Proc$Load",
+                    "target_table": "SH.CHANNELS",
                     "given": [],
                 },
             )
 
         assert result.status == "ok"
         execute_calls = [call.args[0] for call in cursor.execute.call_args_list]
-        assert 'BEGIN "SBX_ABC123000000"."Proc$Load"; END;' in execute_calls
+        assert 'BEGIN "SH"."Proc$Load"; END;' in execute_calls
 
 
 class TestCompareTwoSqlOracle:

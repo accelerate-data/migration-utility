@@ -75,7 +75,7 @@ class OracleComparisonService:
                 conn.autocommit = False
                 cursor = conn.cursor()
                 try:
-                    self._backend._fixtures.seed_fixtures(cursor, sandbox_db, fixtures)
+                    self._backend._fixtures.seed_fixtures(cursor, fixtures)
                     cursor.execute(sql_a)
                     rows_a = _capture_rows_base(cursor)
                     cursor.execute(sql_b)

@@ -182,14 +182,14 @@ class TestEnsureViewTablesOracle:
             conn.cursor.return_value = cursor
             yield conn
 
-        given = [{"table": "VW_PRODUCT", "rows": []}]
+        given = [{"table": "SH.VW_PRODUCT", "rows": []}]
 
         with patch.object(backend, "_connect_sandbox", side_effect=_fake_connect), patch.object(
             backend, "_connect_source", side_effect=_fake_connect
         ):
             materialized = backend._fixtures.ensure_view_tables("SBX_ABC123000000", given)
 
-        assert materialized == ["VW_PRODUCT"]
+        assert materialized == ["SH.VW_PRODUCT"]
         calls = [str(c) for c in cursor.execute.call_args_list]
         ctas_calls = [c for c in calls if "CREATE TABLE" in c]
         assert len(ctas_calls) == 1
@@ -206,7 +206,7 @@ class TestEnsureViewTablesOracle:
             conn.cursor.return_value = cursor
             yield conn
 
-        given = [{"table": "CHANNELS", "rows": []}]
+        given = [{"table": "SH.CHANNELS", "rows": []}]
 
         with patch.object(backend, "_connect_sandbox", side_effect=_fake_connect), patch.object(
             backend, "_connect_source", side_effect=_fake_connect
@@ -247,16 +247,16 @@ class TestEnsureViewTablesOracle:
             conn.cursor.return_value = sandbox_cursor
             yield conn
 
-        given = [{"table": "VW_STALE", "rows": []}]
+        given = [{"table": "SH.VW_STALE", "rows": []}]
 
         with patch.object(backend, "_connect_sandbox", side_effect=_fake_sandbox_connect), patch.object(
             backend, "_connect_source", side_effect=_fake_source_connect
         ):
             materialized = backend._fixtures.ensure_view_tables("SBX_ABC123000000", given)
 
-        assert materialized == ["VW_STALE"]
+        assert materialized == ["SH.VW_STALE"]
         calls = [str(c) for c in sandbox_cursor.execute.call_args_list]
-        create_calls = [c for c in calls if 'CREATE TABLE "SBX_ABC123000000"."VW_STALE" ("ID" NUMBER(10,0) NOT NULL)' in c]
+        create_calls = [c for c in calls if 'CREATE TABLE "SH"."VW_STALE" ("ID" NUMBER(10,0) NOT NULL)' in c]
         assert len(create_calls) == 1
 
     def test_clone_procedures_quotes_procedure_name(self) -> None:

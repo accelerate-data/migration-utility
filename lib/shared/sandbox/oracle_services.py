@@ -101,6 +101,34 @@ def _validate_oracle_identifier(name: str) -> None:
         raise ValueError(f"Unsafe Oracle identifier: {name!r}")
 
 
+def _validate_oracle_qualified_name(name: str) -> None:
+    """Validate a possibly schema-qualified Oracle name (``SCHEMA.TABLE``).
+
+    Accepts bare identifiers (``CHANNELS``) and dotted qualified names
+    (``MIGRATIONTEST.BRONZE_CURRENCY``).  Each segment must pass
+    ``_validate_oracle_identifier``.
+    """
+    if not name:
+        raise ValueError(f"Unsafe Oracle identifier: {name!r}")
+    parts = name.split(".")
+    for part in parts:
+        _validate_oracle_identifier(part)
+
+
+def _parse_qualified_name(name: str) -> tuple[str, str]:
+    """Split ``SCHEMA.TABLE`` into ``(schema, table)``.
+
+    If the name is unqualified (bare), raises ``ValueError`` — callers must
+    always pass schema-qualified names.
+    """
+    parts = name.split(".")
+    if len(parts) != 2 or not parts[0] or not parts[1]:
+        raise ValueError(
+            f"Expected schema-qualified name (SCHEMA.TABLE), got: {name!r}"
+        )
+    return parts[0], parts[1]
+
+
 def _validate_oracle_sandbox_name(sandbox_schema: str) -> None:
     """Validate that a sandbox schema name is safe for DDL interpolation."""
     if not _ORA_SANDBOX_NAME_RE.match(sandbox_schema):
@@ -124,19 +152,24 @@ _ORA_TYPE_DEFAULTS: dict[str, Any] = {
 
 
 def _get_oracle_not_null_defaults(
-    cursor: Any, sandbox_schema: str, table_name: str,
+    cursor: Any, qualified_table: str,
 ) -> dict[str, Any]:
     """Return safe defaults for NOT NULL columns absent from fixture rows.
+
+    ``qualified_table`` is a schema-qualified name like
+    ``MIGRATIONTEST.BRONZE_CURRENCY``.  The schema and table parts are parsed
+    and used to query ``ALL_TAB_COLUMNS``.
 
     CTAS propagates NOT NULL constraints, so fixtures must supply values for
     all NOT NULL columns or this function fills them with type-appropriate
     zero/empty values.
     """
     try:
+        schema, table_name = _parse_qualified_name(qualified_table)
         cursor.execute(
             "SELECT COLUMN_NAME, DATA_TYPE FROM ALL_TAB_COLUMNS "
             "WHERE OWNER = UPPER(:1) AND TABLE_NAME = UPPER(:2) AND NULLABLE = 'N'",
-            [sandbox_schema, table_name],
+            [schema, table_name],
         )
         defaults: dict[str, Any] = {}
         for col_name, data_type in cursor.fetchall():
@@ -145,15 +178,27 @@ def _get_oracle_not_null_defaults(
         return defaults
     except _import_oracledb().DatabaseError:
         logger.debug(
-            "event=oracle_not_null_defaults_failed schema=%s table=%s",
-            sandbox_schema, table_name,
+            "event=oracle_not_null_defaults_failed table=%s",
+            qualified_table,
         )
         return {}
 
 
 def _validate_fixtures(fixtures: list[dict[str, Any]]) -> None:
-    """Validate fixture structure: table names, column names, row consistency."""
-    _validate_fixtures_base(fixtures, _validate_oracle_identifier)
+    """Validate fixture structure: table names, column names, row consistency.
+
+    Table names are schema-qualified (e.g. ``MIGRATIONTEST.BRONZE_CURRENCY``),
+    so the table-name validator accepts dots.  Column names are bare
+    identifiers validated with ``_validate_oracle_identifier``.
+    """
+    for fixture in fixtures:
+        _validate_oracle_qualified_name(fixture["table"])
+        rows = fixture.get("rows", [])
+        if rows:
+            for col_name in rows[0].keys():
+                _validate_oracle_identifier(col_name)
+            from shared.sandbox.base import validate_fixture_rows
+            validate_fixture_rows(fixture["table"], rows)
 
 
 _WRITE_SQL_RE = re.compile(
@@ -176,10 +221,9 @@ class _OracleSandboxCore(SandboxBackend):
     All operations use a single admin connection (SYS as SYSDBA by default),
     mirroring the SQL Server backend's use of ``sa`` for everything.
 
-    ``execute_scenario`` and ``_seed_fixtures`` auto-qualify object names with
-    the sandbox schema — callers pass bare object names (e.g. ``CHANNELS``),
-    not schema-qualified names. ``compare_two_sql`` SQL must be schema-qualified
-    by the caller when referencing sandbox objects.
+    Callers pass schema-qualified object names (e.g.
+    ``MIGRATIONTEST.CHANNELS``) — the sandbox code uses them as-is.  The
+    sandbox PDB is just a connection target.
     """
 
     def __init__(
