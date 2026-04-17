@@ -191,18 +191,92 @@ class ScopingSummary(BaseModel):
 # ── Per-type profile sections ───────────────────────────────────────────────
 
 
+ProfileResolvedKind = Literal[
+    "seed",
+    "dim_non_scd",
+    "dim_scd1",
+    "dim_scd2",
+    "dim_junk",
+    "fact_transaction",
+    "fact_periodic_snapshot",
+    "fact_accumulating_snapshot",
+    "fact_aggregate",
+]
+ProfileSource = Literal["catalog", "llm", "catalog+llm"]
+PrimaryKeyType = Literal["surrogate", "natural", "composite", "unknown"]
+ForeignKeyType = Literal["standard", "role_playing", "degenerate"]
+PiiSuggestedAction = Literal["mask", "drop", "tokenize", "keep"]
+
+
+class TableClassificationProfile(BaseModel):
+    model_config = _STRICT_CONFIG
+
+    resolved_kind: ProfileResolvedKind
+    source: ProfileSource | None = None
+    rationale: str | None = None
+
+
+class TablePrimaryKeyProfile(BaseModel):
+    model_config = _STRICT_CONFIG
+
+    columns: list[str] = []
+    primary_key_type: PrimaryKeyType | None = None
+    source: ProfileSource | None = None
+    rationale: str | None = None
+
+
+class TableNaturalKeyProfile(BaseModel):
+    model_config = _STRICT_CONFIG
+
+    columns: list[str] = []
+    source: ProfileSource | None = None
+    rationale: str | None = None
+
+
+class TableWatermarkProfile(BaseModel):
+    model_config = _STRICT_CONFIG
+
+    column: str | None = None
+    source: ProfileSource | None = None
+    rationale: str | None = None
+
+
+class TableForeignKeyProfile(BaseModel):
+    model_config = _STRICT_CONFIG
+
+    column: str | None = None
+    columns: list[str] = []
+    referenced_table: str | None = None
+    referenced_columns: list[str] = []
+    references_source_relation: str | None = None
+    references_column: str | None = None
+    fk_type: ForeignKeyType | None = None
+    source: ProfileSource | None = None
+    rationale: str | None = None
+
+
+class TablePiiActionProfile(BaseModel):
+    model_config = _STRICT_CONFIG
+
+    column: str
+    entity: str | None = None
+    suggested_action: PiiSuggestedAction | None = None
+    source: ProfileSource | None = None
+    rationale: str | None = None
+
+
 class TableProfileSection(BaseModel):
     """Profiling results for a table (classification, keys, PII, etc.)."""
 
     model_config = _STRICT_CONFIG
 
-    status: str = ""
-    classification: Any | None = None
-    primary_key: Any | None = None
-    natural_key: Any | None = None
-    watermark: Any | None = None
-    foreign_keys: list[Any] = []
-    pii_actions: list[Any] = []
+    status: Literal["", "ok", "partial", "error"] = ""
+    classification: TableClassificationProfile | None = None
+    primary_key: TablePrimaryKeyProfile | None = None
+    natural_key: TableNaturalKeyProfile | None = None
+    watermark: TableWatermarkProfile | None = None
+    foreign_keys: list[TableForeignKeyProfile] = []
+    pii_actions: list[TablePiiActionProfile] = []
     warnings: list[Any] = []
     errors: list[Any] = []
 
@@ -212,10 +286,10 @@ class ViewProfileSection(BaseModel):
 
     model_config = _STRICT_CONFIG
 
-    status: str = ""
-    classification: str = ""
-    rationale: str = ""
-    source: str = ""
+    status: Literal["", "ok", "partial", "error"] = ""
+    classification: Literal["stg", "mart"]
+    rationale: str
+    source: Literal["llm"]
     warnings: list[Any] = []
     errors: list[Any] = []
 

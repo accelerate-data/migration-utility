@@ -62,32 +62,7 @@ logger = logging.getLogger(__name__)
 app = typer.Typer(add_completion=False, pretty_exceptions_enable=False)
 
 
-# ── Constants ────────────────────────────────────────────────────────────────
-
-RESOLVED_KINDS = frozenset({
-    "seed",
-    "dim_non_scd",
-    "dim_scd1",
-    "dim_scd2",
-    "dim_junk",
-    "fact_transaction",
-    "fact_periodic_snapshot",
-    "fact_accumulating_snapshot",
-    "fact_aggregate",
-})
-
-FK_TYPES = frozenset({"standard", "role_playing", "degenerate"})
-
-SUGGESTED_ACTIONS = frozenset({"mask", "drop", "tokenize", "keep"})
-
-SOURCES = frozenset({"catalog", "llm", "catalog+llm"})
-
-PROFILE_STATUSES = frozenset({"ok", "partial", "error"})
-
-PK_TYPES = frozenset({"surrogate", "natural", "composite", "unknown"})
-
-VIEW_CLASSIFICATIONS = frozenset({"stg", "mart"})
-VIEW_SOURCES = frozenset({"llm"})
+# ── Seed profile helpers ────────────────────────────────────────────────────
 
 
 def build_seed_profile(rationale: str = "Table is maintained as a dbt seed.") -> dict[str, Any]:
@@ -101,8 +76,6 @@ def build_seed_profile(rationale: str = "Table is maintained as a dbt seed.") ->
         "warnings": [],
         "errors": [],
     }
-
-
 
 # ── Context assembly (importable for testing) ────────────────────────────────
 
@@ -277,100 +250,37 @@ def run_view_context(project_root: Path, view_fqn: str) -> ViewProfileContext:
 # ── Write validation and merge (importable for testing) ──────────────────────
 
 
-def _validate_profile(profile: dict[str, Any]) -> list[str]:
-    """Validate a profile dict. Returns a list of error messages (empty = valid)."""
-    errors: list[str] = []
+def _derive_table_profile_status(
+    table_norm: str,
+    existing_table: TableCatalog,
+    section: TableProfileSection,
+) -> str:
+    """Derive CLI-owned profile status after model validation succeeds."""
+    resolved_kind = section.classification.resolved_kind if section.classification else None
+    if existing_table.is_seed and resolved_kind != "seed":
+        raise ValueError(f"seed table profiles must use seed classification for {table_norm}")
+    if resolved_kind == "seed" and not existing_table.is_seed:
+        raise ValueError(f"seed classification requires is_seed: true for {table_norm}")
 
-    # Classification validation
-    classification = profile.get("classification")
-    if classification is not None:
-        rk = classification.get("resolved_kind")
-        if rk is not None and rk not in RESOLVED_KINDS:
-            errors.append(f"invalid classification.resolved_kind: {rk!r}, must be one of {sorted(RESOLVED_KINDS)}")
-        src = classification.get("source")
-        if src is not None and src not in SOURCES:
-            errors.append(f"invalid classification.source: {src!r}, must be one of {sorted(SOURCES)}")
-
-    # Primary key validation
-    pk = profile.get("primary_key")
-    if pk is not None:
-        pk_type = pk.get("primary_key_type")
-        if pk_type is not None and pk_type not in PK_TYPES:
-            errors.append(f"invalid primary_key.primary_key_type: {pk_type!r}, must be one of {sorted(PK_TYPES)}")
-        src = pk.get("source")
-        if src is not None and src not in SOURCES:
-            errors.append(f"invalid primary_key.source: {src!r}, must be one of {sorted(SOURCES)}")
-
-    # Natural key validation
-    nk = profile.get("natural_key")
-    if nk is not None:
-        src = nk.get("source")
-        if src is not None and src not in SOURCES:
-            errors.append(f"invalid natural_key.source: {src!r}, must be one of {sorted(SOURCES)}")
-
-    # Watermark validation
-    wm = profile.get("watermark")
-    if wm is not None:
-        src = wm.get("source")
-        if src is not None and src not in SOURCES:
-            errors.append(f"invalid watermark.source: {src!r}, must be one of {sorted(SOURCES)}")
-
-    # Foreign keys validation
-    fks = profile.get("foreign_keys", [])
-    for i, fk in enumerate(fks):
-        fk_type = fk.get("fk_type")
-        if fk_type is not None and fk_type not in FK_TYPES:
-            errors.append(f"invalid foreign_keys[{i}].fk_type: {fk_type!r}, must be one of {sorted(FK_TYPES)}")
-        src = fk.get("source")
-        if src is not None and src not in SOURCES:
-            errors.append(f"invalid foreign_keys[{i}].source: {src!r}, must be one of {sorted(SOURCES)}")
-
-    # PII actions validation
-    pii = profile.get("pii_actions", [])
-    for i, action in enumerate(pii):
-        sa = action.get("suggested_action")
-        if sa is not None and sa not in SUGGESTED_ACTIONS:
-            errors.append(f"invalid pii_actions[{i}].suggested_action: {sa!r}, must be one of {sorted(SUGGESTED_ACTIONS)}")
-        src = action.get("source")
-        if src is not None and src not in SOURCES:
-            errors.append(f"invalid pii_actions[{i}].source: {src!r}, must be one of {sorted(SOURCES)}")
-
-    return errors
+    if resolved_kind == "seed":
+        return "ok"
+    if section.classification is not None and section.primary_key is not None:
+        return "ok"
+    if section.classification is not None:
+        return "partial"
+    return "error"
 
 
-def _validate_view_profile(profile: dict[str, Any]) -> list[str]:
-    """Validate a view profile dict. Returns a list of error messages (empty = valid)."""
-    errors: list[str] = []
-
-    for field in ("classification", "rationale", "source"):
-        if field not in profile:
-            errors.append(f"missing required field: {field}")
-
-    classification = profile.get("classification")
-    if classification is not None and classification not in VIEW_CLASSIFICATIONS:
-        errors.append(f"invalid classification: {classification!r}, must be one of {sorted(VIEW_CLASSIFICATIONS)}")
-
-    source = profile.get("source")
-    if source is not None and source not in VIEW_SOURCES:
-        errors.append(f"invalid source: {source!r}, must be one of {sorted(VIEW_SOURCES)}")
-
-    return errors
+def _derive_view_profile_status(section: ViewProfileSection) -> str:
+    """Derive CLI-owned view profile status after model validation succeeds."""
+    return "ok"
 
 
 def _write_view_profile(project_root: Path, view_norm: str, profile_json: dict[str, Any]) -> dict[str, Any]:
     """Validate and merge a profile section into a view catalog file."""
-    errors = _validate_view_profile(profile_json)
-    if errors:
-        raise ValueError(f"View profile validation failed for {view_norm}: {'; '.join(errors)}")
-
-    # Determine status from content
-    classification = profile_json.get("classification")
-    if classification is not None and classification in VIEW_CLASSIFICATIONS:
-        status = "ok"
-    else:
-        status = "partial"
-    profile_json["status"] = status
-    ViewProfileSection.model_validate(profile_json)
+    section = ViewProfileSection.model_validate(profile_json)
+    profile_json = section.model_dump(mode="json", exclude_none=True)
+    profile_json["status"] = _derive_view_profile_status(section)
 
     catalog_path = resolve_catalog_dir(project_root) / "views" / f"{view_norm}.json"
     if not catalog_path.exists():
@@ -423,31 +333,10 @@ def run_write(project_root: Path, table: str, profile_json: dict[str, Any]) -> d
     if existing_table is None:
         raise CatalogFileMissingError("table", norm)
 
-    # Validate table profile
-    errors = _validate_profile(profile_json)
-    if errors:
-        raise ValueError(f"Profile validation failed for {norm}: {'; '.join(errors)}")
-
-    # Determine status from content
-    classification = profile_json.get("classification")
-    resolved_kind = classification.get("resolved_kind") if isinstance(classification, dict) else None
-    if existing_table.is_seed and resolved_kind != "seed":
-        raise ValueError(f"seed table profiles must use seed classification for {norm}")
-    if resolved_kind == "seed" and not existing_table.is_seed:
-        raise ValueError(f"seed classification requires is_seed: true for {norm}")
-
-    has_classification = classification is not None and resolved_kind in RESOLVED_KINDS
-    has_primary_key = profile_json.get("primary_key") is not None
-    if resolved_kind == "seed":
-        status = "ok"
-    elif has_classification and has_primary_key:
-        status = "ok"
-    elif has_classification:
-        status = "partial"
-    else:
-        status = "error"
+    section = TableProfileSection.model_validate(profile_json)
+    status = _derive_table_profile_status(norm, existing_table, section)
+    profile_json = section.model_dump(mode="json", exclude_none=True)
     profile_json["status"] = status
-    TableProfileSection.model_validate(profile_json)
 
     result = load_and_merge_catalog(project_root, norm, "profile", profile_json)
     logger.info("event=write_complete table=%s catalog_path=%s", norm, result["catalog_path"])

@@ -300,7 +300,7 @@ def test_write_legacy_writer_field_raises() -> None:
 
 
 def test_write_invalid_enum_raises() -> None:
-    """Write with invalid enum value raises ValueError."""
+    """Write with invalid enum value raises model validation error."""
     tmp, ddl_path = _make_writable_copy()
     try:
         bad_profile = {
@@ -309,14 +309,14 @@ def test_write_invalid_enum_raises() -> None:
                 "source": "llm",
             },
         }
-        with pytest.raises(ValueError, match="validation failed"):
+        with pytest.raises(ValidationError, match="resolved_kind"):
             profile.run_write(ddl_path, "silver.FactSales", bad_profile)
     finally:
         tmp.cleanup()
 
 
 def test_write_invalid_fk_type_raises() -> None:
-    """Write with invalid FK type raises ValueError."""
+    """Write with invalid FK type raises model validation error."""
     tmp, ddl_path = _make_writable_copy()
     try:
         bad_profile = {
@@ -328,14 +328,14 @@ def test_write_invalid_fk_type_raises() -> None:
                 }
             ],
         }
-        with pytest.raises(ValueError, match="validation failed"):
+        with pytest.raises(ValidationError, match="fk_type"):
             profile.run_write(ddl_path, "silver.FactSales", bad_profile)
     finally:
         tmp.cleanup()
 
 
 def test_write_invalid_suggested_action_raises() -> None:
-    """Write with invalid suggested action raises ValueError."""
+    """Write with invalid suggested action raises model validation error."""
     tmp, ddl_path = _make_writable_copy()
     try:
         bad_profile = {
@@ -347,14 +347,14 @@ def test_write_invalid_suggested_action_raises() -> None:
                 }
             ],
         }
-        with pytest.raises(ValueError, match="validation failed"):
+        with pytest.raises(ValidationError, match="suggested_action"):
             profile.run_write(ddl_path, "silver.FactSales", bad_profile)
     finally:
         tmp.cleanup()
 
 
 def test_write_invalid_source_raises() -> None:
-    """Write with invalid source enum raises ValueError."""
+    """Write with invalid source enum raises model validation error."""
     tmp, ddl_path = _make_writable_copy()
     try:
         bad_profile = {
@@ -363,7 +363,24 @@ def test_write_invalid_source_raises() -> None:
                 "source": "invalid_source",
             },
         }
-        with pytest.raises(ValueError, match="validation failed"):
+        with pytest.raises(ValidationError, match="source"):
+            profile.run_write(ddl_path, "silver.FactSales", bad_profile)
+    finally:
+        tmp.cleanup()
+
+
+def test_write_invalid_primary_key_type_raises() -> None:
+    """Write with invalid primary key type raises model validation error."""
+    tmp, ddl_path = _make_writable_copy()
+    try:
+        bad_profile = {
+            "primary_key": {
+                "columns": ["sale_id"],
+                "primary_key_type": "identityish",
+                "source": "catalog",
+            },
+        }
+        with pytest.raises(ValidationError, match="primary_key_type"):
             profile.run_write(ddl_path, "silver.FactSales", bad_profile)
     finally:
         tmp.cleanup()
@@ -676,22 +693,33 @@ def test_write_view_profile_mart() -> None:
 
 
 def test_write_view_profile_bad_classification_raises() -> None:
-    """Invalid classification raises ValueError."""
+    """Invalid classification raises model validation error."""
     tmp, root = _make_writable_copy()
     try:
         bad = {**_VALID_VIEW_PROFILE, "classification": "dim_non_scd"}
-        with pytest.raises(ValueError, match="invalid classification"):
+        with pytest.raises(ValidationError, match="classification"):
             profile.run_write(root, "silver.vw_Simple", bad)
     finally:
         tmp.cleanup()
 
 
 def test_write_view_profile_missing_field_raises() -> None:
-    """Missing required field raises ValueError."""
+    """Missing required field raises model validation error."""
     tmp, root = _make_writable_copy()
     try:
         bad = {"classification": "stg", "source": "llm"}  # missing rationale
-        with pytest.raises(ValueError, match="missing required field"):
+        with pytest.raises(ValidationError, match="rationale"):
+            profile.run_write(root, "silver.vw_Simple", bad)
+    finally:
+        tmp.cleanup()
+
+
+def test_write_view_profile_bad_source_raises() -> None:
+    """Invalid source raises model validation error."""
+    tmp, root = _make_writable_copy()
+    try:
+        bad = {**_VALID_VIEW_PROFILE, "source": "catalog"}
+        with pytest.raises(ValidationError, match="source"):
             profile.run_write(root, "silver.vw_Simple", bad)
     finally:
         tmp.cleanup()
