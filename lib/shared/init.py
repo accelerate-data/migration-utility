@@ -51,13 +51,11 @@ from shared.output_models.init import (
     ScaffoldHooksOutput,
     ScaffoldProjectOutput,
 )
-from shared.platform import (
-    HostPlatform,
-    build_init_platform_gate_message,
-    classify_host_platform,
-    supports_homebrew_install,
-    supports_native_windows,
-)
+from shared.platform import HostPlatform  # noqa: F401
+from shared.platform import build_init_platform_gate_message  # noqa: F401
+from shared.platform import classify_host_platform  # noqa: F401
+from shared.platform import supports_homebrew_install  # noqa: F401
+from shared.platform import supports_native_windows  # noqa: F401
 
 logger = logging.getLogger(__name__)
 

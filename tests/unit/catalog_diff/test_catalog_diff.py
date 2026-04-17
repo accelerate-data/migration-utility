@@ -7,7 +7,6 @@ import tempfile
 from pathlib import Path
 
 from shared.catalog_diff import (
-    DiffResult,
     classify_objects,
     compute_object_hashes,
     load_existing_hashes,

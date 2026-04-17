@@ -48,7 +48,7 @@ from shared.dry_run_core import (
     run_sync_excluded_warnings,
 )
 from shared.env_config import resolve_project_root
-from shared.name_resolver import fqn_parts, normalize  # re-exported for test compat
+from shared.name_resolver import fqn_parts, normalize  # noqa: F401  # re-exported for test compat
 
 logger = logging.getLogger(__name__)
 

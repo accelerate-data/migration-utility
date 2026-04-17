@@ -19,14 +19,12 @@ from shared.loader import (
     ProfileMissingError,
 )
 from shared.migrate_support.artifacts import (
-    _spec_given_to_dbt_input,
-    _unit_test_to_dbt,
     run_render_unit_tests,
     run_write,
     run_write_generate,
 )
-from shared.migrate_support.context import _load_refactored_sql, run_context
-from shared.migrate_support.derivation import derive_materialization, derive_schema_tests
+from shared.migrate_support.context import _load_refactored_sql, run_context  # noqa: F401
+from shared.migrate_support.derivation import derive_materialization, derive_schema_tests  # noqa: F401
 
 logger = logging.getLogger(__name__)
 

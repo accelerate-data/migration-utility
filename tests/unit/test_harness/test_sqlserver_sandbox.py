@@ -19,13 +19,9 @@ from shared.output_models.sandbox import (
 from shared.output_models.test_specs import TestSpec, TestSpecOutput
 from shared.sandbox.base import serialize_rows as _serialize_rows
 from shared.sandbox.sql_server import (
-    SqlServerSandbox,
     _detect_remote_exec_target,
-    _get_identity_columns,
     _get_not_null_defaults,
     _import_pyodbc,
-    _validate_identifier,
-    _validate_sandbox_db_name,
 )
 
 

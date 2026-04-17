@@ -194,6 +194,16 @@ def test_oracle_materializer_avoids_dropping_the_target_schema_user() -> None:
     assert "owner = UPPER('${ORACLE_SCHEMA}')" in script_text
 
 
+def test_oracle_materializer_avoids_bash4_lowercase_expansion() -> None:
+    script_path = (
+        Path(__file__).resolve().parents[3]
+        / "tests/integration/oracle/fixtures/materialize.sh"
+    )
+    script_text = script_path.read_text(encoding="utf-8")
+
+    assert ",," not in script_text
+
+
 def test_oracle_materializer_requires_oracledb() -> None:
     script_path = (
         Path(__file__).resolve().parents[3]

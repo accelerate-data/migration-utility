@@ -28,10 +28,6 @@ def set_verbose(value: bool) -> None:
     _verbose = value
 
 
-def is_verbose() -> bool:
-    return _verbose
-
-
 def success(message: str) -> None:
     if not _quiet:
         console.print(f"[green]✓[/green] {message}")

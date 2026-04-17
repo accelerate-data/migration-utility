@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 import logging
-import os
+import os  # noqa: F401 - compatibility export for tests and older callers
 import shutil
 import subprocess
 from pathlib import Path

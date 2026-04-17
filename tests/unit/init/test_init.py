@@ -18,7 +18,6 @@ from shared import init_templates
 from shared.init import (
     app,
     classify_host_platform,
-    GITIGNORE_ENTRIES,
     SOURCE_REGISTRY,
     get_source_config,
     HostPlatform,

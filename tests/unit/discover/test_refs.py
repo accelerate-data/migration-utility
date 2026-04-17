@@ -1,6 +1,5 @@
 from __future__ import annotations
 
-import json
 import tempfile
 from pathlib import Path
 
@@ -8,23 +7,14 @@ import pytest
 
 from shared import discover
 from shared.loader import (
-    CatalogFileMissingError,
     CatalogLoadError,
     CatalogNotFoundError,
-    DdlParseError,
-    ObjectNotFoundError,
 )
 from tests.unit.discover.discover_test_helpers import (
     _CATALOG_FIXTURES,
-    _FLAT_FIXTURES,
     _LISTING_OBJECTS_EVAL_FIXTURES,
-    _SOURCE_TABLE_GUARD_FIXTURES,
-    _UNPARSEABLE_FIXTURES,
-    _make_proc_cat,
     _make_project_with_corrupt_catalog,
-    _make_project_with_proc_view_refs,
     _make_project_with_view_catalog,
-    _make_table_cat,
 )
 
 def test_refs_catalog_finds_writers() -> None:

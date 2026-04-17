@@ -447,7 +447,7 @@ class TestExecuteSpecViewRouting:
         try:
             with patch.object(test_harness, "_create_backend", return_value=mock_backend), \
                  patch.object(test_harness, "_resolve_sandbox_db", return_value=("SBX_ABC000000000", {})):
-                result = runner.invoke(
+                runner.invoke(
                     test_harness.app,
                     ["execute-spec", "--spec", spec_path, "--project-root", "."],
                 )
@@ -507,7 +507,7 @@ class TestExecuteSpecViewRouting:
         try:
             with patch.object(test_harness, "_create_backend", return_value=mock_backend), \
                  patch.object(test_harness, "_resolve_sandbox_db", return_value=("SBX_ABC000000000", {})):
-                result = runner.invoke(
+                runner.invoke(
                     test_harness.app,
                     ["execute-spec", "--spec", spec_path, "--project-root", "."],
                 )

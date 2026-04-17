@@ -1,7 +1,6 @@
 """Tests for shared.env_config — git-repo enforcement and path resolution."""
 from __future__ import annotations
 
-import subprocess
 from pathlib import Path
 from unittest.mock import patch
 

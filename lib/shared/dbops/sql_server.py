@@ -2,7 +2,6 @@
 
 from __future__ import annotations
 
-from typing import Any
 
 from shared.db_connect import SQL_SERVER_ODBC_DRIVER, build_sql_server_connection_string
 from shared.dbops.base import ColumnSpec, DatabaseOperations

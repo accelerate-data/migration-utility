@@ -10,7 +10,6 @@ from typing import Any
 
 from shared.catalog import write_json
 from shared.diagnostics import CatalogContext
-from shared.loader_data import DdlEntry
 
 
 def diag_git_init(path: Path) -> None:

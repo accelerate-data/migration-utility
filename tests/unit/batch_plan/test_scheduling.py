@@ -10,7 +10,6 @@ import json
 import tempfile
 from pathlib import Path
 
-import pytest
 
 from shared.batch_plan import (
     _topological_batches,

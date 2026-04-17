@@ -9,7 +9,6 @@ Requires role-specific SQL Server source and sandbox env vars or a reachable loc
 """
 
 from __future__ import annotations
-from pathlib import Path
 from typing import Any
 
 import pytest

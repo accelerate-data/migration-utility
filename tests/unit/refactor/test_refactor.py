@@ -15,8 +15,6 @@ from shared import refactor
 from shared.catalog_models import (
     CompareSqlSummary,
     RefactorSection,
-    SemanticCheck,
-    SemanticChecks,
     SemanticReview,
 )
 from shared.loader import CatalogFileMissingError

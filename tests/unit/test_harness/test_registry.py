@@ -3,8 +3,7 @@
 from __future__ import annotations
 
 import os
-from contextlib import contextmanager
-from unittest.mock import MagicMock, patch
+from unittest.mock import patch
 
 import pytest
 
@@ -12,12 +11,9 @@ from shared.sandbox import get_backend
 from shared.sandbox.base import generate_sandbox_name
 from shared.sandbox.oracle import (
     OracleSandbox,
-    _validate_oracle_identifier,
-    _validate_oracle_sandbox_name,
 )
 from shared.sandbox.sql_server import (
     SqlServerSandbox,
-    _import_pyodbc,
     _validate_identifier,
     _validate_sandbox_db_name,
 )

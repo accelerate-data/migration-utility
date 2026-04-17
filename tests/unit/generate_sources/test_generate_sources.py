@@ -10,7 +10,6 @@ import subprocess
 import tempfile
 from pathlib import Path
 
-import pytest
 import yaml
 
 import shared.generate_sources as generate_sources_module

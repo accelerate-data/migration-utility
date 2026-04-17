@@ -16,6 +16,35 @@ permissions:
   contents: read
 
 jobs:
+  python-dead-code-lint:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v6
+
+      - name: Set up Python
+        uses: actions/setup-python@v6
+        with:
+          python-version: '3.11'
+
+      - name: Set up uv
+        uses: astral-sh/setup-uv@v7
+
+      - name: Check Python unused imports and locals
+        run: |
+          uvx ruff check \
+            lib/shared \
+            packages/ad-migration-cli/src \
+            packages/ad-migration-internal/src \
+            mcp/ddl \
+            scripts \
+            tests/helpers.py \
+            tests/conftest.py \
+            tests \
+            mcp/ddl/tests \
+            --select F401,F841 \
+            --statistics
+
   repo-map-audit:
     if: github.event_name == 'pull_request'
     runs-on: ubuntu-latest

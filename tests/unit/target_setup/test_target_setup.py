@@ -11,7 +11,6 @@ import pytest
 from shared.target_setup import (
     apply_target_source_tables,
     export_seed_tables,
-    generate_target_sources,
     get_target_source_schema,
     materialize_seed_tables,
     run_setup_target,
@@ -167,15 +166,6 @@ def test_write_target_runtime_from_env_maps_sql_server_to_tsql_dialect(
     assert manifest["runtime"]["target"]["technology"] == "sql_server"
     assert manifest["runtime"]["target"]["dialect"] == "tsql"
     assert "driver" not in manifest["runtime"]["target"]["connection"]
-
-
-def test_generate_target_sources_uses_target_schema_override(tmp_path: Path) -> None:
-    project_root = _make_sql_server_project(tmp_path)
-    _seed_catalog_table(project_root, "Customer")
-    result = generate_target_sources(project_root)
-    assert result.sources is not None
-    assert result.sources["sources"][0]["name"] == "bronze"
-    assert result.sources["sources"][0]["schema"] == "bronze"
 
 
 def test_write_target_sources_yml_writes_remapped_schema(tmp_path: Path) -> None:

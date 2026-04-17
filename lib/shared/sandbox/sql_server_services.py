@@ -12,22 +12,9 @@ from typing import TYPE_CHECKING, Any
 if TYPE_CHECKING:
     import pyodbc
 
-from shared.output_models.sandbox import (
-    ErrorEntry,
-    SandboxDownOutput,
-    SandboxStatusOutput,
-    SandboxUpOutput,
-    TestHarnessExecuteOutput,
-)
 from shared.db_connect import SQL_SERVER_ODBC_DRIVER, build_sql_server_connection_string
 from shared.sandbox.base import (
     SandboxBackend,
-    build_compare_error,
-    build_compare_result,
-    build_execute_error,
-    build_execute_output,
-    capture_rows as _capture_rows_base,
-    generate_sandbox_name,
     validate_fixtures as _validate_fixtures_base,
     validate_readonly_sql as _validate_readonly_sql_base,
 )

@@ -8,7 +8,6 @@ from pathlib import Path
 
 import pytest
 from tests.helpers import git_init
-import typer
 
 from shared.diagnostics import (
     _REGISTRY,
@@ -16,11 +15,8 @@ from shared.diagnostics import (
     CatalogContext,
     DiagnosticRegistry,
     DiagnosticResult,
-    _build_ddl_lookup,
-    _build_known_fqns,
     _CheckSpec,
     main,
-    diagnostic,
     run_diagnostics,
 )
 from shared.diagnostics.common import (
@@ -1120,7 +1116,7 @@ class TestTwoPassOrdering:
             }
             _write_catalog(root, "procedures", "dbo.usp_a", cat_a)
 
-            summary = run_diagnostics(root, "tsql")
+            run_diagnostics(root, "tsql")
 
             # Read back both catalogs
             result_b = json.loads((root / "catalog" / "procedures" / "dbo.usp_b.json").read_text(encoding="utf-8"))

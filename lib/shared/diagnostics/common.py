@@ -14,7 +14,6 @@ from pathlib import Path
 from typing import Any
 
 from shared.diagnostics import (
-    ALL_DIALECTS,
     CatalogContext,
     DiagnosticResult,
     _THRESHOLDS,

@@ -4,7 +4,6 @@ from __future__ import annotations
 
 import json
 from pathlib import Path
-from unittest.mock import MagicMock
 
 import pytest
 oracledb = pytest.importorskip("oracledb", reason="oracledb not installed")
@@ -177,7 +176,7 @@ class TestExtractOracleUnit:
         import sys
         sys.path.insert(0, str(Path(__file__).resolve().parents[3] / "lib"))
         from shared.oracle_extract import _extract_view_ddl
-        from unittest.mock import MagicMock, call
+        from unittest.mock import MagicMock
 
         fallback_ddl = "CREATE OR REPLACE VIEW SH.PROFITS AS SELECT 1 FROM DUAL"
 

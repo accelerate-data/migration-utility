@@ -9,21 +9,8 @@ import pytest
 from shared import discover
 from shared.loader import (
     CatalogFileMissingError,
-    CatalogLoadError,
-    CatalogNotFoundError,
-    DdlParseError,
-    ObjectNotFoundError,
 )
 from tests.unit.discover.discover_test_helpers import (
-    _CATALOG_FIXTURES,
-    _FLAT_FIXTURES,
-    _LISTING_OBJECTS_EVAL_FIXTURES,
-    _SOURCE_TABLE_GUARD_FIXTURES,
-    _UNPARSEABLE_FIXTURES,
-    _make_proc_cat,
-    _make_project_with_corrupt_catalog,
-    _make_project_with_proc_view_refs,
-    _make_project_with_view_catalog,
     _make_table_cat,
 )
 
@@ -45,7 +32,7 @@ def test_write_source_resolved_table() -> None:
             root, "silver.crossdomain",
             {"status": "resolved", "selected_writer": "dbo.usp_other"},
         )
-        result = discover.run_write_source(root, "silver.crossdomain", True)
+        discover.run_write_source(root, "silver.crossdomain", True)
         written = json.loads(cat_path.read_text(encoding="utf-8"))
         assert written["is_source"] is True
 

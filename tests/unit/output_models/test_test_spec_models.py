@@ -20,9 +20,7 @@ from shared.output_models.test_specs import (
     TestReviewOutput,
     TestSpec,
     TestSpecOutput,
-    UncoveredBranch,
     UnitTestEntry,
-    UntestableBranch,
     ValidationSection,
 )
 

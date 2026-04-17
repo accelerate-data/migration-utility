@@ -31,7 +31,6 @@ from shared.name_resolver import normalize
 from shared.runtime_config import (
     get_primary_dialect,
     get_runtime_role,
-    get_sandbox_name,
     set_runtime_role,
     validate_supported_technologies,
 )

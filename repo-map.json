@@ -40,7 +40,7 @@
         ".github/workflows/release-cli.yml",
         ".github/workflows/sync-wiki.yml"
       ],
-      "notes": "ci.yml: repo-map audit on PRs. release-cli.yml: tagged GitHub release for ad-migration-shared and ad-migration-cli artifacts plus Homebrew tap formula update."
+      "notes": "ci.yml: Python unused-import/local lint plus repo-map audit on PRs. release-cli.yml: tagged GitHub release for ad-migration-shared and ad-migration-cli artifacts plus Homebrew tap formula update."
     }
   ],
   "test_frameworks": [

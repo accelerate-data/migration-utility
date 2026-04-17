@@ -6,7 +6,6 @@ import logging
 from collections.abc import Callable
 
 import sqlglot
-import sqlglot.expressions as exp
 
 from shared.loader_parse import (
     _strip_trailing_sql_comments,
