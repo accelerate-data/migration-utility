@@ -123,6 +123,8 @@ def test_maintainer_docs_use_the_internal_project_path() -> None:
         "commands/generate-model.md",
         "commands/generate-tests.md",
         "commands/refactor-query.md",
+        "commands/refactor-mart-plan.md",
+        "commands/refactor-mart.md",
         "commands/status.md",
         "skills/README.md",
         "skills/listing-objects/SKILL.md",
@@ -141,6 +143,12 @@ def test_maintainer_docs_use_the_internal_project_path() -> None:
         "skills/reviewing-tests/references/table-vs-view-context.md",
         "skills/refactoring-sql/SKILL.md",
         "skills/refactoring-sql/references/context-fields.md",
+        "skills/planning-refactor-mart/SKILL.md",
+        "skills/planning-refactor-mart/references/plan-file-contract.md",
+        "skills/applying-staging-candidate/SKILL.md",
+        "skills/applying-staging-candidate/references/staging-validation-contract.md",
+        "skills/applying-refactor-mart-candidate/SKILL.md",
+        "skills/applying-refactor-mart-candidate/references/candidate-dependency-contract.md",
     ]
 
     for relative_path in internal_files:
