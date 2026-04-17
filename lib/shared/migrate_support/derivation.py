@@ -7,21 +7,22 @@ from typing import Any
 from shared.name_resolver import model_name_from_table
 
 
+def _field_value(value: Any, field: str, default: Any = None) -> Any:
+    """Read a field from either a dict or a typed catalog model."""
+    if isinstance(value, dict):
+        return value.get(field, default)
+    return getattr(value, field, default)
+
+
 def derive_materialization(profile: Any) -> str:
     """Derive dbt materialization from profile classification and watermark."""
-    _get = profile.get if isinstance(profile, dict) else lambda k, d=None: getattr(profile, k, d)
-    classification = _get("classification") or {}
+    classification = _field_value(profile, "classification") or {}
     if classification in ("stg", "mart"):
         return "view"
-    resolved_kind = (
-        classification.get("resolved_kind")
-        if isinstance(classification, dict)
-        else getattr(classification, "resolved_kind", None)
-    )
-    if resolved_kind == "dim_scd2":
+    if _field_value(classification, "resolved_kind") == "dim_scd2":
         return "snapshot"
-    watermark = _get("watermark")
-    if watermark and (watermark.get("column") if isinstance(watermark, dict) else getattr(watermark, "column", None)):
+    watermark = _field_value(profile, "watermark")
+    if watermark and _field_value(watermark, "column"):
         return "incremental"
     return "table"
 

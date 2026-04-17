@@ -19,6 +19,7 @@ from pathlib import Path
 import pytest
 import yaml
 
+from shared.catalog_models import TableProfileSection
 from shared.loader import CatalogFileMissingError, CatalogLoadError, ProfileMissingError
 from shared.migrate import (
     _load_refactored_sql,
@@ -91,6 +92,13 @@ class TestDeriveMaterialization:
 
     def test_dim_scd2_returns_snapshot(self) -> None:
         profile = {"classification": {"resolved_kind": "dim_scd2"}, "watermark": {"column": "valid_from"}}
+        assert derive_materialization(profile) == "snapshot"
+
+    def test_dim_scd2_typed_profile_returns_snapshot(self) -> None:
+        profile = TableProfileSection.model_validate({
+            "classification": {"resolved_kind": "dim_scd2"},
+            "watermark": {"column": "valid_from"},
+        })
         assert derive_materialization(profile) == "snapshot"
 
     def test_dim_scd2_without_watermark_returns_snapshot(self) -> None:
