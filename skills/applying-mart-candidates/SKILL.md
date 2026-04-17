@@ -83,13 +83,11 @@ before editing files or plan status.
 
 ## Validation
 
-Validation is candidate-scoped:
-
-- validate the changed `int` or `mart` output model;
-- validate each additional existing model required by the candidate section;
-- capture the command or scope used in a `Validation result:` bullet; and
-- do not alter unrelated candidate statuses after success, failure, or block.
-- dependency-gated blocking is owned by `/refactor-mart`, not this skill.
+Validation is candidate-scoped. Validate the changed `int` or `mart` output
+model, validate each additional existing model required by the candidate
+section, capture the command or scope used in a `Validation result:` bullet,
+and do not alter unrelated candidate statuses after success, failure, or
+block. Dependency-gated blocking is owned by `/refactor-mart`, not this skill.
 
 If validation fails, keep attempted file edits in place only when they help the
 user inspect the failure, and mark this candidate `failed`.

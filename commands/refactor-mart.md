@@ -59,8 +59,7 @@ Mode behavior:
 - `stg` selects candidates with `Type: stg`.
 - `int` selects candidates with `Type: int` or `Type: mart`.
 
-For `stg` mode, reject non-staging candidates without changing their execution
-status.
+For `stg` mode, leave non-staging candidates unselected and unchanged.
 
 For `int` mode, check dependencies before applying each selected candidate and
 before editing any dbt files:
@@ -111,7 +110,9 @@ skipped: <n>
 
 For blocked candidates, list the candidate ID and missing or unsatisfied
 dependencies or reasons. For failed candidates, list the candidate ID and
-validation failure summary.
+validation failure summary. For skipped candidates, list approved candidates
+not selected for the current mode plus unapproved candidates in the current
+wave; blocked candidates are not counted as skipped.
 
 If every selected candidate is blocked or failed, report that no dbt changes
 were completed and stop.

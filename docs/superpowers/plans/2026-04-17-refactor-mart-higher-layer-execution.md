@@ -47,12 +47,16 @@ Keep the dependency rules before the apply step and clarify that dependency bloc
 ````md
 For `int` mode, check dependencies before applying each selected candidate and before editing any dbt files:
 
-- `Depends on: none` is satisfied.
+- `Depends on: none` is satisfied only when present exactly as written.
+- If `Depends on:` is missing, empty, malformed, ambiguous, or otherwise does
+  not clearly declare upstream candidate IDs or `none`, the command blocks the
+  candidate before skill invocation.
 - A dependency is satisfied only when the referenced candidate section has
   `Execution status: applied`.
-- If any dependency is missing, unchecked, failed, blocked, planned, or otherwise
-  not applied, mark the candidate as blocked in the plan, include the missing or
-  unsatisfied dependency IDs, and skip application.
+- If any referenced candidate section is missing or any dependency is not
+  `Execution status: applied`, the command blocks the candidate before skill
+  invocation, records the missing or unsatisfied dependency IDs, and owns the
+  writeback.
 ````
 
 - [x] **Step 2: Verify staging skill remains internal**
