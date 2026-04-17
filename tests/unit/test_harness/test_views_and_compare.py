@@ -51,7 +51,7 @@ class TestCompareTwoSqlSqlServerRollback:
             yield conn
 
         with patch.object(backend, "_connect", side_effect=_fake_connect), \
-             patch.object(backend, "_ensure_view_tables", return_value=[]):
+             patch.object(backend._fixtures, "ensure_view_tables", return_value=[]):
             result = backend.compare_two_sql(
                 sandbox_db="__test_abc123",
                 sql_a="SELECT bad syntax",
@@ -90,7 +90,7 @@ class TestEnsureViewTablesSqlServer:
         with patch.object(backend, "_connect", side_effect=sandbox_connect), patch.object(
             backend, "_connect_source", side_effect=source_connect
         ):
-            materialized = backend._ensure_view_tables("__test_abc123", given)
+            materialized = backend._fixtures.ensure_view_tables("__test_abc123", given)
 
         assert materialized == ["silver.vw_product"]
         calls = [str(c) for c in sandbox_cursor.execute.call_args_list]
@@ -115,7 +115,7 @@ class TestEnsureViewTablesSqlServer:
         with patch.object(backend, "_connect", side_effect=fake_connect), patch.object(
             backend, "_connect_source", side_effect=fake_connect
         ):
-            materialized = backend._ensure_view_tables("__test_abc123", given)
+            materialized = backend._fixtures.ensure_view_tables("__test_abc123", given)
 
         assert materialized == []
         sandbox_cursor.execute.assert_not_called()
@@ -146,7 +146,7 @@ class TestEnsureViewTablesSqlServer:
         with patch.object(backend, "_connect", side_effect=sandbox_connect), patch.object(
             backend, "_connect_source", side_effect=source_connect
         ):
-            materialized = backend._ensure_view_tables("__test_abc123", given)
+            materialized = backend._fixtures.ensure_view_tables("__test_abc123", given)
 
         assert materialized == ["silver.vw_stale"]
         calls = [str(c) for c in sandbox_cursor.execute.call_args_list]
@@ -187,7 +187,7 @@ class TestEnsureViewTablesOracle:
         with patch.object(backend, "_connect", side_effect=_fake_connect), patch.object(
             backend, "_connect_source", side_effect=_fake_connect
         ):
-            materialized = backend._ensure_view_tables("__test_abc123", given)
+            materialized = backend._fixtures.ensure_view_tables("__test_abc123", given)
 
         assert materialized == ["VW_PRODUCT"]
         calls = [str(c) for c in cursor.execute.call_args_list]
@@ -211,7 +211,7 @@ class TestEnsureViewTablesOracle:
         with patch.object(backend, "_connect", side_effect=_fake_connect), patch.object(
             backend, "_connect_source", side_effect=_fake_connect
         ):
-            materialized = backend._ensure_view_tables("__test_abc123", given)
+            materialized = backend._fixtures.ensure_view_tables("__test_abc123", given)
 
         assert materialized == []
         calls = [str(c) for c in cursor.execute.call_args_list]
@@ -231,6 +231,7 @@ class TestEnsureViewTablesOracle:
         sandbox_cursor = MagicMock()
         sandbox_cursor.execute.side_effect = [
             oracledb.DatabaseError,   # DROP TABLE raises
+            None,                     # DROP VIEW succeeds
             None,                     # CREATE TABLE succeeds
         ]
 
@@ -251,7 +252,7 @@ class TestEnsureViewTablesOracle:
         with patch.object(backend, "_connect", side_effect=_fake_sandbox_connect), patch.object(
             backend, "_connect_source", side_effect=_fake_source_connect
         ):
-            materialized = backend._ensure_view_tables("__test_abc123", given)
+            materialized = backend._fixtures.ensure_view_tables("__test_abc123", given)
 
         assert materialized == ["VW_STALE"]
         calls = [str(c) for c in sandbox_cursor.execute.call_args_list]
@@ -304,8 +305,8 @@ class TestExecuteSelectSqlServer:
             yield conn
 
         with patch.object(backend, "_connect", side_effect=_fake_connect), \
-             patch.object(backend, "_ensure_view_tables", return_value=[]), \
-             patch.object(backend, "_seed_fixtures"):
+             patch.object(backend._fixtures, "ensure_view_tables", return_value=[]), \
+             patch.object(backend._fixtures, "seed_fixtures"):
             result = backend.execute_select(
                 sandbox_db="__test_abc123",
                 sql="SELECT id, name FROM [silver].[Customers]",
@@ -336,8 +337,8 @@ class TestExecuteSelectSqlServer:
             yield conn
 
         with patch.object(backend, "_connect", side_effect=_fake_connect), \
-             patch.object(backend, "_ensure_view_tables", return_value=[]), \
-             patch.object(backend, "_seed_fixtures"):
+             patch.object(backend._fixtures, "ensure_view_tables", return_value=[]), \
+             patch.object(backend._fixtures, "seed_fixtures"):
             result = backend.execute_select(
                 sandbox_db="__test_abc123",
                 sql="SELECT id FROM [silver].[Empty]",
@@ -383,8 +384,8 @@ class TestExecuteSelectOracle:
             yield conn
 
         with patch.object(backend, "_connect", side_effect=_fake_connect), \
-             patch.object(backend, "_ensure_view_tables", return_value=[]), \
-             patch.object(backend, "_seed_fixtures"):
+             patch.object(backend._fixtures, "ensure_view_tables", return_value=[]), \
+             patch.object(backend._fixtures, "seed_fixtures"):
             result = backend.execute_select(
                 sandbox_db="__test_abc123",
                 sql='SELECT "ID", "NAME" FROM "SH"."CHANNELS"',

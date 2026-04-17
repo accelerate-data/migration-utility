@@ -13,7 +13,12 @@ def derive_materialization(profile: Any) -> str:
     classification = _get("classification") or {}
     if classification in ("stg", "mart"):
         return "view"
-    if isinstance(classification, dict) and classification.get("resolved_kind") == "dim_scd2":
+    resolved_kind = (
+        classification.get("resolved_kind")
+        if isinstance(classification, dict)
+        else getattr(classification, "resolved_kind", None)
+    )
+    if resolved_kind == "dim_scd2":
         return "snapshot"
     watermark = _get("watermark")
     if watermark and (watermark.get("column") if isinstance(watermark, dict) else getattr(watermark, "column", None)):
