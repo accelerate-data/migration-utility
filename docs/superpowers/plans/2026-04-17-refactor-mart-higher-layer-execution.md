@@ -442,7 +442,7 @@ node --test tests/evals/assertions/check-refactor-mart-stg-execution.test.js tes
 
 Expected: pass.
 
-- [ ] **Step 10: Run command eval**
+- [x] **Step 10: Run command eval**
 
 Run:
 
@@ -451,9 +451,6 @@ cd tests/evals && npm run eval:cmd-refactor-mart
 ```
 
 Expected: pass. If model nondeterminism causes a case to fail while the contract and assertion are correct, capture the failure and revise the prompt or fixture to remove ambiguity.
-
-Attempted during Task 2 implementation. Blocked before execution because
-`ANTHROPIC_API_KEY` was not set in the environment.
 
 - [x] **Step 11: Commit eval slice**
 

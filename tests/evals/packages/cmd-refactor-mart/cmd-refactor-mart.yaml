@@ -15,11 +15,6 @@ extensions:
 providers:
   - file://../../providers/haiku-120.yaml
 
-defaultTest:
-  assert:
-    - type: javascript
-      value: file://../../assertions/check-refactor-mart-stg-execution.js
-
 tests:
   - description: "[smoke] stg happy path -- approved staging candidate rewires multiple consumers"
     prompts: ["cmd-refactor-mart-stg"]
@@ -30,6 +25,9 @@ tests:
       expected_output_terms: "applied,stg_bronze__orders,int_sales_orders,int_sales_order_summary"
       expected_consumer_refs: "int_sales_orders:stg_bronze__orders,int_sales_order_summary:stg_bronze__orders"
       expected_validation_results: "STG-001"
+    assert:
+      - type: javascript
+        value: file://../../assertions/check-refactor-mart-stg-execution.js
 
   - description: "stg partial failure -- failed candidate does not stop unrelated staging candidate"
     prompts: ["cmd-refactor-mart-stg"]
@@ -41,6 +39,9 @@ tests:
       expected_consumer_refs: "int_sales_orders:stg_bronze__orders,int_returns:stg_bronze__returns"
       expected_validation_results: "STG-001,STG-002"
       expected_blocked_reasons: "STG-003"
+    assert:
+      - type: javascript
+        value: file://../../assertions/check-refactor-mart-stg-execution.js
 
   - description: "[smoke] int happy path -- approved higher-layer candidates apply after satisfied dependencies"
     prompts: ["cmd-refactor-mart-int"]
