@@ -47,6 +47,17 @@ tests:
       target_table: "silver.DimProduct"
       writer: "silver.usp_load_DimProduct"
 
+  # ── multi-table selected slice — profile target slice only ─────────────────
+  - description: "multi-table-selected-slice — InsertSelectTarget profiles selected slice only"
+    prompts: ["profiling-table"]
+    vars:
+      fixture_path: "tests/evals/fixtures/profiling-table/multi-table-selected-slice"
+      target_table: "silver.InsertSelectTarget"
+      writer: "silver.usp_load_InsertSelectTarget"
+      expected_kind: "dim_non_scd"
+      expected_status: "ok"
+      rejected_profile_terms: "creditcard,unrelatedtarget,unrelated"
+
   # ── exec-chain — FactExecProfile helper proc context ────────
   - description: "exec-chain — FactExecProfile helper proc context"
     prompts: ["profiling-table"]

@@ -1,6 +1,6 @@
 You are running in a DDL project with canonical fixture input at {{fixture_path}} and writable run workspace at {{run_path}}.
 
-Run /refactoring-sql for view {{target_view}}.
+Use the refactoring-sql skill workflow for view {{target_view}}. Do not require a user-invocable slash command; the skill is available through the SKILL.md path below.
 
 Read the skill at `${CLAUDE_PLUGIN_ROOT}/skills/refactoring-sql/SKILL.md`. Keep `${CLAUDE_PLUGIN_ROOT}` references as written. Pass `--project-root {{run_path}}` to all CLI commands.
 

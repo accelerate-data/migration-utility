@@ -26,6 +26,19 @@ tests:
       - type: javascript
         value: file://../../assertions/check-dbt-model.js
 
+  - description: "multi-table-selected-slice — SelectIntoTarget model ignores unrelated writer logic"
+    vars:
+      fixture_path: "tests/evals/fixtures/generating-model/multi-table-selected-slice"
+      target_table: "silver.SelectIntoTarget"
+      writer: "silver.usp_load_SelectIntoTarget"
+      expected_model_path: "models/marts/selectintotarget.sql"
+      expected_model_terms: "ref('stg_bronze__product')"
+      forbidden_model_terms: "creditcard,unrelatedtarget,unrelated,source('bronze'"
+      expected_yaml_terms: "version: 2,description"
+    assert:
+      - type: javascript
+        value: file://../../assertions/check-dbt-model.js
+
   - description: "merge — DimProduct emits mart model with staging refs"
     vars:
       fixture_path: "tests/evals/fixtures/generating-model/merge"

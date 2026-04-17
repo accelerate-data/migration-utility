@@ -12,6 +12,7 @@ module.exports = (output, context) => {
   const expectedWarnings = normalizeTerms(context.vars.expected_warning_terms);
   const expectedErrors = normalizeTerms(context.vars.expected_error_terms);
   const expectedOutputTerms = normalizeTerms(context.vars.expected_output_terms);
+  const rejectedOutputTerms = normalizeTerms(context.vars.rejected_output_terms);
   const expectedBranchIds = normalizeTerms(context.vars.expected_branch_ids);
   const rejectedBranchIds = normalizeTerms(context.vars.rejected_branch_ids);
   const expectedUnitTestNames = normalizeTerms(context.vars.expected_unit_test_names);
@@ -178,6 +179,12 @@ module.exports = (output, context) => {
   for (const term of expectedOutputTerms) {
     if (!specText.includes(term)) {
       return { pass: false, score: 0, reason: `Expected term '${term}' not found in spec artifact` };
+    }
+  }
+
+  for (const term of rejectedOutputTerms) {
+    if (specText.includes(term)) {
+      return { pass: false, score: 0, reason: `Rejected term '${term}' unexpectedly found in spec artifact` };
     }
   }
 

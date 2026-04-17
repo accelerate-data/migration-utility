@@ -1,0 +1,137 @@
+{
+  "item_id": "silver.insertselecttarget",
+  "object_type": "table",
+  "status": "ok",
+  "coverage": "complete",
+  "branch_manifest": [
+    {
+      "id": "insert_select_full_reload",
+      "statement_index": 0,
+      "description": "INSERT...SELECT projects all source rows from bronze.Product after TRUNCATE",
+      "scenarios": [
+        "test_insert_select_single_row",
+        "test_insert_select_multiple_rows"
+      ]
+    },
+    {
+      "id": "empty_source",
+      "statement_index": 0,
+      "description": "Empty bronze.Product yields no rows in target",
+      "scenarios": [
+        "test_empty_source_returns_no_rows"
+      ]
+    }
+  ],
+  "unit_tests": [
+    {
+      "name": "test_insert_select_single_row",
+      "model": "insertselecttarget",
+      "given": [
+        {
+          "rows": [
+            {
+              "ProductID": 1,
+              "ProductName": "Road-150",
+              "ProductNumber": "PR-001",
+              "MakeFlag": 1,
+              "FinishedGoodsFlag": 1,
+              "SafetyStockLevel": 100,
+              "ReorderPoint": 75,
+              "StandardCost": 10.0,
+              "ListPrice": 25.0,
+              "DaysToManufacture": 1,
+              "SellStartDate": "2024-01-01",
+              "ModifiedDate": "2024-01-01"
+            }
+          ],
+          "table": "[bronze].[Product]"
+        }
+      ],
+      "expect": {
+        "rows": [
+          {
+            "ProductAlternateKey": "1",
+            "EnglishProductName": "Road-150"
+          }
+        ]
+      },
+      "target_table": "[silver].[InsertSelectTarget]",
+      "procedure": "[silver].[usp_load_InsertSelectTarget]"
+    },
+    {
+      "name": "test_insert_select_multiple_rows",
+      "model": "insertselecttarget",
+      "given": [
+        {
+          "rows": [
+            {
+              "ProductID": 1,
+              "ProductName": "Road-150",
+              "ProductNumber": "PR-001",
+              "MakeFlag": 1,
+              "FinishedGoodsFlag": 1,
+              "SafetyStockLevel": 100,
+              "ReorderPoint": 75,
+              "StandardCost": 10.0,
+              "ListPrice": 25.0,
+              "DaysToManufacture": 1,
+              "SellStartDate": "2024-01-01",
+              "ModifiedDate": "2024-01-01"
+            },
+            {
+              "ProductID": 2,
+              "ProductName": "Mountain-200",
+              "ProductNumber": "PR-002",
+              "MakeFlag": 1,
+              "FinishedGoodsFlag": 1,
+              "SafetyStockLevel": 100,
+              "ReorderPoint": 75,
+              "StandardCost": 20.0,
+              "ListPrice": 45.0,
+              "DaysToManufacture": 2,
+              "SellStartDate": "2024-02-01",
+              "ModifiedDate": "2024-02-01"
+            }
+          ],
+          "table": "[bronze].[Product]"
+        }
+      ],
+      "expect": {
+        "rows": [
+          {
+            "ProductAlternateKey": "1",
+            "EnglishProductName": "Road-150"
+          },
+          {
+            "ProductAlternateKey": "2",
+            "EnglishProductName": "Mountain-200"
+          }
+        ]
+      },
+      "target_table": "[silver].[InsertSelectTarget]",
+      "procedure": "[silver].[usp_load_InsertSelectTarget]"
+    },
+    {
+      "name": "test_empty_source_returns_no_rows",
+      "model": "insertselecttarget",
+      "given": [
+        {
+          "rows": [],
+          "table": "[bronze].[Product]"
+        }
+      ],
+      "expect": {
+        "rows": []
+      },
+      "target_table": "[silver].[InsertSelectTarget]",
+      "procedure": "[silver].[usp_load_InsertSelectTarget]"
+    }
+  ],
+  "uncovered_branches": [],
+  "warnings": [],
+  "validation": {
+    "passed": true,
+    "issues": []
+  },
+  "errors": []
+}

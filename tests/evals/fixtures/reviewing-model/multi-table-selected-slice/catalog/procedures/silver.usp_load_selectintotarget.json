@@ -1,0 +1,127 @@
+{
+  "schema": "silver",
+  "name": "usp_load_selectintotarget",
+  "references": {
+    "tables": {
+      "in_scope": [
+        {
+          "schema": "bronze",
+          "name": "Product",
+          "is_selected": true,
+          "is_updated": false,
+          "columns": [
+            {
+              "name": "ProductID",
+              "is_selected": true,
+              "is_updated": false
+            },
+            {
+              "name": "ProductName",
+              "is_selected": true,
+              "is_updated": false
+            }
+          ]
+        },
+        {
+          "schema": "bronze",
+          "name": "CreditCard",
+          "is_selected": true,
+          "is_updated": false,
+          "columns": [
+            {
+              "name": "CreditCardID",
+              "is_selected": true,
+              "is_updated": false
+            },
+            {
+              "name": "CardType",
+              "is_selected": true,
+              "is_updated": false
+            }
+          ]
+        },
+        {
+          "schema": "silver",
+          "name": "SelectIntoTarget",
+          "is_selected": false,
+          "is_updated": true,
+          "columns": [
+            {
+              "name": "ProductAlternateKey",
+              "is_selected": false,
+              "is_updated": true
+            },
+            {
+              "name": "EnglishProductName",
+              "is_selected": false,
+              "is_updated": true
+            }
+          ]
+        },
+        {
+          "schema": "silver",
+          "name": "UnrelatedTarget",
+          "is_selected": false,
+          "is_updated": true,
+          "columns": [
+            {
+              "name": "CreditCardAlternateKey",
+              "is_selected": false,
+              "is_updated": true
+            },
+            {
+              "name": "CreditCardName",
+              "is_selected": false,
+              "is_updated": true
+            }
+          ]
+        }
+      ],
+      "out_of_scope": []
+    },
+    "views": {
+      "in_scope": [],
+      "out_of_scope": []
+    },
+    "functions": {
+      "in_scope": [],
+      "out_of_scope": []
+    },
+    "procedures": {
+      "in_scope": [],
+      "out_of_scope": []
+    }
+  },
+  "mode": "deterministic",
+  "routing_reasons": [],
+  "statements": [
+    {
+      "type": "SelectInto",
+      "action": "migrate",
+      "source": "ast",
+      "sql": "SELECT CAST(ProductID AS NVARCHAR(25)) AS ProductAlternateKey, ProductName AS EnglishProductName INTO silver.SelectIntoTarget FROM bronze.Product"
+    },
+    {
+      "type": "SelectInto",
+      "action": "migrate",
+      "source": "ast",
+      "sql": "SELECT CAST(CreditCardID AS NVARCHAR(25)) AS CreditCardAlternateKey, CardType AS CreditCardName INTO silver.UnrelatedTarget FROM bronze.CreditCard"
+    }
+  ],
+  "table_slices": {
+    "silver.selectintotarget": "TRUNCATE TABLE silver.SelectIntoTarget;\nSELECT\n    CAST(ProductID AS NVARCHAR(25)) AS ProductAlternateKey,\n    ProductName AS EnglishProductName\nINTO silver.SelectIntoTarget\nFROM bronze.Product;"
+  },
+  "warnings": [
+    {
+      "code": "MULTI_TABLE_WRITE",
+      "message": "Procedure writes to 2 tables: silver.selectintotarget, silver.unrelatedtarget. Each table will require a separate dbt model.",
+      "severity": "warning",
+      "details": {
+        "tables": [
+          "silver.selectintotarget",
+          "silver.unrelatedtarget"
+        ]
+      }
+    }
+  ]
+}
