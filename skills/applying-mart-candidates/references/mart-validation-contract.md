@@ -18,6 +18,10 @@ Write back exactly one of these values in the candidate section:
 - `Execution status: failed`
 - `Execution status: blocked`
 
+Do not use `blocked` for dependency gating failures. `/refactor-mart` owns
+writeback for dependency-blocked candidates and does not invoke this skill for
+them.
+
 Use `applied` only when edits were attempted and candidate-scoped validation
 passed. Add one short `Validation result:` bullet in the same candidate section
 describing the command or scope used.

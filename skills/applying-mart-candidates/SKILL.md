@@ -32,17 +32,18 @@ before editing files or plan status.
 - If `Type:` is anything other than `int` or `mart`, stop with
   `INVALID_CANDIDATE_TYPE`.
 - If `Depends on:` is missing, empty, malformed, ambiguous, or does not
-  explicitly include `none` or upstream candidate IDs, mark only this candidate
-  blocked before editing files.
+  explicitly include `none` or upstream candidate IDs, stop with
+  `DEPENDENCY_GATE_NOT_SATISFIED` and do not change candidate status.
 - If any listed dependency section is missing or its `Execution status:` is not
-  `applied`, mark only this candidate blocked before editing files.
+  `applied`, stop with `DEPENDENCY_GATE_NOT_SATISFIED` and do not change
+  candidate status.
 - If `Output:` is missing or does not identify a new or existing `int_*` model
   path or model name, or a mart output path under `dbt/models/marts/**` or a
   mart model name using the established `fct_`, `dim_`, or `mart_` prefixes,
-  mark only this candidate blocked.
+  mark only this candidate blocked after command-level dependency gating.
 - If `Validation:` is missing, ambiguous, or does not identify the smallest
   executable validation command/scope and any required existing consumer models,
-  mark only this candidate blocked.
+  mark only this candidate blocked after command-level dependency gating.
 
 ## Workflow
 
@@ -50,7 +51,10 @@ before editing files or plan status.
    section.
 2. Extract `Type:`, `Output:`, `Depends on:`, and `Validation:`.
 3. Verify every declared dependency is already `Execution status: applied`
-   before editing any dbt file.
+   before editing any dbt file. If dependency metadata is missing, empty,
+   malformed, ambiguous, or references any missing or unapplied dependency,
+   stop with `DEPENDENCY_GATE_NOT_SATISFIED` and do not change candidate
+   status.
 4. Create or update the declared `int` or `mart` output model.
 5. Rewire only consumers that are explicitly named in the candidate section's
    human-readable text or are an unambiguous direct consequence of the output
@@ -85,6 +89,7 @@ Validation is candidate-scoped:
 - validate each additional existing model required by the candidate section;
 - capture the command or scope used in a `Validation result:` bullet; and
 - do not alter unrelated candidate statuses after success, failure, or block.
+- dependency-gated blocking is owned by `/refactor-mart`, not this skill.
 
 If validation fails, keep attempted file edits in place only when they help the
 user inspect the failure, and mark this candidate `failed`.
