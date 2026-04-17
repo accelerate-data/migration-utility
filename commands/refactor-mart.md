@@ -86,10 +86,11 @@ For each selected, unblocked candidate:
 
 The command owns dependency-blocked candidate writeback because blocked
 candidates do not enter the apply skill. This includes missing, empty,
-malformed, or ambiguous `Depends on:` declarations. The apply skill owns dbt
-file changes, validation, and status writeback only after a candidate passes
-command-level dependency gating and is invoked. It must update the candidate
-section to one of:
+malformed, or ambiguous `Depends on:` declarations and any listed dependency
+that is missing, unchecked, failed, blocked, planned, or otherwise not
+applied. The apply skill owns dbt file changes, validation, and status
+writeback only after a candidate passes command-level dependency gating and is
+invoked. It must update the candidate section to one of:
 
 - `Execution status: applied`
 - `Execution status: failed`
@@ -108,8 +109,9 @@ blocked: <n>
 skipped: <n>
 ```
 
-For blocked candidates, list the candidate ID and missing dependencies. For
-failed candidates, list the candidate ID and validation failure summary.
+For blocked candidates, list the candidate ID and missing or unsatisfied
+dependencies or reasons. For failed candidates, list the candidate ID and
+validation failure summary.
 
 If every selected candidate is blocked or failed, report that no dbt changes
 were completed and stop.

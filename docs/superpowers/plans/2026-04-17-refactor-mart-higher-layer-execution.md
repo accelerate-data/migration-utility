@@ -77,7 +77,10 @@ Use this contract when applying one approved non-staging candidate from a refact
 ## Scope
 
 - One candidate is scoped to one `int` or `mart` output model.
-- The candidate may rewrite the declared output and declared consumers named by `Validation:`.
+- `Validation:` is the validation command or scope only.
+- Consumer rewrites happen only when explicitly named in the human-readable candidate text or when an unambiguous local output rewrite is required.
+- Do not infer broad rewrites from selector syntax such as `+int_sales_orders`.
+- Ambiguous rewrite scope blocks before edits.
 - Do not validate or invalidate unrelated candidates.
 
 ## Status Values
@@ -92,7 +95,7 @@ Use `applied` only when edits were attempted and candidate-scoped validation pas
 
 Use `failed` when edits were attempted but candidate-scoped validation did not pass. Add one short `Validation result:` bullet in the same candidate section describing the failure.
 
-Use `blocked` when required inputs are missing before edits begin, such as a missing output path, unsupported candidate type, ambiguous validation scope, or a missing declared model. Add one short `Blocked reason:` bullet in the same candidate section.
+Use `blocked` when required inputs are missing before edits begin, such as a missing output path, ambiguous validation scope, or a missing required model. Add one short `Blocked reason:` bullet in the same candidate section.
 
 ## Writeback Rules
 
@@ -100,14 +103,16 @@ Use `blocked` when required inputs are missing before edits begin, such as a mis
 - Preserve candidate IDs, approval state, candidate order, dependency declarations, and unrelated candidate statuses.
 - Do not add alternate status fields such as `Applied:`.
 - Do not edit staging candidates from this skill.
+- Dependency-blocked writeback belongs to `/refactor-mart`, not this skill.
+- If this skill somehow receives dependency metadata that failed command-level gating, stop with `DEPENDENCY_GATE_NOT_SATISFIED` and do not change candidate status.
 
 ## Validation Scope
 
 Validation is candidate-scoped:
 
 - validate the changed `int` or `mart` output model;
-- validate every additional model named by `Validation:`;
-- prefer the command listed in `Validation:` when it is executable;
+- validate every additional existing model required by the candidate section;
+- prefer the command or scope listed in `Validation:` when it is executable;
 - capture the command or scope in `Validation result:`; and
 - do not broaden validation to unrelated dbt assets.
 ```
@@ -153,10 +158,10 @@ Read `${CLAUDE_PLUGIN_ROOT}/skills/applying-mart-candidates/references/mart-vali
 
 1. Read the markdown plan and isolate exactly one `## Candidate: <candidate-id>` section.
 2. Extract `Type:`, `Output:`, `Depends on:`, and `Validation:`.
-3. Verify every declared dependency is already `Execution status: applied` before editing any dbt file.
+3. Verify every declared dependency is already `Execution status: applied` before editing any dbt file. If dependency metadata is missing, empty, malformed, ambiguous, or references any missing or unapplied dependency, stop with `DEPENDENCY_GATE_NOT_SATISFIED` and do not change candidate status.
 4. Create or update the declared `int` or `mart` output model.
-5. Rewire every declared consumer named in `Validation:` when the candidate requires consumer rewrites. Treat `Validation:` as the authoritative candidate scope.
-6. Run the smallest validation command that covers the changed output and every declared consumer. Prefer the command listed in `Validation:`.
+5. Rewire only consumers that are explicitly named in the candidate section's human-readable text or are an unambiguous direct consequence of the output change. Do not infer broad rewrites from selector syntax such as `+int_sales_orders`.
+6. Use `Validation:` as the validation command or scope only. Run the smallest validation command that covers the changed output and any explicitly required existing consumer models. Prefer the command listed in `Validation:`.
 7. Update only this candidate section:
    - `Execution status: applied` when validation passes.
    - `Execution status: failed` when attempted validation fails.
@@ -167,8 +172,8 @@ Read `${CLAUDE_PLUGIN_ROOT}/skills/applying-mart-candidates/references/mart-vali
 
 ## Rewire Rules
 
-- Rewire only models declared in `Validation:`.
-- Do not infer extra consumers beyond `Validation:`.
+- Rewire only models explicitly named in the candidate section's human-readable text or required by an unambiguous local output rewrite.
+- Do not infer broad consumer rewrites from `Validation:` selector syntax.
 - Do not edit staging candidates or staging outputs.
 - Do not silently continue past failed or unapplied dependencies.
 
@@ -177,9 +182,10 @@ Read `${CLAUDE_PLUGIN_ROOT}/skills/applying-mart-candidates/references/mart-vali
 Validation is candidate-scoped:
 
 - validate the changed `int` or `mart` output model;
-- validate each additional model listed in `Validation:`;
+- validate each additional existing model required by the candidate section;
 - capture the command or scope used in a `Validation result:` bullet; and
 - do not alter unrelated candidate statuses after success, failure, or block.
+- dependency-gated blocking is owned by `/refactor-mart`, not this skill.
 
 If validation fails, keep attempted file edits in place only when they help the user inspect the failure, and mark this candidate `failed`.
 
@@ -309,7 +315,7 @@ You are running an eval harness for `/refactor-mart` higher-layer mode in the fi
 Run `/refactor-mart {{plan_file}} int`.
 Read `${CLAUDE_PLUGIN_ROOT}/commands/refactor-mart.md`.
 Read `${CLAUDE_PLUGIN_ROOT}/skills/applying-mart-candidates/SKILL.md`.
-Apply only approved `Type: int` and `Type: mart` candidates whose dependencies are satisfied.
+Apply only approved `Type: int` and `Type: mart` candidates whose dependencies are satisfied by the command gate.
 
 Harness overrides:
 
@@ -320,9 +326,9 @@ Harness overrides:
 - Do not create or use a worktree.
 - Do not run git commands, `/commit`, `/commit-push-pr`, or `git-checkpoints`.
 - Do not spawn sub-agents for this eval.
-- Do not run dbt. Simulate validation by inspecting whether every model named in each candidate's `Validation:` field exists in the run project after rewiring.
+- Do not run dbt. Simulate validation by inspecting whether every model required by each candidate's validation scope exists in the run project after rewiring.
 - If a model named in `Validation:` exists but contains `EVAL_VALIDATION_FAIL`, treat validation as failed.
-- For eval fixtures, dependency gating happens before edits. If any dependency is missing or its `Execution status:` is not `applied`, mark the candidate `blocked`, add one `Blocked reason:`, and do not edit its output.
+- For eval fixtures, dependency gating happens before edits and is owned by `/refactor-mart`. If dependency metadata is missing, empty, malformed, ambiguous, or any listed dependency is missing or its `Execution status:` is not `applied`, `/refactor-mart` blocks the candidate, records the reason, and does not invoke the apply skill.
 - For eval fixtures, a successful `Type: int` candidate must write or preserve the declared int model and a successful `Type: mart` candidate must write or preserve the declared mart model.
 - For eval fixtures, declared downstream model refs must match the expected refs in the assertion variables.
 - Do not apply `Type: stg` candidates, and do not change their execution status in `int` mode.
