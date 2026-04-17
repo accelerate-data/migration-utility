@@ -22,6 +22,7 @@ from shared.sandbox.sql_server import SqlServerSandbox
 from shared.runtime_config_models import RuntimeConnection, RuntimeRole
 from tests.helpers import REPO_ROOT, SQL_SERVER_FIXTURE_DATABASE, SQL_SERVER_FIXTURE_SCHEMA
 from tests.integration.runtime_helpers import (
+    _require_env,
     sql_server_is_available,
 )
 
@@ -56,12 +57,12 @@ def _ensure_sql_server_fixture_materialized() -> None:
         technology="sql_server",
         dialect="tsql",
         connection=RuntimeConnection(
-            host=os.environ.get("MSSQL_HOST", "localhost"),
-            port=os.environ.get("MSSQL_PORT", "1433"),
+            host=_require_env("MSSQL_HOST"),
+            port=_require_env("MSSQL_PORT"),
             database=SQL_SERVER_FIXTURE_DATABASE,
             schema=SQL_SERVER_FIXTURE_SCHEMA,
-            user=os.environ.get("MSSQL_USER", "sa"),
-            driver=os.environ.get("MSSQL_DRIVER", "FreeTDS"),
+            user=_require_env("MSSQL_USER"),
+            driver=_require_env("MSSQL_DRIVER"),
             password_env="SA_PASSWORD",
         ),
     )
@@ -83,11 +84,11 @@ def _make_backend() -> SqlServerSandbox:
                 "technology": "sql_server",
                 "dialect": "tsql",
                 "connection": {
-                    "host": os.environ.get("MSSQL_HOST", "localhost"),
-                    "port": os.environ.get("MSSQL_PORT", "1433"),
+                    "host": _require_env("MSSQL_HOST"),
+                    "port": _require_env("MSSQL_PORT"),
                     "database": SQL_SERVER_FIXTURE_DATABASE,
-                    "user": os.environ.get("MSSQL_USER", "sa"),
-                    "driver": os.environ.get("MSSQL_DRIVER", "FreeTDS"),
+                    "user": _require_env("MSSQL_USER"),
+                    "driver": _require_env("MSSQL_DRIVER"),
                     "password_env": "SA_PASSWORD",
                 },
             },
@@ -95,10 +96,10 @@ def _make_backend() -> SqlServerSandbox:
                 "technology": "sql_server",
                 "dialect": "tsql",
                 "connection": {
-                    "host": os.environ.get("MSSQL_HOST", "localhost"),
-                    "port": os.environ.get("MSSQL_PORT", "1433"),
-                    "user": os.environ.get("MSSQL_USER", "sa"),
-                    "driver": os.environ.get("MSSQL_DRIVER", "FreeTDS"),
+                    "host": _require_env("MSSQL_HOST"),
+                    "port": _require_env("MSSQL_PORT"),
+                    "user": _require_env("MSSQL_USER"),
+                    "driver": _require_env("MSSQL_DRIVER"),
                     "password_env": "SA_PASSWORD",
                 },
             },

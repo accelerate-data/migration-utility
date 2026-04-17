@@ -29,7 +29,7 @@ def test_oracle_facade_uses_dedicated_service_modules() -> None:
     backend = OracleSandbox(
         host="localhost",
         port="1521",
-        service="FREEPDB1",
+        cdb_service="FREEPDB1",
         password="pw",
         admin_user="sys",
         source_schema="SH",

@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 from contextlib import contextmanager
-from unittest.mock import MagicMock, patch
+from unittest.mock import MagicMock, call, patch
 
 import pytest
 
@@ -11,8 +11,13 @@ from shared.output_models.sandbox import ErrorEntry, SandboxDownOutput
 from shared.sandbox.base import generate_sandbox_name
 from shared.sandbox.oracle import (
     OracleSandbox,
+    _generate_oracle_pdb_name,
     _validate_oracle_identifier,
     _validate_oracle_sandbox_name,
+)
+from shared.sandbox.oracle_services import (
+    _parse_qualified_name,
+    _validate_oracle_qualified_name,
 )
 
 
@@ -63,31 +68,44 @@ class TestOracleIdentifierValidation:
 
 
 class TestOracleSandboxName:
-    def test_name_has_correct_prefix(self) -> None:
-        name = generate_sandbox_name()
-        assert name.startswith("__test_")
+    def test_pdb_name_has_correct_prefix(self) -> None:
+        name = _generate_oracle_pdb_name()
+        assert name.startswith("SBX_")
 
-    def test_name_is_unique(self) -> None:
-        names = {generate_sandbox_name() for _ in range(10)}
+    def test_pdb_name_is_unique(self) -> None:
+        names = {_generate_oracle_pdb_name() for _ in range(10)}
         assert len(names) == 10
 
-    def test_name_passes_validation(self) -> None:
-        name = generate_sandbox_name()
+    def test_pdb_name_passes_validation(self) -> None:
+        name = _generate_oracle_pdb_name()
         _validate_oracle_sandbox_name(name)  # should not raise
 
-    def test_name_hex_length(self) -> None:
-        name = generate_sandbox_name()
-        hex_part = name[len("__test_"):]
+    def test_pdb_name_hex_length(self) -> None:
+        name = _generate_oracle_pdb_name()
+        hex_part = name[len("SBX_"):]
         assert len(hex_part) == 12
-        assert all(c in "0123456789abcdef" for c in hex_part)
+        assert all(c in "0123456789ABCDEF" for c in hex_part)
+
+    def test_pdb_name_is_uppercase(self) -> None:
+        name = _generate_oracle_pdb_name()
+        assert name == name.upper()
+
+    def test_base_generate_sandbox_name_passes_validation(self) -> None:
+        """Base generate_sandbox_name() now produces SBX_ names that pass validation."""
+        name = generate_sandbox_name()
+        _validate_oracle_sandbox_name(name)  # should not raise
 
     def test_rejects_name_without_prefix(self) -> None:
         with pytest.raises(ValueError, match="Invalid Oracle sandbox schema name"):
             _validate_oracle_sandbox_name("myschema")
 
+    def test_rejects_legacy_test_prefix(self) -> None:
+        with pytest.raises(ValueError, match="Invalid Oracle sandbox schema name"):
+            _validate_oracle_sandbox_name("__test_abc123abcd")
+
     def test_rejects_name_with_special_chars(self) -> None:
         with pytest.raises(ValueError, match="Invalid Oracle sandbox schema name"):
-            _validate_oracle_sandbox_name("__test_abc; DROP")
+            _validate_oracle_sandbox_name("SBX_ABC; DROP")
 
     def test_rejects_empty(self) -> None:
         with pytest.raises(ValueError, match="Invalid Oracle sandbox schema name"):
@@ -197,7 +215,7 @@ class TestOracleSandboxFromEnv:
             }
         )
         assert backend.source_schema == "SH"
-        assert backend.service == "FREEPDB1"
+        assert backend.cdb_service == "FREEPDB1"
         assert backend.admin_user == "sys"
         assert backend.source_user == "sh"
 
@@ -234,16 +252,16 @@ class TestOracleSandboxFromEnv:
             }
         )
         assert backend.source_service == "SRCPDB"
-        assert backend.service == "SANDBOXPDB"
+        assert backend.cdb_service == "SANDBOXPDB"
 
 
 # ── Oracle connection lifecycle ──────────────────────────────────────────────
 
 
 class TestOracleConnectionLifecycle:
-    def test_connect_closes_connection_when_session_setup_fails(self) -> None:
+    def test_connect_sandbox_closes_connection_when_session_setup_fails(self) -> None:
         backend = OracleSandbox(
-            host="localhost", port="1521", service="FREEPDB1",
+            host="localhost", port="1521", cdb_service="FREEPDB1",
             password="pw", admin_user="sys", source_schema="SH",
         )
         conn = MagicMock()
@@ -257,7 +275,7 @@ class TestOracleConnectionLifecycle:
             import_mock.return_value.connect.return_value = conn
 
             with pytest.raises(RuntimeError, match="nls failed"):
-                with backend._connect():
+                with backend._connect_sandbox("SBX_ABC123000000"):
                     pass
 
         conn.close.assert_called_once()
@@ -266,7 +284,7 @@ class TestOracleConnectionLifecycle:
 class TestOracleSandboxUpCleanup:
     def test_public_lifecycle_methods_delegate_to_lifecycle_service(self) -> None:
         backend = OracleSandbox(
-            host="localhost", port="1521", service="FREEPDB1",
+            host="localhost", port="1521", cdb_service="FREEPDB1",
             password="pw", admin_user="sys", source_schema="SH",
         )
         backend._lifecycle = MagicMock()
@@ -276,18 +294,18 @@ class TestOracleSandboxUpCleanup:
         backend._lifecycle.sandbox_status.return_value = "status-result"
 
         assert backend.sandbox_up(["SH"]) == "up-result"
-        assert backend.sandbox_reset("__test_existing", ["SH"]) == "reset-result"
-        assert backend.sandbox_down("__test_existing") == "down-result"
-        assert backend.sandbox_status("__test_existing", ["SH"]) == "status-result"
+        assert backend.sandbox_reset("SBX_000000000001", ["SH"]) == "reset-result"
+        assert backend.sandbox_down("SBX_000000000001") == "down-result"
+        assert backend.sandbox_status("SBX_000000000001", ["SH"]) == "status-result"
 
         backend._lifecycle.sandbox_up.assert_called_once_with(["SH"])
-        backend._lifecycle.sandbox_reset.assert_called_once_with("__test_existing", ["SH"])
-        backend._lifecycle.sandbox_down.assert_called_once_with("__test_existing")
-        backend._lifecycle.sandbox_status.assert_called_once_with("__test_existing", ["SH"])
+        backend._lifecycle.sandbox_reset.assert_called_once_with("SBX_000000000001", ["SH"])
+        backend._lifecycle.sandbox_down.assert_called_once_with("SBX_000000000001")
+        backend._lifecycle.sandbox_status.assert_called_once_with("SBX_000000000001", ["SH"])
 
     def test_public_execution_methods_delegate_to_execution_service(self) -> None:
         backend = OracleSandbox(
-            host="localhost", port="1521", service="FREEPDB1",
+            host="localhost", port="1521", cdb_service="FREEPDB1",
             password="pw", admin_user="sys", source_schema="SH",
         )
         backend._execution = MagicMock()
@@ -298,45 +316,42 @@ class TestOracleSandboxUpCleanup:
 
         scenario = {
             "name": "case",
-            "target_table": "CHANNELS",
-            "procedure": "LOAD_CHANNELS",
+            "target_table": "SH.CHANNELS",
+            "procedure": "SH.LOAD_CHANNELS",
             "given": [],
         }
         fixtures: list[dict[str, object]] = []
 
-        assert backend.execute_scenario("__test_existing", scenario) == "scenario-result"
-        assert backend.execute_select("__test_existing", "SELECT 1 FROM dual", fixtures) == "select-result"
+        assert backend.execute_scenario("SBX_000000000001", scenario) == "scenario-result"
+        assert backend.execute_select("SBX_000000000001", "SELECT 1 FROM dual", fixtures) == "select-result"
         assert backend.compare_two_sql(
-            "__test_existing", "SELECT 1 FROM dual", "SELECT 1 FROM dual", fixtures,
+            "SBX_000000000001", "SELECT 1 FROM dual", "SELECT 1 FROM dual", fixtures,
         ) == "compare-result"
 
         backend._execution.execute_scenario.assert_called_once_with(
-            "__test_existing", scenario,
+            "SBX_000000000001", scenario,
         )
         backend._execution.execute_select.assert_called_once_with(
-            "__test_existing", "SELECT 1 FROM dual", fixtures,
+            "SBX_000000000001", "SELECT 1 FROM dual", fixtures,
         )
         backend._comparison.compare_two_sql.assert_called_once_with(
-            "__test_existing", "SELECT 1 FROM dual", "SELECT 1 FROM dual", fixtures,
+            "SBX_000000000001", "SELECT 1 FROM dual", "SELECT 1 FROM dual", fixtures,
         )
 
     def test_sandbox_up_calls_sandbox_down_on_failure(self) -> None:
-        """sandbox_up cleans up the orphaned schema when cloning raises."""
+        """sandbox_up cleans up the orphaned PDB when cloning raises."""
         backend = OracleSandbox(
-            host="localhost", port="1521", service="FREEPDB1",
+            host="localhost", port="1521", cdb_service="FREEPDB1",
             password="pw", admin_user="sys", source_schema="SH",
         )
 
         db_error_cls = type("DatabaseError", (Exception,), {})
 
-        @contextmanager
-        def _fail_connect():
-            raise db_error_cls("connection failed")
-            yield  # noqa: unreachable — keeps it a generator
-
         with patch("shared.sandbox.oracle_lifecycle._import_oracledb") as ora_mock, \
-             patch.object(backend, "_connect", side_effect=_fail_connect), \
-             patch.object(backend, "_connect_source", side_effect=_fail_connect), \
+             patch.object(
+                 backend, "_create_sandbox_pdb",
+                 side_effect=db_error_cls("pdb create failed"),
+             ), \
              patch.object(backend, "sandbox_down") as mock_down:
             ora_mock.return_value.DatabaseError = db_error_cls
             result = backend.sandbox_up(schemas=["SH"])
@@ -345,9 +360,9 @@ class TestOracleSandboxUpCleanup:
         mock_down.assert_called_once()
         assert result.sandbox_database == mock_down.call_args.args[0]
 
-    def test_sandbox_reset_recreates_same_schema_name(self) -> None:
+    def test_sandbox_reset_recreates_same_pdb_name(self) -> None:
         backend = OracleSandbox(
-            host="localhost", port="1521", service="FREEPDB1",
+            host="localhost", port="1521", cdb_service="FREEPDB1",
             password="pw", admin_user="sys", source_schema="SH",
         )
         sandbox_cursor = MagicMock()
@@ -359,53 +374,54 @@ class TestOracleSandboxUpCleanup:
         source_conn.cursor.return_value = source_cursor
 
         @contextmanager
-        def _fake_sandbox_connect():
+        def _fake_sandbox_connect(name: str) -> object:
             yield sandbox_conn
 
         @contextmanager
-        def _fake_source_connect():
+        def _fake_source_connect() -> object:
             yield source_conn
 
-        with patch.object(backend, "_connect", side_effect=_fake_sandbox_connect), \
+        with patch.object(backend, "_drop_sandbox_pdb") as mock_drop, \
+             patch.object(backend, "_create_sandbox_pdb") as mock_create, \
+             patch.object(backend, "_connect_sandbox", side_effect=_fake_sandbox_connect), \
              patch.object(backend, "_connect_source", side_effect=_fake_source_connect), \
              patch.object(backend, "_clone_tables", return_value=(["CUSTOMERS"], [])), \
              patch.object(backend, "_clone_views", return_value=([], [])), \
              patch.object(backend, "_clone_procedures", return_value=(["LOAD_CUSTOMERS"], [])):
-            result = backend.sandbox_reset("__test_existing", schemas=["SH"])
+            result = backend.sandbox_reset("SBX_000000000001", schemas=["SH"])
 
         assert result.status == "ok"
-        assert result.sandbox_database == "__test_existing"
-        execute_calls = [call.args[0] for call in sandbox_cursor.execute.call_args_list]
-        assert 'DROP USER "__test_existing" CASCADE' in execute_calls
-        assert 'CREATE USER "__test_existing" IDENTIFIED BY' in "\n".join(execute_calls)
+        assert result.sandbox_database == "SBX_000000000001"
+        mock_drop.assert_called_once_with("SBX_000000000001")
+        mock_create.assert_called_once_with("SBX_000000000001")
 
     def test_sandbox_reset_validates_source_schema_before_drop(self) -> None:
         backend = OracleSandbox(
-            host="localhost", port="1521", service="FREEPDB1",
+            host="localhost", port="1521", cdb_service="FREEPDB1",
             password="pw", admin_user="sys", source_schema="SH",
         )
         mock_down = MagicMock(return_value=MagicMock(status="ok", errors=[]))
 
         with patch.object(backend, "sandbox_down", mock_down):
             with pytest.raises(ValueError, match="Unsafe Oracle identifier"):
-                backend.sandbox_reset("__test_existing", schemas=["bad.schema"])
+                backend.sandbox_reset("SBX_000000000001", schemas=["bad.schema"])
 
         mock_down.assert_not_called()
 
     def test_sandbox_reset_reports_drop_failure_without_cloning(self) -> None:
         backend = OracleSandbox(
-            host="localhost", port="1521", service="FREEPDB1",
+            host="localhost", port="1521", cdb_service="FREEPDB1",
             password="pw", admin_user="sys", source_schema="SH",
         )
         down_result = SandboxDownOutput(
-            sandbox_database="__test_existing",
+            sandbox_database="SBX_000000000001",
             status="error",
             errors=[ErrorEntry(code="SANDBOX_DOWN_FAILED", message="drop failed")],
         )
 
-        with patch.object(backend, "sandbox_down", return_value=down_result), \
+        with patch.object(backend._lifecycle, "sandbox_down", return_value=down_result), \
              patch.object(backend._lifecycle, "_sandbox_clone_into") as mock_clone:
-            result = backend.sandbox_reset("__test_existing", schemas=["SH"])
+            result = backend.sandbox_reset("SBX_000000000001", schemas=["SH"])
 
         assert result.status == "error"
         assert result.errors[0].code == "SANDBOX_RESET_FAILED"
@@ -413,27 +429,32 @@ class TestOracleSandboxUpCleanup:
 
 
 class TestOracleSandboxStatus:
-    def test_sandbox_status_existing_schema_reports_content_counts(self) -> None:
+    def test_sandbox_status_existing_pdb_reports_content_counts(self) -> None:
         backend = OracleSandbox(
-            host="localhost", port="1521", service="FREEPDB1",
+            host="localhost", port="1521", cdb_service="FREEPDB1",
             password="pw", admin_user="sys", source_schema="SH",
         )
-        cursor = MagicMock()
-        cursor.fetchone.side_effect = [
-            (1,),  # ALL_USERS exists
-            (2,),
-            (1,),
-            (3,),
-        ]
-        conn = MagicMock()
-        conn.cursor.return_value = cursor
+        cdb_cursor = MagicMock()
+        cdb_cursor.fetchone.return_value = (1,)  # V$PDBS exists
+        cdb_conn = MagicMock()
+        cdb_conn.cursor.return_value = cdb_cursor
+
+        sandbox_cursor = MagicMock()
+        sandbox_cursor.fetchone.side_effect = [(2,), (1,), (3,)]
+        sandbox_conn = MagicMock()
+        sandbox_conn.cursor.return_value = sandbox_cursor
 
         @contextmanager
-        def _fake_connect():
-            yield conn
+        def _fake_cdb():
+            yield cdb_conn
 
-        with patch.object(backend, "_connect", side_effect=_fake_connect):
-            result = backend.sandbox_status("__test_existing")
+        @contextmanager
+        def _fake_sandbox(name: str):
+            yield sandbox_conn
+
+        with patch.object(backend, "_connect_cdb", side_effect=_fake_cdb), \
+             patch.object(backend, "_connect_sandbox", side_effect=_fake_sandbox):
+            result = backend.sandbox_status("SBX_000000000001")
 
         assert result.status == "ok"
         assert result.exists is True
@@ -442,27 +463,32 @@ class TestOracleSandboxStatus:
         assert result.views_count == 1
         assert result.procedures_count == 3
 
-    def test_sandbox_status_existing_empty_schema_reports_no_content(self) -> None:
+    def test_sandbox_status_existing_empty_pdb_reports_no_content(self) -> None:
         backend = OracleSandbox(
-            host="localhost", port="1521", service="FREEPDB1",
+            host="localhost", port="1521", cdb_service="FREEPDB1",
             password="pw", admin_user="sys", source_schema="SH",
         )
-        cursor = MagicMock()
-        cursor.fetchone.side_effect = [
-            (1,),  # ALL_USERS exists
-            (0,),
-            (0,),
-            (0,),
-        ]
-        conn = MagicMock()
-        conn.cursor.return_value = cursor
+        cdb_cursor = MagicMock()
+        cdb_cursor.fetchone.return_value = (1,)  # V$PDBS exists
+        cdb_conn = MagicMock()
+        cdb_conn.cursor.return_value = cdb_cursor
+
+        sandbox_cursor = MagicMock()
+        sandbox_cursor.fetchone.side_effect = [(0,), (0,), (0,)]
+        sandbox_conn = MagicMock()
+        sandbox_conn.cursor.return_value = sandbox_cursor
 
         @contextmanager
-        def _fake_connect():
-            yield conn
+        def _fake_cdb():
+            yield cdb_conn
 
-        with patch.object(backend, "_connect", side_effect=_fake_connect):
-            result = backend.sandbox_status("__test_existing")
+        @contextmanager
+        def _fake_sandbox(name: str):
+            yield sandbox_conn
+
+        with patch.object(backend, "_connect_cdb", side_effect=_fake_cdb), \
+             patch.object(backend, "_connect_sandbox", side_effect=_fake_sandbox):
+            result = backend.sandbox_status("SBX_000000000001")
 
         assert result.status == "ok"
         assert result.exists is True
@@ -472,7 +498,7 @@ class TestOracleSandboxStatus:
 class TestExecuteScenarioOracle:
     def test_execute_scenario_quotes_procedure_name(self) -> None:
         backend = OracleSandbox(
-            host="localhost", port="1521", service="FREEPDB1",
+            host="localhost", port="1521", cdb_service="FREEPDB1",
             password="pw", admin_user="sys", source_schema="SH",
         )
         cursor = MagicMock()
@@ -482,25 +508,25 @@ class TestExecuteScenarioOracle:
         conn.cursor.return_value = cursor
 
         @contextmanager
-        def _fake_connect():
+        def _fake_sandbox(name: str):
             yield conn
 
-        with patch.object(backend, "_connect", side_effect=_fake_connect), \
+        with patch.object(backend, "_connect_sandbox", side_effect=_fake_sandbox), \
              patch.object(backend._fixtures, "ensure_view_tables", return_value=[]), \
              patch.object(backend._fixtures, "seed_fixtures"):
             result = backend.execute_scenario(
-                sandbox_db="__test_abc123",
+                sandbox_db="SBX_ABC123000000",
                 scenario={
                     "name": "quoted_proc",
-                    "procedure": "Proc$Load",
-                    "target_table": "CHANNELS",
+                    "procedure": "SH.Proc$Load",
+                    "target_table": "SH.CHANNELS",
                     "given": [],
                 },
             )
 
         assert result.status == "ok"
         execute_calls = [call.args[0] for call in cursor.execute.call_args_list]
-        assert 'BEGIN "__test_abc123"."Proc$Load"; END;' in execute_calls
+        assert 'BEGIN "SH"."Proc$Load"; END;' in execute_calls
 
 
 class TestCompareTwoSqlOracle:
@@ -508,12 +534,12 @@ class TestCompareTwoSqlOracle:
 
     def test_invalid_sql_returns_syntax_error(self) -> None:
         backend = OracleSandbox(
-            host="localhost", port="1521", service="FREEPDB1",
+            host="localhost", port="1521", cdb_service="FREEPDB1",
             password="pw", admin_user="sys", source_schema="SH",
         )
 
         result = backend.compare_two_sql(
-            sandbox_db="__test_abc123",
+            sandbox_db="SBX_ABC123000000",
             sql_a='SELECT ( FROM "SH"."CHANNELS"',
             sql_b='SELECT "CHANNEL_ID" FROM "SH"."CHANNELS"',
             fixtures=[],
@@ -521,3 +547,375 @@ class TestCompareTwoSqlOracle:
 
         assert result["status"] == "error"
         assert result["errors"][0]["code"] == "SQL_SYNTAX_ERROR"
+
+
+# ── Phase 1: PDB lifecycle on _OracleSandboxCore ─────────────────────────────
+
+
+def _make_backend(**overrides: object) -> OracleSandbox:
+    """Build an OracleSandbox with sensible defaults for unit tests."""
+    defaults = dict(
+        host="localhost",
+        port="1521",
+        cdb_service="FREE",
+        password="pw",
+        admin_user="sys",
+        source_schema="SH",
+        source_service="FREEPDB1",
+    )
+    defaults.update(overrides)
+    return OracleSandbox(**defaults)
+
+
+class TestCdbServiceRename:
+    """self.service is renamed to self.cdb_service."""
+
+    def test_cdb_service_stored(self) -> None:
+        backend = _make_backend()
+        assert backend.cdb_service == "FREE"
+
+    def test_no_service_attribute(self) -> None:
+        backend = _make_backend()
+        assert not hasattr(backend, "service")
+
+    def test_from_env_stores_cdb_service(self, monkeypatch: pytest.MonkeyPatch) -> None:
+        monkeypatch.setenv("ORACLE_SOURCE_PASSWORD", "source-secret")
+        monkeypatch.setenv("ORACLE_SANDBOX_PASSWORD", "secret")
+        backend = OracleSandbox.from_env(
+            {
+                "runtime": {
+                    "source": {
+                        "technology": "oracle",
+                        "dialect": "oracle",
+                        "connection": {
+                            "host": "localhost",
+                            "port": "1521",
+                            "service": "FREEPDB1",
+                            "user": "sh",
+                            "schema": "SH",
+                            "password_env": "ORACLE_SOURCE_PASSWORD",
+                        },
+                    },
+                    "sandbox": {
+                        "technology": "oracle",
+                        "dialect": "oracle",
+                        "connection": {
+                            "host": "localhost",
+                            "port": "1521",
+                            "service": "FREE",
+                            "user": "sys",
+                            "password_env": "ORACLE_SANDBOX_PASSWORD",
+                        },
+                    },
+                }
+            }
+        )
+        assert backend.cdb_service == "FREE"
+        assert not hasattr(backend, "service")
+
+
+class TestConnectCdb:
+    """_connect_cdb() connects to {host}:{port}/{cdb_service} as SYSDBA."""
+
+    def test_connect_cdb_uses_cdb_service(self) -> None:
+        backend = _make_backend()
+        conn = MagicMock()
+        cursor = MagicMock()
+        conn.cursor.return_value.__enter__ = MagicMock(return_value=cursor)
+        conn.cursor.return_value.__exit__ = MagicMock(return_value=False)
+
+        with patch("shared.sandbox.oracle_services._import_oracledb") as ora:
+            sysdba = object()
+            ora.return_value.AUTH_MODE_SYSDBA = sysdba
+            ora.return_value.AUTH_MODE_DEFAULT = object()
+            ora.return_value.connect.return_value = conn
+
+            with backend._connect_cdb() as c:
+                assert c is conn
+
+        ora.return_value.connect.assert_called_once_with(
+            user="sys",
+            password="pw",
+            dsn="localhost:1521/FREE",
+            mode=sysdba,
+        )
+        conn.close.assert_called_once()
+
+    def test_connect_cdb_does_not_set_nls(self) -> None:
+        """CDB connection is for DDL only — no NLS session setup."""
+        backend = _make_backend()
+        conn = MagicMock()
+        cursor = MagicMock()
+        conn.cursor.return_value.__enter__ = MagicMock(return_value=cursor)
+        conn.cursor.return_value.__exit__ = MagicMock(return_value=False)
+
+        with patch("shared.sandbox.oracle_services._import_oracledb") as ora:
+            ora.return_value.AUTH_MODE_SYSDBA = object()
+            ora.return_value.AUTH_MODE_DEFAULT = object()
+            ora.return_value.connect.return_value = conn
+
+            with backend._connect_cdb():
+                pass
+
+        cursor.execute.assert_not_called()
+
+
+class TestConnectSandbox:
+    """_connect_sandbox(name) connects to {host}:{port}/{sandbox_name}."""
+
+    def test_connect_sandbox_uses_pdb_name_as_service(self) -> None:
+        backend = _make_backend()
+        conn = MagicMock()
+        cursor = MagicMock()
+        conn.cursor.return_value.__enter__ = MagicMock(return_value=cursor)
+        conn.cursor.return_value.__exit__ = MagicMock(return_value=False)
+
+        with patch("shared.sandbox.oracle_services._import_oracledb") as ora:
+            sysdba = object()
+            ora.return_value.AUTH_MODE_SYSDBA = sysdba
+            ora.return_value.AUTH_MODE_DEFAULT = object()
+            ora.return_value.connect.return_value = conn
+
+            with backend._connect_sandbox("SBX_ABC123000000") as c:
+                assert c is conn
+
+        ora.return_value.connect.assert_called_once_with(
+            user="sys",
+            password="pw",
+            dsn="localhost:1521/SBX_ABC123000000",
+            mode=sysdba,
+        )
+
+    def test_connect_sandbox_sets_nls_formats(self) -> None:
+        backend = _make_backend()
+        conn = MagicMock()
+        cursor = MagicMock()
+        conn.cursor.return_value.__enter__ = MagicMock(return_value=cursor)
+        conn.cursor.return_value.__exit__ = MagicMock(return_value=False)
+
+        with patch("shared.sandbox.oracle_services._import_oracledb") as ora:
+            ora.return_value.AUTH_MODE_SYSDBA = object()
+            ora.return_value.AUTH_MODE_DEFAULT = object()
+            ora.return_value.connect.return_value = conn
+
+            with backend._connect_sandbox("SBX_ABC123000000"):
+                pass
+
+        nls_calls = [c.args[0] for c in cursor.execute.call_args_list]
+        assert "ALTER SESSION SET NLS_DATE_FORMAT = 'YYYY-MM-DD'" in nls_calls
+        assert "ALTER SESSION SET NLS_TIMESTAMP_FORMAT = 'YYYY-MM-DD HH24:MI:SS'" in nls_calls
+
+    def test_connect_sandbox_closes_on_exit(self) -> None:
+        backend = _make_backend()
+        conn = MagicMock()
+        cursor = MagicMock()
+        conn.cursor.return_value.__enter__ = MagicMock(return_value=cursor)
+        conn.cursor.return_value.__exit__ = MagicMock(return_value=False)
+
+        with patch("shared.sandbox.oracle_services._import_oracledb") as ora:
+            ora.return_value.AUTH_MODE_SYSDBA = object()
+            ora.return_value.AUTH_MODE_DEFAULT = object()
+            ora.return_value.connect.return_value = conn
+
+            with backend._connect_sandbox("SBX_ABC123000000"):
+                pass
+
+        conn.close.assert_called_once()
+
+
+class TestCreateSandboxPdb:
+    """_create_sandbox_pdb issues CREATE PLUGGABLE DATABASE + OPEN."""
+
+    def test_create_pdb_ddl_statements(self) -> None:
+        backend = _make_backend()
+        cdb_conn = MagicMock()
+        cdb_cursor = MagicMock()
+        # DBA_DATA_FILES query returns a sample datafile path
+        cdb_cursor.fetchone.return_value = ("/opt/oracle/oradata/FREE/FREEPDB1/system01.dbf",)
+        cdb_conn.cursor.return_value = cdb_cursor
+
+        @contextmanager
+        def _fake_cdb():
+            yield cdb_conn
+
+        with patch.object(backend, "_connect_cdb", side_effect=_fake_cdb):
+            backend._create_sandbox_pdb("SBX_ABC123ABC123")
+
+        executed = [c.args[0] for c in cdb_cursor.execute.call_args_list]
+        # First call is the DBA_DATA_FILES discovery query
+        assert "DBA_DATA_FILES" in executed[0]
+        # Must have CREATE PLUGGABLE DATABASE with unquoted name and CREATE_FILE_DEST
+        create_stmts = [s for s in executed if "CREATE PLUGGABLE DATABASE" in s]
+        assert len(create_stmts) == 1
+        assert "SBX_ABC123ABC123" in create_stmts[0]
+        assert "ADMIN USER" in create_stmts[0]
+        assert "CREATE_FILE_DEST" in create_stmts[0]
+        assert "/opt/oracle/oradata/FREE" in create_stmts[0]
+        # Must have ALTER ... OPEN with unquoted name
+        open_stmts = [s for s in executed if "OPEN" in s]
+        assert len(open_stmts) == 1
+        assert "SBX_ABC123ABC123" in open_stmts[0]
+
+    def test_create_pdb_raises_when_no_datafiles(self) -> None:
+        backend = _make_backend()
+        cdb_conn = MagicMock()
+        cdb_cursor = MagicMock()
+        cdb_cursor.fetchone.return_value = None
+        cdb_conn.cursor.return_value = cdb_cursor
+
+        @contextmanager
+        def _fake_cdb():
+            yield cdb_conn
+
+        with patch.object(backend, "_connect_cdb", side_effect=_fake_cdb), \
+             pytest.raises(RuntimeError, match="DBA_DATA_FILES is empty"):
+            backend._create_sandbox_pdb("SBX_ABC123ABC123")
+
+    def test_create_pdb_rejects_invalid_name(self) -> None:
+        backend = _make_backend()
+        with pytest.raises(ValueError, match="Invalid Oracle sandbox schema name"):
+            backend._create_sandbox_pdb("bad_name")
+
+
+class TestDropSandboxPdb:
+    """_drop_sandbox_pdb issues CLOSE + DROP PLUGGABLE DATABASE."""
+
+    def test_drop_pdb_ddl_statements(self) -> None:
+        backend = _make_backend()
+        cdb_conn = MagicMock()
+        cdb_cursor = MagicMock()
+        cdb_conn.cursor.return_value = cdb_cursor
+
+        @contextmanager
+        def _fake_cdb():
+            yield cdb_conn
+
+        with patch.object(backend, "_connect_cdb", side_effect=_fake_cdb):
+            backend._drop_sandbox_pdb("SBX_ABC123ABC123")
+
+        executed = [c.args[0] for c in cdb_cursor.execute.call_args_list]
+        close_stmts = [s for s in executed if "CLOSE" in s]
+        assert len(close_stmts) == 1
+        assert "SBX_ABC123ABC123" in close_stmts[0]
+        # Unquoted — no double-quotes around PDB name
+        assert '"SBX_ABC123ABC123"' not in close_stmts[0]
+        drop_stmts = [s for s in executed if "DROP PLUGGABLE DATABASE" in s]
+        assert len(drop_stmts) == 1
+        assert "SBX_ABC123ABC123" in drop_stmts[0]
+        assert "INCLUDING DATAFILES" in drop_stmts[0]
+
+    def test_drop_pdb_ignores_not_found(self) -> None:
+        """Silently ignores ORA-65011 (PDB does not exist)."""
+        backend = _make_backend()
+        db_error_cls = type("DatabaseError", (Exception,), {})
+        # Build an exception whose first arg has a .code attribute = 65011
+        ora_err = MagicMock()
+        ora_err.code = 65011
+        exc = db_error_cls(ora_err)
+        cdb_conn = MagicMock()
+        cdb_cursor = MagicMock()
+        cdb_cursor.execute.side_effect = exc
+        cdb_conn.cursor.return_value = cdb_cursor
+
+        @contextmanager
+        def _fake_cdb():
+            yield cdb_conn
+
+        with patch.object(backend, "_connect_cdb", side_effect=_fake_cdb), \
+             patch("shared.sandbox.oracle_services._import_oracledb") as ora:
+            ora.return_value.DatabaseError = db_error_cls
+            # Should not raise
+            backend._drop_sandbox_pdb("SBX_ABC123ABC123")
+
+    def test_drop_pdb_propagates_unexpected_error(self) -> None:
+        """Propagates errors that are not ORA-65011 or ORA-65020."""
+        backend = _make_backend()
+        db_error_cls = type("DatabaseError", (Exception,), {})
+        ora_err = MagicMock()
+        ora_err.code = 604  # ORA-00604: error occurred at recursive SQL level
+        exc = db_error_cls(ora_err)
+        cdb_conn = MagicMock()
+        cdb_cursor = MagicMock()
+        cdb_cursor.execute.side_effect = exc
+        cdb_conn.cursor.return_value = cdb_cursor
+
+        @contextmanager
+        def _fake_cdb():
+            yield cdb_conn
+
+        with patch.object(backend, "_connect_cdb", side_effect=_fake_cdb), \
+             patch("shared.sandbox.oracle_services._import_oracledb") as ora:
+            ora.return_value.DatabaseError = db_error_cls
+            with pytest.raises(db_error_cls):
+                backend._drop_sandbox_pdb("SBX_ABC123ABC123")
+
+    def test_drop_pdb_rejects_invalid_name(self) -> None:
+        backend = _make_backend()
+        with pytest.raises(ValueError, match="Invalid Oracle sandbox schema name"):
+            backend._drop_sandbox_pdb("bad_name")
+
+
+# ── _parse_qualified_name ────────────────────────────────────────────────────
+
+
+class TestParseQualifiedName:
+    def test_splits_schema_and_table(self) -> None:
+        schema, table = _parse_qualified_name("MIGRATIONTEST.BRONZE_CURRENCY")
+        assert schema == "MIGRATIONTEST"
+        assert table == "BRONZE_CURRENCY"
+
+    def test_splits_lowercase(self) -> None:
+        schema, table = _parse_qualified_name("sh.channels")
+        assert schema == "sh"
+        assert table == "channels"
+
+    def test_rejects_bare_name(self) -> None:
+        with pytest.raises(ValueError, match="Expected schema-qualified name"):
+            _parse_qualified_name("CHANNELS")
+
+    def test_rejects_empty_string(self) -> None:
+        with pytest.raises(ValueError, match="Expected schema-qualified name"):
+            _parse_qualified_name("")
+
+    def test_rejects_trailing_dot(self) -> None:
+        with pytest.raises(ValueError, match="Expected schema-qualified name"):
+            _parse_qualified_name("SH.")
+
+    def test_rejects_leading_dot(self) -> None:
+        with pytest.raises(ValueError, match="Expected schema-qualified name"):
+            _parse_qualified_name(".CHANNELS")
+
+    def test_rejects_three_part_name(self) -> None:
+        with pytest.raises(ValueError, match="Expected schema-qualified name"):
+            _parse_qualified_name("DB.SCHEMA.TABLE")
+
+
+# ── _validate_oracle_qualified_name ─────────────────────────────────────────
+
+
+class TestValidateOracleQualifiedName:
+    def test_accepts_bare_identifier(self) -> None:
+        _validate_oracle_qualified_name("CHANNELS")  # should not raise
+
+    def test_accepts_qualified_name(self) -> None:
+        _validate_oracle_qualified_name("MIGRATIONTEST.BRONZE_CURRENCY")  # should not raise
+
+    def test_rejects_empty(self) -> None:
+        with pytest.raises(ValueError, match="Unsafe Oracle identifier"):
+            _validate_oracle_qualified_name("")
+
+    def test_rejects_injection_in_schema(self) -> None:
+        with pytest.raises(ValueError, match="Unsafe Oracle identifier"):
+            _validate_oracle_qualified_name("BAD; DROP TABLE.CHANNELS")
+
+    def test_rejects_injection_in_table(self) -> None:
+        with pytest.raises(ValueError, match="Unsafe Oracle identifier"):
+            _validate_oracle_qualified_name("SH.CHANNELS; DROP TABLE CHANNELS--")
+
+    def test_rejects_quoted_identifier(self) -> None:
+        with pytest.raises(ValueError, match="Unsafe Oracle identifier"):
+            _validate_oracle_qualified_name('"SH".CHANNELS')
+
+    def test_rejects_three_part_name(self) -> None:
+        with pytest.raises(ValueError, match="Unsafe Oracle identifier"):
+            _validate_oracle_qualified_name("DB.SH.CHANNELS")

@@ -1,19 +1,19 @@
 """Oracle sandbox backend using python-oracledb.
 
-Oracle sandboxes are schema-level (not database-level): ``sandbox_up`` creates
-a user ``__test_<hex>`` in the target PDB, clones tables and procedures from
-the source schema via CTAS and ALL_SOURCE, then ``sandbox_down`` drops the
-user with CASCADE.
+Oracle sandboxes are PDB-level (database-level): ``sandbox_up`` creates a
+Pluggable Database ``SBX_<12 uppercase hex>`` via the CDB root connection,
+creates schema users inside the PDB, then clones tables and procedures from
+the source schema via explicit DDL and ALL_SOURCE.  ``sandbox_down`` closes
+and drops the PDB including datafiles.
 
 Known limitations:
 - ``RESOURCE`` role and ``UNLIMITED TABLESPACE`` are broad grants — acceptable
   for local sandbox use only.
-- CTAS does not copy FK, PK, CHECK, or UNIQUE constraints. Fixture FK
-  constraint disabling is therefore a no-op (and not needed).
+- Explicit DDL cloning does not copy FK, PK, CHECK, or UNIQUE constraints.
+  Fixture FK constraint disabling is therefore a no-op (and not needed).
 - Partitioned tables are cloned as non-partitioned heap tables.
-- Procedures referencing the source schema with fully-qualified names
-  (e.g. ``SH.TABLENAME``) resolve to the source schema, not the sandbox.
-  Write procedures using unqualified table names.
+- PDB names follow the ``SBX_<12 uppercase hex>`` pattern (16 chars), within
+  Oracle's 30-character PDB name limit.
 - No GENERATED AS IDENTITY handling; callers must omit identity columns.
 """
 
@@ -25,12 +25,11 @@ import re
 import uuid
 from collections.abc import Generator
 from contextlib import contextmanager
+from pathlib import PurePosixPath
 from typing import TYPE_CHECKING, Any
 
 if TYPE_CHECKING:
     import oracledb
-
-import sqlglot
 
 from shared.output_models.sandbox import (
     ErrorEntry,
@@ -39,6 +38,7 @@ from shared.output_models.sandbox import (
     SandboxUpOutput,
     TestHarnessExecuteOutput,
 )
+
 from shared.sandbox.base import (
     SandboxBackend,
     build_compare_error,
@@ -47,7 +47,7 @@ from shared.sandbox.base import (
     build_execute_output,
     capture_rows as _capture_rows_base,
     generate_sandbox_name,
-    validate_fixtures as _validate_fixtures_base,
+    validate_fixture_rows,
     validate_readonly_sql as _validate_readonly_sql_base,
 )
 from shared.runtime_config import get_runtime_role
@@ -73,7 +73,20 @@ logger = logging.getLogger(__name__)
 
 # Oracle 23ai allows identifiers up to 128 bytes.
 _ORA_IDENTIFIER_RE = re.compile(r"^[a-zA-Z_$#][a-zA-Z0-9_$#]*$")
-_ORA_SANDBOX_NAME_RE = re.compile(r"^__test_[a-zA-Z0-9_]{1,116}$")
+_ORA_SANDBOX_NAME_RE = re.compile(r"^SBX_[A-F0-9]{12}$")
+# ORA-65011: pluggable database does not exist
+# ORA-65020: pluggable database already closed
+_ORA_DROP_IGNORABLE_CODES: frozenset[int] = frozenset((65011, 65020))
+
+
+def _generate_oracle_pdb_name() -> str:
+    """Generate an Oracle-safe PDB name via ``generate_sandbox_name()``.
+
+    Oracle rejects PDB names starting with ``__`` (ORA-65000), so
+    ``generate_sandbox_name()`` was updated to produce ``SBX_<12 uppercase hex>``
+    which is safe for both Oracle PDBs and SQL Server databases.
+    """
+    return generate_sandbox_name()
 
 
 def _validate_oracle_identifier(name: str) -> None:
@@ -90,6 +103,37 @@ def _validate_oracle_identifier(name: str) -> None:
         raise ValueError(f"Unsafe Oracle identifier: {name!r}")
     if not _ORA_IDENTIFIER_RE.match(name):
         raise ValueError(f"Unsafe Oracle identifier: {name!r}")
+
+
+def _validate_oracle_qualified_name(name: str) -> None:
+    """Validate a possibly schema-qualified Oracle name (``SCHEMA.TABLE``).
+
+    Accepts bare identifiers (``CHANNELS``) and two-part qualified names
+    (``MIGRATIONTEST.BRONZE_CURRENCY``).  Three-or-more-part names are
+    rejected because ``_parse_qualified_name`` only accepts exactly two parts.
+    Each segment must pass ``_validate_oracle_identifier``.
+    """
+    if not name:
+        raise ValueError(f"Unsafe Oracle identifier: {name!r}")
+    parts = name.split(".")
+    if len(parts) > 2:
+        raise ValueError(f"Unsafe Oracle identifier: {name!r}")
+    for part in parts:
+        _validate_oracle_identifier(part)
+
+
+def _parse_qualified_name(name: str) -> tuple[str, str]:
+    """Split ``SCHEMA.TABLE`` into ``(schema, table)``.
+
+    If the name is unqualified (bare), raises ``ValueError`` — callers must
+    always pass schema-qualified names.
+    """
+    parts = name.split(".")
+    if len(parts) != 2 or not parts[0] or not parts[1]:
+        raise ValueError(
+            f"Expected schema-qualified name (SCHEMA.TABLE), got: {name!r}"
+        )
+    return parts[0], parts[1]
 
 
 def _validate_oracle_sandbox_name(sandbox_schema: str) -> None:
@@ -115,19 +159,24 @@ _ORA_TYPE_DEFAULTS: dict[str, Any] = {
 
 
 def _get_oracle_not_null_defaults(
-    cursor: Any, sandbox_schema: str, table_name: str,
+    cursor: Any, qualified_table: str,
 ) -> dict[str, Any]:
     """Return safe defaults for NOT NULL columns absent from fixture rows.
+
+    ``qualified_table`` is a schema-qualified name like
+    ``MIGRATIONTEST.BRONZE_CURRENCY``.  The schema and table parts are parsed
+    and used to query ``ALL_TAB_COLUMNS``.
 
     CTAS propagates NOT NULL constraints, so fixtures must supply values for
     all NOT NULL columns or this function fills them with type-appropriate
     zero/empty values.
     """
     try:
+        schema, table_name = _parse_qualified_name(qualified_table)
         cursor.execute(
             "SELECT COLUMN_NAME, DATA_TYPE FROM ALL_TAB_COLUMNS "
             "WHERE OWNER = UPPER(:1) AND TABLE_NAME = UPPER(:2) AND NULLABLE = 'N'",
-            [sandbox_schema, table_name],
+            [schema, table_name],
         )
         defaults: dict[str, Any] = {}
         for col_name, data_type in cursor.fetchall():
@@ -136,15 +185,26 @@ def _get_oracle_not_null_defaults(
         return defaults
     except _import_oracledb().DatabaseError:
         logger.debug(
-            "event=oracle_not_null_defaults_failed schema=%s table=%s",
-            sandbox_schema, table_name,
+            "event=oracle_not_null_defaults_failed table=%s",
+            qualified_table,
         )
         return {}
 
 
 def _validate_fixtures(fixtures: list[dict[str, Any]]) -> None:
-    """Validate fixture structure: table names, column names, row consistency."""
-    _validate_fixtures_base(fixtures, _validate_oracle_identifier)
+    """Validate fixture structure: table names, column names, row consistency.
+
+    Table names are schema-qualified (e.g. ``MIGRATIONTEST.BRONZE_CURRENCY``),
+    so the table-name validator accepts dots.  Column names are bare
+    identifiers validated with ``_validate_oracle_identifier``.
+    """
+    for fixture in fixtures:
+        _validate_oracle_qualified_name(fixture["table"])
+        rows = fixture.get("rows", [])
+        if rows:
+            for col_name in rows[0].keys():
+                _validate_oracle_identifier(col_name)
+            validate_fixture_rows(fixture["table"], rows)
 
 
 _WRITE_SQL_RE = re.compile(
@@ -167,17 +227,16 @@ class _OracleSandboxCore(SandboxBackend):
     All operations use a single admin connection (SYS as SYSDBA by default),
     mirroring the SQL Server backend's use of ``sa`` for everything.
 
-    ``execute_scenario`` and ``_seed_fixtures`` auto-qualify object names with
-    the sandbox schema — callers pass bare object names (e.g. ``CHANNELS``),
-    not schema-qualified names. ``compare_two_sql`` SQL must be schema-qualified
-    by the caller when referencing sandbox objects.
+    Callers pass schema-qualified object names (e.g.
+    ``MIGRATIONTEST.CHANNELS``) — the sandbox code uses them as-is.  The
+    sandbox PDB is just a connection target.
     """
 
     def __init__(
         self,
         host: str,
         port: str,
-        service: str,
+        cdb_service: str,
         password: str,
         admin_user: str = "sys",
         source_schema: str = "",
@@ -190,13 +249,13 @@ class _OracleSandboxCore(SandboxBackend):
     ) -> None:
         self.host = host
         self.port = port
-        self.service = service
+        self.cdb_service = cdb_service
         self.password = password
         self.admin_user = admin_user
         self.source_schema = source_schema
         self.source_host = source_host or host
         self.source_port = source_port or port
-        self.source_service = source_service or service
+        self.source_service = source_service or cdb_service
         self.source_user = source_user or admin_user
         self.source_password = source_password or password
 
@@ -221,7 +280,7 @@ class _OracleSandboxCore(SandboxBackend):
 
         host = sandbox_role.connection.host or ""
         port = sandbox_role.connection.port or "1521"
-        service = sandbox_role.connection.service or ""
+        cdb_service = sandbox_role.connection.service or ""
         admin_user = sandbox_role.connection.user or ""
         password_env = sandbox_role.connection.password_env
         password = os.environ.get(password_env or "", "")
@@ -237,7 +296,7 @@ class _OracleSandboxCore(SandboxBackend):
             missing.append("runtime.sandbox.connection.host")
         if not sandbox_role.connection.port:
             missing.append("runtime.sandbox.connection.port")
-        if not service:
+        if not cdb_service:
             missing.append("runtime.sandbox.connection.service")
         if not admin_user:
             missing.append("runtime.sandbox.connection.user")
@@ -268,7 +327,7 @@ class _OracleSandboxCore(SandboxBackend):
         return cls(
             host=host,
             port=port,
-            service=service,
+            cdb_service=cdb_service,
             password=password,
             admin_user=admin_user,
             source_schema=source_schema,
@@ -280,9 +339,13 @@ class _OracleSandboxCore(SandboxBackend):
         )
 
     @contextmanager
-    def _connect(self) -> Generator[oracledb.Connection, None, None]:
-        """Open an admin connection (SYSDBA when admin_user is ``sys``)."""
-        dsn = f"{self.host}:{self.port}/{self.service}"
+    def _connect_cdb(self) -> Generator[oracledb.Connection, None, None]:
+        """Open an admin connection to the CDB root for PDB lifecycle DDL.
+
+        No NLS session setup — this connection is only for CREATE/DROP
+        PLUGGABLE DATABASE statements.
+        """
+        dsn = f"{self.host}:{self.port}/{self.cdb_service}"
         _ora = _import_oracledb()
         mode = (
             _ora.AUTH_MODE_SYSDBA
@@ -296,8 +359,32 @@ class _OracleSandboxCore(SandboxBackend):
             mode=mode,
         )
         try:
-            # Set ISO date/timestamp formats so string literals like "1998-01-01"
-            # bind correctly to DATE/TIMESTAMP columns in fixtures and queries.
+            yield conn
+        finally:
+            conn.close()
+
+    @contextmanager
+    def _connect_sandbox(self, sandbox_name: str) -> Generator[oracledb.Connection, None, None]:
+        """Open an admin connection to a sandbox PDB by name.
+
+        After ``_create_sandbox_pdb`` opens the PDB, Oracle auto-registers a
+        service with the PDB name.  DSN = ``{host}:{port}/{sandbox_name}``.
+        Sets NLS date/timestamp formats for fixture and query compatibility.
+        """
+        dsn = f"{self.host}:{self.port}/{sandbox_name}"
+        _ora = _import_oracledb()
+        mode = (
+            _ora.AUTH_MODE_SYSDBA
+            if self.admin_user.lower() == "sys"
+            else _ora.AUTH_MODE_DEFAULT
+        )
+        conn = _ora.connect(
+            user=self.admin_user,
+            password=self.password,
+            dsn=dsn,
+            mode=mode,
+        )
+        try:
             with conn.cursor() as cur:
                 cur.execute("ALTER SESSION SET NLS_DATE_FORMAT = 'YYYY-MM-DD'")
                 cur.execute(
@@ -306,6 +393,77 @@ class _OracleSandboxCore(SandboxBackend):
             yield conn
         finally:
             conn.close()
+
+    def _create_sandbox_pdb(self, sandbox_name: str) -> None:
+        """Create a pluggable database from pdbseed and open it.
+
+        Uses ``_connect_cdb()`` to issue DDL against the CDB root.
+        PDB names are ``SBX_<hex>`` — valid unquoted Oracle identifiers,
+        so no double-quoting is needed.
+
+        Oracle Free does not enable Oracle Managed Files (OMF) by default,
+        so we discover the oradata directory from ``DBA_DATA_FILES`` and
+        pass it as ``CREATE_FILE_DEST``.
+        """
+        _validate_oracle_sandbox_name(sandbox_name)
+        temp_password = f"P{uuid.uuid4().hex[:16]}x"
+        with self._connect_cdb() as conn:
+            cursor = conn.cursor()
+
+            # Discover oradata directory (go up two levels from first datafile)
+            cursor.execute(
+                "SELECT FILE_NAME FROM DBA_DATA_FILES WHERE ROWNUM = 1"
+            )
+            row = cursor.fetchone()
+            if row is None:
+                raise RuntimeError("Cannot discover oradata path: DBA_DATA_FILES is empty")
+            oradata_path = str(PurePosixPath(row[0]).parent.parent)
+
+            cursor.execute(
+                f"CREATE PLUGGABLE DATABASE {sandbox_name} "
+                f'ADMIN USER pdb_admin IDENTIFIED BY "{temp_password}" '
+                f"CREATE_FILE_DEST = '{oradata_path}'"
+            )
+            try:
+                cursor.execute(f"ALTER PLUGGABLE DATABASE {sandbox_name} OPEN")
+            except _import_oracledb().DatabaseError:
+                # PDB was created but could not be opened — drop it to prevent orphan.
+                try:
+                    self._drop_sandbox_pdb(sandbox_name)
+                except _import_oracledb().DatabaseError:
+                    logger.warning(
+                        "event=oracle_sandbox_pdb_orphan sandbox=%s", sandbox_name
+                    )
+                raise
+        logger.info("event=oracle_sandbox_pdb_created sandbox=%s", sandbox_name)
+
+    def _drop_sandbox_pdb(self, sandbox_name: str) -> None:
+        """Close and drop a sandbox PDB including datafiles.
+
+        Ignores ORA-65011 (PDB does not exist) and ORA-65020 (already closed)
+        so the operation is idempotent. All other Oracle errors propagate.
+        PDB names are valid unquoted identifiers — no double-quoting needed.
+        """
+        _validate_oracle_sandbox_name(sandbox_name)
+        try:
+            with self._connect_cdb() as conn:
+                cursor = conn.cursor()
+                cursor.execute(
+                    f"ALTER PLUGGABLE DATABASE {sandbox_name} CLOSE IMMEDIATE"
+                )
+                cursor.execute(
+                    f"DROP PLUGGABLE DATABASE {sandbox_name} INCLUDING DATAFILES"
+                )
+            logger.info("event=oracle_sandbox_pdb_dropped sandbox=%s", sandbox_name)
+        except _import_oracledb().DatabaseError as exc:
+            ora_code = getattr(exc.args[0], "code", 0) if exc.args else 0
+            if ora_code not in _ORA_DROP_IGNORABLE_CODES:
+                raise
+            logger.debug(
+                "event=oracle_sandbox_pdb_drop_ignored sandbox=%s ora_code=%s",
+                sandbox_name,
+                ora_code,
+            )
 
     @contextmanager
     def _connect_source(self) -> Generator[oracledb.Connection, None, None]:
@@ -323,10 +481,9 @@ class _OracleSandboxCore(SandboxBackend):
     def _create_sandbox_schema(self, cursor: Any, sandbox_schema: str) -> None:
         """Create sandbox user, dropping any prior instance first.
 
-        Sandbox names start with ``__`` so they must be double-quoted in Oracle
-        DDL (unquoted identifiers must start with a letter). Quoted identifiers
-        are stored verbatim (case-sensitive) in ALL_USERS, so all lookups use
-        exact-case matching rather than UPPER().
+        ``SBX_<hex>`` names are valid unquoted Oracle identifiers but are
+        double-quoted here for consistency.  ALL_USERS stores quoted names
+        verbatim (case-sensitive), so lookups use exact-case matching.
         """
         temp_password = f"P{uuid.uuid4().hex[:16]}x"
         cursor.execute(

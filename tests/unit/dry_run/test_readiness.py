@@ -587,7 +587,7 @@ def test_ready_generate_object_failure_preserves_project_success() -> None:
         manifest.setdefault("runtime", {})["sandbox"] = {
             "technology": "sql_server",
             "dialect": "tsql",
-            "connection": {"database": "__test_abc123"},
+            "connection": {"database": "SBX_ABC123000000"},
         }
         (root / "manifest.json").write_text(json.dumps(manifest), encoding="utf-8")
         (root / "dbt").mkdir(exist_ok=True)

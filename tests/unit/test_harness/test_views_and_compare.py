@@ -53,7 +53,7 @@ class TestCompareTwoSqlSqlServerRollback:
         with patch.object(backend, "_connect", side_effect=_fake_connect), \
              patch.object(backend._fixtures, "ensure_view_tables", return_value=[]):
             result = backend.compare_two_sql(
-                sandbox_db="__test_abc123",
+                sandbox_db="SBX_ABC123000000",
                 sql_a="SELECT bad syntax",
                 sql_b="SELECT 1",
                 fixtures=[],
@@ -90,7 +90,7 @@ class TestEnsureViewTablesSqlServer:
         with patch.object(backend, "_connect", side_effect=sandbox_connect), patch.object(
             backend, "_connect_source", side_effect=source_connect
         ):
-            materialized = backend._fixtures.ensure_view_tables("__test_abc123", given)
+            materialized = backend._fixtures.ensure_view_tables("SBX_ABC123000000", given)
 
         assert materialized == ["silver.vw_product"]
         calls = [str(c) for c in sandbox_cursor.execute.call_args_list]
@@ -115,7 +115,7 @@ class TestEnsureViewTablesSqlServer:
         with patch.object(backend, "_connect", side_effect=fake_connect), patch.object(
             backend, "_connect_source", side_effect=fake_connect
         ):
-            materialized = backend._fixtures.ensure_view_tables("__test_abc123", given)
+            materialized = backend._fixtures.ensure_view_tables("SBX_ABC123000000", given)
 
         assert materialized == []
         sandbox_cursor.execute.assert_not_called()
@@ -146,7 +146,7 @@ class TestEnsureViewTablesSqlServer:
         with patch.object(backend, "_connect", side_effect=sandbox_connect), patch.object(
             backend, "_connect_source", side_effect=source_connect
         ):
-            materialized = backend._fixtures.ensure_view_tables("__test_abc123", given)
+            materialized = backend._fixtures.ensure_view_tables("SBX_ABC123000000", given)
 
         assert materialized == ["silver.vw_stale"]
         calls = [str(c) for c in sandbox_cursor.execute.call_args_list]
@@ -164,7 +164,7 @@ class TestEnsureViewTablesOracle:
         return OracleSandbox(
             host="localhost",
             port="1521",
-            service="FREEPDB1",
+            cdb_service="FREEPDB1",
             password="TestPass123",
             admin_user="sys",
             source_schema="SH",
@@ -177,19 +177,19 @@ class TestEnsureViewTablesOracle:
         cursor.fetchone.return_value = (1,)  # object IS a view
 
         @contextmanager
-        def _fake_connect(**kwargs):
+        def _fake_connect(*args, **kwargs):
             conn = MagicMock()
             conn.cursor.return_value = cursor
             yield conn
 
-        given = [{"table": "VW_PRODUCT", "rows": []}]
+        given = [{"table": "SH.VW_PRODUCT", "rows": []}]
 
-        with patch.object(backend, "_connect", side_effect=_fake_connect), patch.object(
+        with patch.object(backend, "_connect_sandbox", side_effect=_fake_connect), patch.object(
             backend, "_connect_source", side_effect=_fake_connect
         ):
-            materialized = backend._fixtures.ensure_view_tables("__test_abc123", given)
+            materialized = backend._fixtures.ensure_view_tables("SBX_ABC123000000", given)
 
-        assert materialized == ["VW_PRODUCT"]
+        assert materialized == ["SH.VW_PRODUCT"]
         calls = [str(c) for c in cursor.execute.call_args_list]
         ctas_calls = [c for c in calls if "CREATE TABLE" in c]
         assert len(ctas_calls) == 1
@@ -201,17 +201,17 @@ class TestEnsureViewTablesOracle:
         cursor.fetchone.return_value = None  # NOT a view
 
         @contextmanager
-        def _fake_connect(**kwargs):
+        def _fake_connect(*args, **kwargs):
             conn = MagicMock()
             conn.cursor.return_value = cursor
             yield conn
 
-        given = [{"table": "CHANNELS", "rows": []}]
+        given = [{"table": "SH.CHANNELS", "rows": []}]
 
-        with patch.object(backend, "_connect", side_effect=_fake_connect), patch.object(
+        with patch.object(backend, "_connect_sandbox", side_effect=_fake_connect), patch.object(
             backend, "_connect_source", side_effect=_fake_connect
         ):
-            materialized = backend._fixtures.ensure_view_tables("__test_abc123", given)
+            materialized = backend._fixtures.ensure_view_tables("SBX_ABC123000000", given)
 
         assert materialized == []
         calls = [str(c) for c in cursor.execute.call_args_list]
@@ -242,21 +242,21 @@ class TestEnsureViewTablesOracle:
             yield conn
 
         @contextmanager
-        def _fake_sandbox_connect(**kwargs):
+        def _fake_sandbox_connect(name: str):
             conn = MagicMock()
             conn.cursor.return_value = sandbox_cursor
             yield conn
 
-        given = [{"table": "VW_STALE", "rows": []}]
+        given = [{"table": "SH.VW_STALE", "rows": []}]
 
-        with patch.object(backend, "_connect", side_effect=_fake_sandbox_connect), patch.object(
+        with patch.object(backend, "_connect_sandbox", side_effect=_fake_sandbox_connect), patch.object(
             backend, "_connect_source", side_effect=_fake_source_connect
         ):
-            materialized = backend._fixtures.ensure_view_tables("__test_abc123", given)
+            materialized = backend._fixtures.ensure_view_tables("SBX_ABC123000000", given)
 
-        assert materialized == ["VW_STALE"]
+        assert materialized == ["SH.VW_STALE"]
         calls = [str(c) for c in sandbox_cursor.execute.call_args_list]
-        create_calls = [c for c in calls if 'CREATE TABLE "__test_abc123"."VW_STALE" ("ID" NUMBER(10,0) NOT NULL)' in c]
+        create_calls = [c for c in calls if 'CREATE TABLE "SH"."VW_STALE" ("ID" NUMBER(10,0) NOT NULL)' in c]
         assert len(create_calls) == 1
 
     def test_clone_procedures_quotes_procedure_name(self) -> None:
@@ -271,14 +271,14 @@ class TestEnsureViewTablesOracle:
         cloned, errors = backend._clone_procedures(
             source_cursor,
             sandbox_cursor,
-            "__test_abc123",
+            "SBX_ABC123000000",
             "SH",
         )
 
         assert cloned == ["SH.Proc$Load"]
         assert errors == []
         ddl = sandbox_cursor.execute.call_args.args[0]
-        assert 'PROCEDURE "__test_abc123"."Proc$Load"' in ddl
+        assert 'PROCEDURE "SBX_ABC123000000"."Proc$Load"' in ddl
 
 
 # ── execute_select ─────────────────────────────────────────────────────────
@@ -308,7 +308,7 @@ class TestExecuteSelectSqlServer:
              patch.object(backend._fixtures, "ensure_view_tables", return_value=[]), \
              patch.object(backend._fixtures, "seed_fixtures"):
             result = backend.execute_select(
-                sandbox_db="__test_abc123",
+                sandbox_db="SBX_ABC123000000",
                 sql="SELECT id, name FROM [silver].[Customers]",
                 fixtures=[],
             )
@@ -340,7 +340,7 @@ class TestExecuteSelectSqlServer:
              patch.object(backend._fixtures, "ensure_view_tables", return_value=[]), \
              patch.object(backend._fixtures, "seed_fixtures"):
             result = backend.execute_select(
-                sandbox_db="__test_abc123",
+                sandbox_db="SBX_ABC123000000",
                 sql="SELECT id FROM [silver].[Empty]",
                 fixtures=[],
             )
@@ -357,7 +357,7 @@ class TestExecuteSelectSqlServer:
         )
         with pytest.raises(ValueError, match="write operation"):
             backend.execute_select(
-                sandbox_db="__test_abc123",
+                sandbox_db="SBX_ABC123000000",
                 sql="INSERT INTO [silver].[T] VALUES (1)",
                 fixtures=[],
             )
@@ -369,7 +369,7 @@ class TestExecuteSelectOracle:
     def test_happy_path_returns_rows(self) -> None:
         """execute_select seeds fixtures, runs SELECT, returns rows."""
         backend = OracleSandbox(
-            host="localhost", port="1521", service="FREEPDB1",
+            host="localhost", port="1521", cdb_service="FREEPDB1",
             password="pw", admin_user="sys", source_schema="SH",
         )
         cursor = MagicMock()
@@ -380,14 +380,14 @@ class TestExecuteSelectOracle:
         conn.cursor.return_value = cursor
 
         @contextmanager
-        def _fake_connect():
+        def _fake_sandbox(name: str):
             yield conn
 
-        with patch.object(backend, "_connect", side_effect=_fake_connect), \
+        with patch.object(backend, "_connect_sandbox", side_effect=_fake_sandbox), \
              patch.object(backend._fixtures, "ensure_view_tables", return_value=[]), \
              patch.object(backend._fixtures, "seed_fixtures"):
             result = backend.execute_select(
-                sandbox_db="__test_abc123",
+                sandbox_db="SBX_ABC123000000",
                 sql='SELECT "ID", "NAME" FROM "SH"."CHANNELS"',
                 fixtures=[],
             )
@@ -446,7 +446,7 @@ class TestExecuteSpecViewRouting:
 
         try:
             with patch.object(test_harness, "_create_backend", return_value=mock_backend), \
-                 patch.object(test_harness, "_resolve_sandbox_db", return_value=("__test_abc", {})):
+                 patch.object(test_harness, "_resolve_sandbox_db", return_value=("SBX_ABC000000000", {})):
                 result = runner.invoke(
                     test_harness.app,
                     ["execute-spec", "--spec", spec_path, "--project-root", "."],
@@ -506,7 +506,7 @@ class TestExecuteSpecViewRouting:
 
         try:
             with patch.object(test_harness, "_create_backend", return_value=mock_backend), \
-                 patch.object(test_harness, "_resolve_sandbox_db", return_value=("__test_abc", {})):
+                 patch.object(test_harness, "_resolve_sandbox_db", return_value=("SBX_ABC000000000", {})):
                 result = runner.invoke(
                     test_harness.app,
                     ["execute-spec", "--spec", spec_path, "--project-root", "."],
@@ -577,7 +577,7 @@ class TestCompareSqlExitCodes:
 
         with (
             patch.object(test_harness, "resolve_project_root", return_value=tmp_path),
-            patch.object(test_harness, "_resolve_sandbox_db", return_value=("__test_abc", {})),
+            patch.object(test_harness, "_resolve_sandbox_db", return_value=("SBX_ABC000000000", {})),
             patch.object(test_harness, "_create_backend", return_value=mock_backend),
         ):
             result = runner.invoke(

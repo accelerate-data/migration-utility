@@ -54,7 +54,7 @@ def _semantic_review(*, passed: bool = True, issues: list[dict[str, object]] | N
 def _compare_sql_result(*, passed: bool = True) -> dict[str, object]:
     return {
         "schema_version": "1.0",
-        "sandbox_database": "__test_abc123",
+        "sandbox_database": "SBX_ABC123000000",
         "total": 2,
         "passed": 2 if passed else 1,
         "failed": 0 if passed else 1,
@@ -153,7 +153,7 @@ def test_context_happy_path() -> None:
     assert "bronze.customerraw" in result.source_tables
     assert result.test_spec is not None
     assert len(result.test_spec["unit_tests"]) == 2
-    assert result.sandbox["database"] == "__test_abc123"
+    assert result.sandbox["database"] == "SBX_ABC123000000"
 
 
 def test_context_missing_writer() -> None:

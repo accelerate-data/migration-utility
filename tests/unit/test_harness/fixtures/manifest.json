@@ -19,7 +19,7 @@
       "technology": "sql_server",
       "dialect": "tsql",
       "connection": {
-        "database": "__test_template",
+        "database": "SBX_TEMPLATE0000",
         "host": "localhost",
         "port": "1433",
         "user": "sa",

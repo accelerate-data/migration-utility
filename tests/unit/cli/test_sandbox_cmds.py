@@ -31,14 +31,14 @@ def _write_manifest(tmp_path: Path, with_sandbox: bool = False) -> None:
 
 
 _SANDBOX_UP_OUT = SandboxUpOutput(
-    sandbox_database="__test_abc123",
+    sandbox_database="SBX_ABC123000000",
     status="ok",
     tables_cloned=["silver.DimCustomer"],
     views_cloned=[],
     procedures_cloned=["silver.usp_load"],
     errors=[],
 )
-_SANDBOX_DOWN_OUT = SandboxDownOutput(sandbox_database="__test_abc123", status="ok")
+_SANDBOX_DOWN_OUT = SandboxDownOutput(sandbox_database="SBX_ABC123000000", status="ok")
 
 
 def test_setup_sandbox_runs_sandbox_up(tmp_path):
@@ -83,13 +83,13 @@ def test_setup_sandbox_reuses_existing_canonical_sandbox(tmp_path):
             "sandbox": {
                 "technology": "sql_server",
                 "dialect": "tsql",
-                "connection": {"database": "__test_existing"},
+                "connection": {"database": "SBX_000000000001"},
             }
         }
     }
     mock_backend = MagicMock()
     mock_backend.sandbox_status.return_value = SandboxStatusOutput(
-        sandbox_database="__test_existing",
+        sandbox_database="SBX_000000000001",
         status="ok",
         exists=True,
         has_content=True,
@@ -110,10 +110,10 @@ def test_setup_sandbox_reuses_existing_canonical_sandbox(tmp_path):
         result = runner.invoke(app, ["setup-sandbox", "--yes", "--project-root", str(tmp_path)])
 
     assert result.exit_code == 0, result.output
-    mock_backend.sandbox_status.assert_called_once_with("__test_existing", schemas=["silver"])
+    mock_backend.sandbox_status.assert_called_once_with("SBX_000000000001", schemas=["silver"])
     mock_backend.sandbox_reset.assert_not_called()
     mock_backend.sandbox_up.assert_not_called()
-    mock_write_sandbox.assert_called_once_with(tmp_path, "__test_existing")
+    mock_write_sandbox.assert_called_once_with(tmp_path, "SBX_000000000001")
     assert "already exists" in result.output
 
 
@@ -124,13 +124,13 @@ def test_setup_sandbox_repairs_existing_empty_canonical_sandbox(tmp_path):
             "sandbox": {
                 "technology": "sql_server",
                 "dialect": "tsql",
-                "connection": {"database": "__test_existing"},
+                "connection": {"database": "SBX_000000000001"},
             }
         }
     }
     mock_backend = MagicMock()
     mock_backend.sandbox_status.return_value = SandboxStatusOutput(
-        sandbox_database="__test_existing",
+        sandbox_database="SBX_000000000001",
         status="ok",
         exists=True,
         has_content=False,
@@ -139,7 +139,7 @@ def test_setup_sandbox_repairs_existing_empty_canonical_sandbox(tmp_path):
         procedures_count=0,
     )
     mock_backend.sandbox_reset.return_value = SandboxUpOutput(
-        sandbox_database="__test_existing",
+        sandbox_database="SBX_000000000001",
         status="ok",
         tables_cloned=["silver.DimCustomer"],
         views_cloned=[],
@@ -159,10 +159,10 @@ def test_setup_sandbox_repairs_existing_empty_canonical_sandbox(tmp_path):
         result = runner.invoke(app, ["setup-sandbox", "--yes", "--project-root", str(tmp_path)])
 
     assert result.exit_code == 0, result.output
-    mock_backend.sandbox_status.assert_called_once_with("__test_existing", schemas=["silver"])
-    mock_backend.sandbox_reset.assert_called_once_with("__test_existing", schemas=["silver"])
+    mock_backend.sandbox_status.assert_called_once_with("SBX_000000000001", schemas=["silver"])
+    mock_backend.sandbox_reset.assert_called_once_with("SBX_000000000001", schemas=["silver"])
     mock_backend.sandbox_up.assert_not_called()
-    mock_write_sandbox.assert_called_once_with(tmp_path, "__test_existing")
+    mock_write_sandbox.assert_called_once_with(tmp_path, "SBX_000000000001")
     assert "repairing" in result.output
 
 
@@ -173,13 +173,13 @@ def test_setup_sandbox_reuses_existing_oracle_sandbox_schema(tmp_path):
             "sandbox": {
                 "technology": "oracle",
                 "dialect": "oracle",
-                "connection": {"schema_name": "__test_existing"},
+                "connection": {"schema_name": "SBX_000000000001"},
             }
         }
     }
     mock_backend = MagicMock()
     mock_backend.sandbox_status.return_value = SandboxStatusOutput(
-        sandbox_database="__test_existing",
+        sandbox_database="SBX_000000000001",
         status="ok",
         exists=True,
         has_content=True,
@@ -200,10 +200,10 @@ def test_setup_sandbox_reuses_existing_oracle_sandbox_schema(tmp_path):
         result = runner.invoke(app, ["setup-sandbox", "--yes", "--project-root", str(tmp_path)])
 
     assert result.exit_code == 0, result.output
-    mock_backend.sandbox_status.assert_called_once_with("__test_existing", schemas=["SH"])
+    mock_backend.sandbox_status.assert_called_once_with("SBX_000000000001", schemas=["SH"])
     mock_backend.sandbox_reset.assert_not_called()
     mock_backend.sandbox_up.assert_not_called()
-    mock_write_sandbox.assert_called_once_with(tmp_path, "__test_existing")
+    mock_write_sandbox.assert_called_once_with(tmp_path, "SBX_000000000001")
 
 
 def test_setup_sandbox_surfaces_status_errors_without_provisioning(tmp_path):
@@ -213,7 +213,7 @@ def test_setup_sandbox_surfaces_status_errors_without_provisioning(tmp_path):
             "sandbox": {
                 "technology": "sql_server",
                 "dialect": "tsql",
-                "connection": {"database": "__test_existing"},
+                "connection": {"database": "SBX_000000000001"},
             }
         }
     }
@@ -221,7 +221,7 @@ def test_setup_sandbox_surfaces_status_errors_without_provisioning(tmp_path):
     before = manifest_path.read_bytes()
     mock_backend = MagicMock()
     mock_backend.sandbox_status.return_value = SandboxStatusOutput(
-        sandbox_database="__test_existing",
+        sandbox_database="SBX_000000000001",
         status="error",
         exists=False,
         errors=[
@@ -244,7 +244,7 @@ def test_setup_sandbox_surfaces_status_errors_without_provisioning(tmp_path):
 
     assert result.exit_code == 1, result.output
     assert "SANDBOX_STATUS_FAILED" in result.output
-    mock_backend.sandbox_status.assert_called_once_with("__test_existing", schemas=["silver"])
+    mock_backend.sandbox_status.assert_called_once_with("SBX_000000000001", schemas=["silver"])
     mock_backend.sandbox_reset.assert_not_called()
     mock_backend.sandbox_up.assert_not_called()
     mock_write_sandbox.assert_not_called()
@@ -258,14 +258,14 @@ def test_setup_sandbox_creates_new_when_canonical_sandbox_not_found(tmp_path):
             "sandbox": {
                 "technology": "sql_server",
                 "dialect": "tsql",
-                "connection": {"database": "__test_missing"},
+                "connection": {"database": "SBX_000000000004"},
             }
         },
-        "sandbox": {"database": "__test_legacy_ignored"},
+        "sandbox": {"database": "SBX_LEGACY000000"},
     }
     mock_backend = MagicMock()
     mock_backend.sandbox_status.return_value = SandboxStatusOutput(
-        sandbox_database="__test_missing",
+        sandbox_database="SBX_000000000004",
         status="not_found",
         exists=False,
     )
@@ -283,10 +283,10 @@ def test_setup_sandbox_creates_new_when_canonical_sandbox_not_found(tmp_path):
         result = runner.invoke(app, ["setup-sandbox", "--yes", "--project-root", str(tmp_path)])
 
     assert result.exit_code == 0, result.output
-    mock_backend.sandbox_status.assert_called_once_with("__test_missing", schemas=["silver"])
+    mock_backend.sandbox_status.assert_called_once_with("SBX_000000000004", schemas=["silver"])
     mock_backend.sandbox_reset.assert_not_called()
     mock_backend.sandbox_up.assert_called_once_with(schemas=["silver"])
-    mock_write_sandbox.assert_called_once_with(tmp_path, "__test_abc123")
+    mock_write_sandbox.assert_called_once_with(tmp_path, "SBX_ABC123000000")
 
 
 def test_write_sandbox_connection_preserves_existing_canonical_name_and_ignores_legacy(tmp_path, monkeypatch):
@@ -295,10 +295,10 @@ def test_write_sandbox_connection_preserves_existing_canonical_name_and_ignores_
             "sandbox": {
                 "technology": "sql_server",
                 "dialect": "tsql",
-                "connection": {"database": "__test_existing"},
+                "connection": {"database": "SBX_000000000001"},
             }
         },
-        "sandbox": {"database": "__test_legacy_ignored"},
+        "sandbox": {"database": "SBX_LEGACY000000"},
     }
     (tmp_path / "manifest.json").write_text(json.dumps(manifest), encoding="utf-8")
     monkeypatch.setenv("SANDBOX_MSSQL_HOST", "127.0.0.1")
@@ -309,9 +309,9 @@ def test_write_sandbox_connection_preserves_existing_canonical_name_and_ignores_
     updated = _write_sandbox_connection_to_manifest(tmp_path, manifest, "sql_server")
 
     connection = updated["runtime"]["sandbox"]["connection"]
-    assert connection["database"] == "__test_existing"
+    assert connection["database"] == "SBX_000000000001"
     assert connection["host"] == "127.0.0.1"
-    assert updated["sandbox"]["database"] == "__test_legacy_ignored"
+    assert updated["sandbox"]["database"] == "SBX_LEGACY000000"
 
 
 def test_teardown_sandbox_requires_confirmation(tmp_path):
@@ -319,7 +319,7 @@ def test_teardown_sandbox_requires_confirmation(tmp_path):
 
     with (
         patch("shared.cli.teardown_sandbox_cmd._load_manifest", return_value={"runtime": {"sandbox": {}}}),
-        patch("shared.cli.teardown_sandbox_cmd._get_sandbox_name", return_value="__test_abc123"),
+        patch("shared.cli.teardown_sandbox_cmd._get_sandbox_name", return_value="SBX_ABC123000000"),
     ):
         # User enters 'n' at the prompt
         result = runner.invoke(app, ["teardown-sandbox", "--project-root", str(tmp_path)], input="n\n")
@@ -336,12 +336,12 @@ def test_teardown_sandbox_yes_flag_skips_prompt(tmp_path):
     with (
         patch("shared.cli.teardown_sandbox_cmd._load_manifest", return_value={}),
         patch("shared.cli.teardown_sandbox_cmd._create_backend", return_value=mock_backend),
-        patch("shared.cli.teardown_sandbox_cmd._get_sandbox_name", return_value="__test_abc123"),
+        patch("shared.cli.teardown_sandbox_cmd._get_sandbox_name", return_value="SBX_ABC123000000"),
     ):
         result = runner.invoke(app, ["teardown-sandbox", "--yes", "--project-root", str(tmp_path)])
 
     assert result.exit_code == 0
-    mock_backend.sandbox_down.assert_called_once_with("__test_abc123")
+    mock_backend.sandbox_down.assert_called_once_with("SBX_ABC123000000")
     assert "Updated repo state" in result.output
     assert "manifest.json" in result.output
     assert "Review and commit the repo changes before continuing" in result.output
@@ -363,14 +363,14 @@ def test_teardown_sandbox_no_sandbox_exits_1(tmp_path):
 
 def test_teardown_sandbox_error_exits_nonzero(tmp_path):
     from shared.output_models.sandbox import SandboxDownOutput
-    error_out = SandboxDownOutput(sandbox_database="__test_abc123", status="error")
+    error_out = SandboxDownOutput(sandbox_database="SBX_ABC123000000", status="error")
     mock_backend = MagicMock()
     mock_backend.sandbox_down.return_value = error_out
 
     with (
         patch("shared.cli.teardown_sandbox_cmd._load_manifest", return_value={}),
         patch("shared.cli.teardown_sandbox_cmd._create_backend", return_value=mock_backend),
-        patch("shared.cli.teardown_sandbox_cmd._get_sandbox_name", return_value="__test_abc123"),
+        patch("shared.cli.teardown_sandbox_cmd._get_sandbox_name", return_value="SBX_ABC123000000"),
     ):
         result = runner.invoke(app, ["teardown-sandbox", "--yes", "--project-root", str(tmp_path)])
 
@@ -579,7 +579,7 @@ def test_teardown_sandbox_shows_clean_error_on_db_failure(tmp_path):
         driver_patch,
         patch("shared.cli.teardown_sandbox_cmd._load_manifest", return_value={}),
         patch("shared.cli.teardown_sandbox_cmd._create_backend", return_value=mock_backend),
-        patch("shared.cli.teardown_sandbox_cmd._get_sandbox_name", return_value="__test_abc"),
+        patch("shared.cli.teardown_sandbox_cmd._get_sandbox_name", return_value="SBX_ABC000000000"),
     ):
         result = runner.invoke(app, ["teardown-sandbox", "--yes", "--project-root", str(tmp_path)])
 

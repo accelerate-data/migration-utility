@@ -179,29 +179,29 @@ def test_reset_all_no_sandbox_delegates_to_core(tmp_path):
 def test_reset_all_with_sandbox_tears_down_before_reset(tmp_path):
     _write_manifest(tmp_path)
     mock_backend = MagicMock()
-    mock_backend.sandbox_down.return_value = SandboxDownOutput(sandbox_database="__test_abc", status="ok")
+    mock_backend.sandbox_down.return_value = SandboxDownOutput(sandbox_database="SBX_ABC000000000", status="ok")
 
     with (
         patch("shared.cli.reset_cmd._load_manifest", return_value={}),
-        patch("shared.cli.reset_cmd._get_sandbox_name", return_value="__test_abc"),
+        patch("shared.cli.reset_cmd._get_sandbox_name", return_value="SBX_ABC000000000"),
         patch("shared.cli.reset_cmd._create_backend", return_value=mock_backend),
         patch("shared.cli.reset_cmd.clear_manifest_sandbox"),
         patch("shared.cli.reset_cmd.run_reset_migration", return_value=_GLOBAL_RESET_OUT) as mock_reset,
     ):
         result = runner.invoke(app, ["reset", "all", "--yes", "--project-root", str(tmp_path)])
     assert result.exit_code == 0, result.output
-    mock_backend.sandbox_down.assert_called_once_with("__test_abc")
+    mock_backend.sandbox_down.assert_called_once_with("SBX_ABC000000000")
     mock_reset.assert_called_once_with(tmp_path, "all", [])
 
 
 def test_reset_all_sandbox_teardown_failure_warns_and_continues(tmp_path):
     _write_manifest(tmp_path)
     mock_backend = MagicMock()
-    mock_backend.sandbox_down.return_value = SandboxDownOutput(sandbox_database="__test_abc", status="error")
+    mock_backend.sandbox_down.return_value = SandboxDownOutput(sandbox_database="SBX_ABC000000000", status="error")
 
     with (
         patch("shared.cli.reset_cmd._load_manifest", return_value={}),
-        patch("shared.cli.reset_cmd._get_sandbox_name", return_value="__test_abc"),
+        patch("shared.cli.reset_cmd._get_sandbox_name", return_value="SBX_ABC000000000"),
         patch("shared.cli.reset_cmd._create_backend", return_value=mock_backend),
         patch("shared.cli.reset_cmd.clear_manifest_sandbox"),
         patch("shared.cli.reset_cmd.run_reset_migration", return_value=_GLOBAL_RESET_OUT) as mock_reset,
@@ -214,27 +214,27 @@ def test_reset_all_sandbox_teardown_failure_warns_and_continues(tmp_path):
 def test_reset_all_sandbox_teardown_failure_prints_manual_instructions(tmp_path):
     _write_manifest(tmp_path)
     mock_backend = MagicMock()
-    mock_backend.sandbox_down.return_value = SandboxDownOutput(sandbox_database="__test_abc", status="error")
+    mock_backend.sandbox_down.return_value = SandboxDownOutput(sandbox_database="SBX_ABC000000000", status="error")
 
     with (
         patch("shared.cli.reset_cmd._load_manifest", return_value={}),
-        patch("shared.cli.reset_cmd._get_sandbox_name", return_value="__test_abc"),
+        patch("shared.cli.reset_cmd._get_sandbox_name", return_value="SBX_ABC000000000"),
         patch("shared.cli.reset_cmd._create_backend", return_value=mock_backend),
         patch("shared.cli.reset_cmd.clear_manifest_sandbox"),
         patch("shared.cli.reset_cmd.run_reset_migration", return_value=_GLOBAL_RESET_OUT),
     ):
         result = runner.invoke(app, ["reset", "all", "--yes", "--project-root", str(tmp_path)])
-    assert "__test_abc" in result.output
+    assert "SBX_ABC000000000" in result.output
 
 
 def test_reset_all_sandbox_teardown_failure_clears_manifest_sandbox(tmp_path):
     _write_manifest(tmp_path)
     mock_backend = MagicMock()
-    mock_backend.sandbox_down.return_value = SandboxDownOutput(sandbox_database="__test_abc", status="error")
+    mock_backend.sandbox_down.return_value = SandboxDownOutput(sandbox_database="SBX_ABC000000000", status="error")
 
     with (
         patch("shared.cli.reset_cmd._load_manifest", return_value={}),
-        patch("shared.cli.reset_cmd._get_sandbox_name", return_value="__test_abc"),
+        patch("shared.cli.reset_cmd._get_sandbox_name", return_value="SBX_ABC000000000"),
         patch("shared.cli.reset_cmd._create_backend", return_value=mock_backend),
         patch("shared.cli.reset_cmd.clear_manifest_sandbox") as mock_clear,
         patch("shared.cli.reset_cmd.run_reset_migration", return_value=_GLOBAL_RESET_OUT),
@@ -275,7 +275,7 @@ def test_reset_all_sandbox_db_error_warns_and_continues(tmp_path):
             _PYODBC_ERROR=_FakePyodbcProgramming,
         ),
         patch("shared.cli.reset_cmd._load_manifest", return_value={}),
-        patch("shared.cli.reset_cmd._get_sandbox_name", return_value="__test_abc"),
+        patch("shared.cli.reset_cmd._get_sandbox_name", return_value="SBX_ABC000000000"),
         patch("shared.cli.reset_cmd._create_backend", return_value=mock_backend),
         patch("shared.cli.reset_cmd.clear_manifest_sandbox"),
         patch("shared.cli.reset_cmd.run_reset_migration", return_value=_GLOBAL_RESET_OUT) as mock_reset,

@@ -15,6 +15,7 @@ from shared.sandbox.oracle_execution import OracleExecutionService
 from shared.sandbox.oracle_fixtures import OracleFixtureService
 from shared.sandbox.oracle_lifecycle import OracleLifecycleService
 from shared.sandbox.oracle_services import (
+    _generate_oracle_pdb_name,
     _get_oracle_not_null_defaults,
     _import_oracledb,
     _OracleSandboxCore,
@@ -78,6 +79,7 @@ class OracleSandbox(_OracleSandboxCore):
 
 __all__ = [
     "OracleSandbox",
+    "_generate_oracle_pdb_name",
     "_get_oracle_not_null_defaults",
     "_import_oracledb",
     "_validate_fixtures",
