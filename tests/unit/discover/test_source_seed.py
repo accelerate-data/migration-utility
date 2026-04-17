@@ -7,7 +7,6 @@ from pathlib import Path
 import pytest
 
 from shared import discover
-from shared.catalog_writer import run_write_seed
 from shared.loader import (
     CatalogFileMissingError,
 )
@@ -75,7 +74,7 @@ def test_write_seed_sets_seed_and_clears_source_with_profile() -> None:
             {"status": "no_writer_found"},
             {"is_source": True},
         )
-        result = run_write_seed(root, "silver.lookup", True)
+        result = discover.run_write_seed(root, "silver.lookup", True)
         written = json.loads(cat_path.read_text(encoding="utf-8"))
         assert result.is_seed is True
         assert written["is_seed"] is True
@@ -95,7 +94,7 @@ def test_write_seed_rejects_resolved_migration_table() -> None:
             {"is_source": False},
         )
         with pytest.raises(ValueError, match="no_writer_found"):
-            run_write_seed(root, "silver.dimcustomer", True)
+            discover.run_write_seed(root, "silver.dimcustomer", True)
 
 def test_write_seed_false_resets_flag_without_clearing_profile() -> None:
     """run_write_seed with value=False writes is_seed false and leaves other state alone."""
@@ -114,7 +113,7 @@ def test_write_seed_false_resets_flag_without_clearing_profile() -> None:
                 },
             },
         )
-        result = run_write_seed(root, "silver.lookup", False)
+        result = discover.run_write_seed(root, "silver.lookup", False)
         written = json.loads(cat_path.read_text(encoding="utf-8"))
         assert result.is_seed is False
         assert written["is_seed"] is False
