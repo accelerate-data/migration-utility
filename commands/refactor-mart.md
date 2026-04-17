@@ -65,10 +65,13 @@ status.
 For `int` mode, check dependencies before applying each selected candidate and
 before editing any dbt files:
 
-- `Depends on: none` is satisfied.
+- `Depends on: none` is satisfied only when it is present exactly as written.
+- If `Depends on:` is missing, empty, malformed, ambiguous, or otherwise does
+  not clearly declare upstream candidate IDs or `none`, mark the candidate as
+  blocked in the plan and do not invoke the apply skill.
 - A dependency is satisfied only when the referenced candidate section has
   `Execution status: applied`.
-- If any dependency is missing, unchecked, failed, blocked, planned, or
+- If any listed dependency is missing, unchecked, failed, blocked, planned, or
   otherwise not applied, mark the candidate as blocked in the plan, include
   the missing or unsatisfied dependency IDs, and skip application.
 
@@ -82,10 +85,11 @@ For each selected, unblocked candidate:
   `<plan-file> <candidate-id>`.
 
 The command owns dependency-blocked candidate writeback because blocked
-candidates do not enter the apply skill. The apply skill owns dbt file changes,
-validation, and status writeback only after a candidate passes command-level
-dependency gating and is invoked. It must update the candidate section to one
-of:
+candidates do not enter the apply skill. This includes missing, empty,
+malformed, or ambiguous `Depends on:` declarations. The apply skill owns dbt
+file changes, validation, and status writeback only after a candidate passes
+command-level dependency gating and is invoked. It must update the candidate
+section to one of:
 
 - `Execution status: applied`
 - `Execution status: failed`
