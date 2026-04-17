@@ -28,3 +28,7 @@ Validate:
 
 Prefer the validation command or scope listed in `Validation:` when executable.
 Do not validate or invalidate unrelated approved candidates.
+
+Before marking `applied`, confirm each declared consumer file contains a
+`ref()` to the staging output. A consumer that still reads the old source is a
+failed candidate, not an applied one.

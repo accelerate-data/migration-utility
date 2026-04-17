@@ -12,6 +12,8 @@ Use exactly one status:
 Detail bullets:
 
 - Add exactly one `Validation result:` for `applied` or `failed`.
+- Make `Validation result:` concrete: include the validation command or named
+  models, plus whether declared models were validated or which model failed.
 - Add exactly one `Blocked reason:` for `blocked`.
 - Do not add alternate status fields such as `Applied:`.
 

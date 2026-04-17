@@ -63,6 +63,10 @@ Process selected candidates in plan order. After each apply-skill invocation,
 reread the plan before gating the next selected candidate so a newly applied
 candidate can satisfy downstream dependencies in the same wave.
 
+After the guards pass, perform selected plan and dbt edits directly in the
+active working directory. Do not ask for permission before dispatching a
+selected candidate.
+
 ## Apply
 
 | Mode | Dispatch |

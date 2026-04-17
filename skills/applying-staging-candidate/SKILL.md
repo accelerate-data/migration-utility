@@ -42,7 +42,8 @@ Read references only when needed:
 3. Resolve staging output and downstream consumers using
    `references/staging-validation-contract.md`.
 4. Create or update the declared `stg_*` model.
-5. Rewire only the resolved downstream consumers.
+5. Rewire every resolved downstream consumer file so it references the declared
+   `stg_*` model with `ref()`.
 6. Run the smallest validation command covering the staging model and resolved
    consumers. Prefer the command listed in `Validation:`.
 7. Update only this candidate section using `references/status-writeback.md`.

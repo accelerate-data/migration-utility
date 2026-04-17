@@ -50,6 +50,8 @@ Use exactly one status:
 Detail bullets:
 
 - Add exactly one `Validation result:` for `applied` or `failed`.
+- Make `Validation result:` concrete: include the validation command or named
+  model, plus `validation passed` or `validation failed`.
 - Add exactly one `Blocked reason:` for `blocked`.
 - Do not add alternate status fields such as `Applied:`.
 
