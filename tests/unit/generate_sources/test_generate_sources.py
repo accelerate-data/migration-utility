@@ -562,6 +562,30 @@ def test_sources_yml_uses_profile_watermark_for_freshness_when_column_exists() -
         tmp.cleanup()
 
 
+def test_sources_yml_uses_legacy_profile_watermark_columns_for_freshness() -> None:
+    """profile.watermark.columns keeps freshness compatible with legacy profile payloads."""
+    tmp, root = _make_project([
+        {
+            "schema": "bronze",
+            "name": "Customer",
+            "scoping": {"status": "no_writer_found"},
+            "is_source": True,
+            "columns": [
+                {"name": "customer_id", "sql_type": "INT", "is_nullable": False},
+                {"name": "loaded_at", "sql_type": "DATETIME2", "is_nullable": False},
+            ],
+            "profile": {"watermark": {"columns": ["loaded_at"], "source": "llm"}},
+        },
+    ])
+    try:
+        result = generate_sources(root)
+        assert result.sources is not None
+        table = result.sources["sources"][0]["tables"][0]
+        assert table["loaded_at_field"] == "loaded_at"
+    finally:
+        tmp.cleanup()
+
+
 def test_sources_yml_skips_freshness_without_usable_profile_watermark() -> None:
     """Change-capture flags and missing watermark columns do not emit source freshness."""
     tmp, root = _make_project([

@@ -135,6 +135,10 @@ def _source_loaded_at_field(cat: dict[str, Any], columns: list[dict[str, Any]]) 
         return None
     column = str(watermark.get("column", "")).strip()
     if not column:
+        watermark_columns = watermark.get("columns")
+        if isinstance(watermark_columns, list) and watermark_columns:
+            column = str(watermark_columns[0]).strip()
+    if not column:
         return None
     emitted_columns = {str(entry["name"]).lower(): str(entry["name"]) for entry in columns}
     return emitted_columns.get(column.lower())
