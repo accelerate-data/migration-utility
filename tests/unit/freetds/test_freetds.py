@@ -28,6 +28,7 @@ def test_check_freetds_reports_missing_install(monkeypatch) -> None:
     def fake_run(*args, **kwargs):
         raise subprocess.CalledProcessError(1, ["brew", "list", "--formula", "freetds"])
 
+    monkeypatch.setattr(freetds, "_classify_platform_slug", lambda: "macos")
     monkeypatch.setattr(freetds, "_run_command", fake_run)
     monkeypatch.setattr(freetds.os, "name", "posix", raising=False)
 
@@ -78,10 +79,10 @@ def test_check_freetds_reports_linux_package_manager_install_when_tsql_missing(
 
 def test_check_freetds_reports_missing_odbcinst(monkeypatch) -> None:
     def fake_run(command: list[str]) -> str:
-        if command[:3] == ["brew", "list", "--formula"]:
-            return "freetds\n"
         raise FileNotFoundError("odbcinst")
 
+    monkeypatch.setattr(freetds, "_classify_platform_slug", lambda: "linux")
+    monkeypatch.setattr(freetds, "_command_exists", lambda name: name == "tsql")
     monkeypatch.setattr(freetds, "_run_command", fake_run)
     monkeypatch.setattr(freetds.os, "name", "posix", raising=False)
 
@@ -95,14 +96,14 @@ def test_check_freetds_reports_missing_odbcinst(monkeypatch) -> None:
 
 def test_check_freetds_returns_registered_when_driver_exists(monkeypatch) -> None:
     def fake_run(command: list[str]) -> str:
-        if command[:3] == ["brew", "list", "--formula"]:
-            return "freetds\n"
         if command == ["odbcinst", "-q", "-d"]:
             return "[FreeTDS]\n"
         if command == ["odbcinst", "-j"]:
-            return "DRIVERS............: /opt/homebrew/etc/odbcinst.ini\n"
+            return "DRIVERS............: /etc/odbcinst.ini\n"
         raise AssertionError(command)
 
+    monkeypatch.setattr(freetds, "_classify_platform_slug", lambda: "linux")
+    monkeypatch.setattr(freetds, "_command_exists", lambda name: name == "tsql")
     monkeypatch.setattr(freetds, "_run_command", fake_run)
     monkeypatch.setattr(freetds.os, "name", "posix", raising=False)
 
@@ -112,7 +113,7 @@ def test_check_freetds_returns_registered_when_driver_exists(monkeypatch) -> Non
     assert result.unixodbc_present is True
     assert result.registered is True
     assert result.auto_registered is False
-    assert result.registration_file == "/opt/homebrew/etc/odbcinst.ini"
+    assert result.registration_file == "/etc/odbcinst.ini"
 
 
 def test_check_freetds_registers_missing_driver(monkeypatch, tmp_path: Path) -> None:
@@ -126,14 +127,10 @@ def test_check_freetds_registers_missing_driver(monkeypatch, tmp_path: Path) -> 
     queried = {"registered": False}
 
     def fake_run(command: list[str]) -> str:
-        if command[:3] == ["brew", "list", "--formula"]:
-            return "freetds\n"
         if command == ["odbcinst", "-q", "-d"]:
             return "[FreeTDS]\n" if queried["registered"] else "[OtherDriver]\n"
         if command == ["odbcinst", "-j"]:
             return f"DRIVERS............: {registration_file}\n"
-        if command == ["brew", "--prefix", "freetds"]:
-            return str(tmp_path)
         raise AssertionError(command)
 
     def fake_register(*, registration_path: Path, driver_path: Path, setup_path: Path | None) -> None:
@@ -142,6 +139,9 @@ def test_check_freetds_registers_missing_driver(monkeypatch, tmp_path: Path) -> 
         assert driver_path == driver_lib
         assert setup_path == setup_lib
 
+    monkeypatch.setattr(freetds, "_classify_platform_slug", lambda: "linux")
+    monkeypatch.setattr(freetds, "_command_exists", lambda name: name == "tsql")
+    monkeypatch.setattr(freetds, "_resolve_freetds_prefix", lambda platform_slug: tmp_path)
     monkeypatch.setattr(freetds, "_run_command", fake_run)
     monkeypatch.setattr(freetds, "_register_driver", fake_register)
     monkeypatch.setattr(freetds.os, "name", "posix", raising=False)
@@ -152,6 +152,46 @@ def test_check_freetds_registers_missing_driver(monkeypatch, tmp_path: Path) -> 
     assert result.auto_registered is True
     assert result.driver_lib_path == str(driver_lib)
     assert result.registration_file == str(registration_file)
+
+
+def test_check_freetds_registers_linux_multiarch_driver(
+    monkeypatch,
+    tmp_path: Path,
+) -> None:
+    registration_file = tmp_path / "odbcinst.ini"
+    prefix = tmp_path / "usr"
+    lib_dir = prefix / "lib" / "x86_64-linux-gnu" / "odbc"
+    lib_dir.mkdir(parents=True)
+    driver_lib = lib_dir / "libtdsodbc.so"
+    driver_lib.write_text("", encoding="utf-8")
+    setup_lib = lib_dir / "libtdsS.so"
+    setup_lib.write_text("", encoding="utf-8")
+    queried = {"registered": False}
+
+    def fake_run(command: list[str]) -> str:
+        if command == ["odbcinst", "-q", "-d"]:
+            return "[FreeTDS]\n" if queried["registered"] else "[OtherDriver]\n"
+        if command == ["odbcinst", "-j"]:
+            return f"DRIVERS............: {registration_file}\n"
+        raise AssertionError(command)
+
+    def fake_register(*, registration_path: Path, driver_path: Path, setup_path: Path | None) -> None:
+        queried["registered"] = True
+        assert registration_path == registration_file
+        assert driver_path == driver_lib
+        assert setup_path == setup_lib
+
+    monkeypatch.setattr(freetds, "_classify_platform_slug", lambda: "linux")
+    monkeypatch.setattr(freetds, "_command_exists", lambda name: name == "tsql")
+    monkeypatch.setattr(freetds, "_run_command", fake_run)
+    monkeypatch.setattr(freetds, "_register_driver", fake_register)
+    monkeypatch.setattr(freetds, "_resolve_freetds_prefix", lambda platform_slug: prefix)
+
+    result = freetds.run_check_freetds(register_missing=True)
+
+    assert result.registered is True
+    assert result.auto_registered is True
+    assert result.driver_lib_path == str(driver_lib)
 
 
 def test_check_freetds_skips_auto_register_when_prefix_is_unknown(monkeypatch) -> None:
@@ -198,3 +238,13 @@ def test_check_freetds_cli_emits_json(monkeypatch) -> None:
     payload = json.loads(result.stdout)
     assert payload["registered"] is True
     assert payload["auto_registered"] is True
+
+
+def test_check_freetds_cli_help_is_platform_neutral() -> None:
+    runner = CliRunner()
+    result = runner.invoke(app, ["check-freetds", "--help"])
+
+    assert result.exit_code == 0, result.output
+    assert "driver" in result.output
+    assert "library" in result.output
+    assert "brew package" not in result.output

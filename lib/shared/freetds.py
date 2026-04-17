@@ -33,14 +33,34 @@ def _parse_odbcinst_j(output: str) -> Path | None:
     return None
 
 
-def _find_driver_path(prefix: Path) -> Path | None:
-    candidates = sorted((prefix / "lib").glob("libtdsodbc.*"))
+def _library_search_dirs(prefix: Path) -> list[Path]:
+    lib_dir = prefix / "lib"
+    lib64_dir = prefix / "lib64"
+    return [
+        lib_dir,
+        lib_dir / "odbc",
+        *sorted(lib_dir.glob("*-linux-gnu")),
+        *sorted(lib_dir.glob("*-linux-gnu/odbc")),
+        lib64_dir,
+        lib64_dir / "odbc",
+    ]
+
+
+def _find_library_path(prefix: Path, pattern: str) -> Path | None:
+    candidates = sorted(
+        candidate
+        for directory in _library_search_dirs(prefix)
+        for candidate in directory.glob(pattern)
+    )
     return candidates[0] if candidates else None
+
+
+def _find_driver_path(prefix: Path) -> Path | None:
+    return _find_library_path(prefix, "libtdsodbc.*")
 
 
 def _find_setup_path(prefix: Path) -> Path | None:
-    candidates = sorted((prefix / "lib").glob("libtdsS.*"))
-    return candidates[0] if candidates else None
+    return _find_library_path(prefix, "libtdsS.*")
 
 
 def _classify_platform_slug() -> str:

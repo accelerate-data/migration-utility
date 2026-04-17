@@ -547,7 +547,7 @@ def check_freetds(
     register_missing: bool = typer.Option(
         False,
         "--register-missing",
-        help="Register FreeTDS in unixODBC when the brew package is installed but not registered.",
+        help="Register FreeTDS in unixODBC when the driver library is installed but not registered.",
     ),
 ) -> None:
     """Check FreeTDS installation and unixODBC registration."""

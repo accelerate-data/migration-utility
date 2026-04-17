@@ -83,8 +83,16 @@ def test_setup_source_sql_server_runs_extraction(tmp_path, monkeypatch):
     assert "git push" not in result.output
 
 
-def test_setup_source_sql_server_requires_freetds_registration(monkeypatch) -> None:
-    from shared.cli.setup_source_cmd import _check_source_prereqs
+def test_setup_source_sql_server_requires_freetds_registration(
+    tmp_path,
+    monkeypatch,
+) -> None:
+    _write_manifest(tmp_path, "sql_server")
+    monkeypatch.setenv("SOURCE_MSSQL_HOST", "localhost")
+    monkeypatch.setenv("SOURCE_MSSQL_PORT", "1433")
+    monkeypatch.setenv("SOURCE_MSSQL_DB", "AdventureWorks2022")
+    monkeypatch.setenv("SOURCE_MSSQL_USER", "sa")
+    monkeypatch.setenv("SOURCE_MSSQL_PASSWORD", "secret")
 
     monkeypatch.setattr(
         "shared.cli.setup_source_cmd.run_check_freetds",
@@ -100,12 +108,13 @@ def test_setup_source_sql_server_requires_freetds_registration(monkeypatch) -> N
         ),
     )
 
-    result = runner.invoke(app, ["--help"])
-    assert result.exit_code == 0
+    result = runner.invoke(
+        app,
+        ["setup-source", "--schemas", "silver", "--project-root", str(tmp_path)],
+    )
 
-    with pytest.raises(typer.Exit) as excinfo:
-        _check_source_prereqs("sql_server")
-    assert excinfo.value.exit_code == 1
+    assert result.exit_code == 1
+    assert "FreeTDS is installed but not registered in unixODBC." in result.output
 
 
 def test_setup_source_sql_server_uses_platform_neutral_freetds_message(

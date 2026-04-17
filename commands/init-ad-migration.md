@@ -27,8 +27,6 @@ Classify the host before any prerequisite checks:
 
 ## Step 1.5: Install ad-migration CLI
 
-This Homebrew auto-install path is supported only on macOS. On Linux or WSL, if `ad-migration` is missing, stop and tell the user to install the GitHub release wheel artifacts into Python 3.11+, then re-run `/init-ad-migration`; do not attempt `brew install`.
-
 Check whether `ad-migration` is already on PATH:
 
 ```bash
@@ -37,7 +35,16 @@ ad-migration --version 2>/dev/null && echo "INSTALLED" || echo "NOT_FOUND"
 
 If already installed, print the version and continue to Step 2.
 
-If not installed, install via Homebrew:
+If not installed:
+
+| Host | Action |
+|---|---|
+| macOS | install via Homebrew |
+| Linux or WSL | stop and tell the user to install the GitHub release wheel artifacts into Python 3.11+, then re-run `/init-ad-migration` |
+
+Do not attempt `brew install` on Linux or WSL.
+
+For macOS, install via Homebrew; this path is supported only on macOS:
 
 ```bash
 brew tap accelerate-data/homebrew-tap
