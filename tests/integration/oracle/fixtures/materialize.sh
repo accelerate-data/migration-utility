@@ -6,7 +6,14 @@ set -euo pipefail
 : "${ORACLE_SERVICE:=FREEPDB1}"
 : "${ORACLE_USER:=sys}"
 : "${ORACLE_SCHEMA:=MIGRATIONTEST}"
-: "${SOURCE_ORACLE_PASSWORD:=${ORACLE_SCHEMA,,}}"
+
+lowercase() {
+  printf '%s' "$1" | tr '[:upper:]' '[:lower:]'
+}
+
+if [[ -z "${SOURCE_ORACLE_PASSWORD:-}" ]]; then
+  SOURCE_ORACLE_PASSWORD="$(lowercase "${ORACLE_SCHEMA}")"
+fi
 
 if [[ -z "${ORACLE_PWD:-}" ]]; then
   echo "ORACLE_PWD must be set" >&2
@@ -27,7 +34,7 @@ TMP_BOOTSTRAP_SQL="$(mktemp)"
 trap 'rm -f "${TMP_SQL}" "${TMP_BOOTSTRAP_SQL}"' EXIT
 sed "s/__SCHEMA__/${ORACLE_SCHEMA}/g" "${FIXTURE_SQL}" > "${TMP_SQL}"
 
-if [[ "${ORACLE_USER,,}" != "${ORACLE_SCHEMA,,}" ]]; then
+if [[ "$(lowercase "${ORACLE_USER}")" != "$(lowercase "${ORACLE_SCHEMA}")" ]]; then
   BOOTSTRAP_SQL="$(cat <<SQL
 DECLARE
   v_count NUMBER;
