@@ -5,6 +5,7 @@ const {
   ALLOWED_ARTIFACT_PREFIXES,
   detectCleanupViolations,
   main,
+  restoreCleanupViolations,
   splitPromptfooInvocations,
 } = require('./run-promptfoo-with-guard');
 
@@ -209,6 +210,7 @@ test('main stops after the first failing split invocation', () => {
 test('main reports cleanup violations even after successful invocations', () => {
   const errors = [];
   const originalError = console.error;
+  const restored = [];
   const snapshots = [
     { tracked: new Set(), untracked: new Set() },
     { tracked: new Set(['tests/evals/fixtures/x.json']), untracked: new Set() },
@@ -225,12 +227,100 @@ test('main reports cleanup violations even after successful invocations', () => 
         collectGitSnapshot: () => snapshots.shift(),
         detectCleanupViolations: () => ['tests/evals/fixtures/x.json'],
         formatViolationMessage: (paths) => `violations:${paths.join(',')}`,
+        restoreCleanupViolations: (paths) => {
+          restored.push(...paths);
+        },
         runPromptfooInvocation: () => 0,
       },
     );
 
     assert.equal(status, 1);
     assert.deepEqual(errors, ['violations:tests/evals/fixtures/x.json']);
+    assert.deepEqual(restored, ['tests/evals/fixtures/x.json']);
+  } finally {
+    console.error = originalError;
+  }
+});
+
+test('restoreCleanupViolations removes untracked blockers before restoring tracked files', () => {
+  const calls = [];
+
+  restoreCleanupViolations(
+    [
+      'tests/evals/fixtures/blocker',
+      'tests/evals/fixtures/blocker/catalog.json',
+    ],
+    {
+      runGitLines: (args) => {
+        calls.push(['git-lines', ...args]);
+        return ['tests/evals/fixtures/blocker/catalog.json'];
+      },
+      execFileSync: (command, args) => {
+        calls.push(['exec', command, ...args]);
+      },
+      repoRoot: 'REPO_ROOT',
+      resolveRepoPath: (filePath) => filePath,
+      rmSync: (filePath, options) => {
+        calls.push(['rm', filePath, options]);
+      },
+    },
+  );
+
+  assert.deepEqual(calls, [
+    [
+      'git-lines',
+      'ls-files',
+      '--',
+      'tests/evals/fixtures/blocker',
+      'tests/evals/fixtures/blocker/catalog.json',
+    ],
+    [
+      'rm',
+      'tests/evals/fixtures/blocker',
+      { force: true, recursive: true },
+    ],
+    [
+      'exec',
+      'git',
+      '-C',
+      'REPO_ROOT',
+      'checkout',
+      '--',
+      'tests/evals/fixtures/blocker/catalog.json',
+    ],
+  ]);
+});
+
+test('main restores cleanup violations before returning a promptfoo failure', () => {
+  const errors = [];
+  const originalError = console.error;
+  const restored = [];
+  const snapshots = [
+    { tracked: new Set(), untracked: new Set() },
+    { tracked: new Set(['tests/evals/fixtures/dirty.json']), untracked: new Set() },
+  ];
+
+  console.error = (message) => {
+    errors.push(message);
+  };
+
+  try {
+    const status = main(
+      ['eval', '-c', 'a.yaml'],
+      {
+        collectGitSnapshot: () => snapshots.shift(),
+        detectCleanupViolations: () => ['tests/evals/fixtures/dirty.json'],
+        formatViolationMessage: () => 'violation',
+        restoreCleanupViolations: (paths) => {
+          restored.push(...paths);
+        },
+        runPromptfooInvocation: () => 99,
+      },
+    );
+
+    assert.equal(status, 1);
+    assert.deepEqual(errors, ['violation']);
+    assert.deepEqual(restored, ['tests/evals/fixtures/dirty.json']);
   } finally {
     console.error = originalError;
   }
@@ -240,6 +330,7 @@ test('main checks cleanup violations after each split invocation', () => {
   const errors = [];
   const originalError = console.error;
   const invocations = [];
+  const restored = [];
   const snapshots = [
     { tracked: new Set(), untracked: new Set() },
     { tracked: new Set(['tests/evals/fixtures/dirty.json']), untracked: new Set() },
@@ -261,6 +352,9 @@ test('main checks cleanup violations after each split invocation', () => {
           return [];
         },
         formatViolationMessage: (paths) => `violations:${paths.join(',')}`,
+        restoreCleanupViolations: (paths) => {
+          restored.push(...paths);
+        },
         runPromptfooInvocation: (argv) => {
           invocations.push(argv);
           return 0;
@@ -271,6 +365,7 @@ test('main checks cleanup violations after each split invocation', () => {
     assert.equal(status, 1);
     assert.deepEqual(invocations, [['eval', '-c', 'a.yaml']]);
     assert.deepEqual(errors, ['violations:tests/evals/fixtures/dirty.json']);
+    assert.deepEqual(restored, ['tests/evals/fixtures/dirty.json']);
   } finally {
     console.error = originalError;
   }

@@ -1,4 +1,5 @@
 const { execFileSync, spawnSync } = require('node:child_process');
+const fs = require('node:fs');
 const path = require('node:path');
 
 const REPO_ROOT = path.resolve(__dirname, '..', '..', '..');
@@ -69,6 +70,46 @@ function formatViolationMessage(paths) {
   ].join('\n');
 }
 
+function resolveRepoPath(filePath, repoRoot = REPO_ROOT) {
+  const resolved = path.resolve(repoRoot, filePath);
+  const repoRootWithSeparator = `${repoRoot}${path.sep}`;
+  if (resolved !== repoRoot && !resolved.startsWith(repoRootWithSeparator)) {
+    throw new Error(`Refusing to restore path outside repository: ${filePath}`);
+  }
+  return resolved;
+}
+
+function restoreCleanupViolations(
+  paths,
+  {
+    execFileSync: execFile = execFileSync,
+    repoRoot = REPO_ROOT,
+    resolveRepoPath: resolvePath = (filePath) => resolveRepoPath(filePath, repoRoot),
+    rmSync = fs.rmSync,
+    runGitLines: gitLines = runGitLines,
+  } = {},
+) {
+  if (paths.length === 0) {
+    return;
+  }
+
+  const trackedPaths = new Set(gitLines(['ls-files', '--', ...paths]));
+  const trackedViolations = paths.filter((filePath) => trackedPaths.has(filePath));
+  const untrackedViolations = paths.filter((filePath) => !trackedPaths.has(filePath));
+
+  for (const filePath of untrackedViolations) {
+    rmSync(resolvePath(filePath), { force: true, recursive: true });
+  }
+
+  if (trackedViolations.length > 0) {
+    execFile(
+      'git',
+      ['-C', repoRoot, 'checkout', '--', ...trackedViolations],
+      { stdio: 'ignore' },
+    );
+  }
+}
+
 function splitPromptfooInvocations(argv) {
   const sharedArgs = [];
   const configArgs = [];
@@ -129,6 +170,7 @@ function main(
     collectGitSnapshot: collectSnapshot = collectGitSnapshot,
     detectCleanupViolations: detectViolations = detectCleanupViolations,
     formatViolationMessage: formatViolations = formatViolationMessage,
+    restoreCleanupViolations: restoreViolations = restoreCleanupViolations,
     runPromptfooInvocation: runInvocation = runPromptfooInvocation,
     splitPromptfooInvocations: splitInvocations = splitPromptfooInvocations,
   } = {},
@@ -140,6 +182,7 @@ function main(
     const violations = detectViolations(before, after);
 
     if (violations.length > 0) {
+      restoreViolations(violations);
       console.error(formatViolations(violations));
       return 1;
     }
@@ -164,5 +207,6 @@ module.exports = {
   isAllowedArtifactPath,
   main,
   runPromptfooInvocation,
+  restoreCleanupViolations,
   splitPromptfooInvocations,
 };
