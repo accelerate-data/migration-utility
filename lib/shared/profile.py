@@ -264,9 +264,9 @@ def _derive_table_profile_status(
 
     if resolved_kind == "seed":
         return "ok"
-    if section.classification is not None and section.primary_key is not None:
+    if resolved_kind is not None and section.primary_key is not None:
         return "ok"
-    if section.classification is not None:
+    if resolved_kind is not None:
         return "partial"
     return "error"
 

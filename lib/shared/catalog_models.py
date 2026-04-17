@@ -211,7 +211,7 @@ PiiSuggestedAction = Literal["mask", "drop", "tokenize", "keep"]
 class TableClassificationProfile(BaseModel):
     model_config = _STRICT_CONFIG
 
-    resolved_kind: ProfileResolvedKind
+    resolved_kind: ProfileResolvedKind | None = None
     source: ProfileSource | None = None
     rationale: str | None = None
 
@@ -288,7 +288,7 @@ class ViewProfileSection(BaseModel):
 
     status: Literal["", "ok", "partial", "error"] = ""
     classification: Literal["stg", "mart"]
-    rationale: str
+    rationale: str = ""
     source: Literal["llm"]
     warnings: list[Any] = []
     errors: list[Any] = []

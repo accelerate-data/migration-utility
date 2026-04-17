@@ -707,8 +707,8 @@ def test_write_view_profile_missing_field_raises() -> None:
     """Missing required field raises model validation error."""
     tmp, root = _make_writable_copy()
     try:
-        bad = {"classification": "stg", "source": "llm"}  # missing rationale
-        with pytest.raises(ValidationError, match="rationale"):
+        bad = {"source": "llm", "rationale": "View stages source data."}
+        with pytest.raises(ValidationError, match="classification"):
             profile.run_write(root, "silver.vw_Simple", bad)
     finally:
         tmp.cleanup()
