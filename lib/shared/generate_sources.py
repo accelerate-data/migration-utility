@@ -453,6 +453,48 @@ def _cleanup_stale_staging_wrappers(staging_dir: Path, expected_wrapper_names: s
         )
 
 
+def _dump_yaml(path: Path, data: dict[str, Any]) -> None:
+    with path.open("w", encoding="utf-8") as f:
+        yaml.dump(
+            data,
+            f,
+            default_flow_style=False,
+            sort_keys=False,
+            allow_unicode=True,
+        )
+
+
+def _remove_source_artifacts(staging_dir: Path, yaml_paths: tuple[Path, ...]) -> None:
+    _cleanup_stale_staging_wrappers(staging_dir, set())
+    for stale_yaml_path in yaml_paths:
+        if stale_yaml_path.exists():
+            stale_yaml_path.unlink()
+            logger.info(
+                "event=generate_sources_removed_stale_yaml path=%s",
+                stale_yaml_path,
+            )
+
+
+def _iter_source_table_names(sources: dict[str, Any]):
+    for source in sources.get("sources", []):
+        if not isinstance(source, dict):
+            continue
+        for table in source.get("tables", []):
+            if not isinstance(table, dict) or not table.get("name"):
+                continue
+            yield str(table["name"])
+
+
+def _write_staging_wrapper_files(staging_dir: Path, sources: dict[str, Any]) -> set[str]:
+    expected_wrapper_names: set[str] = set()
+    for table_name in _iter_source_table_names(sources):
+        wrapper_name = f"{_staging_model_name(table_name)}.sql"
+        expected_wrapper_names.add(wrapper_name)
+        wrapper_path = staging_dir / wrapper_name
+        wrapper_path.write_text(_render_staging_wrapper(table_name), encoding="utf-8")
+    return expected_wrapper_names
+
+
 def write_sources_yml(
     project_root: Path,
     *,
@@ -472,49 +514,13 @@ def write_sources_yml(
     models_path = staging_dir / "_staging__models.yml"
 
     if result.sources is None:
-        _cleanup_stale_staging_wrappers(staging_dir, set())
-        for stale_yaml_path in (sources_path, models_path):
-            if stale_yaml_path.exists():
-                stale_yaml_path.unlink()
-                logger.info(
-                    "event=generate_sources_removed_stale_yaml path=%s",
-                    stale_yaml_path,
-                )
+        _remove_source_artifacts(staging_dir, (sources_path, models_path))
         return result.model_copy(update={"path": None})
 
     staging_dir.mkdir(parents=True, exist_ok=True)
-    with sources_path.open("w", encoding="utf-8") as f:
-        yaml.dump(
-            result.sources,
-            f,
-            default_flow_style=False,
-            sort_keys=False,
-            allow_unicode=True,
-        )
-
-    staging_models = _staging_models_from_sources(result.sources)
-    with models_path.open("w", encoding="utf-8") as f:
-        yaml.dump(
-            staging_models,
-            f,
-            default_flow_style=False,
-            sort_keys=False,
-            allow_unicode=True,
-        )
-
-    expected_wrapper_names: set[str] = set()
-    for source in result.sources.get("sources", []):
-        if not isinstance(source, dict):
-            continue
-        for table in source.get("tables", []):
-            if not isinstance(table, dict) or not table.get("name"):
-                continue
-            table_name = str(table["name"])
-            wrapper_name = f"{_staging_model_name(table_name)}.sql"
-            expected_wrapper_names.add(wrapper_name)
-            wrapper_path = staging_dir / wrapper_name
-            wrapper_path.write_text(_render_staging_wrapper(table_name), encoding="utf-8")
-
+    _dump_yaml(sources_path, result.sources)
+    _dump_yaml(models_path, _staging_models_from_sources(result.sources))
+    expected_wrapper_names = _write_staging_wrapper_files(staging_dir, result.sources)
     _cleanup_stale_staging_wrappers(staging_dir, expected_wrapper_names)
 
     return result.model_copy(update={"path": str(sources_path)})
