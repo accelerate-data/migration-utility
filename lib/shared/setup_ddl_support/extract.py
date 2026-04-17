@@ -221,7 +221,9 @@ def run_extract(project_root: Path, database: str | None, schemas: list[str]) ->
     current_identity = get_connection_identity(technology, db_name)
     if identity_changed(existing_manifest, current_identity):
         logger.info("event=identity_changed technology=%s pre_stale_all=true", technology)
-        mark_all_catalog_stale(project_root)
+        stale_paths = mark_all_catalog_stale(project_root)
+    else:
+        stale_paths = []
     enriched_snapshot = snapshot_enriched_fields(project_root)
     with tempfile.TemporaryDirectory() as tmp:
         staging_dir = Path(tmp)
@@ -237,7 +239,7 @@ def run_extract(project_root: Path, database: str | None, schemas: list[str]) ->
         "event=extract_complete technology=%s tables=%s procedures=%s enrich=%s diagnostics=%s",
         technology, counts.get("tables"), counts.get("procedures"), enrich_result, diag_result,
     )
-    written_paths = ["manifest.json", *ddl_paths]
+    written_paths = ["manifest.json", *stale_paths, *ddl_paths]
     written_paths.extend(str(path) for path in counts.get("written_paths", []))
     written_paths.extend(_changed_catalog_paths(project_root, catalog_snapshot))
     return {

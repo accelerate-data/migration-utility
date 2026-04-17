@@ -627,10 +627,14 @@ class TestConnectionIdentity:
         proc_path.write_text(json.dumps({"ddl_hash": "abc"}), encoding="utf-8")
         table_path.write_text(json.dumps({"ddl_hash": "xyz"}), encoding="utf-8")
 
-        mark_all_catalog_stale_fn(tmp_path)
+        written_paths = mark_all_catalog_stale_fn(tmp_path)
 
         assert json.loads(proc_path.read_text())["stale"] is True
         assert json.loads(table_path.read_text())["stale"] is True
+        assert written_paths == [
+            "catalog/tables/silver.dimcustomer.json",
+            "catalog/procedures/dbo.usp_load.json",
+        ]
 
     def test_identity_changed_pre_marks_all_stale_on_reextract(self, tmp_path, monkeypatch):
         """Identity change causes all existing catalog files to be pre-marked stale."""
@@ -673,9 +677,10 @@ class TestConnectionIdentity:
 
         current_identity = get_connection_identity("sql_server", "DB1")
         assert identity_changed(manifest, current_identity) is True
-        mark_all_catalog_stale(tmp_path)
+        written_paths = mark_all_catalog_stale(tmp_path)
 
         assert json.loads(proc_path.read_text())["stale"] is True
+        assert written_paths == ["catalog/procedures/silver.usp_load.json"]
 
     def test_same_identity_no_spurious_stale(self, tmp_path, monkeypatch):
         """Same host+port+database leaves existing catalog files untouched."""
