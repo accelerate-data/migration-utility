@@ -9,9 +9,13 @@ from __future__ import annotations
 import json
 
 from shared.batch_plan import (
+    _BatchPlanInputs,
     _CatalogInventory,
+    _build_migration_batches,
     _build_plan_output,
+    _build_status_dashboard,
     _classify_phases,
+    _collect_plan_inputs,
     _compute_blocking_deps,
     _enumerate_catalog,
     _make_node,
@@ -20,6 +24,14 @@ from shared.batch_plan import (
 
 
 # ── _enumerate_catalog tests ────────────────────────────────────────────────
+
+
+def test_batch_plan_coordinator_has_extracted_context_helpers() -> None:
+    """build_batch_plan is composed from focused coordinator helpers."""
+    assert _BatchPlanInputs.__name__ == "_BatchPlanInputs"
+    assert callable(_collect_plan_inputs)
+    assert callable(_build_migration_batches)
+    assert callable(_build_status_dashboard)
 
 
 class TestEnumerateCatalog:

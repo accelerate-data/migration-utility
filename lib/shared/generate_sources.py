@@ -17,6 +17,7 @@ from __future__ import annotations
 
 import json
 import logging
+from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Any
 
@@ -38,6 +39,17 @@ logger = logging.getLogger(__name__)
 app = typer.Typer(add_completion=False, pretty_exceptions_enable=False)
 
 _BRONZE_SOURCE_NAME = "bronze"
+
+
+@dataclass
+class _SourceCandidates:
+    """Classified catalog tables for sources.yml generation."""
+
+    source_tables: list[dict[str, Any]] = field(default_factory=list)
+    included: list[str] = field(default_factory=list)
+    excluded: list[str] = field(default_factory=list)
+    unconfirmed: list[str] = field(default_factory=list)
+    incomplete: list[str] = field(default_factory=list)
 
 
 def _default_source_freshness() -> dict[str, dict[str, int | str]]:
@@ -211,54 +223,9 @@ def _build_source_columns(
     return columns
 
 
-def generate_sources(
-    project_root: Path,
-    *,
-    source_schema_override: str | None = None,
-) -> GenerateSourcesOutput:
-    """Build sources.yml content from catalog tables.
-
-    Only tables with ``is_source: true`` are included. Tables with
-    ``resolved`` status are excluded (they become dbt models). Tables with
-    ``scoping.status == "no_writer_found"`` but no ``is_source`` flag are
-    listed in ``unconfirmed`` — they need explicit confirmation before
-    being included.
-
-    When a target source schema override is configured, logical source names
-    remain grouped by extracted schema while the emitted dbt ``schema:``
-    points at the configured physical target schema.
-
-    Returns a dict with:
-      - ``sources``: the YAML-serialisable sources dict (or None if empty)
-      - ``included``: list of table FQNs included as sources (is_source: true)
-      - ``excluded``: list of table FQNs excluded (resolved targets)
-      - ``unconfirmed``: list of no_writer_found FQNs without is_source flag
-      - ``incomplete``: list of table FQNs with incomplete scoping
-    """
-    catalog_dir = resolve_catalog_dir(project_root)
-    tables_dir = catalog_dir / "tables"
-
-    if not tables_dir.is_dir():
-        return GenerateSourcesOutput(
-            sources=None,
-            included=[],
-            excluded=[],
-            unconfirmed=[],
-            incomplete=[],
-        )
-
-    included: list[str] = []
-    excluded: list[str] = []
-    unconfirmed: list[str] = []
-    incomplete: list[str] = []
-
-    physical_source_schema = _resolve_physical_source_schema(
-        project_root,
-        source_schema_override,
-    )
-
-    source_tables: list[dict[str, Any]] = []
-
+def _collect_source_candidates(tables_dir: Path) -> _SourceCandidates:
+    """Read catalog table files and classify source-generation candidates."""
+    candidates = _SourceCandidates()
     for table_file in sorted(tables_dir.glob("*.json")):
         try:
             cat = json.loads(table_file.read_text(encoding="utf-8"))
@@ -281,26 +248,21 @@ def generate_sources(
         if cat.get("is_seed") is True:
             continue
         if cat.get("is_source") is True:
-            included.append(fqn)
-            source_tables.append(cat)
+            candidates.included.append(fqn)
+            candidates.source_tables.append(cat)
         elif status == "resolved":
-            excluded.append(fqn)
+            candidates.excluded.append(fqn)
         elif status == "no_writer_found":
-            unconfirmed.append(fqn)
+            candidates.unconfirmed.append(fqn)
         else:
-            incomplete.append(fqn)
+            candidates.incomplete.append(fqn)
+    return candidates
 
-    if not source_tables:
-        return GenerateSourcesOutput(
-            sources=None,
-            included=included,
-            excluded=excluded,
-            unconfirmed=unconfirmed,
-            incomplete=incomplete,
-        )
 
+def _validate_source_namespace(candidates: _SourceCandidates) -> GenerateSourcesOutput | None:
+    """Ensure confirmed source table names are unique in the bronze namespace."""
     source_name_to_fqn: dict[str, str] = {}
-    for cat in source_tables:
+    for cat in candidates.source_tables:
         schema_name = str(cat.get("schema", "")).lower()
         table_name = str(cat.get("name", ""))
         fqn = f"{schema_name}.{table_name.lower()}"
@@ -319,15 +281,23 @@ def generate_sources(
             )
             return GenerateSourcesOutput(
                 sources=None,
-                included=included,
-                excluded=excluded,
-                unconfirmed=unconfirmed,
-                incomplete=incomplete,
+                included=candidates.included,
+                excluded=candidates.excluded,
+                unconfirmed=candidates.unconfirmed,
+                incomplete=candidates.incomplete,
                 error="SOURCE_NAME_COLLISION",
                 message=message,
             )
         source_name_to_fqn[source_table_name] = fqn
+    return None
 
+
+def _build_sources_yaml(
+    source_tables: list[dict[str, Any]],
+    *,
+    physical_source_schema: str | None,
+) -> dict[str, Any]:
+    """Build the YAML-serializable dbt sources document."""
     confirmed_sources: dict[str, tuple[str, str]] = {}
     for cat in source_tables:
         schema_name = str(cat.get("schema", "")).lower()
@@ -364,14 +334,66 @@ def generate_sources(
     if physical_source_schema:
         source_entry["schema"] = physical_source_schema
 
-    sources_dict: dict[str, Any] = {"version": 2, "sources": [source_entry]}
+    return {"version": 2, "sources": [source_entry]}
 
+
+def generate_sources(
+    project_root: Path,
+    *,
+    source_schema_override: str | None = None,
+) -> GenerateSourcesOutput:
+    """Build sources.yml content from catalog tables.
+
+    Only tables with ``is_source: true`` are included. Tables with
+    ``resolved`` status are excluded (they become dbt models). Tables with
+    ``scoping.status == "no_writer_found"`` but no ``is_source`` flag are
+    listed in ``unconfirmed`` — they need explicit confirmation before
+    being included.
+
+    When a target source schema override is configured, logical source names
+    remain grouped by extracted schema while the emitted dbt ``schema:``
+    points at the configured physical target schema.
+    """
+    catalog_dir = resolve_catalog_dir(project_root)
+    tables_dir = catalog_dir / "tables"
+
+    if not tables_dir.is_dir():
+        return GenerateSourcesOutput(
+            sources=None,
+            included=[],
+            excluded=[],
+            unconfirmed=[],
+            incomplete=[],
+        )
+
+    candidates = _collect_source_candidates(tables_dir)
+    if not candidates.source_tables:
+        return GenerateSourcesOutput(
+            sources=None,
+            included=candidates.included,
+            excluded=candidates.excluded,
+            unconfirmed=candidates.unconfirmed,
+            incomplete=candidates.incomplete,
+        )
+
+    namespace_error = _validate_source_namespace(candidates)
+    if namespace_error is not None:
+        return namespace_error
+
+    physical_source_schema = _resolve_physical_source_schema(
+        project_root,
+        source_schema_override,
+    )
+    sources_dict = _build_sources_yaml(
+        candidates.source_tables,
+        physical_source_schema=physical_source_schema,
+    )
     return GenerateSourcesOutput(
         sources=sources_dict,
-        included=included,
-        excluded=excluded,
-        unconfirmed=unconfirmed,
-        incomplete=incomplete,
+        included=candidates.included,
+        excluded=candidates.excluded,
+        unconfirmed=candidates.unconfirmed,
+        incomplete=candidates.incomplete,
     )
 
 
