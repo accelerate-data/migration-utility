@@ -16,6 +16,8 @@ class SourceTemplateConfig:
     setup_ddl_source: str
     example_source: str
     env_prefix: str
+    default_port: str
+    readme_user: str
     source_database_var: str
     source_database_default: str
     sandbox_database_default: str | None
@@ -50,6 +52,8 @@ SOURCE_TEMPLATE_CONFIGS: dict[str, SourceTemplateConfig] = {
         setup_ddl_source="SQL Server",
         example_source="AdventureWorks",
         env_prefix="MSSQL",
+        default_port="1433",
+        readme_user="sa",
         source_database_var="DB",
         source_database_default="",
         sandbox_database_default=None,
@@ -64,6 +68,8 @@ SOURCE_TEMPLATE_CONFIGS: dict[str, SourceTemplateConfig] = {
         setup_ddl_source="Oracle",
         example_source="SH schema",
         env_prefix="ORACLE",
+        default_port="1521",
+        readme_user="YourUser",
         source_database_var="SERVICE",
         source_database_default="FREEPDB1",
         sandbox_database_default="FREEPDB1",
@@ -228,16 +234,15 @@ def _render_readme_env_example(config: SourceTemplateConfig) -> str:
     return f"""\
    # .envrc (tracked) — shared non-secret settings
    export SOURCE_{config.env_prefix}_HOST=localhost
-   export SOURCE_{config.env_prefix}_PORT={_default_port(config)}
+   export SOURCE_{config.env_prefix}_PORT={config.default_port}
    export SOURCE_{config.env_prefix}_{config.source_database_var}={database_value}
-   export SOURCE_{config.env_prefix}_USER={_readme_user(config)}
+   export SOURCE_{config.env_prefix}_USER={config.readme_user}
 
    # .env (gitignored) — local secrets
    export SOURCE_{config.env_prefix}_PASSWORD=YourPassword"""
 
 
 def _render_envrc(config: SourceTemplateConfig) -> str:
-    port = _default_port(config)
     source_database_assignment = (
         f"export SOURCE_{config.env_prefix}_{config.source_database_var}="
         f"{config.source_database_default}\n"
@@ -260,17 +265,17 @@ source_env_if_exists .env
 
 # Source database (used by setup-source)
 export SOURCE_{config.env_prefix}_HOST=localhost
-export SOURCE_{config.env_prefix}_PORT={port}
+export SOURCE_{config.env_prefix}_PORT={config.default_port}
 {source_database_assignment}export SOURCE_{config.env_prefix}_USER={config.source_user_default}
 
 # Sandbox database (used by setup-sandbox)
 export SANDBOX_{config.env_prefix}_HOST=localhost
-export SANDBOX_{config.env_prefix}_PORT={port}
+export SANDBOX_{config.env_prefix}_PORT={config.default_port}
 {sandbox_database_assignment}export SANDBOX_{config.env_prefix}_USER={config.source_user_default}
 
 # Target database (used by setup-target)
 export TARGET_{config.env_prefix}_HOST=localhost
-export TARGET_{config.env_prefix}_PORT={port}
+export TARGET_{config.env_prefix}_PORT={config.default_port}
 {target_database_assignment}export TARGET_{config.env_prefix}_USER={config.source_user_default}
 """
 
@@ -317,14 +322,6 @@ for f in $(git diff --cached --name-only --diff-filter=ACMR || true); do
     fi
 done
 """
-
-
-def _default_port(config: SourceTemplateConfig) -> str:
-    return "1433" if config.env_prefix == "MSSQL" else "1521"
-
-
-def _readme_user(config: SourceTemplateConfig) -> str:
-    return "sa" if config.env_prefix == "MSSQL" else "YourUser"
 
 
 def _claude_md_sql_server() -> str:

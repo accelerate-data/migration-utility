@@ -43,6 +43,7 @@ SCAFFOLD_GOLDEN_HASHES = {
         "repo-map.json": "b4fc3898be790dfeffb7ecd90666e61e94139672e2b70a8caf609334ff17f619",
     },
 }
+HOOK_GOLDEN_HASH = "647af779051fd9abb37885d0b46c9baf07a56fa2f4bd3e4afbd72ab28dfee025"
 
 
 # ── scaffold-project (sql_server default) ───────────────────────────────────
@@ -247,6 +248,19 @@ class TestScaffoldHooks:
         )
 
         assert result.returncode == 1
+
+    @pytest.mark.parametrize("technology", ["sql_server", "oracle"])
+    def test_pre_commit_hook_output_matches_golden_hash(
+        self,
+        tmp_path: Path,
+        technology: str,
+    ) -> None:
+        subprocess.run(["git", "init"], cwd=tmp_path, capture_output=True, check=True)
+        run_scaffold_hooks(tmp_path, technology=technology)
+
+        hook_content = (tmp_path / ".githooks" / "pre-commit").read_text(encoding="utf-8")
+
+        assert sha256(hook_content.encode()).hexdigest() == HOOK_GOLDEN_HASH
 
 
 # ── source registry ─────────────────────────────────────────────────────────
