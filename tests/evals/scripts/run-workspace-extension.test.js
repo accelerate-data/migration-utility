@@ -320,6 +320,32 @@ test('extensionHook rejects an empty runsRoot override', async () => {
   );
 });
 
+test('extensionHook rejects a missing fixture_path target', async () => {
+  const { extensionHook } = loadExtensionModule();
+  const tempRunsRoot = fs.mkdtempSync(path.join(os.tmpdir(), 'eval-runs-'));
+
+  try {
+    await assert.rejects(
+      () => extensionHook('beforeEach', {
+        suite: { description: 'Missing fixture' },
+        test: {
+          description: 'Missing fixture path',
+          vars: {
+            fixture_path: 'tests/evals/fixtures/does-not-exist',
+          },
+        },
+      }, {
+        nowMs: Date.now(),
+        runsRoot: tempRunsRoot,
+        pruneState: makePruneState(),
+      }),
+      /fixture_path does not exist:/,
+    );
+  } finally {
+    fs.rmSync(tempRunsRoot, { recursive: true, force: true });
+  }
+});
+
 test('pruneOldRuns tolerates ENOENT when a nested child disappears during recursive traversal', () => {
   const extensionModule = loadExtensionModule();
   const { pruneOldRuns } = extensionModule;

@@ -36,7 +36,11 @@ function normalizeTerms(value) {
 }
 
 function resolveProjectPath(context) {
-  return context?.vars?.run_path || context?.vars?.fixture_path || '';
+  const runPath = context?.vars?.run_path;
+  if (!runPath) {
+    throw new Error('run_path was not set - workspace extension may not have run');
+  }
+  return runPath;
 }
 
 module.exports = { normalizeTerms, extractJsonObject, resolveProjectPath };
