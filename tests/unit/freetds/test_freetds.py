@@ -13,7 +13,7 @@ from shared.init import app
 
 
 def test_check_freetds_unsupported_on_windows(monkeypatch) -> None:
-    monkeypatch.setattr(freetds.os, "name", "nt", raising=False)
+    monkeypatch.setattr(freetds, "_classify_platform_slug", lambda: "windows")
 
     result = freetds.run_check_freetds()
 
@@ -37,6 +37,43 @@ def test_check_freetds_reports_missing_install(monkeypatch) -> None:
     assert result.installed is False
     assert result.registered is False
     assert result.auto_registered is False
+
+
+def test_check_freetds_accepts_linux_tsql_plus_odbc_registration(monkeypatch) -> None:
+    def fake_run(command: list[str]) -> str:
+        if command == ["odbcinst", "-q", "-d"]:
+            return "[FreeTDS]\n"
+        if command == ["odbcinst", "-j"]:
+            return "DRIVERS............: /etc/odbcinst.ini\n"
+        raise AssertionError(command)
+
+    monkeypatch.setattr(freetds, "_classify_platform_slug", lambda: "linux")
+    monkeypatch.setattr(freetds, "_command_exists", lambda name: name in {"tsql", "odbcinst"})
+    monkeypatch.setattr(freetds, "_run_command", fake_run)
+    monkeypatch.setattr(freetds.os, "name", "posix", raising=False)
+
+    result = freetds.run_check_freetds()
+
+    assert result.supported_platform is True
+    assert result.installed is True
+    assert result.unixodbc_present is True
+    assert result.registered is True
+    assert result.registration_file == "/etc/odbcinst.ini"
+
+
+def test_check_freetds_reports_linux_package_manager_install_when_tsql_missing(
+    monkeypatch,
+) -> None:
+    monkeypatch.setattr(freetds, "_classify_platform_slug", lambda: "wsl")
+    monkeypatch.setattr(freetds, "_command_exists", lambda name: False)
+    monkeypatch.setattr(freetds.os, "name", "posix", raising=False)
+
+    result = freetds.run_check_freetds()
+
+    assert result.supported_platform is True
+    assert result.installed is False
+    assert "package manager" in (result.message or "")
+    assert "brew" not in (result.message or "")
 
 
 def test_check_freetds_reports_missing_odbcinst(monkeypatch) -> None:
@@ -115,6 +152,28 @@ def test_check_freetds_registers_missing_driver(monkeypatch, tmp_path: Path) -> 
     assert result.auto_registered is True
     assert result.driver_lib_path == str(driver_lib)
     assert result.registration_file == str(registration_file)
+
+
+def test_check_freetds_skips_auto_register_when_prefix_is_unknown(monkeypatch) -> None:
+    def fake_run(command: list[str]) -> str:
+        if command == ["odbcinst", "-q", "-d"]:
+            return "[OtherDriver]\n"
+        if command == ["odbcinst", "-j"]:
+            return "DRIVERS............: /etc/odbcinst.ini\n"
+        raise AssertionError(command)
+
+    monkeypatch.setattr(freetds, "_classify_platform_slug", lambda: "linux")
+    monkeypatch.setattr(freetds, "_command_exists", lambda name: name in {"tsql", "odbcinst"})
+    monkeypatch.setattr(freetds, "_resolve_freetds_prefix", lambda platform_slug: None)
+    monkeypatch.setattr(freetds, "_run_command", fake_run)
+    monkeypatch.setattr(freetds.os, "name", "posix", raising=False)
+
+    result = freetds.run_check_freetds(register_missing=True)
+
+    assert result.installed is True
+    assert result.registered is False
+    assert result.auto_registered is False
+    assert "automatic registration" in (result.message or "")
 
 
 def test_check_freetds_cli_emits_json(monkeypatch) -> None:

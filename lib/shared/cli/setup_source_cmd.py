@@ -4,9 +4,6 @@ from __future__ import annotations
 import json
 import logging
 import os
-import shutil
-import subprocess
-import sys
 from pathlib import Path
 from typing import Any
 
@@ -15,6 +12,7 @@ import typer
 from shared.cli.env_check import require_source_vars
 from shared.cli.error_handler import cli_error_handler
 from shared.cli.output import console, error, print_table, remind_review_and_commit, success
+from shared.freetds import run_check_freetds
 from shared.init import run_scaffold_hooks, run_scaffold_project
 from shared.runtime_config import get_runtime_role
 from shared.setup_ddl_support.extract import run_extract, run_list_schemas
@@ -113,20 +111,20 @@ def setup_source(
 
 def _check_source_prereqs(technology: str) -> None:
     if technology == "sql_server":
-        if sys.platform == "darwin":
-            result = subprocess.run(
-                ["brew", "list", "--formula", "freetds"],
-                capture_output=True,
-            )
-            if result.returncode != 0:
-                console.print("[red]✗[/red] freetds not installed. Run: brew install freetds")
-                raise typer.Exit(code=1)
-            success("freetds installed")
-        else:
-            if shutil.which("tsql") is None:
-                console.print("[red]✗[/red] FreeTDS not found. Install via your package manager (e.g. apt-get install freetds-dev).")
-                raise typer.Exit(code=1)
-            success("freetds available")
+        result = run_check_freetds()
+        if not result.supported_platform:
+            console.print(f"[red]✗[/red] {result.message}")
+            raise typer.Exit(code=1)
+        if not result.installed:
+            console.print(f"[red]✗[/red] {result.message}")
+            raise typer.Exit(code=1)
+        if not result.unixodbc_present:
+            console.print(f"[red]✗[/red] {result.message}")
+            raise typer.Exit(code=1)
+        if not result.registered:
+            console.print(f"[red]✗[/red] {result.message}")
+            raise typer.Exit(code=1)
+        success("freetds installed and registered")
 
 
 def _report_extract(result: dict[str, Any]) -> None:

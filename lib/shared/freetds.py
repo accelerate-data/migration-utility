@@ -4,10 +4,12 @@ from __future__ import annotations
 
 import logging
 import os
+import shutil
 import subprocess
 from pathlib import Path
 
 from shared.output_models.init import FreeTdsCheckOutput
+from shared.platform import classify_host_platform
 
 logger = logging.getLogger(__name__)
 
@@ -39,6 +41,37 @@ def _find_driver_path(prefix: Path) -> Path | None:
 def _find_setup_path(prefix: Path) -> Path | None:
     candidates = sorted((prefix / "lib").glob("libtdsS.*"))
     return candidates[0] if candidates else None
+
+
+def _classify_platform_slug() -> str:
+    return classify_host_platform().slug
+
+
+def _command_exists(name: str) -> bool:
+    return shutil.which(name) is not None
+
+
+def _freetds_installed(platform_slug: str) -> bool:
+    if platform_slug == "macos":
+        try:
+            _run_command(["brew", "list", "--formula", "freetds"])
+            return True
+        except (FileNotFoundError, subprocess.CalledProcessError):
+            return False
+    return _command_exists("tsql")
+
+
+def _resolve_freetds_prefix(platform_slug: str) -> Path | None:
+    if platform_slug == "macos":
+        try:
+            return Path(_run_command(["brew", "--prefix", "freetds"]).strip())
+        except (FileNotFoundError, subprocess.CalledProcessError):
+            return None
+
+    for candidate in (Path("/usr"), Path("/usr/local"), Path("/opt/homebrew"), Path("/opt/local")):
+        if _find_driver_path(candidate) is not None:
+            return candidate
+    return None
 
 
 def _register_driver(
@@ -76,8 +109,9 @@ def _is_registered() -> bool:
 
 
 def run_check_freetds(register_missing: bool = False) -> FreeTdsCheckOutput:
-    """Check Homebrew FreeTDS installation and unixODBC registration state."""
-    if os.name == "nt":
+    """Check FreeTDS installation and unixODBC registration state."""
+    platform_slug = _classify_platform_slug()
+    if platform_slug == "windows":
         return FreeTdsCheckOutput(
             supported_platform=False,
             installed=False,
@@ -86,12 +120,10 @@ def run_check_freetds(register_missing: bool = False) -> FreeTdsCheckOutput:
             auto_registered=False,
             registration_file=None,
             driver_lib_path=None,
-            message="Windows is not supported for /init-ad-migration SQL Server setup.",
+            message="Native Windows is not supported for /init-ad-migration SQL Server setup. Use WSL.",
         )
 
-    try:
-        _run_command(["brew", "list", "--formula", "freetds"])
-    except (FileNotFoundError, subprocess.CalledProcessError):
+    if not _freetds_installed(platform_slug):
         logger.info("event=freetds_check status=not_installed")
         return FreeTdsCheckOutput(
             supported_platform=True,
@@ -101,7 +133,10 @@ def run_check_freetds(register_missing: bool = False) -> FreeTdsCheckOutput:
             auto_registered=False,
             registration_file=None,
             driver_lib_path=None,
-            message="FreeTDS is not installed.",
+            message=(
+                "FreeTDS is not installed. Install FreeTDS and unixODBC using "
+                "your platform package manager."
+            ),
         )
 
     registration_file: Path | None = None
@@ -150,7 +185,23 @@ def run_check_freetds(register_missing: bool = False) -> FreeTdsCheckOutput:
     if registration_file is None:
         raise RuntimeError("odbcinst -j did not report an odbcinst.ini path.")
 
-    prefix = Path(_run_command(["brew", "--prefix", "freetds"]).strip())
+    prefix = _resolve_freetds_prefix(platform_slug)
+    if prefix is None:
+        logger.warning("event=freetds_check status=unregistered_auto_register_unavailable")
+        return FreeTdsCheckOutput(
+            supported_platform=True,
+            installed=True,
+            unixodbc_present=True,
+            registered=False,
+            auto_registered=False,
+            registration_file=str(registration_file),
+            driver_lib_path=None,
+            message=(
+                "FreeTDS is installed but not registered in unixODBC; automatic "
+                "registration is only supported when the FreeTDS library path can be resolved."
+            ),
+        )
+
     driver_path = _find_driver_path(prefix)
     if driver_path is None:
         raise RuntimeError(f"FreeTDS driver library not found under {prefix / 'lib'}.")

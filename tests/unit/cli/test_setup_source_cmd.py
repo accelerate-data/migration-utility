@@ -2,10 +2,12 @@ import json
 from pathlib import Path
 from unittest.mock import patch
 
+import pytest
+import typer
 from typer.testing import CliRunner
 
 from shared.cli.main import app
-from shared.output_models.init import ScaffoldHooksOutput, ScaffoldProjectOutput
+from shared.output_models.init import FreeTdsCheckOutput, ScaffoldHooksOutput, ScaffoldProjectOutput
 
 runner = CliRunner()
 
@@ -79,6 +81,60 @@ def test_setup_source_sql_server_runs_extraction(tmp_path, monkeypatch):
     assert "git add" not in result.output
     assert "git commit" not in result.output
     assert "git push" not in result.output
+
+
+def test_setup_source_sql_server_requires_freetds_registration(monkeypatch) -> None:
+    from shared.cli.setup_source_cmd import _check_source_prereqs
+
+    monkeypatch.setattr(
+        "shared.cli.setup_source_cmd.run_check_freetds",
+        lambda: FreeTdsCheckOutput(
+            supported_platform=True,
+            installed=True,
+            unixodbc_present=True,
+            registered=False,
+            auto_registered=False,
+            registration_file="/etc/odbcinst.ini",
+            driver_lib_path=None,
+            message="FreeTDS is installed but not registered in unixODBC.",
+        ),
+    )
+
+    result = runner.invoke(app, ["--help"])
+    assert result.exit_code == 0
+
+    with pytest.raises(typer.Exit) as excinfo:
+        _check_source_prereqs("sql_server")
+    assert excinfo.value.exit_code == 1
+
+
+def test_setup_source_sql_server_uses_platform_neutral_freetds_message(
+    monkeypatch,
+    capsys,
+) -> None:
+    from shared.cli.setup_source_cmd import _check_source_prereqs
+
+    monkeypatch.setattr(
+        "shared.cli.setup_source_cmd.run_check_freetds",
+        lambda: FreeTdsCheckOutput(
+            supported_platform=True,
+            installed=False,
+            unixodbc_present=False,
+            registered=False,
+            auto_registered=False,
+            registration_file=None,
+            driver_lib_path=None,
+            message="Install FreeTDS and unixODBC using your platform package manager.",
+        ),
+    )
+
+    with pytest.raises(typer.Exit) as excinfo:
+        _check_source_prereqs("sql_server")
+    assert excinfo.value.exit_code == 1
+
+    output = capsys.readouterr().out
+    assert "platform package manager" in output
+    assert "brew install" not in output
 
 
 def test_setup_source_fails_fast_on_missing_env(tmp_path, monkeypatch):

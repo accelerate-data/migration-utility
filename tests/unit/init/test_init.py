@@ -56,7 +56,7 @@ class TestHostPlatform:
         self,
         monkeypatch: pytest.MonkeyPatch,
     ) -> None:
-        monkeypatch.setattr("shared.init.platform.system", lambda: "Darwin")
+        monkeypatch.setattr("shared.platform.platform.system", lambda: "Darwin")
 
         result = classify_host_platform()
 
@@ -68,9 +68,9 @@ class TestHostPlatform:
         self,
         monkeypatch: pytest.MonkeyPatch,
     ) -> None:
-        monkeypatch.setattr("shared.init.platform.system", lambda: "Linux")
-        monkeypatch.setattr("shared.init._read_osrelease_text", lambda: "NAME=Ubuntu\n")
-        monkeypatch.setattr("shared.init._read_proc_version_text", lambda: "Linux version 6.8")
+        monkeypatch.setattr("shared.platform.platform.system", lambda: "Linux")
+        monkeypatch.setattr("shared.platform._read_osrelease_text", lambda: "NAME=Ubuntu\n")
+        monkeypatch.setattr("shared.platform._read_proc_version_text", lambda: "Linux version 6.8")
 
         result = classify_host_platform()
 
@@ -81,10 +81,10 @@ class TestHostPlatform:
         self,
         monkeypatch: pytest.MonkeyPatch,
     ) -> None:
-        monkeypatch.setattr("shared.init.platform.system", lambda: "Linux")
-        monkeypatch.setattr("shared.init._read_osrelease_text", lambda: "NAME=Ubuntu\n")
+        monkeypatch.setattr("shared.platform.platform.system", lambda: "Linux")
+        monkeypatch.setattr("shared.platform._read_osrelease_text", lambda: "NAME=Ubuntu\n")
         monkeypatch.setattr(
-            "shared.init._read_proc_version_text",
+            "shared.platform._read_proc_version_text",
             lambda: "Linux version 6.6.87.2-microsoft-standard-WSL2",
         )
 
@@ -97,7 +97,7 @@ class TestHostPlatform:
         self,
         monkeypatch: pytest.MonkeyPatch,
     ) -> None:
-        monkeypatch.setattr("shared.init.platform.system", lambda: "Windows")
+        monkeypatch.setattr("shared.platform.platform.system", lambda: "Windows")
 
         result = classify_host_platform()
 
