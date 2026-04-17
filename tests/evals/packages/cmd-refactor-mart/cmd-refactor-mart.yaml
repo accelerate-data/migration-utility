@@ -65,7 +65,7 @@ tests:
       expected_output_terms: "blocked,skipped"
       expected_blocked_reason_details: "INT-001=stg-001|planned,MART-001=stg-002|failed,INT-002=depends on|missing||dependency|missing,INT-003=depends on|malformed||dependency|malformed,MART-002=depends on|ambiguous||dependency|ambiguous,INT-004=depends on|empty||dependency|empty"
       expected_absent_model_refs: "int_sales_orders:stg_bronze__orders,fct_sales:int_sales_orders"
-      expected_unchanged_models: "int_sales_orders,fct_sales,int_sales_returns,fct_returns,int_empty_dependency"
+      expected_unchanged_models: "int_sales_orders,fct_sales,int_sales_returns,int_sales_adjustments,fct_returns,int_empty_dependency"
     assert:
       - type: javascript
         value: file://../../assertions/check-refactor-mart-mart-execution.js

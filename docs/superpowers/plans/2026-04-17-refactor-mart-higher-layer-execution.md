@@ -457,7 +457,7 @@ Expected: pass. If model nondeterminism causes a case to fail while the contract
 
 Evidence: direct promptfoo wrapper run passed 5/5 after tightening int-mode
 status preservation, permission-free harness wording, and detail expectations:
-`cd tests/evals && zsh -lc 'set -a; source ../../.env >/dev/null 2>&1; set +a; ./scripts/promptfoo.sh eval --no-cache -c packages/cmd-refactor-mart/cmd-refactor-mart.yaml -o /tmp/vu-1104-full-final-5.json'`.
+`cd tests/evals && zsh -lc 'set -a; source ../../.env >/dev/null 2>&1; set +a; ./scripts/promptfoo.sh eval --no-cache -c packages/cmd-refactor-mart/cmd-refactor-mart.yaml -o /tmp/vu-1104-full-final-6.json'`.
 
 - [x] **Step 11: Commit eval slice**
 
@@ -491,7 +491,7 @@ Evidence:
 
 - `markdownlint commands/refactor-mart.md skills/applying-staging-candidate/SKILL.md skills/applying-mart-candidates/SKILL.md skills/applying-mart-candidates/references/mart-validation-contract.md docs/superpowers/plans/2026-04-17-refactor-mart-higher-layer-execution.md tests/evals/prompts/cmd-refactor-mart-int.txt tests/evals/fixtures/cmd-refactor-mart/int-blocked-dependency/docs/design/refactor-mart-int-blocked-dependency.md`
 - `node --test tests/evals/assertions/check-refactor-mart-stg-execution.test.js tests/evals/assertions/check-refactor-mart-mart-execution.test.js` passed 21/21
-- direct promptfoo wrapper passed 5/5 and wrote `/tmp/vu-1104-full-final-5.json`
+- direct promptfoo wrapper passed 5/5 and wrote `/tmp/vu-1104-full-final-6.json`
 - `python -m json.tool repo-map.json >/tmp/repo-map-vu-1104-final.json`
 - `git diff --check`
 
