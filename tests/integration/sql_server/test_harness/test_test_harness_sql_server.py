@@ -61,6 +61,7 @@ class TestSandboxLifecycle:
 
         try:
             result = backend.sandbox_up(schemas=[SQL_SERVER_FIXTURE_SCHEMA])
+            sandbox_db = result.sandbox_database
 
             assert result.status in ("ok", "partial")
             assert result.sandbox_database.startswith("SBX_")
