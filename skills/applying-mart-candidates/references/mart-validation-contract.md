@@ -6,8 +6,13 @@ refactor-mart plan.
 ## Scope
 
 - One candidate is scoped to one `int` or `mart` output model.
-- The candidate may rewrite the declared output and any unambiguous local
-  references that are explicitly named in the candidate section.
+- `Validation:` is the validation command or scope only.
+- It must not be treated as a structured consumer list.
+- Do not infer broad rewrites from dbt selector syntax such as
+  `+int_sales_orders`.
+- Consumer rewrites are only explicit in the candidate text or an unambiguous
+  local output rewrite.
+- Ambiguous rewrite scope blocks before edits.
 - Do not validate or invalidate unrelated candidates.
 
 ## Status Values
@@ -21,6 +26,10 @@ Write back exactly one of these values in the candidate section:
 Do not use `blocked` for dependency gating failures. `/refactor-mart` owns
 writeback for dependency-blocked candidates and does not invoke this skill for
 them.
+
+If `applying-mart-candidates` receives dependency metadata that failed
+command-level gating, stop with `DEPENDENCY_GATE_NOT_SATISFIED` and leave
+candidate status unchanged.
 
 Use `applied` only when edits were attempted and candidate-scoped validation
 passed. Add one short `Validation result:` bullet in the same candidate section
