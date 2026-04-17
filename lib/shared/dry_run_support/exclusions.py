@@ -15,6 +15,7 @@ def run_exclude(project_root: Path, fqns: list[str]) -> ExcludeOutput:
     """Set ``excluded: true`` on each named table or view catalog file."""
     marked: list[str] = []
     not_found: list[str] = []
+    written_paths: list[str] = []
 
     for raw_fqn in fqns:
         norm = normalize(raw_fqn)
@@ -43,6 +44,7 @@ def run_exclude(project_root: Path, fqns: list[str]) -> ExcludeOutput:
         data["excluded"] = True
         write_json(catalog_path, data)
         marked.append(norm)
+        written_paths.append(str(catalog_path.relative_to(project_root)))
         logger.info(
             "event=exclude_marked component=exclude operation=run_exclude "
             "fqn=%s bucket=%s status=success",
@@ -50,4 +52,4 @@ def run_exclude(project_root: Path, fqns: list[str]) -> ExcludeOutput:
             bucket,
         )
 
-    return ExcludeOutput(marked=marked, not_found=not_found)
+    return ExcludeOutput(marked=marked, not_found=not_found, written_paths=written_paths)

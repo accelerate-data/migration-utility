@@ -68,7 +68,12 @@ def test_setup_sandbox_runs_sandbox_up(tmp_path):
 
     assert result.exit_code == 0, result.output
     mock_backend.sandbox_up.assert_called_once()
+    assert "Updated repo state" in result.output
+    assert "manifest.json" in result.output
     assert "Review and commit the repo changes before continuing" in result.output
+    assert "git add" not in result.output
+    assert "git commit" not in result.output
+    assert "git push" not in result.output
 
 
 def test_setup_sandbox_reuses_existing_canonical_sandbox(tmp_path):
@@ -337,7 +342,12 @@ def test_teardown_sandbox_yes_flag_skips_prompt(tmp_path):
 
     assert result.exit_code == 0
     mock_backend.sandbox_down.assert_called_once_with("__test_abc123")
+    assert "Updated repo state" in result.output
+    assert "manifest.json" in result.output
     assert "Review and commit the repo changes before continuing" in result.output
+    assert "git add" not in result.output
+    assert "git commit" not in result.output
+    assert "git push" not in result.output
 
 
 def test_teardown_sandbox_no_sandbox_exits_1(tmp_path):

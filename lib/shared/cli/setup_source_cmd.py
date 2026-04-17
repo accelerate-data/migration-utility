@@ -103,7 +103,12 @@ def setup_source(
             result = run_extract(root, database, schema_list)
 
     _report_extract(result)
-    remind_review_and_commit()
+    written_paths = [
+        *scaffold_result.written_paths,
+        *hooks_result.written_paths,
+        *(str(path) for path in result.get("written_paths", [])),
+    ]
+    remind_review_and_commit(written_paths)
 
 
 def _check_source_prereqs(technology: str) -> None:

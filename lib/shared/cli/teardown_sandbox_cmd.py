@@ -75,7 +75,7 @@ def teardown_sandbox(
         )
 
         success("Sandbox teardown complete.")
-        remind_review_and_commit()
+        remind_review_and_commit(["manifest.json"])
     else:
         error(f"Sandbox teardown failed: {result.status}")
         for entry in (result.errors or []):

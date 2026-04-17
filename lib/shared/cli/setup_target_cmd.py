@@ -74,4 +74,4 @@ def setup_target(
     if result.seed_files:
         seed_status = "materialized" if result.dbt_seed_ran else "not materialized"
         console.print(f"  seed files: {len(result.seed_files)} exported, {seed_status}")
-    remind_review_and_commit()
+    remind_review_and_commit(["manifest.json", *result.written_paths])

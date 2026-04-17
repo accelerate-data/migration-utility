@@ -610,6 +610,7 @@ class TestWriteCatalogDiffAware:
         assert result.returncode == 0, result.stderr
         counts = json.loads(result.stdout)
         assert counts["removed"] >= 1
+        assert "catalog/procedures/dbo.usp_a.json" in counts["written_paths"]
 
         # Verify stale flag
         proc_cat = json.loads((output / "catalog" / "procedures" / "dbo.usp_a.json").read_text())

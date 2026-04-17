@@ -40,6 +40,6 @@ def exclude_table(
 
     if result.marked:
         success(f"Excluded ({len(result.marked)}): {', '.join(result.marked)}")
-        remind_review_and_commit()
+        remind_review_and_commit(result.written_paths)
     if result.not_found:
         error(f"Not found ({len(result.not_found)}): {', '.join(result.not_found)}")

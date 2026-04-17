@@ -124,6 +124,115 @@ def test_run_extract_fails_loudly_on_manifest_read_error(tmp_path: Path) -> None
             setup_ddl.run_extract(tmp_path, database="MigrationTest", schemas=["dbo"])
 
 
+def test_assemble_ddl_reports_only_files_written_this_run(tmp_path: Path) -> None:
+    from shared.setup_ddl_support.extract import assemble_ddl_from_staging
+
+    project_root = tmp_path / "project"
+    staging_dir = tmp_path / "staging"
+    (project_root / "ddl").mkdir(parents=True)
+    staging_dir.mkdir()
+    (project_root / "ddl" / "functions.sql").write_text("-- stale\n", encoding="utf-8")
+    (staging_dir / "object_types.json").write_text(
+        json.dumps([{"schema_name": "dbo", "name": "usp_load", "type": "P"}]),
+        encoding="utf-8",
+    )
+    (staging_dir / "definitions.json").write_text(
+        json.dumps(
+            [
+                {
+                    "schema_name": "dbo",
+                    "object_name": "usp_load",
+                    "definition": "CREATE PROCEDURE dbo.usp_load AS SELECT 1",
+                }
+            ]
+        ),
+        encoding="utf-8",
+    )
+
+    written_paths = assemble_ddl_from_staging(staging_dir, project_root)
+
+    assert written_paths == ["ddl/procedures.sql"]
+
+
+def test_run_extract_reports_catalog_files_mutated_after_catalog_write(tmp_path: Path) -> None:
+    from shared.output_models.catalog_enrich import CatalogEnrichOutput
+    from shared.setup_ddl_support import extract as setup_ddl_extract
+
+    catalog_path = tmp_path / "catalog" / "procedures" / "dbo.usp_load.json"
+
+    def fake_write_catalog(_staging_dir: Path, project_root: Path, _db_name: str) -> dict[str, object]:
+        catalog_path.parent.mkdir(parents=True)
+        catalog_path.write_text(
+            json.dumps({"schema": "dbo", "name": "usp_load"}),
+            encoding="utf-8",
+        )
+        return {"tables": 0, "procedures": 1, "views": 0, "functions": 0, "written_paths": []}
+
+    def fake_run_diagnostics(project_root: Path, dialect: str) -> dict[str, int]:
+        payload = json.loads(catalog_path.read_text(encoding="utf-8"))
+        payload["warnings"] = [{"code": "TEST", "message": "diagnostic"}]
+        catalog_path.write_text(json.dumps(payload), encoding="utf-8")
+        return {"objects_checked": 1, "warnings_added": 1, "errors_added": 0}
+
+    with (
+        patch.object(setup_ddl_extract, "require_technology", return_value="sql_server"),
+        patch.object(setup_ddl_extract, "read_manifest_strict", return_value={}),
+        patch.object(setup_ddl_extract, "get_connection_identity", return_value={}),
+        patch.object(setup_ddl_extract, "identity_changed", return_value=False),
+        patch.object(setup_ddl_extract, "run_db_extraction"),
+        patch.object(setup_ddl_extract, "assemble_ddl_from_staging", return_value=["ddl/procedures.sql"]),
+        patch.object(setup_ddl_extract, "run_write_manifest"),
+        patch.object(setup_ddl_extract, "run_write_catalog", side_effect=fake_write_catalog),
+        patch("shared.catalog.snapshot_enriched_fields", return_value={}),
+        patch("shared.catalog.restore_enriched_fields"),
+        patch(
+            "shared.catalog_enrich.enrich_catalog",
+            return_value=CatalogEnrichOutput(tables_augmented=0, procedures_augmented=0, entries_added=0),
+        ),
+        patch("shared.diagnostics.run_diagnostics", side_effect=fake_run_diagnostics),
+    ):
+        result = setup_ddl_extract.run_extract(tmp_path, database="MigrationTest", schemas=["dbo"])
+
+    assert "catalog/procedures/dbo.usp_load.json" in result["written_paths"]
+
+
+def test_run_extract_reports_catalog_files_marked_stale_on_identity_change(tmp_path: Path) -> None:
+    from shared.output_models.catalog_enrich import CatalogEnrichOutput
+    from shared.setup_ddl_support import extract as setup_ddl_extract
+
+    catalog_path = tmp_path / "catalog" / "procedures" / "dbo.usp_load.json"
+    catalog_path.parent.mkdir(parents=True)
+    catalog_path.write_text(
+        json.dumps({"schema": "dbo", "name": "usp_load"}),
+        encoding="utf-8",
+    )
+
+    with (
+        patch.object(setup_ddl_extract, "require_technology", return_value="sql_server"),
+        patch.object(setup_ddl_extract, "read_manifest_strict", return_value={}),
+        patch.object(setup_ddl_extract, "get_connection_identity", return_value={}),
+        patch.object(setup_ddl_extract, "identity_changed", return_value=True),
+        patch.object(setup_ddl_extract, "run_db_extraction"),
+        patch.object(setup_ddl_extract, "assemble_ddl_from_staging", return_value=[]),
+        patch.object(setup_ddl_extract, "run_write_manifest"),
+        patch.object(
+            setup_ddl_extract,
+            "run_write_catalog",
+            return_value={"tables": 0, "procedures": 0, "views": 0, "functions": 0, "written_paths": []},
+        ),
+        patch("shared.catalog.snapshot_enriched_fields", return_value={}),
+        patch("shared.catalog.restore_enriched_fields"),
+        patch(
+            "shared.catalog_enrich.enrich_catalog",
+            return_value=CatalogEnrichOutput(tables_augmented=0, procedures_augmented=0, entries_added=0),
+        ),
+        patch("shared.diagnostics.run_diagnostics", return_value={"objects_checked": 0, "warnings_added": 0, "errors_added": 0}),
+    ):
+        result = setup_ddl_extract.run_extract(tmp_path, database="MigrationTest", schemas=["dbo"])
+
+    assert "catalog/procedures/dbo.usp_load.json" in result["written_paths"]
+
+
 def test_sqlserver_optional_metadata_unsupported_feature_writes_empty_files(tmp_path: Path) -> None:
     from shared import sqlserver_extract
 

@@ -134,7 +134,8 @@ def reset(
             columns=("", ""),
         )
         success("Project reset to post-init state. Run setup-source to restart the pipeline.")
-        remind_review_and_commit()
+        deleted_paths = [f"{path}/" for path in result.deleted_paths]
+        remind_review_and_commit([*deleted_paths, "manifest.json"])
         return
 
     if stage not in RESETTABLE_STAGES:
@@ -176,4 +177,9 @@ def reset(
         error(f"Not found: {', '.join(result.not_found)}")
     if result.blocked or result.not_found:
         raise typer.Exit(code=1)
-    remind_review_and_commit()
+    written_paths = [
+        path
+        for target in result.targets
+        for path in [*target.mutated_files, *target.deleted_files]
+    ]
+    remind_review_and_commit(written_paths)

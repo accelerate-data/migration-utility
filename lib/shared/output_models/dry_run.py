@@ -277,6 +277,7 @@ class ExcludeOutput(BaseModel):
 
     marked: list[str]
     not_found: list[str]
+    written_paths: list[str] = Field(default_factory=list)
 
 
 class ResetTargetResult(BaseModel):
@@ -286,6 +287,7 @@ class ResetTargetResult(BaseModel):
     status: Literal["reset", "noop", "blocked", "not_found"]
     cleared_sections: list[str] = Field(default_factory=list)
     deleted_files: list[str] = Field(default_factory=list)
+    mutated_files: list[str] = Field(default_factory=list)
     reason: str | None = None
 
 

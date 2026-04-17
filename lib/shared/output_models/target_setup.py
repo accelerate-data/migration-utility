@@ -11,6 +11,7 @@ class SetupTargetOutput(BaseModel):
     model_config = OUTPUT_CONFIG
 
     files: list[str]
+    written_paths: list[str] = Field(default_factory=list)
     sources_path: str | None = None
     target_source_schema: str
     created_tables: list[str]

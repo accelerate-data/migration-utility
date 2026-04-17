@@ -9,9 +9,28 @@ from shared.output_models.init import ScaffoldHooksOutput, ScaffoldProjectOutput
 
 runner = CliRunner()
 
-_SCAFFOLD_OUT = ScaffoldProjectOutput(files_created=["CLAUDE.md", ".envrc"], files_updated=[], files_skipped=[])
-_HOOKS_OUT = ScaffoldHooksOutput(hook_created=True, hooks_path_configured=True)
-_EXTRACT_OUT = {"tables": 5, "procedures": 3, "views": 2, "functions": 0}
+_SCAFFOLD_OUT = ScaffoldProjectOutput(
+    files_created=["CLAUDE.md", ".envrc"],
+    files_updated=[],
+    files_skipped=[],
+    written_paths=["CLAUDE.md", ".envrc"],
+)
+_HOOKS_OUT = ScaffoldHooksOutput(
+    hook_created=True,
+    hooks_path_configured=True,
+    written_paths=[".githooks/pre-commit"],
+)
+_EXTRACT_OUT = {
+    "tables": 5,
+    "procedures": 3,
+    "views": 2,
+    "functions": 0,
+    "written_paths": [
+        "manifest.json",
+        "ddl/tables.sql",
+        "catalog/tables/silver.customer.json",
+    ],
+}
 
 
 def _write_manifest(tmp_path: Path, source_technology: str | None = "sql_server") -> None:
@@ -49,7 +68,17 @@ def test_setup_source_sql_server_runs_extraction(tmp_path, monkeypatch):
 
     assert result.exit_code == 0, result.output
     mock_extract.assert_called_once_with(tmp_path, "AdventureWorks2022", ["silver", "gold"])
+    assert "Updated repo state" in result.output
+    assert "manifest.json" in result.output
+    assert "ddl/tables.sql" in result.output
+    assert "catalog/tables/silver.customer.json" in result.output
+    assert "CLAUDE.md" in result.output
+    assert ".envrc" in result.output
+    assert ".githooks/pre-commit" in result.output
     assert "Review and commit the repo changes before continuing" in result.output
+    assert "git add" not in result.output
+    assert "git commit" not in result.output
+    assert "git push" not in result.output
 
 
 def test_setup_source_fails_fast_on_missing_env(tmp_path, monkeypatch):

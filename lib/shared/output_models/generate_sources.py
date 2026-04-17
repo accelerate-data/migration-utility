@@ -5,6 +5,7 @@ from __future__ import annotations
 from typing import Any
 
 from pydantic import BaseModel
+from pydantic import Field
 
 from shared.output_models.shared import OUTPUT_CONFIG
 
@@ -18,5 +19,6 @@ class GenerateSourcesOutput(BaseModel):
     unconfirmed: list[str]
     incomplete: list[str]
     path: str | None = None
+    written_paths: list[str] = Field(default_factory=list)
     error: str | None = None
     message: str | None = None

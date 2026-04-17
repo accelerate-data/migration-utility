@@ -14,8 +14,9 @@ from shared.setup_ddl_support.staging_signals import build_catalog_write_inputs
 logger = logging.getLogger(__name__)
 
 
-def mark_stale(project_root: Path, removed_fqns: set[str]) -> None:
+def mark_stale(project_root: Path, removed_fqns: set[str]) -> list[str]:
     catalog_dir = resolve_catalog_dir(project_root)
+    written_paths: list[str] = []
     for fqn in sorted(removed_fqns):
         for bucket in ("tables", "procedures", "views", "functions"):
             path = catalog_dir / bucket / f"{fqn}.json"
@@ -28,15 +29,18 @@ def mark_stale(project_root: Path, removed_fqns: set[str]) -> None:
             except (json.JSONDecodeError, OSError) as exc:
                 logger.warning("event=mark_stale_error fqn=%s error=%s", fqn, exc)
                 continue
+            written_paths.append(f"catalog/{bucket}/{fqn}.json")
             logger.warning("event=catalog_stale_object fqn=%s bucket=%s", fqn, bucket)
             break
+    return written_paths
 
 
-def mark_all_catalog_stale(project_root: Path) -> None:
+def mark_all_catalog_stale(project_root: Path) -> list[str]:
     catalog_dir = resolve_catalog_dir(project_root)
     if not catalog_dir.is_dir():
-        return
+        return []
     count = 0
+    written_paths: list[str] = []
     for bucket in ("tables", "procedures", "views", "functions"):
         bucket_dir = catalog_dir / bucket
         if not bucket_dir.is_dir():
@@ -48,15 +52,18 @@ def mark_all_catalog_stale(project_root: Path) -> None:
                     data["stale"] = True
                     write_catalog_json(path, data)
                     count += 1
+                    written_paths.append(f"catalog/{bucket}/{path.name}")
             except (json.JSONDecodeError, OSError) as exc:
                 logger.warning("event=mark_all_stale_error path=%s error=%s", path, exc)
     logger.info("event=mark_all_stale_identity_changed count=%d", count)
+    return written_paths
 
 
-def reclassify_materialized_views(project_root: Path, mv_fqns: set[str]) -> None:
+def reclassify_materialized_views(project_root: Path, mv_fqns: set[str]) -> list[str]:
     if not mv_fqns:
-        return
+        return []
     catalog_dir = resolve_catalog_dir(project_root)
+    written_paths: list[str] = []
     for fqn in mv_fqns:
         table_path = catalog_dir / "tables" / f"{fqn}.json"
         if not table_path.exists():
@@ -69,8 +76,13 @@ def reclassify_materialized_views(project_root: Path, mv_fqns: set[str]) -> None
             views_dir.mkdir(parents=True, exist_ok=True)
             write_catalog_json(views_dir / f"{fqn}.json", table_data)
             table_path.unlink()
+            written_paths.extend([
+                f"catalog/views/{fqn}.json",
+                f"catalog/tables/{fqn}.json",
+            ])
         except (json.JSONDecodeError, OSError) as exc:
             logger.warning("event=mv_reclassify_error fqn=%s error=%s", fqn, exc)
+    return written_paths
 
 
 def ensure_catalog_subdirectories(project_root: Path) -> None:
@@ -79,7 +91,8 @@ def ensure_catalog_subdirectories(project_root: Path) -> None:
         (catalog_dir / subdir).mkdir(parents=True, exist_ok=True)
 
 
-def run_write_catalog(staging_dir: Path, project_root: Path, database: str) -> dict[str, int]:
+def run_write_catalog(staging_dir: Path, project_root: Path, database: str) -> dict[str, object]:
+    from shared.catalog import detect_catalog_bucket
     from shared.catalog_diff import classify_objects, compute_object_hashes, load_existing_hashes
     from shared.catalog_dmf import write_catalog_files
 
@@ -96,9 +109,10 @@ def run_write_catalog(staging_dir: Path, project_root: Path, database: str) -> d
         "event=catalog_diff unchanged=%d changed=%d new=%d removed=%d",
         len(diff.unchanged), len(diff.changed), len(diff.new), len(diff.removed),
     )
+    early_written_paths: list[str] = []
     if diff.removed:
-        mark_stale(project_root, diff.removed)
-    reclassify_materialized_views(project_root, derived_inputs["mv_fqns"])
+        early_written_paths.extend(mark_stale(project_root, diff.removed))
+    early_written_paths.extend(reclassify_materialized_views(project_root, derived_inputs["mv_fqns"]))
     ensure_catalog_subdirectories(project_root)
     write_filter = diff.changed | diff.new
     counts = write_catalog_files(
@@ -123,4 +137,16 @@ def run_write_catalog(staging_dir: Path, project_root: Path, database: str) -> d
     counts["changed"] = len(diff.changed)
     counts["new"] = len(diff.new)
     counts["removed"] = len(diff.removed)
+    written_paths: list[str] = list(early_written_paths)
+    for fqn in sorted(write_filter):
+        bucket = derived_inputs["object_types"].get(fqn)
+        if not bucket and fqn in derived_inputs["table_signals"]:
+            bucket = "tables"
+        if bucket:
+            written_paths.append(f"catalog/{bucket}/{fqn}.json")
+    for fqn in sorted(diff.removed):
+        bucket = detect_catalog_bucket(project_root, fqn)
+        if bucket:
+            written_paths.append(f"catalog/{bucket}/{fqn}.json")
+    counts["written_paths"] = sorted(set(written_paths))
     return counts
