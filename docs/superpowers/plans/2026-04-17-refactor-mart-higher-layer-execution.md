@@ -150,7 +150,7 @@ Read `${CLAUDE_PLUGIN_ROOT}/skills/applying-mart-candidates/references/mart-vali
 - If the candidate is not approved with `- [x] Approve: yes`, stop with `CANDIDATE_NOT_APPROVED`.
 - If `Type:` is `stg`, reject it with `STAGING_CANDIDATE_NOT_ALLOWED` and do not change its execution status.
 - If `Type:` is anything other than `int` or `mart`, stop with `INVALID_CANDIDATE_TYPE`.
-- If `Depends on:` lists any dependency whose candidate section is missing or whose `Execution status:` is not `applied`, mark only this candidate `blocked` before editing files.
+- Dependency-blocked writeback belongs to `/refactor-mart`, not this skill. If this skill somehow receives dependency metadata that failed command-level gating, stop with `DEPENDENCY_GATE_NOT_SATISFIED` and leave candidate status unchanged.
 - If `Output:` is missing or does not identify an `int_*` or mart-level model path or model name, mark only this candidate `blocked`.
 - If `Validation:` is missing, ambiguous, or names missing required models, mark only this candidate `blocked`.
 
