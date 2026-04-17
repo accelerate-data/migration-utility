@@ -156,6 +156,15 @@ class TestDeriveSchemaTests:
         assert tests["entity_integrity"][0]["column"] == "order_id"
         assert tests["entity_integrity"][1]["column"] == "line_id"
 
+    def test_typed_profile_legacy_pk_column_produces_entity_integrity(self) -> None:
+        profile = TableProfileSection.model_validate({
+            "primary_key": {"column": "sale_id", "primary_key_type": "surrogate"},
+        })
+        tests = derive_schema_tests(profile)
+        assert tests["entity_integrity"] == [
+            {"column": "sale_id", "tests": ["unique", "not_null"]}
+        ]
+
     def test_fk_produces_relationships(self) -> None:
         profile = {
             "foreign_keys": [
@@ -173,8 +182,30 @@ class TestDeriveSchemaTests:
         assert ri["to"] == "ref('dimcustomer')"
         assert ri["field"] == "customer_sk"
 
+    def test_typed_profile_legacy_fk_columns_produces_relationships(self) -> None:
+        profile = TableProfileSection.model_validate({
+            "foreign_keys": [
+                {
+                    "columns": ["customer_sk"],
+                    "references_table": "silver.dimcustomer",
+                    "references_column": "customer_sk",
+                }
+            ],
+        })
+        tests = derive_schema_tests(profile)
+        assert tests["referential_integrity"] == [
+            {"column": "customer_sk", "to": "ref('dimcustomer')", "field": "customer_sk"}
+        ]
+
     def test_watermark_produces_recency(self) -> None:
         profile = {"watermark": {"column": "load_date"}}
+        tests = derive_schema_tests(profile)
+        assert tests["recency"] == {"column": "load_date"}
+
+    def test_typed_profile_legacy_watermark_columns_produces_recency(self) -> None:
+        profile = TableProfileSection.model_validate({
+            "watermark": {"columns": ["load_date"]},
+        })
         tests = derive_schema_tests(profile)
         assert tests["recency"] == {"column": "load_date"}
 
@@ -193,6 +224,13 @@ class TestDeriveSchemaTests:
         tests = derive_schema_tests(profile)
         assert len(tests["pii"]) == 2
         assert tests["pii"][0] == {"column": "email", "suggested_action": "mask"}
+
+    def test_typed_profile_legacy_pii_action_produces_suggested_action(self) -> None:
+        profile = TableProfileSection.model_validate({
+            "pii_actions": [{"column": "email", "action": "drop"}],
+        })
+        tests = derive_schema_tests(profile)
+        assert tests["pii"] == [{"column": "email", "suggested_action": "drop"}]
 
     def test_empty_profile_returns_empty_tests(self) -> None:
         tests = derive_schema_tests({})
