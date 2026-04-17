@@ -198,6 +198,112 @@ test('fails when a consumer contains an expected absent model ref', () => {
   });
 });
 
+test('fails when a listed unchanged model content differs from fixture', () => {
+  withRunProject((root, runPath) => {
+    writeHappyPathPlan(root);
+    writeFile(root, 'dbt/models/intermediate/int_sales_orders.sql', "select * from {{ source('bronze', 'orders') }}\n");
+    writeFile(root, 'dbt/models/marts/fct_sales.sql', "select * from {{ source('silver', 'sales_orders') }}\n");
+
+    const fixtureRoot = path.join(root, 'fixture');
+    writeFile(fixtureRoot, 'dbt/models/intermediate/int_sales_orders.sql', "select * from {{ source('bronze', 'orders') }}\n");
+    writeFile(fixtureRoot, 'dbt/models/marts/fct_sales.sql', "select * from {{ source('silver', 'sales_orders') }}\n");
+
+    writeFile(root, 'dbt/models/marts/fct_sales.sql', "select * from {{ ref('int_sales_orders') }}\n");
+
+    const result = check('blocked skipped', {
+      vars: {
+        fixture_path: path.relative(path.resolve(__dirname, '..', '..', '..'), fixtureRoot),
+        run_path: runPath,
+        plan_file: 'docs/design/plan.md',
+        expected_candidate_statuses: 'STG-001:applied,INT-001:applied,MART-001:applied',
+        expected_unchanged_models: 'int_sales_orders,fct_sales',
+        expected_validation_results: 'INT-001,MART-001',
+      },
+    });
+
+    assert.equal(result.pass, false);
+    assert.match(result.reason, /Expected model fct_sales to remain unchanged/);
+  });
+});
+
+test('fails when expected ref appears only in a SQL comment', () => {
+  withRunProject((root, runPath) => {
+    writeHappyPathPlan(root);
+    writeFile(root, 'dbt/models/intermediate/int_sales_orders.sql', "-- {{ ref('stg_bronze__orders') }}\nselect * from {{ source('bronze', 'orders') }}\n");
+    writeFile(root, 'dbt/models/marts/fct_sales.sql', "-- {{ ref('int_sales_orders') }}\nselect * from {{ source('silver', 'sales_orders') }}\n");
+
+    const result = check('applied int_sales_orders fct_sales', {
+      vars: {
+        run_path: runPath,
+        plan_file: 'docs/design/plan.md',
+        expected_candidate_statuses: 'STG-001:applied,INT-001:applied,MART-001:applied',
+        expected_model_refs: 'fct_sales:int_sales_orders',
+        expected_validation_results: 'INT-001,MART-001',
+      },
+    });
+
+    assert.equal(result.pass, false);
+    assert.match(result.reason, /Expected consumer fct_sales to reference int_sales_orders/);
+  });
+});
+
+test('fails when the plan contains duplicate candidate IDs', () => {
+  withRunProject((root, runPath) => {
+    writeFile(root, 'docs/design/plan.md', `# Refactor Mart Plan
+
+## Candidate: INT-001
+
+- [x] Approve: yes
+- Type: int
+- Output: dbt/models/intermediate/int_sales_orders.sql
+- Depends on: STG-001
+- Validation: dbt build --select int_sales_orders
+- Execution status: blocked
+- Blocked reason: dependency STG-001 is planned
+
+## Candidate: INT-001
+
+- [x] Approve: yes
+- Type: int
+- Output: dbt/models/intermediate/int_sales_orders.sql
+- Depends on: STG-001
+- Validation: dbt build --select int_sales_orders
+- Execution status: blocked
+- Blocked reason: dependency STG-001 is planned
+`);
+
+    const result = check('blocked skipped', {
+      vars: {
+        run_path: runPath,
+        plan_file: 'docs/design/plan.md',
+        expected_candidate_statuses: 'INT-001:blocked',
+        expected_blocked_reasons: 'INT-001',
+      },
+    });
+
+    assert.equal(result.pass, false);
+    assert.match(result.reason, /Duplicate candidate ID found: INT-001/);
+  });
+});
+
+test('fails when the plan contains an unexpected candidate ID', () => {
+  withRunProject((root, runPath) => {
+    writeHappyPathPlan(root);
+
+    const result = check('applied int_sales_orders fct_sales', {
+      vars: {
+        run_path: runPath,
+        plan_file: 'docs/design/plan.md',
+        expected_candidate_statuses: 'STG-001:applied,INT-001:applied',
+        expected_validation_results: 'INT-001',
+      },
+    });
+
+    assert.equal(result.pass, false);
+    assert.match(result.reason, /Unexpected candidate ID found: MART-001/);
+  });
+});
+
 test('fails when an applied higher-layer output is missing', () => {
   withRunProject((root, runPath) => {
     writeHappyPathPlan(root);

@@ -31,10 +31,12 @@
 - Type: int
 - Output: dbt/models/intermediate/int_sales_orders.sql
 - Depends on: STG-001
-- Validation: dbt build --select int_sales_orders
+- Validation: dbt build --select int_sales_orders int_sales_orders_validation
 - Execution status: planned
 
-Rewrite `int_sales_orders` so it references `stg_bronze__orders`.
+Rewrite `int_sales_orders` so it references `stg_bronze__orders`. Validate the
+rewritten output with `int_sales_orders_validation`; that validation model
+contains the `EVAL_VALIDATION_FAIL` marker used by this fixture.
 
 ## Candidate: MART-001
 

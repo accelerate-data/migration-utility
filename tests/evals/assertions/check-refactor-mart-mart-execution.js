@@ -90,6 +90,14 @@ function findModelFile(runRoot, modelName) {
   );
 }
 
+function modelOrPathFile(root, modelOrPath) {
+  const normalized = modelOrPath.replace(/\\/g, '/');
+  if (normalized.endsWith('.sql') || normalized.includes('/')) {
+    return path.resolve(root, normalized);
+  }
+  return findModelFile(root, normalized.toLowerCase());
+}
+
 function outputFilePath(runRoot, output) {
   const normalized = output.replace(/\\/g, '/');
   if (normalized.endsWith('.sql')) {
@@ -135,9 +143,15 @@ function verifyHigherLayerOutput(runRoot, section, type) {
   return null;
 }
 
+function stripSqlComments(sql) {
+  return sql
+    .replace(/\/\*[\s\S]*?\*\//g, '')
+    .replace(/--.*$/gm, '');
+}
+
 function hasRef(sql, modelName) {
   const escapedModel = modelName.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
-  return new RegExp(`ref\\(\\s*['"]${escapedModel}['"]\\s*\\)`, 'i').test(sql);
+  return new RegExp(`ref\\(\\s*['"]${escapedModel}['"]\\s*\\)`, 'i').test(stripSqlComments(sql));
 }
 
 function countBullets(section, field) {
@@ -150,16 +164,21 @@ module.exports = (output, context) => {
   let expectedStatuses;
   let expectedRefs;
   let expectedAbsentRefs;
+  let expectedUnchangedModels;
   try {
     expectedStatuses = parseExpectedStatuses(context.vars.expected_candidate_statuses);
     expectedRefs = parseExpectedPairs(context.vars.expected_model_refs);
     expectedAbsentRefs = parseExpectedPairs(context.vars.expected_absent_model_refs);
+    expectedUnchangedModels = normalizeTerms(context.vars.expected_unchanged_models);
   } catch (error) {
     return fail(error.message);
   }
 
   const repoRoot = path.resolve(__dirname, '..', '..', '..');
   const runRoot = path.resolve(repoRoot, resolveProjectPath(context));
+  const fixtureRoot = context.vars.fixture_path
+    ? path.resolve(repoRoot, context.vars.fixture_path)
+    : null;
   const planPath = path.join(runRoot, context.vars.plan_file);
   if (!fs.existsSync(planPath)) {
     return fail(`Plan file not found: ${planPath}`);
@@ -176,6 +195,18 @@ module.exports = (output, context) => {
   const sections = candidateSections(markdown);
   if (sections.length === 0) {
     return fail('No candidate sections found');
+  }
+
+  const expectedCandidateIds = new Set(expectedStatuses.map((expected) => expected.candidateId));
+  const seenCandidateIds = new Set();
+  for (const section of sections) {
+    if (seenCandidateIds.has(section.id)) {
+      return fail(`Duplicate candidate ID found: ${section.id}`);
+    }
+    seenCandidateIds.add(section.id);
+    if (!expectedCandidateIds.has(section.id)) {
+      return fail(`Unexpected candidate ID found: ${section.id}`);
+    }
   }
 
   for (const expected of expectedStatuses) {
@@ -245,6 +276,23 @@ module.exports = (output, context) => {
       return fail(
         `Expected consumer ${expected.consumer} not to reference ${expected.model}`,
       );
+    }
+  }
+
+  for (const modelOrPath of expectedUnchangedModels) {
+    if (!fixtureRoot) {
+      return fail('expected_unchanged_models requires fixture_path');
+    }
+    const runFile = modelOrPathFile(runRoot, modelOrPath);
+    if (!runFile || !fs.existsSync(runFile)) {
+      return fail(`Expected unchanged run model not found: ${modelOrPath}`);
+    }
+    const fixtureFile = modelOrPathFile(fixtureRoot, modelOrPath);
+    if (!fixtureFile || !fs.existsSync(fixtureFile)) {
+      return fail(`Expected unchanged fixture model not found: ${modelOrPath}`);
+    }
+    if (fs.readFileSync(runFile, 'utf8') !== fs.readFileSync(fixtureFile, 'utf8')) {
+      return fail(`Expected model ${modelOrPath} to remain unchanged`);
     }
   }
 

@@ -65,6 +65,7 @@ tests:
       expected_output_terms: "blocked,skipped"
       expected_blocked_reasons: "INT-001,MART-001"
       expected_absent_model_refs: "int_sales_orders:stg_bronze__orders,fct_sales:int_sales_orders"
+      expected_unchanged_models: "int_sales_orders,fct_sales"
     assert:
       - type: javascript
         value: file://../../assertions/check-refactor-mart-mart-execution.js
@@ -78,6 +79,7 @@ tests:
       expected_output_terms: "failed,blocked"
       expected_validation_results: "INT-001"
       expected_blocked_reasons: "MART-001"
+      expected_model_refs: "int_sales_orders:stg_bronze__orders"
       expected_absent_model_refs: "fct_sales:int_sales_orders"
     assert:
       - type: javascript

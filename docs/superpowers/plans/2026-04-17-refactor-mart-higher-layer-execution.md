@@ -442,7 +442,7 @@ node --test tests/evals/assertions/check-refactor-mart-stg-execution.test.js tes
 
 Expected: pass.
 
-Evidence: assertion tests passed 16/16.
+Evidence: combined assertion command passed 20/20.
 
 - [x] **Step 10: Run command eval**
 
