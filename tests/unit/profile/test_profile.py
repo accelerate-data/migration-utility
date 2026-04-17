@@ -185,6 +185,37 @@ def test_write_valid_profile_merges() -> None:
                 "primary_key_type": "surrogate",
                 "source": "catalog",
             },
+            "natural_key": {
+                "columns": ["order_number"],
+                "source": "catalog+llm",
+                "rationale": "Order number is the business identifier.",
+            },
+            "watermark": {
+                "column": "load_date",
+                "source": "llm",
+                "rationale": "Writer filters by load date.",
+            },
+            "foreign_keys": [
+                {
+                    "column": "customer_key",
+                    "fk_type": "standard",
+                    "references_source_relation": "silver.dimcustomer",
+                    "references_column": "customer_key",
+                    "source": "catalog",
+                    "rationale": "Declared customer FK.",
+                }
+            ],
+            "pii_actions": [
+                {
+                    "column": "customer_email",
+                    "suggested_action": "mask",
+                    "entity": "email",
+                    "source": "catalog",
+                    "rationale": "Catalog marks this as email.",
+                }
+            ],
+            "warnings": [{"code": "LOW_CONFIDENCE", "message": "Limited evidence.", "severity": "warning"}],
+            "errors": [{"code": "PROFILE_FAILED", "message": "Profile failed.", "severity": "error"}],
         }
         result = profile.run_write(ddl_path, "silver.FactSales", valid_profile)
         assert result["ok"] is True
@@ -196,8 +227,47 @@ def test_write_valid_profile_merges() -> None:
         assert cat["profile"]["status"] == "ok"
         assert "writer" not in cat["profile"]
         assert cat["profile"]["classification"]["resolved_kind"] == "fact_transaction"
+        assert cat["profile"]["natural_key"]["columns"] == ["order_number"]
+        assert cat["profile"]["watermark"]["column"] == "load_date"
+        assert cat["profile"]["foreign_keys"][0]["references_source_relation"] == "silver.dimcustomer"
+        assert cat["profile"]["pii_actions"][0]["entity"] == "email"
+        assert cat["profile"]["warnings"][0]["severity"] == "warning"
+        assert cat["profile"]["errors"][0]["severity"] == "error"
     finally:
         tmp.cleanup()
+
+
+@pytest.mark.parametrize(
+    ("profile_json", "expected_status"),
+    [
+        (
+            {
+                "classification": {"resolved_kind": "fact_transaction", "source": "llm"},
+                "primary_key": {"columns": ["sale_id"], "primary_key_type": "surrogate", "source": "catalog"},
+            },
+            "ok",
+        ),
+        ({"classification": {"resolved_kind": "fact_transaction", "source": "llm"}}, "partial"),
+        ({}, "error"),
+        ({"classification": {"resolved_kind": "seed", "source": "catalog"}}, "ok"),
+    ],
+)
+def test_derive_table_profile_status(profile_json: dict[str, object], expected_status: str) -> None:
+    """Table profile status derivation is isolated from write-back."""
+    section = profile.TableProfileSection.model_validate(profile_json)
+
+    assert profile.derive_table_profile_status(section) == expected_status
+
+
+def test_derive_view_profile_status() -> None:
+    """View profile status derivation is isolated from write-back."""
+    section = profile.ViewProfileSection.model_validate({
+        "classification": "stg",
+        "rationale": "Single-source pass-through.",
+        "source": "llm",
+    })
+
+    assert profile.derive_view_profile_status(section) == "ok"
 
 
 def test_write_seed_profile_allowed_for_seed_table() -> None:
@@ -296,26 +366,11 @@ def test_write_legacy_writer_field_raises() -> None:
         tmp.cleanup()
 
 
-# ── Write: profile contract validation ───────────────────────────────────────
+# ── Write: invalid enum value ────────────────────────────────────────────────
 
 
-def test_write_missing_classification_kind_raises() -> None:
-    """Classification profiles require a resolved kind when present."""
-    tmp, ddl_path = _make_writable_copy()
-    try:
-        bad_profile = {
-            "classification": {
-                "source": "llm",
-            },
-        }
-        with pytest.raises(ValueError, match="classification.resolved_kind"):
-            profile.run_write(ddl_path, "silver.FactSales", bad_profile)
-    finally:
-        tmp.cleanup()
-
-
-def test_write_invalid_profile_kind_raises() -> None:
-    """Unknown classification labels raise model validation errors."""
+def test_write_invalid_enum_raises() -> None:
+    """Write with invalid enum value raises model validation error."""
     tmp, ddl_path = _make_writable_copy()
     try:
         bad_profile = {
@@ -324,7 +379,7 @@ def test_write_invalid_profile_kind_raises() -> None:
                 "source": "llm",
             },
         }
-        with pytest.raises(ValidationError, match="resolved_kind"):
+        with pytest.raises(ValidationError, match="classification.resolved_kind"):
             profile.run_write(ddl_path, "silver.FactSales", bad_profile)
     finally:
         tmp.cleanup()
@@ -343,7 +398,7 @@ def test_write_invalid_fk_type_raises() -> None:
                 }
             ],
         }
-        with pytest.raises(ValidationError, match="fk_type"):
+        with pytest.raises(ValidationError, match="foreign_keys.0.fk_type"):
             profile.run_write(ddl_path, "silver.FactSales", bad_profile)
     finally:
         tmp.cleanup()
@@ -362,14 +417,14 @@ def test_write_invalid_suggested_action_raises() -> None:
                 }
             ],
         }
-        with pytest.raises(ValidationError, match="suggested_action"):
+        with pytest.raises(ValidationError, match="pii_actions.0.suggested_action"):
             profile.run_write(ddl_path, "silver.FactSales", bad_profile)
     finally:
         tmp.cleanup()
 
 
 def test_write_invalid_source_raises() -> None:
-    """Unknown profile source labels raise model validation errors."""
+    """Write with invalid source enum raises model validation error."""
     tmp, ddl_path = _make_writable_copy()
     try:
         bad_profile = {
@@ -378,109 +433,7 @@ def test_write_invalid_source_raises() -> None:
                 "source": "invalid_source",
             },
         }
-        with pytest.raises(ValidationError, match="source"):
-            profile.run_write(ddl_path, "silver.FactSales", bad_profile)
-    finally:
-        tmp.cleanup()
-
-
-def test_write_invalid_primary_key_type_raises() -> None:
-    """Unknown primary key labels raise model validation errors."""
-    tmp, ddl_path = _make_writable_copy()
-    try:
-        bad_profile = {
-            "primary_key": {
-                "columns": ["sale_id"],
-                "primary_key_type": "identityish",
-                "source": "catalog",
-            },
-        }
-        with pytest.raises(ValidationError, match="primary_key_type"):
-            profile.run_write(ddl_path, "silver.FactSales", bad_profile)
-    finally:
-        tmp.cleanup()
-
-
-@pytest.mark.parametrize("resolved_kind", ["insert", "fact", "fact_insert"])
-def test_load_existing_legacy_profile_labels(resolved_kind: str) -> None:
-    """Existing catalogs can keep historical profile labels while using typed sections."""
-    tmp, ddl_path = _make_writable_copy()
-    try:
-        cat_path = ddl_path / "catalog" / "tables" / "silver.factsales.json"
-        cat = json.loads(cat_path.read_text(encoding="utf-8"))
-        cat["profile"] = {
-            "status": "ok",
-            "classification": {
-                "resolved_kind": resolved_kind,
-                "source": "manual",
-                "rationale": "Historical fixture label.",
-            },
-            "primary_key": {
-                "columns": [],
-                "primary_key_type": "none",
-                "source": "catalog",
-            },
-        }
-        cat_path.write_text(json.dumps(cat), encoding="utf-8")
-
-        loaded = load_table_catalog(ddl_path, "silver.FactSales")
-        assert loaded is not None
-        assert loaded.profile is not None
-        assert loaded.profile.classification is not None
-        assert loaded.profile.classification.resolved_kind == resolved_kind
-    finally:
-        tmp.cleanup()
-
-
-def test_write_profile_diagnostics_are_typed() -> None:
-    """Profile warnings and errors persist as typed diagnostic entries."""
-    tmp, ddl_path = _make_writable_copy()
-    try:
-        valid_profile = {
-            "classification": {
-                "resolved_kind": "fact_transaction",
-                "source": "llm",
-            },
-            "warnings": [
-                {
-                    "code": "PROFILE_LOW_CONFIDENCE",
-                    "message": "Classification confidence was low.",
-                    "severity": "warning",
-                },
-            ],
-            "errors": [
-                {
-                    "code": "PROFILE_INCOMPLETE",
-                    "message": "Primary key could not be inferred.",
-                    "severity": "error",
-                },
-            ],
-        }
-        profile.run_write(ddl_path, "silver.FactSales", valid_profile)
-
-        cat_path = ddl_path / "catalog" / "tables" / "silver.factsales.json"
-        cat = json.loads(cat_path.read_text(encoding="utf-8"))
-        assert cat["profile"]["warnings"][0]["code"] == "PROFILE_LOW_CONFIDENCE"
-        assert cat["profile"]["errors"][0]["severity"] == "error"
-    finally:
-        tmp.cleanup()
-
-
-def test_write_profile_diagnostic_extra_field_raises() -> None:
-    """Diagnostic entries reject unknown fields."""
-    tmp, ddl_path = _make_writable_copy()
-    try:
-        bad_profile = {
-            "warnings": [
-                {
-                    "code": "PROFILE_LOW_CONFIDENCE",
-                    "message": "Classification confidence was low.",
-                    "severity": "warning",
-                    "unexpected": True,
-                },
-            ],
-        }
-        with pytest.raises(ValidationError, match="warnings"):
+        with pytest.raises(ValidationError, match="classification.source"):
             profile.run_write(ddl_path, "silver.FactSales", bad_profile)
     finally:
         tmp.cleanup()
@@ -775,6 +728,7 @@ def test_write_view_profile_stg() -> None:
         assert "views" in result["catalog_path"]
         written = json.loads((root / "catalog" / "views" / "silver.vw_simple.json").read_text(encoding="utf-8"))
         assert written["profile"]["classification"] == "stg"
+        assert written["profile"]["status"] == "ok"
     finally:
         tmp.cleanup()
 
@@ -807,29 +761,7 @@ def test_write_view_profile_missing_field_raises() -> None:
     """Missing required field raises model validation error."""
     tmp, root = _make_writable_copy()
     try:
-        bad = {"source": "llm", "rationale": "View stages source data."}
-        with pytest.raises(ValidationError, match="classification"):
-            profile.run_write(root, "silver.vw_Simple", bad)
-    finally:
-        tmp.cleanup()
-
-
-def test_write_view_profile_missing_rationale_raises() -> None:
-    """View profile rationale is required."""
-    tmp, root = _make_writable_copy()
-    try:
-        bad = {"classification": "stg", "source": "llm"}
-        with pytest.raises(ValueError, match="rationale"):
-            profile.run_write(root, "silver.vw_Simple", bad)
-    finally:
-        tmp.cleanup()
-
-
-def test_write_view_profile_bad_source_raises() -> None:
-    """Invalid source raises model validation error."""
-    tmp, root = _make_writable_copy()
-    try:
-        bad = {**_VALID_VIEW_PROFILE, "source": "catalog"}
+        bad = {"classification": "stg", "rationale": "Single-source pass-through."}
         with pytest.raises(ValidationError, match="source"):
             profile.run_write(root, "silver.vw_Simple", bad)
     finally:

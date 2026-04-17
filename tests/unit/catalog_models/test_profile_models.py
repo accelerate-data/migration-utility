@@ -75,14 +75,66 @@ def test_table_profile_accepts_valid_nested_sections() -> None:
     assert section.errors[0].severity == "error"
 
 
+def test_table_profile_accepts_current_legacy_payload_values() -> None:
+    section = TableProfileSection.model_validate({
+        "status": "ok",
+        "classification": {
+            "resolved_kind": "fact_insert",
+            "source": "manual",
+            "confidence": "high",
+            "rationale": "Existing eval fixture profile.",
+        },
+        "primary_key": {
+            "column": "LegacyKey",
+            "columns": [],
+            "primary_key_type": "none",
+            "source": "catalog",
+        },
+        "natural_key": ["EmployeeNaturalKey"],
+        "watermark": {
+            "columns": ["LastSeenDate"],
+            "strategy": "timestamp",
+            "watermark_type": "date_partitioned",
+        },
+        "foreign_keys": [
+            {
+                "columns": ["ProcedureKey"],
+                "references_table": "silver.DimProcedure",
+                "fk_type": "standard",
+            }
+        ],
+        "pii_actions": [{"column": "EmailAddress", "action": "mask"}],
+        "warnings": [{"code": "LOW_CONFIDENCE", "message": "Existing warning.", "severity": "medium"}],
+    })
+
+    assert section.classification is not None
+    assert section.classification.resolved_kind == "fact_insert"
+    assert section.classification.source == "manual"
+    assert section.primary_key is not None
+    assert section.primary_key.primary_key_type == "none"
+    assert section.primary_key.column == "LegacyKey"
+    assert section.natural_key is not None
+    assert section.natural_key.columns == ["EmployeeNaturalKey"]
+    assert section.watermark is not None
+    assert section.watermark.columns == ["LastSeenDate"]
+    assert section.foreign_keys[0].references_table == "silver.DimProcedure"
+    assert section.pii_actions[0].action == "mask"
+    assert section.warnings[0].severity == "medium"
+
+
 @pytest.mark.parametrize(
     ("field_path", "value"),
     [
         (("classification", "resolved_kind"), "invalid_kind"),
         (("classification", "source"), "spreadsheet"),
         (("primary_key", "primary_key_type"), "business"),
+        (("primary_key", "source"), "spreadsheet"),
+        (("natural_key", "source"), "spreadsheet"),
+        (("watermark", "source"), "spreadsheet"),
         (("foreign_keys", 0, "fk_type"), "snowflake"),
+        (("foreign_keys", 0, "source"), "spreadsheet"),
         (("pii_actions", 0, "suggested_action"), "encrypt"),
+        (("pii_actions", 0, "source"), "spreadsheet"),
     ],
 )
 def test_table_profile_rejects_invalid_enum_values(field_path: tuple[object, ...], value: str) -> None:

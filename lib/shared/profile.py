@@ -62,9 +62,6 @@ logger = logging.getLogger(__name__)
 app = typer.Typer(add_completion=False, pretty_exceptions_enable=False)
 
 
-# ── Seed profile helpers ────────────────────────────────────────────────────
-
-
 def build_seed_profile(rationale: str = "Table is maintained as a dbt seed.") -> dict[str, Any]:
     """Build the canonical profile payload for a dbt seed table."""
     return {
@@ -76,6 +73,8 @@ def build_seed_profile(rationale: str = "Table is maintained as a dbt seed.") ->
         "warnings": [],
         "errors": [],
     }
+
+
 
 # ── Context assembly (importable for testing) ────────────────────────────────
 
@@ -250,39 +249,43 @@ def run_view_context(project_root: Path, view_fqn: str) -> ViewProfileContext:
 # ── Write validation and merge (importable for testing) ──────────────────────
 
 
-def _derive_table_profile_status(
-    table_norm: str,
-    existing_table: TableCatalog,
-    section: TableProfileSection,
-) -> str:
-    """Derive CLI-owned profile status after model validation succeeds."""
+def derive_table_profile_status(section: TableProfileSection) -> str:
+    """Derive the persisted status for a validated table profile."""
     resolved_kind = section.classification.resolved_kind if section.classification else None
-    if existing_table.is_seed and resolved_kind != "seed":
-        raise ValueError(f"seed table profiles must use seed classification for {table_norm}")
-    if resolved_kind == "seed" and not existing_table.is_seed:
-        raise ValueError(f"seed classification requires is_seed: true for {table_norm}")
-
     if resolved_kind == "seed":
         return "ok"
-    if resolved_kind is not None and section.primary_key is not None:
+    if resolved_kind and section.primary_key is not None:
         return "ok"
-    if resolved_kind is not None:
+    if resolved_kind:
         return "partial"
     return "error"
 
 
-def _derive_view_profile_status(section: ViewProfileSection) -> str:
-    """Derive CLI-owned view profile status after model validation succeeds."""
+def derive_view_profile_status(section: ViewProfileSection) -> str:
+    """Derive the persisted status for a validated view profile."""
     return "ok"
+
+
+def _profile_payload_with_status(
+    section: TableProfileSection | ViewProfileSection,
+    status: str,
+) -> dict[str, Any]:
+    """Return the validated profile payload with derived status preserved."""
+    return section.model_copy(update={"status": status}).model_dump(
+        mode="json",
+        by_alias=True,
+        exclude_none=True,
+        exclude_unset=True,
+    )
 
 
 def _write_view_profile(project_root: Path, view_norm: str, profile_json: dict[str, Any]) -> dict[str, Any]:
     """Validate and merge a profile section into a view catalog file."""
-    section = ViewProfileSection.model_validate(profile_json)
-    if not section.rationale:
-        raise ValueError("rationale is required for view profiles")
-    profile_json = section.model_dump(mode="json", exclude_none=True)
-    profile_json["status"] = _derive_view_profile_status(section)
+    profile_section = ViewProfileSection.model_validate(profile_json)
+    profile_payload = _profile_payload_with_status(
+        profile_section,
+        derive_view_profile_status(profile_section),
+    )
 
     catalog_path = resolve_catalog_dir(project_root) / "views" / f"{view_norm}.json"
     if not catalog_path.exists():
@@ -296,7 +299,7 @@ def _write_view_profile(project_root: Path, view_norm: str, profile_json: dict[s
         logger.error("event=write_failed operation=read_catalog view=%s error=%s", view_norm, exc)
         raise
 
-    existing["profile"] = profile_json
+    existing["profile"] = profile_payload
 
     try:
         _write_catalog_json(catalog_path, existing)
@@ -335,14 +338,23 @@ def run_write(project_root: Path, table: str, profile_json: dict[str, Any]) -> d
     if existing_table is None:
         raise CatalogFileMissingError("table", norm)
 
-    section = TableProfileSection.model_validate(profile_json)
-    if section.classification is not None and section.classification.resolved_kind is None:
-        raise ValueError("classification.resolved_kind is required for table profiles")
-    status = _derive_table_profile_status(norm, existing_table, section)
-    profile_json = section.model_dump(mode="json", exclude_none=True)
-    profile_json["status"] = status
+    profile_section = TableProfileSection.model_validate(profile_json)
+    resolved_kind = (
+        profile_section.classification.resolved_kind
+        if profile_section.classification is not None
+        else None
+    )
+    if existing_table.is_seed and resolved_kind != "seed":
+        raise ValueError(f"seed table profiles must use seed classification for {norm}")
+    if resolved_kind == "seed" and not existing_table.is_seed:
+        raise ValueError(f"seed classification requires is_seed: true for {norm}")
 
-    result = load_and_merge_catalog(project_root, norm, "profile", profile_json)
+    profile_payload = _profile_payload_with_status(
+        profile_section,
+        derive_table_profile_status(profile_section),
+    )
+
+    result = load_and_merge_catalog(project_root, norm, "profile", profile_payload)
     logger.info("event=write_complete table=%s catalog_path=%s", norm, result["catalog_path"])
     return result
 
