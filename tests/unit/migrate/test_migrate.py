@@ -12,9 +12,12 @@ from __future__ import annotations
 
 import json
 import shutil
+import time
+from concurrent.futures import ThreadPoolExecutor
 from pathlib import Path
 
 import pytest
+import yaml
 
 from shared.loader import CatalogFileMissingError, CatalogLoadError, ProfileMissingError
 from shared.migrate import (
@@ -25,6 +28,7 @@ from shared.migrate import (
     run_write,
     run_write_generate,
 )
+from shared.output_models.migrate import MigrateWriteGenerateOutput
 
 FIXTURES = Path(__file__).parent / "fixtures"
 
@@ -701,7 +705,7 @@ class TestRunWrite:
 
     def test_write_snapshot_routes_to_snapshots_dir(self, dbt_project: Path) -> None:
         model_sql = "{% snapshot dim_employee_scd2 %}\nselect 1 as id\n{% endsnapshot %}"
-        schema_yml = "version: 2\nmodels:\n  - name: dim_employee_scd2\n"
+        schema_yml = "version: 2\nsnapshots:\n  - name: dim_employee_scd2\n"
 
         result = run_write(
             "silver.DimEmployeeSCD2",
@@ -720,6 +724,20 @@ class TestRunWrite:
         snapshot_yml = (dbt_project / "snapshots" / "_snapshots__models.yml").read_text()
         assert "snapshots:" in snapshot_yml
         assert "name: dim_employee_scd2" in snapshot_yml
+
+    def test_write_snapshot_rejects_model_yaml_fallback(self, dbt_project: Path) -> None:
+        """Snapshot YAML must use snapshots:, not silently fall back from models:."""
+        model_sql = "{% snapshot dim_employee_scd2 %}\nselect 1 as id\n{% endsnapshot %}"
+        schema_yml = "version: 2\nmodels:\n  - name: dim_employee_scd2\n"
+
+        with pytest.raises(ValueError, match="Snapshot schema YAML must use top-level snapshots"):
+            run_write(
+                "silver.DimEmployeeSCD2",
+                Path("/tmp"),
+                dbt_project,
+                model_sql,
+                schema_yml,
+            )
 
     def test_write_empty_sql_raises(self, dbt_project: Path) -> None:
         with pytest.raises(ValueError, match="model SQL is empty"):
@@ -751,6 +769,52 @@ class TestRunWrite:
 
         sql_file = dbt_project / "models" / "marts" / "factsales.sql"
         assert sql_file.read_text() == model_sql
+
+    def test_write_parallel_model_yaml_preserves_sibling_entries(
+        self,
+        dbt_project: Path,
+        monkeypatch: pytest.MonkeyPatch,
+    ) -> None:
+        """Concurrent mart writes merge into shared YAML without dropping siblings."""
+        from shared.migrate_support import artifacts
+
+        original_atomic_write = artifacts._atomic_write
+
+        def delayed_atomic_write(path: Path, content: str) -> None:
+            if path.name == "_marts__models.yml":
+                time.sleep(0.05)
+            original_atomic_write(path, content)
+
+        monkeypatch.setattr(artifacts, "_atomic_write", delayed_atomic_write)
+
+        writes = [
+            (
+                "silver.FactSales",
+                "select 1 as fact_id",
+                "version: 2\nmodels:\n  - name: factsales\n",
+            ),
+            (
+                "silver.DimCustomer",
+                "select 1 as customer_id",
+                "version: 2\nmodels:\n  - name: dimcustomer\n",
+            ),
+        ]
+
+        with ThreadPoolExecutor(max_workers=2) as executor:
+            futures = [
+                executor.submit(run_write, table, Path("/tmp"), dbt_project, sql, yml)
+                for table, sql, yml in writes
+            ]
+            for future in futures:
+                future.result()
+
+        schema = yaml.safe_load(
+            (dbt_project / "models" / "marts" / "_marts__models.yml").read_text(
+                encoding="utf-8"
+            )
+        )
+        model_names = {model["name"] for model in schema["models"]}
+        assert model_names == {"factsales", "dimcustomer"}
 
     def test_write_creates_marts_dir_if_missing(self, tmp_path: Path) -> None:
         """Write creates models/marts/ if it doesn't exist."""
@@ -917,9 +981,10 @@ def test_write_generate_ok(tmp_path: Path) -> None:
         schema_yml=True,
     )
 
-    assert result["status"] == "ok"
-    assert result["ok"] is True
-    assert result["table"] == fqn
+    assert isinstance(result, MigrateWriteGenerateOutput)
+    assert result.status == "ok"
+    assert result.ok is True
+    assert result.table == fqn
 
     cat = json.loads((tmp_path / "catalog" / "tables" / f"{fqn}.json").read_text())
     assert cat["generate"]["status"] == "ok"
@@ -944,7 +1009,8 @@ def test_write_generate_error_file_missing(tmp_path: Path) -> None:
         schema_yml=True,
     )
 
-    assert result["status"] == "error"
+    assert isinstance(result, MigrateWriteGenerateOutput)
+    assert result.status == "error"
 
 
 def test_write_generate_partial_tests_failed(tmp_path: Path) -> None:
@@ -962,7 +1028,8 @@ def test_write_generate_partial_tests_failed(tmp_path: Path) -> None:
         schema_yml=True,
     )
 
-    assert result["status"] == "partial"
+    assert isinstance(result, MigrateWriteGenerateOutput)
+    assert result.status == "partial"
     cat = json.loads((tmp_path / "catalog" / "tables" / f"{fqn}.json").read_text())
     assert cat["generate"]["status"] == "partial"
 
@@ -1004,8 +1071,9 @@ def test_write_generate_view_autodetect(tmp_path: Path) -> None:
         schema_yml=False,
     )
 
-    assert result["status"] == "ok"
-    assert "views" in result["catalog_path"]
+    assert isinstance(result, MigrateWriteGenerateOutput)
+    assert result.status == "ok"
+    assert "views" in result.catalog_path
 
     cat = json.loads((tmp_path / "catalog" / "views" / f"{fqn}.json").read_text())
     assert cat["generate"]["status"] == "ok"

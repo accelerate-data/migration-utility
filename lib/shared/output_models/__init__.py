@@ -50,6 +50,7 @@ _MODEL_MODULES = {
     "ScaffoldHooksOutput": "init",
     "ScaffoldProjectOutput": "init",
     "MigrateContextOutput": "migrate",
+    "MigrateWriteGenerateOutput": "migrate",
     "MigrateWriteOutput": "migrate",
     "RenderUnitTestsOutput": "migrate",
     "ArtifactPaths": "model_generation",

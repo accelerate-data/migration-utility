@@ -35,6 +35,15 @@ class MigrateWriteOutput(BaseModel):
     status: Literal["ok"]
 
 
+class MigrateWriteGenerateOutput(BaseModel):
+    model_config = OUTPUT_CONFIG
+
+    ok: bool
+    table: str
+    catalog_path: str
+    status: Literal["ok", "partial", "error"]
+
+
 class RenderUnitTestsOutput(BaseModel):
     model_config = OUTPUT_CONFIG
 

@@ -2,6 +2,9 @@
 
 from __future__ import annotations
 
+from contextlib import contextmanager
+import fcntl
+import hashlib
 import json
 import logging
 import re
@@ -11,10 +14,15 @@ from typing import Any
 import yaml
 
 from shared.catalog import load_and_merge_catalog
-from shared.catalog_models import DiagnosticsEntry
-from shared.env_config import resolve_dbt_project_path
+from shared.catalog_models import DiagnosticsEntry, GenerateSection
+from shared.env_config import resolve_catalog_dir, resolve_dbt_project_path
 from shared.name_resolver import model_name_from_table, normalize
-from shared.output_models import MigrateWriteOutput, RenderUnitTestsOutput, TestSpec
+from shared.output_models import (
+    MigrateWriteGenerateOutput,
+    MigrateWriteOutput,
+    RenderUnitTestsOutput,
+    TestSpec,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -30,9 +38,30 @@ def _atomic_write(path: Path, content: str) -> None:
         raise
 
 
+@contextmanager
+def _artifact_lock(project_root: Path, artifact_path: Path):
+    digest = hashlib.sha256(str(artifact_path.resolve()).encode("utf-8")).hexdigest()[:16]
+    lock_dir = project_root / ".staging" / "locks"
+    lock_dir.mkdir(parents=True, exist_ok=True)
+    lock_path = lock_dir / f"{digest}.lock"
+    with lock_path.open("a+", encoding="utf-8") as lock_file:
+        fcntl.flock(lock_file.fileno(), fcntl.LOCK_EX)
+        try:
+            yield
+        finally:
+            fcntl.flock(lock_file.fileno(), fcntl.LOCK_UN)
+
+
 def _merge_named_yaml(existing_text: str | None, new_text: str, section: str) -> str:
     existing = yaml.safe_load(existing_text) if existing_text else None
     incoming = yaml.safe_load(new_text) if new_text.strip() else None
+    if (
+        section == "snapshots"
+        and isinstance(incoming, dict)
+        and "snapshots" not in incoming
+        and isinstance(incoming.get("models"), list)
+    ):
+        raise ValueError("Snapshot schema YAML must use top-level snapshots, not models")
 
     schema: dict[str, Any] = existing if isinstance(existing, dict) else {"version": 2}
     if "version" not in schema:
@@ -47,11 +76,6 @@ def _merge_named_yaml(existing_text: str | None, new_text: str, section: str) ->
     if isinstance(incoming, dict) and isinstance(incoming.get(section), list):
         incoming_models = [
             model for model in incoming[section]
-            if isinstance(model, dict) and model.get("name")
-        ]
-    elif section == "snapshots" and isinstance(incoming, dict) and isinstance(incoming.get("models"), list):
-        incoming_models = [
-            model for model in incoming["models"]
             if isinstance(model, dict) and model.get("name")
         ]
 
@@ -117,13 +141,14 @@ def run_write(
     written.append(str(sql_path.relative_to(dbt_project_path)))
 
     if schema_yml and schema_yml.strip():
-        existing_yml = yml_path.read_text(encoding="utf-8") if yml_path.exists() else None
-        merged_yml = (
-            _merge_snapshot_yaml(existing_yml, schema_yml)
-            if is_snapshot
-            else _merge_model_yaml(existing_yml, schema_yml)
-        )
-        _atomic_write(yml_path, merged_yml)
+        with _artifact_lock(project_root, yml_path):
+            existing_yml = yml_path.read_text(encoding="utf-8") if yml_path.exists() else None
+            merged_yml = (
+                _merge_snapshot_yaml(existing_yml, schema_yml)
+                if is_snapshot
+                else _merge_model_yaml(existing_yml, schema_yml)
+            )
+            _atomic_write(yml_path, merged_yml)
         written.append(str(yml_path.relative_to(dbt_project_path)))
 
     return MigrateWriteOutput(written=written, status="ok")
@@ -139,7 +164,7 @@ def run_write_generate(
     schema_yml: bool,
     warnings: list[dict[str, Any]] | None = None,
     errors: list[dict[str, Any]] | None = None,
-) -> dict[str, Any]:
+) -> MigrateWriteGenerateOutput:
     """Validate generate output and write generate section to catalog."""
     norm = normalize(table_fqn)
     dbt_root = resolve_dbt_project_path(project_root)
@@ -152,24 +177,29 @@ def run_write_generate(
     else:
         status = "partial"
 
-    generate: dict[str, Any] = {
-        "status": status,
-        "model_path": model_path,
-        "schema_yml": schema_yml,
-        "compiled": compiled,
-        "tests_passed": tests_passed,
-        "test_count": test_count,
-        "warnings": warnings or [],
-        "errors": errors or [],
-    }
+    generate = GenerateSection(
+        status=status,
+        model_path=model_path,
+        schema_yml=schema_yml,
+        compiled=compiled,
+        tests_passed=tests_passed,
+        test_count=test_count,
+        warnings=warnings or [],
+        errors=errors or [],
+    )
 
-    result = load_and_merge_catalog(project_root, norm, "generate", generate)
+    result = load_and_merge_catalog(
+        project_root,
+        norm,
+        "generate",
+        generate.model_dump(mode="json"),
+    )
     logger.info("event=write_generate_complete table=%s status=%s", norm, status)
-    return result
+    return MigrateWriteGenerateOutput.model_validate(result)
 
 
 def _confirmed_source_refs(project_root: Path) -> set[str]:
-    tables_dir = project_root / "catalog" / "tables"
+    tables_dir = resolve_catalog_dir(project_root) / "tables"
     if not tables_dir.is_dir():
         return set()
 

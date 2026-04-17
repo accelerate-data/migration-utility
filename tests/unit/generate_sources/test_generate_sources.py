@@ -11,6 +11,7 @@ import tempfile
 from pathlib import Path
 
 import pytest
+import yaml
 
 from shared.generate_sources import generate_sources, write_sources_yml
 
@@ -353,26 +354,80 @@ def test_write_sources_yml_writes_enriched_yaml_idempotently(tmp_path: Path) -> 
     assert "- unique" in first_content
     assert "loaded_at_field: loaded_at" in first_content
     assert customer_wrapper_path.read_text(encoding="utf-8") == (
-        "with source as (\n"
+        "with\n"
+        "\n"
+        "source as (\n"
         "\n"
         "    select * from {{ source('bronze', 'Customer') }}\n"
         "\n"
+        "),\n"
+        "\n"
+        "final as (\n"
+        "\n"
+        "    select * from source\n"
+        "\n"
         ")\n"
         "\n"
-        "select * from source\n"
+        "select * from final\n"
     )
     assert order_wrapper_path.read_text(encoding="utf-8") == (
-        "with source as (\n"
+        "with\n"
+        "\n"
+        "source as (\n"
         "\n"
         "    select * from {{ source('bronze', 'Order') }}\n"
         "\n"
+        "),\n"
+        "\n"
+        "final as (\n"
+        "\n"
+        "    select * from source\n"
+        "\n"
         ")\n"
         "\n"
-        "select * from source\n"
+        "select * from final\n"
     )
     staging_models_content = staging_models_path.read_text(encoding="utf-8")
     assert "name: stg_bronze__customer" in staging_models_content
     assert "name: stg_bronze__order" in staging_models_content
+
+
+def test_write_sources_yml_does_not_copy_source_tests_to_staging_models(
+    tmp_path: Path,
+) -> None:
+    """Staging wrapper YAML describes columns without duplicating source tests."""
+    tables_dir = tmp_path / "catalog" / "tables"
+    tables_dir.mkdir(parents=True)
+    (tables_dir / "bronze.customer.json").write_text(
+        json.dumps({
+            "schema": "bronze",
+            "name": "Customer",
+            "scoping": {"status": "no_writer_found"},
+            "is_source": True,
+            "columns": [
+                {"name": "customer_id", "sql_type": "INT", "is_nullable": False},
+                {"name": "email", "sql_type": "NVARCHAR(255)", "is_nullable": True},
+            ],
+            "primary_keys": [{"constraint_name": "PK_Customer", "columns": ["customer_id"]}],
+        }),
+        encoding="utf-8",
+    )
+
+    result = write_sources_yml(tmp_path)
+
+    assert result.path is not None
+    sources = yaml.safe_load(Path(result.path).read_text(encoding="utf-8"))
+    staging_models_path = (
+        tmp_path / "dbt" / "models" / "staging" / "_staging__models.yml"
+    )
+    staging_models = yaml.safe_load(staging_models_path.read_text(encoding="utf-8"))
+    source_columns = sources["sources"][0]["tables"][0]["columns"]
+    staging_columns = staging_models["models"][0]["columns"]
+    assert source_columns[0]["tests"] == ["not_null", "unique"]
+    assert staging_columns == [
+        {"name": "customer_id", "data_type": "INT"},
+        {"name": "email", "data_type": "NVARCHAR(255)"},
+    ]
 
 
 def test_write_sources_yml_removes_stale_staging_wrappers(tmp_path: Path) -> None:

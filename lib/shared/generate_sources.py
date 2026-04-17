@@ -379,15 +379,37 @@ def _staging_model_name(table_name: str) -> str:
     return f"stg_bronze__{model_name_from_table(normalize(table_name))}"
 
 
+def _staging_model_columns(columns: list[Any]) -> list[dict[str, Any]]:
+    staging_columns: list[dict[str, Any]] = []
+    for column in columns:
+        if not isinstance(column, dict) or not column.get("name"):
+            continue
+        staging_column = {
+            key: value
+            for key, value in column.items()
+            if key not in {"tests", "data_tests"}
+        }
+        staging_columns.append(staging_column)
+    return staging_columns
+
+
 def _render_staging_wrapper(table_name: str) -> str:
     return (
-        "with source as (\n"
+        "with\n"
+        "\n"
+        "source as (\n"
         "\n"
         f"    select * from {{{{ source('bronze', '{table_name}') }}}}\n"
         "\n"
+        "),\n"
+        "\n"
+        "final as (\n"
+        "\n"
+        "    select * from source\n"
+        "\n"
         ")\n"
         "\n"
-        "select * from source\n"
+        "select * from final\n"
     )
 
 
@@ -410,7 +432,9 @@ def _staging_models_from_sources(sources: dict[str, Any]) -> dict[str, Any]:
             }
             columns = table.get("columns")
             if isinstance(columns, list) and columns:
-                model_entry["columns"] = columns
+                model_columns = _staging_model_columns(columns)
+                if model_columns:
+                    model_entry["columns"] = model_columns
             models.append(model_entry)
     return {"version": 2, "models": models}
 

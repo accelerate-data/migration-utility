@@ -105,13 +105,23 @@ Once the review outcome is final for an item, derive `<model_name>` from item_id
 If the item final status is `error`, revert any files the skill may have partially written:
 
 ```bash
-git checkout -- dbt/models/marts/<model_name>.sql dbt/models/marts/_marts__models.yml
+git checkout -- dbt/models/marts/<model_name>.sql
 ```
 
-For snapshot artifacts, revert the snapshot paths returned by the item result:
+Do not run `git checkout` on shared aggregate YAML files such as
+`dbt/models/marts/_marts__models.yml` or
+`dbt/snapshots/_snapshots__models.yml`. Those files can contain sibling model
+entries from other successful items in the same run. If a failed item added an
+entry to shared YAML, remove only that model or snapshot entry by `name` and
+preserve every other entry. If entry-level cleanup cannot be performed safely,
+leave the shared YAML file unchanged and report the stale failed-item entry in
+the summary.
+
+For snapshot artifacts, revert only the per-item snapshot SQL path returned by
+the item result:
 
 ```bash
-git checkout -- dbt/snapshots/<snapshot_name>.sql dbt/snapshots/_snapshots__models.yml
+git checkout -- dbt/snapshots/<snapshot_name>.sql
 ```
 
 Use `rm -f` instead of `git checkout` for newly created files with no prior version.
