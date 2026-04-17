@@ -127,7 +127,7 @@ def get_connection_identity(technology: str, database: str) -> dict[str, Any]:
                 port=os.environ.get("SOURCE_ORACLE_PORT", "") or None,
                 service=os.environ.get("SOURCE_ORACLE_SERVICE", "") or None,
                 user=os.environ.get("SOURCE_ORACLE_USER", "") or None,
-                schema=database or os.environ.get("SOURCE_ORACLE_SCHEMA", "") or None,
+                schema=database or None,
                 password_env="SOURCE_ORACLE_PASSWORD",
             ),
         )

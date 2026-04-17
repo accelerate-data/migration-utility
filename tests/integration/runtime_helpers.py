@@ -1,7 +1,6 @@
 from __future__ import annotations
 
 import os
-import shutil
 from typing import Any
 
 import pytest
@@ -27,17 +26,6 @@ SQL_SERVER_MIGRATION_DATABASE = SQL_SERVER_FIXTURE_DATABASE
 SQL_SERVER_MIGRATION_SCHEMA = SQL_SERVER_FIXTURE_SCHEMA
 
 
-def find_oracle_cli() -> str | None:
-    configured = os.environ.get("SQLCL_BIN")
-    if configured:
-        return configured
-    for candidate in ("sql", "sqlplus"):
-        resolved = shutil.which(candidate)
-        if resolved:
-            return resolved
-    return None
-
-
 def build_sql_server_connection_string(
     *,
     database: str = SQL_SERVER_MIGRATION_DATABASE,
@@ -49,7 +37,7 @@ def build_sql_server_connection_string(
         database=database,
         user=os.environ.get("MSSQL_USER", "sa"),
         password=os.environ.get("SA_PASSWORD", ""),
-        driver=os.environ.get("MSSQL_DRIVER", "ODBC Driver 18 for SQL Server"),
+        driver=os.environ.get("MSSQL_DRIVER", "FreeTDS"),
         login_timeout=login_timeout,
     )
 
@@ -64,7 +52,7 @@ def build_sql_server_source_role() -> RuntimeRole:
             database=SQL_SERVER_MIGRATION_DATABASE,
             schema=SQL_SERVER_MIGRATION_SCHEMA,
             user=os.environ.get("MSSQL_USER", "sa"),
-            driver=os.environ.get("MSSQL_DRIVER", "ODBC Driver 18 for SQL Server"),
+            driver=os.environ.get("MSSQL_DRIVER", "FreeTDS"),
             password_env="SA_PASSWORD",
         ),
     )
@@ -82,7 +70,7 @@ def build_sql_server_sandbox_manifest() -> dict[str, object]:
                     "database": SQL_SERVER_MIGRATION_DATABASE,
                     "schema": SQL_SERVER_MIGRATION_SCHEMA,
                     "user": os.environ.get("MSSQL_USER", "sa"),
-                    "driver": os.environ.get("MSSQL_DRIVER", "ODBC Driver 18 for SQL Server"),
+                    "driver": os.environ.get("MSSQL_DRIVER", "FreeTDS"),
                     "password_env": "SA_PASSWORD",
                 },
             },
@@ -93,7 +81,7 @@ def build_sql_server_sandbox_manifest() -> dict[str, object]:
                     "host": os.environ.get("MSSQL_HOST", "localhost"),
                     "port": os.environ.get("MSSQL_PORT", "1433"),
                     "user": os.environ.get("MSSQL_USER", "sa"),
-                    "driver": os.environ.get("MSSQL_DRIVER", "ODBC Driver 18 for SQL Server"),
+                    "driver": os.environ.get("MSSQL_DRIVER", "FreeTDS"),
                     "password_env": "SA_PASSWORD",
                 },
             },
@@ -221,11 +209,10 @@ def ensure_oracle_migration_test_materialized() -> None:
 
     if not os.environ.get("ORACLE_PWD"):
         pytest.skip("ORACLE_PWD not set")
-    if find_oracle_cli() is None:
-        pytest.importorskip(
-            "oracledb",
-            reason="no Oracle CLI (SQLCL/sql or sqlplus) is installed and python package 'oracledb' is unavailable for Oracle materialization",
-        )
+    pytest.importorskip(
+        "oracledb",
+        reason="oracledb not installed — required for Oracle materialization",
+    )
 
     role = build_oracle_admin_role()
     result = materialize_migration_test(

@@ -167,7 +167,6 @@ fi
 printf '%s\n' "${BOOTSTRAP_SQL}" > "${TMP_BOOTSTRAP_SQL}"
 
 echo "materialize-migration-test oracle service=${ORACLE_SERVICE} host=${ORACLE_HOST} port=${ORACLE_PORT} schema=${ORACLE_SCHEMA}"
-run_python_materialization() {
 python - <<'PY' "${TMP_BOOTSTRAP_SQL}" "${TMP_SQL}"
 import os
 import re
@@ -178,7 +177,7 @@ try:
     import oracledb
 except ImportError as exc:
     raise SystemExit(
-        "no Oracle CLI (SQLCL/sql or sqlplus) is installed and python package 'oracledb' is unavailable for Oracle materialization"
+        "python package 'oracledb' is unavailable for Oracle materialization"
     ) from exc
 
 bootstrap_path = Path(sys.argv[1])
@@ -215,31 +214,3 @@ try:
 finally:
     conn.close()
 PY
-}
-
-ORACLE_CLI="${SQLCL_BIN:-}"
-if [[ -z "${ORACLE_CLI}" ]] && command -v sql >/dev/null 2>&1; then
-  ORACLE_CLI="$(command -v sql)"
-fi
-if [[ -z "${ORACLE_CLI}" ]] && command -v sqlplus >/dev/null 2>&1; then
-  ORACLE_CLI="$(command -v sqlplus)"
-fi
-
-if [[ -n "${ORACLE_CLI}" ]]; then
-  CONNECT_DIRECTIVE="CONNECT ${ORACLE_USER}/\"${ORACLE_PWD}\"@${ORACLE_HOST}:${ORACLE_PORT}/${ORACLE_SERVICE}"
-  if [[ "${ORACLE_USER,,}" == "sys" ]]; then
-    CONNECT_DIRECTIVE="${CONNECT_DIRECTIVE} AS SYSDBA"
-  fi
-  if "${ORACLE_CLI}" -S /nolog <<SQL
-${CONNECT_DIRECTIVE}
-@${TMP_BOOTSTRAP_SQL}
-@${TMP_SQL}
-EXIT
-SQL
-  then
-    exit 0
-  fi
-  echo "Oracle CLI materialization failed; retrying with python oracledb fallback" >&2
-fi
-
-run_python_materialization

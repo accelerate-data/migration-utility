@@ -78,7 +78,7 @@ def _build_sql_server_fixture_role() -> RuntimeRole:
             database=SQL_SERVER_FIXTURE_DATABASE,
             schema=SQL_SERVER_FIXTURE_SCHEMA,
             user=os.environ.get("MSSQL_USER", "sa"),
-            driver=os.environ.get("MSSQL_DRIVER", "ODBC Driver 18 for SQL Server"),
+            driver=os.environ.get("MSSQL_DRIVER", "FreeTDS"),
             password_env="SA_PASSWORD",
         ),
     )

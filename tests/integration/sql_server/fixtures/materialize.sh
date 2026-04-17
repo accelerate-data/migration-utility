@@ -80,7 +80,7 @@ conn = pyodbc.connect(
         database=database_name,
         user=os.environ.get("MSSQL_USER", "sa"),
         password=os.environ["SA_PASSWORD"],
-        driver=os.environ.get("MSSQL_DRIVER", "ODBC Driver 18 for SQL Server"),
+        driver=os.environ.get("MSSQL_DRIVER", "FreeTDS"),
     ),
     autocommit=True,
 )

@@ -92,8 +92,6 @@ For a non-mutating report:
 | Docker | Contributor container and integration readiness |
 | [markdownlint-cli](https://github.com/igorshubovych/markdownlint-cli) | All `.md` files must pass before commit |
 | [`toolbox`](https://github.com/googleapis/genai-toolbox/releases) | SQL Server maintainer path |
-| [`sql` / SQLcl](https://www.oracle.com/database/sqldeveloper/technologies/sqlcl/) | Oracle maintainer path |
-| Java 11+ | Runtime required by SQLcl |
 
 ### Optional tools
 

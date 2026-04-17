@@ -388,14 +388,12 @@ class TestWriteLocalEnvOverrides:
             tmp_path,
             {
                 "MSSQL_DRIVER": "ODBC Driver 18 for SQL Server",
-                "SQLCL_BIN": "/opt/sqlcl/bin/sql",
             },
         )
 
         assert changed is True
         assert (tmp_path / ".env").read_text() == (
             'MSSQL_DRIVER="ODBC Driver 18 for SQL Server"\n'
-            'SQLCL_BIN="/opt/sqlcl/bin/sql"\n'
         )
 
     def test_updates_existing_keys_without_touching_other_lines(self, tmp_path: Path) -> None:
@@ -419,25 +417,25 @@ class TestWriteLocalEnvOverrides:
 
     def test_returns_false_when_no_changes_are_needed(self, tmp_path: Path) -> None:
         env_path = tmp_path / ".env"
-        env_path.write_text('SQLCL_BIN="/opt/sqlcl/bin/sql"\n', encoding="utf-8")
+        env_path.write_text('MSSQL_DRIVER="FreeTDS"\n', encoding="utf-8")
 
         changed = write_local_env_overrides(
             tmp_path,
-            {"SQLCL_BIN": "/opt/sqlcl/bin/sql"},
+            {"MSSQL_DRIVER": "FreeTDS"},
         )
 
         assert changed is False
-        assert env_path.read_text() == 'SQLCL_BIN="/opt/sqlcl/bin/sql"\n'
+        assert env_path.read_text() == 'MSSQL_DRIVER="FreeTDS"\n'
 
     def test_escapes_quotes_and_backslashes(self, tmp_path: Path) -> None:
         changed = write_local_env_overrides(
             tmp_path,
-            {"SQLCL_BIN": 'C:\\Program Files\\SQLcl\\"sql".exe'},
+            {"MSSQL_DRIVER": 'ODBC Driver 18 \\"for\\" SQL Server'},
         )
 
         assert changed is True
         assert (tmp_path / ".env").read_text() == (
-            'SQLCL_BIN="C:\\\\Program Files\\\\SQLcl\\\\\\"sql\\".exe"\n'
+            'MSSQL_DRIVER="ODBC Driver 18 \\\\\\"for\\\\\\" SQL Server"\n'
         )
 
     def test_cli_writes_local_env_overrides(self, tmp_path: Path) -> None:
@@ -446,7 +444,7 @@ class TestWriteLocalEnvOverrides:
             [
                 "write-local-env-overrides",
                 "--project-root", str(tmp_path),
-                "--overrides-json", '{"SQLCL_BIN":"/opt/sqlcl/bin/sql"}',
+                "--overrides-json", '{"MSSQL_DRIVER":"FreeTDS"}',
             ],
         )
 
@@ -474,7 +472,7 @@ class TestWriteLocalEnvOverrides:
             [
                 "write-local-env-overrides",
                 "--project-root", str(tmp_path),
-                "--overrides-json", '{"SQLCL_BIN":123}',
+                "--overrides-json", '{"MSSQL_DRIVER":123}',
             ],
         )
 

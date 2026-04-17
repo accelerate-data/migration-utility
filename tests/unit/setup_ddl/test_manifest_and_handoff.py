@@ -120,13 +120,13 @@ class TestWritePartialManifest:
                 "source": {
                     "technology": "oracle",
                     "startup": {
-                        "sqlcl": True,
+                        "oracledb": True,
                     },
                 },
                 "sandbox": {
                     "technology": "oracle",
                     "startup": {
-                        "sqlcl": True,
+                        "oracledb": True,
                     },
                 },
                 "target": {
@@ -324,8 +324,7 @@ class TestWritePartialManifestHandoff:
                 "target": {
                     "technology": "oracle",
                     "startup": {
-                        "sqlcl": True,
-                        "java": True,
+                        "oracledb": True,
                     },
                 },
             },
@@ -345,7 +344,7 @@ class TestWritePartialManifestHandoff:
         assert handoff["roles"]["source"]["technology"] == "sql_server"
         assert handoff["roles"]["source"]["startup"]["freetds"] is True
         assert handoff["roles"]["target"]["technology"] == "oracle"
-        assert handoff["roles"]["target"]["startup"]["sqlcl"] is True
+        assert handoff["roles"]["target"]["startup"]["oracledb"] is True
         assert "timestamp" in handoff
 
     def test_without_prereqs_json_no_init_handoff(self, tmp_path):
