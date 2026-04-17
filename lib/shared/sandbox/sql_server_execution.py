@@ -50,7 +50,7 @@ class SqlServerExecutionService:
         _validate_fixtures(given)
 
         try:
-            self._backend._ensure_view_tables(sandbox_db, given)
+            self._backend._fixtures.ensure_view_tables(sandbox_db, given)
         except _import_pyodbc().Error as exc:
             logger.error(
                 "event=view_materialize_failed sandbox_db=%s scenario=%s error=%s",
@@ -114,7 +114,7 @@ class SqlServerExecutionService:
                             )],
                         )
 
-                    self._backend._seed_fixtures(cursor, sandbox_db, given)
+                    self._backend._fixtures.seed_fixtures(cursor, sandbox_db, given)
 
                     cursor.execute(f"EXEC {procedure}")
 
@@ -154,7 +154,7 @@ class SqlServerExecutionService:
         logger.info("event=execute_select sandbox_db=%s", sandbox_db)
 
         try:
-            self._backend._ensure_view_tables(sandbox_db, fixtures)
+            self._backend._fixtures.ensure_view_tables(sandbox_db, fixtures)
         except _import_pyodbc().Error as exc:
             logger.error(
                 "event=view_materialize_failed sandbox_db=%s error=%s",
@@ -169,7 +169,7 @@ class SqlServerExecutionService:
                 conn.autocommit = False
                 cursor = conn.cursor()
                 try:
-                    self._backend._seed_fixtures(cursor, sandbox_db, fixtures)
+                    self._backend._fixtures.seed_fixtures(cursor, sandbox_db, fixtures)
                     cursor.execute(sql)
                     result_rows = _capture_rows_base(cursor)
                 finally:

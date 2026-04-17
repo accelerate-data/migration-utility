@@ -334,7 +334,7 @@ class TestOracleSandboxUpCleanup:
             raise db_error_cls("connection failed")
             yield  # noqa: unreachable — keeps it a generator
 
-        with patch("shared.sandbox.oracle_services._import_oracledb") as ora_mock, \
+        with patch("shared.sandbox.oracle_lifecycle._import_oracledb") as ora_mock, \
              patch.object(backend, "_connect", side_effect=_fail_connect), \
              patch.object(backend, "_connect_source", side_effect=_fail_connect), \
              patch.object(backend, "sandbox_down") as mock_down:
@@ -404,7 +404,7 @@ class TestOracleSandboxUpCleanup:
         )
 
         with patch.object(backend, "sandbox_down", return_value=down_result), \
-             patch.object(backend, "_sandbox_clone_into") as mock_clone:
+             patch.object(backend._lifecycle, "_sandbox_clone_into") as mock_clone:
             result = backend.sandbox_reset("__test_existing", schemas=["SH"])
 
         assert result.status == "error"
@@ -486,8 +486,8 @@ class TestExecuteScenarioOracle:
             yield conn
 
         with patch.object(backend, "_connect", side_effect=_fake_connect), \
-             patch.object(backend, "_ensure_view_tables", return_value=[]), \
-             patch.object(backend, "_seed_fixtures"):
+             patch.object(backend._fixtures, "ensure_view_tables", return_value=[]), \
+             patch.object(backend._fixtures, "seed_fixtures"):
             result = backend.execute_scenario(
                 sandbox_db="__test_abc123",
                 scenario={

@@ -49,7 +49,7 @@ class OracleExecutionService:
         _validate_fixtures(given)
 
         try:
-            self._backend._ensure_view_tables(sandbox_db, given)
+            self._backend._fixtures.ensure_view_tables(sandbox_db, given)
         except _import_oracledb().DatabaseError as exc:
             logger.error(
                 "event=oracle_view_materialize_failed sandbox=%s scenario=%s error=%s",
@@ -72,7 +72,7 @@ class OracleExecutionService:
                 conn.autocommit = False
                 cursor = conn.cursor()
                 try:
-                    self._backend._seed_fixtures(cursor, sandbox_db, given)
+                    self._backend._fixtures.seed_fixtures(cursor, sandbox_db, given)
                     cursor.execute(f'BEGIN "{sandbox_db}"."{procedure}"; END;')
                     cursor.execute(f'SELECT * FROM "{sandbox_db}".{target_table}')
                     result_rows = _capture_rows_base(cursor)
@@ -109,7 +109,7 @@ class OracleExecutionService:
         logger.info("event=oracle_execute_select sandbox=%s", sandbox_db)
 
         try:
-            self._backend._ensure_view_tables(sandbox_db, fixtures)
+            self._backend._fixtures.ensure_view_tables(sandbox_db, fixtures)
         except _import_oracledb().DatabaseError as exc:
             logger.error(
                 "event=oracle_view_materialize_failed sandbox=%s error=%s",
@@ -124,7 +124,7 @@ class OracleExecutionService:
                 conn.autocommit = False
                 cursor = conn.cursor()
                 try:
-                    self._backend._seed_fixtures(cursor, sandbox_db, fixtures)
+                    self._backend._fixtures.seed_fixtures(cursor, sandbox_db, fixtures)
                     cursor.execute(sql)
                     result_rows = _capture_rows_base(cursor)
                 finally:

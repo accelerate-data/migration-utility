@@ -14,6 +14,7 @@ from shared.output_models.sandbox import (
 from shared.sandbox.base import generate_sandbox_name
 from shared.sandbox.sql_server_services import (
     _import_pyodbc,
+    _validate_identifier,
     _validate_sandbox_db_name,
 )
 
@@ -35,7 +36,7 @@ class SqlServerLifecycleService:
             self._backend.source_database,
             schemas,
         )
-        result = self._backend._sandbox_clone_into(sandbox_db, schemas)
+        result = self._sandbox_clone_into(sandbox_db, schemas)
         logger.info(
             "event=sandbox_up_complete sandbox_db=%s status=%s "
             "tables=%d views=%d procedures=%d errors=%d",
@@ -73,7 +74,7 @@ class SqlServerLifecycleService:
                 ],
             )
 
-        result = self._backend._sandbox_clone_into(sandbox_db, schemas)
+        result = self._sandbox_clone_into(sandbox_db, schemas)
         logger.info(
             "event=sandbox_reset_complete sandbox_db=%s status=%s "
             "tables=%d views=%d procedures=%d errors=%d",
@@ -126,8 +127,9 @@ class SqlServerLifecycleService:
                 exists = cursor.fetchone()[0] is not None
 
             if exists:
-                tables_count, views_count, procedures_count = (
-                    self._backend._sandbox_content_counts(sandbox_db, schemas)
+                tables_count, views_count, procedures_count = self._sandbox_content_counts(
+                    sandbox_db,
+                    schemas,
                 )
                 has_content = any(
                     count > 0 for count in (tables_count, views_count, procedures_count)
@@ -168,3 +170,110 @@ class SqlServerLifecycleService:
                 exists=False,
                 errors=[ErrorEntry(code="SANDBOX_STATUS_FAILED", message=str(exc))],
             )
+
+    def _sandbox_clone_into(
+        self,
+        sandbox_db: str,
+        schemas: list[str],
+    ) -> SandboxUpOutput:
+        _validate_identifier(self._backend.source_database)
+        _validate_sandbox_db_name(sandbox_db)
+
+        errors: list[ErrorEntry] = []
+        tables_cloned: list[str] = []
+        views_cloned: list[str] = []
+        procedures_cloned: list[str] = []
+
+        try:
+            self._backend._create_sandbox_db(sandbox_db)
+            with self._backend._connect(database=sandbox_db) as sandbox_conn, \
+                 self._backend._connect_source(database=self._backend.source_database) as source_conn:
+                sandbox_cursor = sandbox_conn.cursor()
+                source_cursor = source_conn.cursor()
+
+                errors.extend(
+                    ErrorEntry(**e)
+                    for e in self._backend._create_schemas(sandbox_cursor, schemas)
+                )
+
+                t_cloned, t_errors = self._backend._clone_tables(
+                    source_cursor, sandbox_cursor, schemas,
+                )
+                tables_cloned.extend(t_cloned)
+                errors.extend(ErrorEntry(**e) for e in t_errors)
+
+                v_cloned, v_errors = self._backend._clone_views(
+                    source_cursor, sandbox_cursor, schemas,
+                )
+                views_cloned.extend(v_cloned)
+                errors.extend(ErrorEntry(**e) for e in v_errors)
+
+                p_cloned, p_errors = self._backend._clone_procedures(
+                    source_cursor, sandbox_cursor, schemas,
+                )
+                procedures_cloned.extend(p_cloned)
+                errors.extend(ErrorEntry(**e) for e in p_errors)
+
+        except _import_pyodbc().Error as exc:
+            logger.error(
+                "event=sandbox_up_failed sandbox_db=%s error=%s",
+                sandbox_db,
+                exc,
+            )
+            self._backend.sandbox_down(sandbox_db)
+            return SandboxUpOutput(
+                sandbox_database=sandbox_db,
+                status="error",
+                tables_cloned=tables_cloned,
+                views_cloned=views_cloned,
+                procedures_cloned=procedures_cloned,
+                errors=[ErrorEntry(code="SANDBOX_UP_FAILED", message=str(exc))],
+            )
+
+        status = "ok" if not errors else "partial"
+        return SandboxUpOutput(
+            sandbox_database=sandbox_db,
+            status=status,
+            tables_cloned=tables_cloned,
+            views_cloned=views_cloned,
+            procedures_cloned=procedures_cloned,
+            errors=errors,
+        )
+
+    def _sandbox_content_counts(
+        self,
+        sandbox_db: str,
+        schemas: list[str] | None,
+    ) -> tuple[int, int, int]:
+        schema_filter = ""
+        params: list[str] = []
+        if schemas:
+            placeholders = ", ".join("?" for _ in schemas)
+            schema_filter = f" AND s.name IN ({placeholders})"
+            params = list(schemas)
+
+        queries = [
+            (
+                "SELECT COUNT(*) FROM sys.tables t "
+                "JOIN sys.schemas s ON t.schema_id = s.schema_id "
+                f"WHERE t.is_ms_shipped = 0{schema_filter}"
+            ),
+            (
+                "SELECT COUNT(*) FROM sys.views v "
+                "JOIN sys.schemas s ON v.schema_id = s.schema_id "
+                f"WHERE v.is_ms_shipped = 0{schema_filter}"
+            ),
+            (
+                "SELECT COUNT(*) FROM sys.procedures p "
+                "JOIN sys.schemas s ON p.schema_id = s.schema_id "
+                f"WHERE p.is_ms_shipped = 0{schema_filter}"
+            ),
+        ]
+
+        counts: list[int] = []
+        with self._backend._connect(database=sandbox_db) as conn:
+            cursor = conn.cursor()
+            for query in queries:
+                cursor.execute(query, *params)
+                counts.append(int(cursor.fetchone()[0]))
+        return counts[0], counts[1], counts[2]

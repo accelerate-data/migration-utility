@@ -193,6 +193,9 @@ class ScopingSummary(BaseModel):
 
 ProfileResolvedKind = Literal[
     "seed",
+    "insert",
+    "fact",
+    "fact_insert",
     "dim_non_scd",
     "dim_scd1",
     "dim_scd2",
@@ -202,8 +205,8 @@ ProfileResolvedKind = Literal[
     "fact_accumulating_snapshot",
     "fact_aggregate",
 ]
-ProfileSource = Literal["catalog", "llm", "catalog+llm"]
-PrimaryKeyType = Literal["surrogate", "natural", "composite", "unknown"]
+ProfileSource = Literal["catalog", "llm", "catalog+llm", "manual"]
+PrimaryKeyType = Literal["surrogate", "natural", "composite", "unknown", "none"]
 ForeignKeyType = Literal["standard", "role_playing", "degenerate"]
 PiiSuggestedAction = Literal["mask", "drop", "tokenize", "keep"]
 
@@ -277,8 +280,8 @@ class TableProfileSection(BaseModel):
     watermark: TableWatermarkProfile | None = None
     foreign_keys: list[TableForeignKeyProfile] = []
     pii_actions: list[TablePiiActionProfile] = []
-    warnings: list[Any] = []
-    errors: list[Any] = []
+    warnings: list[DiagnosticsEntry] = []
+    errors: list[DiagnosticsEntry] = []
 
 
 class ViewProfileSection(BaseModel):
@@ -290,8 +293,8 @@ class ViewProfileSection(BaseModel):
     classification: Literal["stg", "mart"]
     rationale: str = ""
     source: Literal["llm"]
-    warnings: list[Any] = []
-    errors: list[Any] = []
+    warnings: list[DiagnosticsEntry] = []
+    errors: list[DiagnosticsEntry] = []
 
 
 # ── Shared enriched-section models ──────────────────────────────────────────

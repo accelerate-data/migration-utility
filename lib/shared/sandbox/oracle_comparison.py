@@ -56,10 +56,10 @@ class OracleComparisonService:
                 return build_compare_error(
                     "SQL_SYNTAX_ERROR",
                     f"SQL {label} has syntax errors: {exc}",
-                )
+        )
 
         try:
-            self._backend._ensure_view_tables(sandbox_db, fixtures)
+            self._backend._fixtures.ensure_view_tables(sandbox_db, fixtures)
         except _import_oracledb().DatabaseError as exc:
             logger.error(
                 "event=view_materialize_failed sandbox=%s error=%s",
@@ -75,7 +75,7 @@ class OracleComparisonService:
                 conn.autocommit = False
                 cursor = conn.cursor()
                 try:
-                    self._backend._seed_fixtures(cursor, sandbox_db, fixtures)
+                    self._backend._fixtures.seed_fixtures(cursor, sandbox_db, fixtures)
                     cursor.execute(sql_a)
                     rows_a = _capture_rows_base(cursor)
                     cursor.execute(sql_b)

@@ -167,7 +167,7 @@ class TestSqlServerSandboxUp:
         )
 
         with patch.object(backend, "sandbox_down", return_value=down_result), \
-             patch.object(backend, "_sandbox_clone_into") as mock_clone:
+             patch.object(backend._lifecycle, "_sandbox_clone_into") as mock_clone:
             result = backend.sandbox_reset("__test_existing", schemas=["dbo"])
 
         assert result.status == "error"

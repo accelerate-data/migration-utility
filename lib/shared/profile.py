@@ -279,6 +279,8 @@ def _derive_view_profile_status(section: ViewProfileSection) -> str:
 def _write_view_profile(project_root: Path, view_norm: str, profile_json: dict[str, Any]) -> dict[str, Any]:
     """Validate and merge a profile section into a view catalog file."""
     section = ViewProfileSection.model_validate(profile_json)
+    if not section.rationale:
+        raise ValueError("rationale is required for view profiles")
     profile_json = section.model_dump(mode="json", exclude_none=True)
     profile_json["status"] = _derive_view_profile_status(section)
 
@@ -334,6 +336,8 @@ def run_write(project_root: Path, table: str, profile_json: dict[str, Any]) -> d
         raise CatalogFileMissingError("table", norm)
 
     section = TableProfileSection.model_validate(profile_json)
+    if section.classification is not None and section.classification.resolved_kind is None:
+        raise ValueError("classification.resolved_kind is required for table profiles")
     status = _derive_table_profile_status(norm, existing_table, section)
     profile_json = section.model_dump(mode="json", exclude_none=True)
     profile_json["status"] = status
