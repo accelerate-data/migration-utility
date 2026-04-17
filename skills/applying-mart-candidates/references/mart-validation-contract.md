@@ -6,8 +6,8 @@ refactor-mart plan.
 ## Scope
 
 - One candidate is scoped to one `int` or `mart` output model.
-- The candidate may rewrite the declared output and declared consumers named by
-  `Validation:`.
+- The candidate may rewrite the declared output and any unambiguous local
+  references that are explicitly named in the candidate section.
 - Do not validate or invalidate unrelated candidates.
 
 ## Status Values
@@ -27,9 +27,8 @@ pass. Add one short `Validation result:` bullet in the same candidate section
 describing the failure.
 
 Use `blocked` when required inputs are missing before edits begin, such as a
-missing output path, unsupported candidate type, ambiguous validation scope, or
-a missing declared model. Add one short `Blocked reason:` bullet in the same
-candidate section.
+missing output path, ambiguous validation scope, or a missing required model.
+Add one short `Blocked reason:` bullet in the same candidate section.
 
 ## Writeback Rules
 
@@ -44,7 +43,7 @@ candidate section.
 Validation is candidate-scoped:
 
 - validate the changed `int` or `mart` output model;
-- validate every additional model named by `Validation:`;
-- prefer the command listed in `Validation:` when it is executable;
+- validate every additional existing model required by the candidate section;
+- prefer the command or scope listed in `Validation:` when it is executable;
 - capture the command or scope in `Validation result:`; and
 - do not broaden validation to unrelated dbt assets.

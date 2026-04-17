@@ -81,8 +81,11 @@ For each selected, unblocked candidate:
 - `int` mode: run the internal `applying-mart-candidates` skill for
   `<plan-file> <candidate-id>`.
 
-The apply workflow owns dbt file changes, validation, and candidate status
-writeback. It must update the candidate section to one of:
+The command owns dependency-blocked candidate writeback because blocked
+candidates do not enter the apply skill. The apply skill owns dbt file changes,
+validation, and status writeback only after a candidate passes command-level
+dependency gating and is invoked. It must update the candidate section to one
+of:
 
 - `Execution status: applied`
 - `Execution status: failed`

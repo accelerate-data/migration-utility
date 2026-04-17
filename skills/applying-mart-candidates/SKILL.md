@@ -31,12 +31,17 @@ before editing files or plan status.
   not change its execution status.
 - If `Type:` is anything other than `int` or `mart`, stop with
   `INVALID_CANDIDATE_TYPE`.
-- If `Depends on:` lists any dependency whose candidate section is missing or
-  whose `Execution status:` is not `applied`, mark only this candidate blocked
-  before editing files.
-- If `Output:` is missing or does not identify an `int_*` or mart-level model
-  path or model name, mark only this candidate blocked.
-- If `Validation:` is missing, ambiguous, or names missing required models,
+- If `Depends on:` is missing, empty, malformed, ambiguous, or does not
+  explicitly include `none` or upstream candidate IDs, mark only this candidate
+  blocked before editing files.
+- If any listed dependency section is missing or its `Execution status:` is not
+  `applied`, mark only this candidate blocked before editing files.
+- If `Output:` is missing or does not identify a new or existing `int_*` model
+  path or model name, or a mart output path under `dbt/models/marts/**` or a
+  mart model name using the established `fct_`, `dim_`, or `mart_` prefixes,
+  mark only this candidate blocked.
+- If `Validation:` is missing, ambiguous, or does not identify the smallest
+  executable validation command/scope and any required existing consumer models,
   mark only this candidate blocked.
 
 ## Workflow
@@ -47,11 +52,14 @@ before editing files or plan status.
 3. Verify every declared dependency is already `Execution status: applied`
    before editing any dbt file.
 4. Create or update the declared `int` or `mart` output model.
-5. Rewire every declared consumer named in `Validation:` when the candidate
-   requires consumer rewrites. Treat `Validation:` as the authoritative
-   candidate scope.
-6. Run the smallest validation command that covers the changed output and every
-   declared consumer. Prefer the command listed in `Validation:`.
+5. Rewire only consumers that are explicitly named in the candidate section's
+   human-readable text or are an unambiguous direct consequence of the output
+   change. Do not infer broad rewrites from selector syntax such as
+   `+int_sales_orders`.
+6. Use `Validation:` as the validation command or scope only. Run the smallest
+   validation command that covers the changed output and any explicitly
+   required existing consumer models. Prefer the command listed in
+   `Validation:`.
 7. Update only this candidate section:
    - `Execution status: applied` when validation passes.
    - `Execution status: failed` when attempted validation fails.
@@ -63,8 +71,9 @@ before editing files or plan status.
 
 ## Rewire Rules
 
-- Rewire only models declared in `Validation:`.
-- Do not infer extra consumers beyond `Validation:`.
+- Rewire only models explicitly named in the candidate section's human-readable
+  text or required by an unambiguous local output rewrite.
+- Do not infer broad consumer rewrites from `Validation:` selector syntax.
 - Do not edit staging candidates or staging outputs.
 - Do not silently continue past failed or unapplied dependencies.
 
@@ -73,7 +82,7 @@ before editing files or plan status.
 Validation is candidate-scoped:
 
 - validate the changed `int` or `mart` output model;
-- validate each additional model listed in `Validation:`;
+- validate each additional existing model required by the candidate section;
 - capture the command or scope used in a `Validation result:` bullet; and
 - do not alter unrelated candidate statuses after success, failure, or block.
 

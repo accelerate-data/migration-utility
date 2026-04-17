@@ -33,7 +33,7 @@
 - Create: `skills/applying-mart-candidates/SKILL.md`
 - Create: `skills/applying-mart-candidates/references/mart-validation-contract.md`
 
-- [ ] **Step 1: Update `/refactor-mart` command contract**
+- [x] **Step 1: Update `/refactor-mart` command contract**
 
 In `commands/refactor-mart.md`, replace the `int` application bullet that mentions a future workflow with the concrete internal skill:
 
@@ -55,7 +55,7 @@ For `int` mode, check dependencies before applying each selected candidate and b
   unsatisfied dependency IDs, and skip application.
 ````
 
-- [ ] **Step 2: Verify staging skill remains internal**
+- [x] **Step 2: Verify staging skill remains internal**
 
 Confirm `skills/applying-staging-candidate/SKILL.md` keeps:
 
@@ -65,7 +65,7 @@ user-invocable: false
 
 No code change is needed if that line is already present.
 
-- [ ] **Step 3: Write higher-layer validation contract**
+- [x] **Step 3: Write higher-layer validation contract**
 
 Create `skills/applying-mart-candidates/references/mart-validation-contract.md`:
 
@@ -112,7 +112,7 @@ Validation is candidate-scoped:
 - do not broaden validation to unrelated dbt assets.
 ```
 
-- [ ] **Step 4: Create internal higher-layer apply skill**
+- [x] **Step 4: Create internal higher-layer apply skill**
 
 Create `skills/applying-mart-candidates/SKILL.md`:
 
@@ -196,7 +196,7 @@ plan: <plan-file>
 ```
 ````
 
-- [ ] **Step 5: Run markdownlint on changed markdown**
+- [x] **Step 5: Run markdownlint on changed markdown**
 
 Run:
 
@@ -206,7 +206,7 @@ markdownlint commands/refactor-mart.md skills/applying-staging-candidate/SKILL.m
 
 Expected: no errors.
 
-- [ ] **Step 6: Commit contract slice**
+- [x] **Step 6: Commit contract slice**
 
 Run:
 
