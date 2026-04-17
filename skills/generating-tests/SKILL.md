@@ -40,7 +40,7 @@ Do not use this skill to review coverage, run sandbox execution, or generate dbt
 1. Run the stage guard first. If readiness fails, report the surfaced `code` and `message` and stop.
 2. Detect object type from catalog before generating: absent view catalog means `table`; `is_materialized_view: true` means `mv`; otherwise `view`.
 3. If `test-specs/<fqn>.json` exists, enter merge mode and load existing scenario names, `branch_manifest`, and `expect` blocks. Also load deterministic object and source-table context from catalog metadata.
-4. Re-extract branches from current SQL. Build a fresh `branch_manifest`; if a prior branch disappeared, add a `STALE_BRANCH` warning.
+4. Re-extract branches from current SQL. For tables, current SQL is `selected_writer_ddl_slice` when present, otherwise `proc_body`; if both are empty, stop with a context error. Build a fresh `branch_manifest`; if a prior branch disappeared, add a `STALE_BRANCH` warning.
 5. Generate only missing or explicitly requested coverage. On reviewer-driven reruns, follow the repair-pass rules below. Keep scenarios self-contained and constraint-valid; do not invent columns, nullability, or FK behavior.
 6. Emit a valid `TestSpec`, preserving approved scenarios unless targeted feedback requires revision. Recalculate `uncovered_branches`, `coverage`, and `status`, then persist the catalog summary.
 

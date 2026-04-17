@@ -6,6 +6,7 @@
 //   target_table?,
 //   target_view?,
 //   expected_extracted_terms?,   -- comma-separated terms expected in extracted SQL
+//   forbidden_extracted_terms?,  -- comma-separated terms that must NOT appear in extracted SQL
 //   expected_refactored_terms?,  -- comma-separated terms expected in refactored CTE SQL
 //   forbidden_refactored_terms?, -- comma-separated terms that must NOT appear in refactored SQL
 //   expected_status?,            -- comma-separated acceptable statuses (default: "partial")
@@ -40,6 +41,7 @@ module.exports = (output, context) => {
   const table = context.vars.target_table;
   const targetView = context.vars.target_view;
   const expectedExtractedTerms = normalizeTerms(context.vars.expected_extracted_terms);
+  const forbiddenExtractedTerms = normalizeTerms(context.vars.forbidden_extracted_terms);
   const expectedRefactoredTerms = normalizeTerms(context.vars.expected_refactored_terms);
   const forbiddenRefactoredTerms = normalizeTerms(context.vars.forbidden_refactored_terms);
   const expectedStatuses = normalizeTerms(context.vars.expected_status || 'partial');
@@ -164,6 +166,12 @@ module.exports = (output, context) => {
   for (const term of expectedExtractedTerms) {
     if (!extractedSql.includes(term)) {
       return { pass: false, score: 0, reason: `Expected term '${term}' not found in extracted_sql` };
+    }
+  }
+
+  for (const term of forbiddenExtractedTerms) {
+    if (extractedSql.includes(term)) {
+      return { pass: false, score: 0, reason: `Forbidden term '${term}' found in extracted_sql` };
     }
   }
 

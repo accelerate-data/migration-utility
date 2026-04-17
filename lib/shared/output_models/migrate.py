@@ -25,7 +25,7 @@ class MigrateContextOutput(BaseModel):
     source_columns: dict[str, list[Any]]
     schema_tests: dict[str, Any]
     refactored_sql: str | None = None
-    writer_ddl_slice: str | None = None
+    selected_writer_ddl_slice: str | None = None
 
 
 class MigrateWriteOutput(BaseModel):

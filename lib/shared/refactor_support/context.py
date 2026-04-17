@@ -7,6 +7,7 @@ from typing import Any
 
 from shared.catalog import load_proc_catalog, load_view_catalog, read_selected_writer
 from shared.context_helpers import (
+    collect_source_tables_from_sql,
     collect_source_tables,
     collect_view_source_tables,
     load_object_columns,
@@ -15,6 +16,8 @@ from shared.context_helpers import (
     load_table_columns,
     load_table_profile,
     load_test_spec,
+    project_sql_dialect,
+    resolve_selected_writer_ddl_slice,
     sandbox_metadata,
 )
 from shared.loader import CatalogFileMissingError
@@ -64,13 +67,20 @@ def run_context(
     writer_norm = normalize(writer_fqn)
 
     proc_cat = load_proc_catalog(project_root, writer_norm)
-    table_slices = (proc_cat.table_slices or {}) if proc_cat else {}
+    if proc_cat is None:
+        raise CatalogFileMissingError("procedure", writer_norm)
+    selected_writer_ddl_slice = resolve_selected_writer_ddl_slice(proc_cat, fqn_norm, writer_norm)
 
     profile = load_table_profile(project_root, fqn_norm)
-    statements = load_proc_statements(project_root, writer_norm)
-    proc_body = load_proc_body(project_root, writer_norm)
+    statements = [] if selected_writer_ddl_slice else load_proc_statements(project_root, writer_norm)
+    proc_body = "" if selected_writer_ddl_slice else load_proc_body(project_root, writer_norm)
     columns = load_table_columns(project_root, fqn_norm)
-    source_tables = collect_source_tables(project_root, writer_norm)
+    dialect = project_sql_dialect(project_root)
+    source_tables = (
+        collect_source_tables_from_sql(selected_writer_ddl_slice, dialect=dialect)
+        if selected_writer_ddl_slice
+        else collect_source_tables(project_root, writer_norm)
+    )
     source_columns = {
         fqn: load_object_columns(project_root, fqn) for fqn in source_tables
     }
@@ -86,5 +96,5 @@ def run_context(
         source_columns=source_columns,
         test_spec=load_test_spec(project_root, fqn_norm),
         sandbox=sandbox_metadata(project_root),
-        writer_ddl_slice=table_slices.get(fqn_norm) or None,
+        selected_writer_ddl_slice=selected_writer_ddl_slice,
     )

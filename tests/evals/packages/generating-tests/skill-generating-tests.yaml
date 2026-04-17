@@ -45,6 +45,18 @@ tests:
       min_branch_count: "1"
       min_scenario_count: "1"
 
+  # ── multi-table selected slice — ignore unrelated writer logic ──────────────
+  - description: "multi-table-selected-slice — InsertSelectTarget ignores unrelated writer logic"
+    prompts: ["generating-tests"]
+    vars:
+      fixture_path: "tests/evals/fixtures/generating-tests/multi-table-selected-slice"
+      target_table: "silver.InsertSelectTarget"
+      writer: "silver.usp_load_InsertSelectTarget"
+      min_branch_count: "1"
+      min_scenario_count: "1"
+      expected_output_terms: "insertselecttarget,product"
+      rejected_output_terms: "creditcard,unrelatedtarget,unrelated"
+
   # ── truncate-insert — InsertSelectTarget truncate + insert pattern ───────────
   - description: "truncate-insert — InsertSelectTarget truncate-and-insert"
     prompts: ["generating-tests"]

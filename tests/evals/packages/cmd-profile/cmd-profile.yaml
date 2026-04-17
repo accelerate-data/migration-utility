@@ -39,7 +39,7 @@ tests:
       expected_item_statuses: '{"silver.DimProduct": "ok", "silver.InsertSelectTarget": "ok"}'
       expected_output_terms: "ok"
 
-  # ── multi-table-writer: dim_address profiles via writer_ddl_slice ─
+  # ── multi-table-writer: dim_address profiles via selected_writer_ddl_slice ─
   - description: "multi-table-writer — dim_address profiles using address-only DDL slice, not credit_card logic"
     vars:
       fixture_path: "tests/evals/fixtures/cmd-profile/multi-table-writer"

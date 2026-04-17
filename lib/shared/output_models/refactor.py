@@ -24,7 +24,7 @@ class RefactorContextOutput(BaseModel):
     source_columns: dict[str, list[Any]] | None = None
     test_spec: dict[str, Any] | None = None
     sandbox: dict[str, Any] | None = None
-    writer_ddl_slice: str | None = None
+    selected_writer_ddl_slice: str | None = None
 
 
 class RefactorWriteOutput(BaseModel):

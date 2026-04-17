@@ -5,7 +5,7 @@ shared standards references.
 
 ## Correctness
 
-Compare the generated model to `proc_body`.
+Compare the generated model to `selected_writer_ddl_slice` when present, otherwise `proc_body`.
 
 Verify:
 

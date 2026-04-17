@@ -66,7 +66,19 @@ tests:
       expect_correctness_passed: "true"
       expect_test_integration_passed: "true"
 
-  - description: "review-correctness — UpdateJoinTarget validates against proc_body"
+  - description: "multi-table-selected-slice — SelectIntoTarget review ignores unrelated writer logic"
+    vars:
+      fixture_path: "tests/evals/fixtures/reviewing-model/multi-table-selected-slice"
+      target_table: "silver.SelectIntoTarget"
+      writer: "silver.usp_load_SelectIntoTarget"
+      expected_status: "approved"
+      expect_standards_passed: "true"
+      expect_correctness_passed: "true"
+      expect_test_integration_passed: "true"
+      rejected_feedback_terms: "creditcard,unrelatedtarget,unrelated"
+      rejected_issue_terms: "creditcard,unrelatedtarget,unrelated"
+
+  - description: "review-correctness — UpdateJoinTarget validates against selected source SQL"
     vars:
       fixture_path: "tests/evals/fixtures/reviewing-model/review-correctness"
       target_table: "silver.UpdateJoinTarget"

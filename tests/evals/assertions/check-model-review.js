@@ -32,7 +32,9 @@ module.exports = (output, context) => {
   const expectCorrectnessPassed = String(context.vars.expect_correctness_passed || '').toLowerCase();
   const expectTestIntegrationPassed = String(context.vars.expect_test_integration_passed || '').toLowerCase();
   const expectedFeedbackTerms = normalizeTerms(context.vars.expected_feedback_terms);
+  const rejectedFeedbackTerms = normalizeTerms(context.vars.rejected_feedback_terms);
   const expectedIssueTerms = normalizeTerms(context.vars.expected_issue_terms);
+  const rejectedIssueTerms = normalizeTerms(context.vars.rejected_issue_terms);
   const expectedFeedbackCodes = normalizeTerms(context.vars.expected_feedback_codes);
 
   if (expectedStatuses.length > 0 && !expectedStatuses.includes(String(review.status || '').toLowerCase())) {
@@ -84,6 +86,11 @@ module.exports = (output, context) => {
       return { pass: false, score: 0, reason: `Expected feedback term '${term}' not found in model-review feedback` };
     }
   }
+  for (const term of rejectedFeedbackTerms) {
+    if (feedbackText.includes(term)) {
+      return { pass: false, score: 0, reason: `Rejected feedback term '${term}' unexpectedly found in model-review feedback` };
+    }
+  }
 
   const feedbackCodes = feedbackItems.map(i => String(i.code || '').toLowerCase());
   for (const code of expectedFeedbackCodes) {
@@ -96,6 +103,11 @@ module.exports = (output, context) => {
   for (const term of expectedIssueTerms) {
     if (!issueText.includes(term)) {
       return { pass: false, score: 0, reason: `Expected issue term '${term}' not found in review checks` };
+    }
+  }
+  for (const term of rejectedIssueTerms) {
+    if (issueText.includes(term)) {
+      return { pass: false, score: 0, reason: `Rejected issue term '${term}' unexpectedly found in review checks` };
     }
   }
 

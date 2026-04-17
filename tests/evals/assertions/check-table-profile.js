@@ -12,7 +12,8 @@
 //   expected_fk_type?,
 //   expected_watermark_column?,
 //   expected_warning_codes?,
-//   expected_error_codes?
+//   expected_error_codes?,
+//   rejected_profile_terms?
 // }
 const fs = require('fs');
 const path = require('path');
@@ -28,6 +29,7 @@ module.exports = (output, context) => {
   const expectedOutputTerms = normalizeTerms(context.vars.expected_output_terms);
   const expectedWarningCodes = normalizeTerms(context.vars.expected_warning_codes);
   const expectedErrorCodes = normalizeTerms(context.vars.expected_error_codes);
+  const rejectedProfileTerms = normalizeTerms(context.vars.rejected_profile_terms);
 
   if (!table && targetView) {
     return { pass: true, score: 1, reason: 'Skipping table profile assertion for view-targeted scenario' };
@@ -144,6 +146,13 @@ module.exports = (output, context) => {
       if (!actualErrorCodes.includes(code)) {
         return { pass: false, score: 0, reason: `Expected error code '${code}' not found in profile.errors` };
       }
+    }
+  }
+
+  const profileText = JSON.stringify(profile).toLowerCase();
+  for (const term of rejectedProfileTerms) {
+    if (profileText.includes(term)) {
+      return { pass: false, score: 0, reason: `Rejected term '${term}' found in profile artifact` };
     }
   }
 

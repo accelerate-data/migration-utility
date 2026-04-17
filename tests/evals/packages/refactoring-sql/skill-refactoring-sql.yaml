@@ -31,6 +31,18 @@ tests:
       expected_extracted_terms: "select"
       expected_refactored_terms: "with,final"
 
+  # ── multi-table selected slice — ignore unrelated writer logic ──────────────
+  - description: "multi-table-selected-slice — InsertSelectTarget refactors selected slice only"
+    prompts: ["refactoring-sql"]
+    vars:
+      fixture_path: "tests/evals/fixtures/refactoring-sql/multi-table-selected-slice"
+      target_table: "silver.InsertSelectTarget"
+      writer: "silver.usp_load_InsertSelectTarget"
+      expected_extracted_terms: "productalternatekey,englishproductname"
+      forbidden_extracted_terms: "creditcard,unrelatedtarget,unrelated"
+      expected_refactored_terms: "with,final,productalternatekey"
+      forbidden_refactored_terms: "creditcard,unrelatedtarget,unrelated"
+
   # ── merge ─────────────────────────────────────────────────────
   - description: "merge — MERGE USING clause extracted, refactored with import CTEs"
     prompts: ["refactoring-sql"]
