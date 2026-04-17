@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import json
+import tempfile
 from pathlib import Path
 
 import pytest
@@ -490,6 +491,22 @@ def test_ready_excluded_table() -> None:
         assert result.object.reason == "not_applicable"
         assert result.object.code == "EXCLUDED"
 
+def test_ready_excluded_table_short_circuits_before_stage_policy() -> None:
+    """Excluded table returns not_applicable before generate-stage checks."""
+    tmp, root = _make_project()
+    with tmp:
+        cat_path = root / "catalog" / "tables" / "silver.dimcustomer.json"
+        cat = json.loads(cat_path.read_text(encoding="utf-8"))
+        cat["excluded"] = True
+        cat_path.write_text(json.dumps(cat), encoding="utf-8")
+        result = dry_run.run_ready(root, "generate", object_fqn="silver.DimCustomer")
+        assert isinstance(result, DryRunOutput)
+        assert result.ready is False
+        assert result.object is not None
+        assert result.object.reason == "not_applicable"
+        assert result.object.code == "EXCLUDED"
+        assert result.object.not_applicable is True
+
 def test_ready_invalid_stage() -> None:
     """Invalid stage returns ready=False with reason=invalid_stage."""
     tmp, root = _make_project()
@@ -499,6 +516,20 @@ def test_ready_invalid_stage() -> None:
         assert result.ready is False
         assert result.project is not None
         assert result.project.reason == "invalid_stage"
+
+def test_ready_invalid_stage_does_not_load_object_catalog() -> None:
+    """Invalid stage returns project-only output without object overlay."""
+    with tempfile.TemporaryDirectory() as tmp:
+        root = Path(tmp)
+        (root / "manifest.json").write_text("{}", encoding="utf-8")
+
+        result = dry_run.run_ready(root, "bogus", object_fqn="silver.DimCustomer")
+
+        assert isinstance(result, DryRunOutput)
+        assert result.ready is False
+        assert result.project is not None
+        assert result.project.reason == "invalid_stage"
+        assert result.object is None
 
 def test_ready_view_scope_passes() -> None:
     """View scope ready when manifest and view catalog exist."""
