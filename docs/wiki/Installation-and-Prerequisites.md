@@ -8,14 +8,14 @@ This page covers the tools, installation steps, and verification flow needed bef
 
 ## Platform Support
 
-Local execution is supported on macOS and Linux. Windows is not supported for the current local workflow because the project setup depends on Unix-oriented tooling such as `brew`, `direnv`, bash hooks, and unixODBC-based FreeTDS registration.
+Local execution is supported on macOS, Linux, and WSL. Native Windows is not supported for the current local workflow; Use WSL for the local workflow.
 
 ## Required Tools
 
 | Tool | Version | Purpose |
 |---|---|---|
 | [Claude Code CLI](https://claude.ai) | Latest | Agent runtime that executes all plugin commands |
-| Python | 3.11+ | Runtime for CLI tools; installed automatically by the Homebrew formula |
+| Python | 3.11+ | Runtime for CLI tools; installed automatically by the macOS Homebrew formula |
 | [gh CLI](https://cli.github.com/) | Latest | GitHub operations (PRs, branch management, worktree cleanup) |
 | git | 2.x+ | Version control; worktree support required for batch commands |
 
@@ -23,7 +23,7 @@ Local execution is supported on macOS and Linux. Windows is not supported for th
 
 | Tool | Version | Purpose |
 |---|---|---|
-| [FreeTDS](https://www.freetds.org/) | Latest | Open-source ODBC driver for SQL Server connectivity. Install: `brew install freetds` and ensure it is registered in unixODBC |
+| [FreeTDS](https://www.freetds.org/) | Latest | Open-source ODBC driver for SQL Server connectivity. On macOS, install with `brew install freetds`. On Linux and WSL, install FreeTDS and unixODBC with your platform package manager. Ensure `FreeTDS` is registered in unixODBC. |
 
 ## Optional Tools
 
@@ -89,12 +89,17 @@ The `ad-migration` plugin provides all pipeline commands and skills in a single 
 
 ## Installing the ad-migration CLI
 
-The `ad-migration` CLI is installed automatically when you run `/init-ad-migration`. To install
-manually or verify an existing installation:
+The `ad-migration` CLI is installed automatically on macOS when you run `/init-ad-migration`. To install manually or verify an existing macOS installation:
 
 ```bash
 brew tap accelerate-data/homebrew-tap
 brew install ad-migration
+ad-migration --version
+```
+
+On Linux and WSL, install the supported Linux/WSL CLI package for your environment, then verify:
+
+```bash
 ad-migration --version
 ```
 
@@ -106,7 +111,7 @@ Run the initialization command inside your Claude Code session:
 /init-ad-migration
 ```
 
-This installs the `ad-migration` CLI via Homebrew if not already present, then prompts for source technology selection, checks every prerequisite silently, and presents a status display grouped by source. See [[Project Init]] for full details on the status display format and what each check covers.
+On macOS, this installs the `ad-migration` CLI via Homebrew if not already present. On Linux and WSL, it reports the supported install path if the CLI is missing. It then prompts for source technology selection, checks every prerequisite silently, and presents a status display grouped by source. See [[Project Init]] for full details on the status display format and what each check covers.
 
 ## Next Step
 

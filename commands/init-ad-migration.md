@@ -16,11 +16,16 @@ Use `TaskCreate` and `TaskUpdate` to track the automated phases of this command.
 
 If `CLAUDE_PLUGIN_ROOT` is not set, stop immediately and tell the user to load the plugin with `claude --plugin-dir <path-to-ad-migration>` before running this command.
 
-If the host platform is Windows, stop immediately and tell the user local Windows execution is not supported for this workflow. Recommend running the plugin on macOS or Linux instead. Do not continue with any prerequisite checks on Windows.
+Classify the host platform before any prerequisite checks:
+
+- macOS: supported. The command may use the Homebrew install path when the CLI or macOS SQL Server prerequisites are missing.
+- Linux: supported. The command must use Linux/package-manager guidance instead of Homebrew remediation.
+- WSL: supported. Treat WSL as the Linux path.
+- Native Windows: unsupported. Stop immediately, say local native Windows execution is not supported, and tell the user: "Use WSL for the local workflow." Do not continue with any prerequisite checks on native Windows.
 
 ## Step 1.5: Install ad-migration CLI
 
-This Homebrew auto-install path is supported only on macOS.
+This Homebrew auto-install path is supported only on macOS. On Linux or WSL, if `ad-migration` is missing, stop and tell the user to install the supported Linux/WSL CLI package for their environment, then re-run `/init-ad-migration`; do not attempt `brew install`.
 
 Check whether `ad-migration` is already on PATH:
 
@@ -46,7 +51,7 @@ ad-migration doctor drivers --project-root . --json
 
 If `ad-migration doctor drivers` fails here, apply the public CLI driver doctor failure policy below.
 
-If Homebrew is not available on the user's machine, tell them:
+If Homebrew is not available on the user's macOS machine, tell them:
 
 > Install Homebrew first: `/bin/bash -c "$(curl -fsSL https://raw.githubusercontent.com/Homebrew/install/HEAD/install.sh)"`
 > Then re-run `/init-ad-migration`.
@@ -114,7 +119,7 @@ Run the source-stack checks for `$SOURCE`. These checks validate only local mach
 
 #### When `$SOURCE` is `sql_server`
 
-1. `uv run --project "${CLAUDE_PLUGIN_ROOT}/packages/ad-migration-internal" init check-freetds` — verify that Homebrew FreeTDS is installed, `odbcinst` is available, and `FreeTDS` appears in `odbcinst -q -d`
+1. `uv run --project "${CLAUDE_PLUGIN_ROOT}/packages/ad-migration-internal" init check-freetds` — verify that FreeTDS is installed, `odbcinst` is available, and `FreeTDS` appears in `odbcinst -q -d`. On macOS, FreeTDS may come from Homebrew. On Linux and WSL, FreeTDS and unixODBC may come from the platform package manager.
 2. `uv run --project "${CLAUDE_PLUGIN_ROOT}/packages/ad-migration-internal" init discover-mssql-driver-override` — discover the effective local SQL Server driver override. If the result is `status="resolved"`, add `MSSQL_DRIVER` to `$OVERRIDES`. If the result is `status="manual"`, show the returned `message` verbatim.
 
 #### When `$SOURCE` is `oracle`
@@ -174,7 +179,7 @@ Target runtime (Oracle):
 
 `direnv` is marked `—` (not `✗`) when missing — it is recommended but optional.
 
-For SQL Server, `freetds` is only green after both installation and unixODBC registration pass. If `brew` reports FreeTDS installed but `odbcinst` is missing, treat that as a failed prerequisite because `ad-migration setup-source` will not work with the default `MSSQL_DRIVER="FreeTDS"` path.
+For SQL Server, `freetds` is only green after both installation and unixODBC registration pass. If FreeTDS is installed but `odbcinst` is missing, treat that as a failed prerequisite because `ad-migration setup-source` will not work with the default `MSSQL_DRIVER="FreeTDS"` path.
 
 If any local override is discovered or required, explain that init writes only non-secret machine-specific overrides into `.env`, while `.envrc` remains the shared repo-local scaffold:
 
@@ -204,11 +209,15 @@ uv sync --project "${CLAUDE_PLUGIN_ROOT}/packages/ad-migration-internal"
 
 **Install FreeTDS** (SQL Server, if missing):
 
+On macOS:
+
 ```bash
 brew install freetds
 ```
 
-After installing, re-run `brew list --formula freetds` to confirm. FreeTDS is the default ODBC driver for SQL Server connectivity. Users who prefer the Microsoft driver can set `MSSQL_DRIVER="ODBC Driver 18 for SQL Server"` and install `msodbcsql18` themselves (requires interactive EULA acceptance).
+On Linux or WSL, tell the user to install FreeTDS and unixODBC using the platform package manager, then re-run `/init-ad-migration`. For example, Debian/Ubuntu users typically install `freetds-dev`, `freetds-bin`, and `unixodbc`.
+
+After installing, re-run `init check-freetds` to confirm. FreeTDS is the default ODBC driver for SQL Server connectivity. Users who prefer the Microsoft driver can set `MSSQL_DRIVER="ODBC Driver 18 for SQL Server"` and install `msodbcsql18` themselves (requires interactive EULA acceptance).
 
 **Register FreeTDS in unixODBC** (SQL Server, when installed but not registered):
 

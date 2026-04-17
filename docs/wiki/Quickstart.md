@@ -23,7 +23,7 @@ Each step below is tagged with which interface to use.
 /init-ad-migration
 ```
 
-This installs the `ad-migration` CLI via Homebrew, checks prerequisites, writes the project starter files, and scaffolds the repo-local git-workflow guidance.
+This installs the `ad-migration` CLI via Homebrew on macOS, reports the supported Linux/WSL install path when needed, checks prerequisites, writes the project starter files, and scaffolds the repo-local git-workflow guidance.
 
 Generated files include:
 

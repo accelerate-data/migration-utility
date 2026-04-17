@@ -85,3 +85,12 @@ def test_wiki_uses_renamed_command_examples() -> None:
     assert "scope(" not in text
     assert "profile(" not in text
     assert "refactor(" not in text
+
+
+def test_wiki_documents_linux_wsl_platform_contract() -> None:
+    text = _wiki_text()
+
+    assert "macOS, Linux, and WSL" in text
+    assert "Native Windows is not supported" in text
+    assert "Use WSL" in text
+    assert "platform package manager" in text

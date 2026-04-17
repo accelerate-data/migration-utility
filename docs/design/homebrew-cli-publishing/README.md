@@ -25,7 +25,7 @@
 - If the binary is missing on macOS, `/init-ad-migration` installs the tap if needed and runs `brew install ad-migration`, then resumes the normal init flow.
 - `/init-ad-migration` does not treat a successful Homebrew install as proof of readiness; it still runs the existing prerequisite checks and fails on any remaining readiness issue.
 - If Homebrew is unavailable or the install command fails, `/init-ad-migration` stops and surfaces a direct remediation message instead of attempting a second installer path.
-- Linux support is deferred to a later design and must not be implied by the initial Homebrew flow.
+- Linux and WSL support use their own install and prerequisite guidance; native Windows remains unsupported.
 
 ## Release contract
 
