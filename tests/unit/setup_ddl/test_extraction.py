@@ -36,6 +36,26 @@ def test_run_dmf_queries_escapes_single_quotes(tmp_path) -> None:
     assert "'proc''name' AS referencing_name" in dmf_sql
 
 
+def test_run_dmf_queries_scopes_object_list_to_selected_schemas(tmp_path) -> None:
+    conn = MagicMock()
+    list_cursor = MagicMock()
+
+    list_cursor.fetchall.return_value = []
+    conn.cursor.return_value = list_cursor
+
+    _run_dmf_queries(
+        conn=conn,
+        schemas=["dbo", "gold"],
+        object_type_filter="P",
+        staging_dir=tmp_path,
+        filename="proc_dmf.json",
+    )
+
+    list_sql = list_cursor.execute.call_args.args[0]
+    assert "o.type = 'P'" in list_sql
+    assert "SCHEMA_NAME(o.schema_id) IN ('dbo', 'gold')" in list_sql
+
+
 class _FakeSqlCursor:
     def __init__(self, failure_map: dict[str, Exception] | None = None) -> None:
         self.failure_map = failure_map or {}
@@ -226,6 +246,34 @@ def test_sqlserver_indexed_views_spec_writes_lowercase_fqns(tmp_path: Path) -> N
         "gold.indexedsales",
         "dbo.dimcustomer",
     ]
+
+
+@pytest.mark.parametrize(
+    "message",
+    [
+        "Invalid object name 'sys.change_tracking_tables'",
+        "Change tracking is not supported",
+        "Full text metadata is not supported in this version",
+        "Could not find stored procedure 'sys.sp_describe_first_result_set'",
+        "Cannot find the object 'sys.sensitivity_classifications'",
+    ],
+)
+def test_sqlserver_optional_metadata_known_absence_markers_write_empty_file(
+    tmp_path: Path,
+    message: str,
+) -> None:
+    from shared import sqlserver_extract
+
+    conn = _FakeSqlConn({"SELECT optional_metadata": RuntimeError(message)})
+    spec = sqlserver_extract._SqlServerQuerySpec(
+        "optional.json",
+        lambda _schemas: "SELECT optional_metadata",
+        optional=True,
+    )
+
+    sqlserver_extract._run_sqlserver_query_spec(conn, spec, tmp_path, ["dbo"])
+
+    assert json.loads((tmp_path / "optional.json").read_text(encoding="utf-8")) == []
 
 
 def test_sqlserver_optional_metadata_unexpected_error_raises(tmp_path: Path) -> None:
