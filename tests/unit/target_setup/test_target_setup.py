@@ -281,6 +281,7 @@ def test_export_seed_tables_writes_seed_csv_from_source_table(tmp_path: Path) ->
     seed_yml_path = project_root / "dbt" / "seeds" / "_seeds.yml"
     assert result.files == ["dbt/seeds/customertype.csv", "dbt/seeds/_seeds.yml"]
     assert result.csv_files == ["dbt/seeds/customertype.csv"]
+    assert result.written_paths == ["dbt/seeds/customertype.csv", "dbt/seeds/_seeds.yml"]
     assert result.row_counts == {"silver.customertype": 3}
     assert seed_path.read_text(encoding="utf-8") == (
         "id,name\n"
@@ -298,6 +299,26 @@ def test_export_seed_tables_writes_seed_csv_from_source_table(tmp_path: Path) ->
         "  - name: name\n"
         "    data_type: NVARCHAR(50)\n"
     )
+
+
+def test_export_seed_tables_reports_no_written_paths_when_content_unchanged(tmp_path: Path) -> None:
+    project_root = _make_sql_server_project(tmp_path)
+    _seed_catalog_table(project_root, "CustomerType", is_source=False, is_seed=True)
+    adapter = MagicMock()
+    adapter.read_table_rows.return_value = (
+        ["id", "name"],
+        [(1, "Retail")],
+    )
+
+    with patch("shared.target_setup.get_dbops") as mock_get_dbops:
+        mock_get_dbops.return_value.from_role.return_value = adapter
+        first = export_seed_tables(project_root)
+        second = export_seed_tables(project_root)
+
+    assert first.written_paths == ["dbt/seeds/customertype.csv", "dbt/seeds/_seeds.yml"]
+    assert second.files == ["dbt/seeds/customertype.csv", "dbt/seeds/_seeds.yml"]
+    assert second.csv_files == ["dbt/seeds/customertype.csv"]
+    assert second.written_paths == []
 
 
 def test_materialize_seed_tables_runs_dbt_seed(tmp_path: Path) -> None:
@@ -375,7 +396,7 @@ def test_run_setup_target_applies_delta_after_new_source_added(tmp_path: Path) -
             ),
         ),
         patch("shared.target_setup.apply_target_source_tables", side_effect=[first_apply, second_apply]),
-        patch("shared.target_setup.export_seed_tables", return_value=MagicMock(files=[], csv_files=[], row_counts={})),
+        patch("shared.target_setup.export_seed_tables", return_value=MagicMock(files=[], csv_files=[], row_counts={}, written_paths=[])),
         patch("shared.target_setup.materialize_seed_tables", return_value=MagicMock(ran=False, command=[])),
     ):
         first = run_setup_target(project_root)

@@ -150,6 +150,7 @@ class SeedExportResult:
     files: list[str]
     csv_files: list[str]
     row_counts: dict[str, int]
+    written_paths: list[str]
 
 
 @dataclass(frozen=True)
@@ -436,7 +437,7 @@ def export_seed_tables(project_root: Path) -> SeedExportResult:
     """Export confirmed seed catalog tables from source DB into dbt seed CSVs."""
     seed_specs = _load_seed_table_specs(project_root)
     if not seed_specs:
-        return SeedExportResult(files=[], csv_files=[], row_counts={})
+        return SeedExportResult(files=[], csv_files=[], row_counts={}, written_paths=[])
 
     source_role = _require_source_role(project_root)
     adapter = get_dbops(source_role.technology).from_role(
@@ -449,6 +450,7 @@ def export_seed_tables(project_root: Path) -> SeedExportResult:
 
     files: list[str] = []
     csv_files: list[str] = []
+    written_paths: list[str] = []
     row_counts: dict[str, int] = {}
     for spec in seed_specs:
         columns, rows = adapter.read_table_rows(
@@ -458,9 +460,10 @@ def export_seed_tables(project_root: Path) -> SeedExportResult:
         )
         seed_path = seeds_dir / f"{spec.seed_name}.csv"
         content = _render_seed_csv(columns, rows)
+        relative_path = str(seed_path.relative_to(project_root))
         if not seed_path.exists() or seed_path.read_text(encoding="utf-8") != content:
             seed_path.write_text(content, encoding="utf-8")
-        relative_path = str(seed_path.relative_to(project_root))
+            written_paths.append(relative_path)
         files.append(relative_path)
         csv_files.append(relative_path)
         row_counts[spec.fqn] = len(rows)
@@ -473,11 +476,13 @@ def export_seed_tables(project_root: Path) -> SeedExportResult:
 
     seeds_yml_path = seeds_dir / "_seeds.yml"
     seeds_yml_content = _render_seeds_yml(seed_specs)
+    seeds_yml_relative_path = str(seeds_yml_path.relative_to(project_root))
     if not seeds_yml_path.exists() or seeds_yml_path.read_text(encoding="utf-8") != seeds_yml_content:
         seeds_yml_path.write_text(seeds_yml_content, encoding="utf-8")
-    files.append(str(seeds_yml_path.relative_to(project_root)))
+        written_paths.append(seeds_yml_relative_path)
+    files.append(seeds_yml_relative_path)
 
-    return SeedExportResult(files=files, csv_files=csv_files, row_counts=row_counts)
+    return SeedExportResult(files=files, csv_files=csv_files, row_counts=row_counts, written_paths=written_paths)
 
 
 def materialize_seed_tables(project_root: Path, seed_files: list[str]) -> DbtSeedResult:
@@ -584,7 +589,7 @@ def run_setup_target(project_root: Path) -> SetupTargetOutput:
                 source_files = [str(source_path)]
         else:
             source_files = [str(source_path)]
-    written_paths = [*files, *source_files, *seeds.files]
+    written_paths = [*files, *source_files, *seeds.written_paths]
     return SetupTargetOutput(
         files=files + source_files + seeds.files,
         written_paths=written_paths,
