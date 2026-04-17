@@ -206,8 +206,15 @@ def run_extract(project_root: Path, database: str | None, schemas: list[str]) ->
         "event=extract_complete technology=%s tables=%s procedures=%s enrich=%s diagnostics=%s",
         technology, counts.get("tables"), counts.get("procedures"), enrich_result, diag_result,
     )
+    written_paths = ["manifest.json"]
+    for ddl_name in ("tables", "procedures", "views", "functions"):
+        ddl_path = project_root / "ddl" / f"{ddl_name}.sql"
+        if ddl_path.exists():
+            written_paths.append(str(ddl_path.relative_to(project_root)))
+    written_paths.extend(str(path) for path in counts.get("written_paths", []))
     return {
         **counts,
+        "written_paths": sorted(set(written_paths)),
         "enrich": enrich_result.model_dump() if hasattr(enrich_result, "model_dump") else enrich_result,
         "diagnostics": diag_result,
     }

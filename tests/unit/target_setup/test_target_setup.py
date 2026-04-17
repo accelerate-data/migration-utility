@@ -366,7 +366,12 @@ def test_run_setup_target_applies_delta_after_new_source_added(tmp_path: Path) -
         patch(
             "shared.target_setup.write_target_sources_yml",
             return_value=MagicMock(
-                path=str(project_root / "dbt" / "models" / "staging" / "_staging__sources.yml")
+                path=str(project_root / "dbt" / "models" / "staging" / "_staging__sources.yml"),
+                written_paths=[
+                    "dbt/models/staging/_staging__sources.yml",
+                    "dbt/models/staging/_staging__models.yml",
+                    "dbt/models/staging/stg_bronze__customer.sql",
+                ],
             ),
         ),
         patch("shared.target_setup.apply_target_source_tables", side_effect=[first_apply, second_apply]),
@@ -377,6 +382,8 @@ def test_run_setup_target_applies_delta_after_new_source_added(tmp_path: Path) -
         second = run_setup_target(project_root)
 
     assert first.created_tables == ["bronze.Customer"]
+    assert "dbt/models/staging/_staging__models.yml" in first.files
+    assert "dbt/models/staging/stg_bronze__customer.sql" in first.files
     assert second.created_tables == ["bronze.Orders"]
     assert "bronze.Customer" in second.existing_tables
 

@@ -461,18 +461,21 @@ def _staging_models_from_sources(sources: dict[str, Any]) -> dict[str, Any]:
     return {"version": 2, "models": models}
 
 
-def _cleanup_stale_staging_wrappers(staging_dir: Path, expected_wrapper_names: set[str]) -> None:
+def _cleanup_stale_staging_wrappers(staging_dir: Path, expected_wrapper_names: set[str]) -> list[Path]:
     """Remove stale generated bronze staging wrappers from previous source runs."""
     if not staging_dir.is_dir():
-        return
+        return []
+    removed_paths: list[Path] = []
     for wrapper_path in staging_dir.glob("stg_bronze__*.sql"):
         if wrapper_path.name in expected_wrapper_names:
             continue
         wrapper_path.unlink()
+        removed_paths.append(wrapper_path)
         logger.info(
             "event=generate_sources_removed_stale_wrapper path=%s",
             wrapper_path,
         )
+    return removed_paths
 
 
 def _dump_yaml(path: Path, data: dict[str, Any]) -> None:
@@ -486,15 +489,17 @@ def _dump_yaml(path: Path, data: dict[str, Any]) -> None:
         )
 
 
-def _remove_source_artifacts(staging_dir: Path, yaml_paths: tuple[Path, ...]) -> None:
-    _cleanup_stale_staging_wrappers(staging_dir, set())
+def _remove_source_artifacts(staging_dir: Path, yaml_paths: tuple[Path, ...]) -> list[Path]:
+    removed_paths = _cleanup_stale_staging_wrappers(staging_dir, set())
     for stale_yaml_path in yaml_paths:
         if stale_yaml_path.exists():
             stale_yaml_path.unlink()
+            removed_paths.append(stale_yaml_path)
             logger.info(
                 "event=generate_sources_removed_stale_yaml path=%s",
                 stale_yaml_path,
             )
+    return removed_paths
 
 
 def _iter_source_table_names(sources: dict[str, Any]):
@@ -536,16 +541,30 @@ def write_sources_yml(
     models_path = staging_dir / "_staging__models.yml"
 
     if result.sources is None:
-        _remove_source_artifacts(staging_dir, (sources_path, models_path))
-        return result.model_copy(update={"path": None})
+        removed_paths = _remove_source_artifacts(staging_dir, (sources_path, models_path))
+        return result.model_copy(
+            update={
+                "path": None,
+                "written_paths": [str(path.relative_to(project_root)) for path in removed_paths],
+            }
+        )
 
     staging_dir.mkdir(parents=True, exist_ok=True)
     _dump_yaml(sources_path, result.sources)
     _dump_yaml(models_path, _staging_models_from_sources(result.sources))
     expected_wrapper_names = _write_staging_wrapper_files(staging_dir, result.sources)
-    _cleanup_stale_staging_wrappers(staging_dir, expected_wrapper_names)
+    removed_paths = _cleanup_stale_staging_wrappers(staging_dir, expected_wrapper_names)
+    written_paths = [
+        str(sources_path.relative_to(project_root)),
+        str(models_path.relative_to(project_root)),
+        *(
+            str((staging_dir / wrapper_name).relative_to(project_root))
+            for wrapper_name in sorted(expected_wrapper_names)
+        ),
+        *(str(path.relative_to(project_root)) for path in removed_paths),
+    ]
 
-    return result.model_copy(update={"path": str(sources_path)})
+    return result.model_copy(update={"path": str(sources_path), "written_paths": written_paths})
 
 
 @app.command()

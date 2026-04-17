@@ -43,7 +43,7 @@ def _reset_table_sections(
     project_root: Path,
     norm: str,
     stage: str,
-) -> tuple[list[str], list[str], str | None]:
+) -> tuple[list[str], list[str], list[str], str | None]:
     table_path = project_root / "catalog" / "tables" / f"{norm}.json"
     table_data = read_catalog_json(table_path)
     writer = (
@@ -54,6 +54,7 @@ def _reset_table_sections(
 
     cleared_sections: list[str] = []
     deleted_files: list[str] = []
+    mutated_files: list[str] = []
 
     for key in _RESET_STAGE_SECTIONS[stage]:
         if key in table_data:
@@ -66,28 +67,30 @@ def _reset_table_sections(
             deleted_files.append(f"test-specs/{norm}.json")
 
     write_json(table_path, table_data)
-    return cleared_sections, deleted_files, writer
+    if cleared_sections:
+        mutated_files.append(str(table_path.relative_to(project_root)))
+    return cleared_sections, deleted_files, mutated_files, writer
 
 
 def _reset_writer_refactor(
     project_root: Path,
     writer_fqn: str | None,
-) -> list[str]:
+) -> tuple[list[str], list[str]]:
     if not writer_fqn:
-        return []
+        return [], []
 
     writer_norm = normalize(writer_fqn)
     proc_path = project_root / "catalog" / "procedures" / f"{writer_norm}.json"
     if not proc_path.exists():
-        return []
+        return [], []
 
     proc_data = read_catalog_json(proc_path)
     if "refactor" not in proc_data:
-        return []
+        return [], []
 
     del proc_data["refactor"]
     write_json(proc_path, proc_data)
-    return [f"procedure:{writer_norm}.refactor"]
+    return [f"procedure:{writer_norm}.refactor"], [str(proc_path.relative_to(project_root))]
 
 
 def _prepare_reset_migration_all_manifest(project_root: Path) -> tuple[dict[str, Any] | None, list[str]]:
@@ -240,9 +243,11 @@ def run_reset_migration(project_root: Path, stage: str, fqns: list[str]) -> Rese
     noop: list[str] = []
 
     for norm, _table_data in resolved_tables:
-        cleared_sections, deleted_files, writer = _reset_table_sections(project_root, norm, stage)
+        cleared_sections, deleted_files, mutated_files, writer = _reset_table_sections(project_root, norm, stage)
         if stage in ("scope", "profile", "generate-tests", "refactor"):
-            cleared_sections.extend(_reset_writer_refactor(project_root, writer))
+            writer_sections, writer_files = _reset_writer_refactor(project_root, writer)
+            cleared_sections.extend(writer_sections)
+            mutated_files.extend(writer_files)
 
         status = "reset" if cleared_sections or deleted_files else "noop"
         if status == "reset":
@@ -256,6 +261,7 @@ def run_reset_migration(project_root: Path, stage: str, fqns: list[str]) -> Rese
                 status=status,
                 cleared_sections=cleared_sections,
                 deleted_files=deleted_files,
+                mutated_files=mutated_files,
             )
         )
 

@@ -79,7 +79,8 @@ def ensure_catalog_subdirectories(project_root: Path) -> None:
         (catalog_dir / subdir).mkdir(parents=True, exist_ok=True)
 
 
-def run_write_catalog(staging_dir: Path, project_root: Path, database: str) -> dict[str, int]:
+def run_write_catalog(staging_dir: Path, project_root: Path, database: str) -> dict[str, object]:
+    from shared.catalog import detect_catalog_bucket
     from shared.catalog_diff import classify_objects, compute_object_hashes, load_existing_hashes
     from shared.catalog_dmf import write_catalog_files
 
@@ -123,4 +124,16 @@ def run_write_catalog(staging_dir: Path, project_root: Path, database: str) -> d
     counts["changed"] = len(diff.changed)
     counts["new"] = len(diff.new)
     counts["removed"] = len(diff.removed)
+    written_paths: list[str] = []
+    for fqn in sorted(write_filter):
+        bucket = derived_inputs["object_types"].get(fqn)
+        if not bucket and fqn in derived_inputs["table_signals"]:
+            bucket = "tables"
+        if bucket:
+            written_paths.append(f"catalog/{bucket}/{fqn}.json")
+    for fqn in sorted(diff.removed):
+        bucket = detect_catalog_bucket(project_root, fqn)
+        if bucket:
+            written_paths.append(f"catalog/{bucket}/{fqn}.json")
+    counts["written_paths"] = sorted(set(written_paths))
     return counts

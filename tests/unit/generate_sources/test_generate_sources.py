@@ -353,6 +353,10 @@ def test_write_sources_yml_writes_enriched_yaml_idempotently(tmp_path: Path) -> 
 
     second = write_sources_yml(tmp_path)
     assert second.path == first.path
+    assert "dbt/models/staging/_staging__sources.yml" in first.written_paths
+    assert "dbt/models/staging/_staging__models.yml" in first.written_paths
+    assert "dbt/models/staging/stg_bronze__customer.sql" in first.written_paths
+    assert "dbt/models/staging/stg_bronze__order.sql" in first.written_paths
     assert sources_path.read_text(encoding="utf-8") == first_content
     assert sources_path.name == "_staging__sources.yml"
     assert "&id" not in first_content
@@ -522,6 +526,9 @@ def test_write_sources_yml_removes_source_artifacts_when_no_sources_remain(tmp_p
 
     second = write_sources_yml(tmp_path)
     assert second.path is None
+    assert "dbt/models/staging/_staging__sources.yml" in second.written_paths
+    assert "dbt/models/staging/_staging__models.yml" in second.written_paths
+    assert "dbt/models/staging/stg_bronze__customer.sql" in second.written_paths
     assert not (staging_dir / "_staging__sources.yml").exists()
     assert not (staging_dir / "_staging__models.yml").exists()
     assert not (staging_dir / "stg_bronze__customer.sql").exists()

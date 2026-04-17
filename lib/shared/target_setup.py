@@ -574,8 +574,11 @@ def run_setup_target(project_root: Path) -> SetupTargetOutput:
     seeds = export_seed_tables(project_root)
     seed_materialization = materialize_seed_tables(project_root, seeds.csv_files)
     applied = apply_target_source_tables(project_root)
+    source_files = sources.written_paths if isinstance(sources.written_paths, list) else []
+    if not source_files and sources.path:
+        source_files = [sources.path]
     return SetupTargetOutput(
-        files=files + seeds.files,
+        files=files + source_files + seeds.files,
         sources_path=sources.path,
         target_source_schema=applied.physical_schema,
         created_tables=applied.created_tables,

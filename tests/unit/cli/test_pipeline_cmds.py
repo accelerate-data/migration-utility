@@ -6,8 +6,15 @@ from typer.testing import CliRunner
 
 from shared.cli.main import app
 from shared.output_models.catalog_writer import WriteSeedOutput, WriteSourceOutput
-from shared.output_models.dry_run import DryRunOutput, ExcludeOutput, ObjectReadiness, ReadinessDetail, ResetMigrationOutput
 from shared.loader_data import CatalogFileMissingError
+from shared.output_models.dry_run import (
+    DryRunOutput,
+    ExcludeOutput,
+    ObjectReadiness,
+    ReadinessDetail,
+    ResetMigrationOutput,
+    ResetTargetResult,
+)
 from shared.output_models.sandbox import SandboxDownOutput
 
 runner = CliRunner()
@@ -21,7 +28,14 @@ def _write_manifest(tmp_path: Path) -> None:
 
 _RESET_OUT = ResetMigrationOutput(
     stage="scope",
-    targets=[],
+    targets=[
+        ResetTargetResult(
+            fqn="silver.dimcustomer",
+            status="reset",
+            cleared_sections=["table.scoping"],
+            mutated_files=["catalog/tables/silver.dimcustomer.json"],
+        )
+    ],
     reset=["silver.DimCustomer"],
     noop=[],
     blocked=[],
@@ -44,6 +58,54 @@ def test_reset_runs_after_confirmation(tmp_path):
     assert "git add" not in result.output
     assert "git commit" not in result.output
     assert "git push" not in result.output
+
+
+def test_reset_reports_procedure_catalog_mutations(tmp_path):
+    _write_manifest(tmp_path)
+    out = ResetMigrationOutput(
+        stage="refactor",
+        targets=[
+            ResetTargetResult(
+                fqn="silver.dimcustomer",
+                status="reset",
+                cleared_sections=["procedure:dbo.usp_load_dimcustomer.refactor"],
+                mutated_files=["catalog/procedures/dbo.usp_load_dimcustomer.json"],
+            )
+        ],
+        reset=["silver.dimcustomer"],
+        noop=[],
+        blocked=[],
+        not_found=[],
+    )
+    with patch("shared.cli.reset_cmd.run_reset_migration", return_value=out):
+        result = runner.invoke(
+            app,
+            ["reset", "refactor", "silver.DimCustomer", "--yes", "--project-root", str(tmp_path)],
+        )
+
+    assert result.exit_code == 0, result.output
+    assert "catalog/procedures/dbo.usp_load_dimcustomer.json" in result.output
+
+
+def test_reset_noop_does_not_print_repo_state_or_reminder(tmp_path):
+    _write_manifest(tmp_path)
+    out = ResetMigrationOutput(
+        stage="scope",
+        targets=[ResetTargetResult(fqn="silver.dimcustomer", status="noop")],
+        reset=[],
+        noop=["silver.dimcustomer"],
+        blocked=[],
+        not_found=[],
+    )
+    with patch("shared.cli.reset_cmd.run_reset_migration", return_value=out):
+        result = runner.invoke(
+            app,
+            ["reset", "scope", "silver.DimCustomer", "--yes", "--project-root", str(tmp_path)],
+        )
+
+    assert result.exit_code == 0, result.output
+    assert "Updated repo state" not in result.output
+    assert "Review and commit the repo changes before continuing" not in result.output
 
 
 def test_reset_aborts_on_no(tmp_path):
@@ -227,7 +289,11 @@ def test_reset_all_sandbox_db_error_warns_and_continues(tmp_path):
 
 # ── exclude-table ────────────────────────────────────────────────────────────
 
-_EXCLUDE_OUT = ExcludeOutput(marked=["silver.AuditLog"], not_found=[])
+_EXCLUDE_OUT = ExcludeOutput(
+    marked=["silver.AuditLog"],
+    not_found=[],
+    written_paths=["catalog/tables/silver.auditlog.json"],
+)
 
 
 def test_exclude_table_marks_tables(tmp_path):
@@ -381,6 +447,8 @@ def test_add_seed_table_skips_tables_that_fail_guard(tmp_path):
     assert result.exit_code == 0, result.output
     mock_write.assert_not_called()
     assert "skipped  silver.lookup" in result.output
+    assert "Updated repo state" not in result.output
+    assert "Review and commit the repo changes before continuing" not in result.output
 
 
 def test_add_seed_table_allows_source_table_flip(tmp_path):
@@ -431,6 +499,8 @@ def test_add_seed_table_warns_when_catalog_file_is_missing(tmp_path):
 
     assert result.exit_code == 0, result.output
     assert "missing  silver.lookup" in result.output
+    assert "Updated repo state" not in result.output
+    assert "Review and commit the repo changes before continuing" not in result.output
 
 
 def test_add_seed_table_warns_when_write_fails_with_value_error(tmp_path):
@@ -450,3 +520,5 @@ def test_add_seed_table_warns_when_write_fails_with_value_error(tmp_path):
 
     assert result.exit_code == 0, result.output
     assert "skipped  silver.lookup -- bad state" in result.output
+    assert "Updated repo state" not in result.output
+    assert "Review and commit the repo changes before continuing" not in result.output

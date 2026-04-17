@@ -11,7 +11,6 @@ from shared.dry_run_core import RESET_GLOBAL_MANIFEST_SECTIONS, RESET_GLOBAL_PAT
 from shared.cli.error_handler import cli_error_handler
 from shared.cli.output import console, error, print_table, remind_review_and_commit, success, warn
 from shared.loader_io import clear_manifest_sandbox
-from shared.name_resolver import normalize
 from shared.runtime_config import get_sandbox_name
 from shared.test_harness_support.manifest import _create_backend as _th_create_backend
 from shared.test_harness_support.manifest import _load_manifest as _th_load_manifest
@@ -179,9 +178,8 @@ def reset(
     if result.blocked or result.not_found:
         raise typer.Exit(code=1)
     written_paths = [
-        deleted_file
+        path
         for target in result.targets
-        for deleted_file in target.deleted_files
+        for path in [*target.mutated_files, *target.deleted_files]
     ]
-    written_paths.extend(f"catalog/tables/{normalize(fqn)}.json" for fqn in result.reset)
     remind_review_and_commit(written_paths)

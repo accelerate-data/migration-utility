@@ -11,7 +11,17 @@ runner = CliRunner()
 
 _SCAFFOLD_OUT = ScaffoldProjectOutput(files_created=["CLAUDE.md", ".envrc"], files_updated=[], files_skipped=[])
 _HOOKS_OUT = ScaffoldHooksOutput(hook_created=True, hooks_path_configured=True)
-_EXTRACT_OUT = {"tables": 5, "procedures": 3, "views": 2, "functions": 0}
+_EXTRACT_OUT = {
+    "tables": 5,
+    "procedures": 3,
+    "views": 2,
+    "functions": 0,
+    "written_paths": [
+        "manifest.json",
+        "ddl/tables.sql",
+        "catalog/tables/silver.customer.json",
+    ],
+}
 
 
 def _write_manifest(tmp_path: Path, source_technology: str | None = "sql_server") -> None:
@@ -51,6 +61,8 @@ def test_setup_source_sql_server_runs_extraction(tmp_path, monkeypatch):
     mock_extract.assert_called_once_with(tmp_path, "AdventureWorks2022", ["silver", "gold"])
     assert "Updated repo state" in result.output
     assert "manifest.json" in result.output
+    assert "ddl/tables.sql" in result.output
+    assert "catalog/tables/silver.customer.json" in result.output
     assert "CLAUDE.md" in result.output
     assert "Review and commit the repo changes before continuing" in result.output
     assert "git add" not in result.output
