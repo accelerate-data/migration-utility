@@ -1,4 +1,4 @@
-"""Tests for --verbose global flag and set_verbose/is_verbose in output.py."""
+"""Tests for --verbose global flag behavior."""
 from __future__ import annotations
 
 import logging
@@ -10,27 +10,6 @@ import shared.cli.output as output_mod
 from shared.cli.main import app
 
 runner = CliRunner()
-
-
-# ── output.py set_verbose / is_verbose round-trip ───────────────────────────
-
-def test_set_verbose_true_is_verbose_returns_true():
-    output_mod.set_verbose(True)
-    try:
-        assert output_mod.is_verbose() is True
-    finally:
-        output_mod.set_verbose(False)
-
-
-def test_set_verbose_false_is_verbose_returns_false():
-    output_mod.set_verbose(True)
-    output_mod.set_verbose(False)
-    assert output_mod.is_verbose() is False
-
-
-def test_is_verbose_defaults_to_false():
-    output_mod.set_verbose(False)
-    assert output_mod.is_verbose() is False
 
 
 # ── --verbose installs a StreamHandler on the root logger ────────────────────
@@ -112,8 +91,6 @@ def test_verbose_and_quiet_coexist(tmp_path):
     assert result.exit_code == 0, result.output
     # verbose still installed a handler
     assert len(stream_handlers_after) >= 1
-    # quiet was also set
-    assert output_mod.is_verbose() is True or True  # verbose may persist; just verify no crash
     # Reset quiet state for other tests
     output_mod.set_verbose(False)
     output_mod.set_quiet(False)

@@ -14,7 +14,7 @@ from pathlib import Path
 import yaml
 
 from shared.dbops import ColumnSpec, get_dbops
-from shared.generate_sources import generate_sources, write_sources_yml
+from shared.generate_sources import write_sources_yml
 from shared.name_resolver import model_name_from_table, normalize
 from shared.output_models.generate_sources import GenerateSourcesOutput
 from shared.output_models.target_setup import SetupTargetOutput
@@ -525,14 +525,6 @@ def materialize_seed_tables(project_root: Path, seed_files: list[str]) -> DbtSee
         len(seed_csv_files),
     )
     return DbtSeedResult(ran=True, command=command)
-
-
-def generate_target_sources(project_root: Path) -> GenerateSourcesOutput:
-    """Build logical dbt sources remapped to the configured target source schema."""
-    return generate_sources(
-        project_root,
-        source_schema_override=get_target_source_schema(project_root),
-    )
 
 
 def write_target_sources_yml(project_root: Path) -> GenerateSourcesOutput:
