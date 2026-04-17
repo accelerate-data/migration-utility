@@ -15,11 +15,9 @@ Emits: sqlserver.sql, oracle.sql, postgres.sql in the output directory.
 from __future__ import annotations
 
 import argparse
-import hashlib
 import logging
 import os
 import random
-import sys
 from datetime import date, datetime, timedelta
 from decimal import Decimal
 from pathlib import Path
