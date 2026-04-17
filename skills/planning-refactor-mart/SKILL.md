@@ -7,13 +7,14 @@ argument-hint: "<schema.table> [schema.table ...]"
 
 # Planning Refactor Mart
 
-Analyze one bounded mart-domain unit and write a markdown plan of refactor
-candidates. This skill is planning-only: do not create, edit, delete, or rewire
-dbt models.
+Analyze one or more selected targets that form one bounded mart-domain unit and
+write a markdown plan of refactor candidates. This skill is planning-only: do
+not create, edit, delete, or rewire dbt models.
 
 ## Inputs
 
-- One or more selected mart-domain targets from the command arguments.
+- One or more selected mart-domain targets from the command arguments that
+  together form one bounded unit of work.
 - The active project root.
 - Existing `catalog/`, `manifest.json`, and `dbt/` context.
 - The required plan output path from `/refactor-mart-plan`.

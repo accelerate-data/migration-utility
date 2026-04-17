@@ -4,6 +4,7 @@
 //   run_path,
 //   plan_name,
 //   expected_candidate_types,
+//   expected_higher_layer_candidate?,
 //   expected_terms?,
 //   expected_unapproved_terms?
 // }
@@ -109,6 +110,9 @@ module.exports = (output, context) => {
 
   const markdown = fs.readFileSync(planPath, 'utf8');
   const normalized = markdown.toLowerCase();
+  if (/^##\s+Candidates\s*$/m.test(markdown)) {
+    return fail('Do not wrap candidate sections in a separate ## Candidates section');
+  }
   if (/^#{3,}\s+Candidate:/m.test(markdown)) {
     return fail('Candidate headings must use level-2 markdown: ## Candidate: <ID>');
   }
@@ -138,6 +142,15 @@ module.exports = (output, context) => {
   for (const type of expectedTypes) {
     if (!normalized.includes(`type: ${type}`)) {
       return fail(`Expected candidate type '${type}' not found`);
+    }
+  }
+
+  if (String(context.vars.expected_higher_layer_candidate || '').toLowerCase() === 'true') {
+    const hasHigherLayer = sections.some((section) =>
+      /^-\s+Type:\s+(int|mart)\s*$/m.test(section.body),
+    );
+    if (!hasHigherLayer) {
+      return fail('Expected higher-layer int or mart candidate not found');
     }
   }
 

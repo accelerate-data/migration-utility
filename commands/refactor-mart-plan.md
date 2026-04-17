@@ -1,8 +1,9 @@
 ---
 name: refactor-mart-plan
 description: >
-  Mart refactor planning command. Analyzes one mart-domain unit, writes a
-  markdown candidate plan, and does not apply dbt model changes.
+  Mart refactor planning command. Analyzes one or more selected targets as a
+  bounded mart-domain unit, writes a markdown candidate plan, and does not apply
+  dbt model changes.
 user-invocable: true
 argument-hint: "<schema.table> [schema.table ...]"
 ---
