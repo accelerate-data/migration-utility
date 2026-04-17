@@ -505,6 +505,30 @@ class TestListSchemasGuards:
 # ── Unit: connection identity ─────────────────────────────────────────────────
 
 
+def test_sql_server_connection_identity_omits_driver(monkeypatch):
+    import sys
+
+    sys.path.insert(0, str(Path(__file__).resolve().parents[3] / "lib"))
+    from shared.setup_ddl_support.manifest import get_connection_identity
+
+    monkeypatch.setenv("SOURCE_MSSQL_HOST", "server1.example.com")
+    monkeypatch.setenv("SOURCE_MSSQL_PORT", "1433")
+    monkeypatch.setenv("SOURCE_MSSQL_USER", "warehouse_user")
+    monkeypatch.setenv("SOURCE_MSSQL_PASSWORD", "secret")
+    monkeypatch.setenv("MSSQL_DRIVER", "ODBC Driver 18 for SQL Server")
+
+    identity = get_connection_identity("sql_server", "WarehouseDb")
+
+    assert identity["connection"] == {
+        "host": "server1.example.com",
+        "port": "1433",
+        "database": "WarehouseDb",
+        "user": "warehouse_user",
+        "password_env": "SOURCE_MSSQL_PASSWORD",
+    }
+    assert "driver" not in identity["connection"]
+
+
 class TestConnectionIdentity:
     """Tests for setup-ddl source identity and stale-marking helpers."""
 

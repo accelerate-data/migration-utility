@@ -113,7 +113,6 @@ def get_connection_identity(technology: str, database: str) -> dict[str, Any]:
                 database=database or None,
                 user=os.environ.get("SOURCE_MSSQL_USER", "") or None,
                 password_env="SOURCE_MSSQL_PASSWORD",
-                driver=os.environ.get("MSSQL_DRIVER", "FreeTDS") or None,
             ),
         )
         return role.model_dump(mode="json", by_alias=True, exclude_none=True)

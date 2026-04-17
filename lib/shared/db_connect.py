@@ -9,6 +9,8 @@ from __future__ import annotations
 import os
 from typing import Any
 
+SQL_SERVER_ODBC_DRIVER = "FreeTDS"
+
 
 def cursor_to_dicts(cursor: Any) -> list[dict[str, Any]]:
     """Convert a cursor result set to a list of column-keyed dicts.
@@ -57,7 +59,7 @@ def sql_server_connect(database: str) -> Any:
     """Open a pyodbc connection to SQL Server.
 
     Reads SOURCE_MSSQL_HOST, SOURCE_MSSQL_PORT, SOURCE_MSSQL_USER,
-    SOURCE_MSSQL_PASSWORD, MSSQL_DRIVER from the environment.
+    SOURCE_MSSQL_PASSWORD from the environment.
     Raises ValueError if required variables are missing.
     Raises RuntimeError if pyodbc is not installed.
     """
@@ -73,7 +75,6 @@ def sql_server_connect(database: str) -> Any:
     port = os.environ.get("SOURCE_MSSQL_PORT", "1433")
     user = os.environ.get("SOURCE_MSSQL_USER", "sa")
     password = os.environ.get("SOURCE_MSSQL_PASSWORD", "")
-    driver = os.environ.get("MSSQL_DRIVER", "FreeTDS")
 
     missing = [name for name, val in [("SOURCE_MSSQL_HOST", host), ("SOURCE_MSSQL_PASSWORD", password)] if not val]
     if missing:
@@ -85,7 +86,7 @@ def sql_server_connect(database: str) -> Any:
         database=database,
         user=user,
         password=password,
-        driver=driver,
+        driver=SQL_SERVER_ODBC_DRIVER,
     )
     try:
         return pyodbc.connect(conn_str, autocommit=True)
@@ -93,7 +94,7 @@ def sql_server_connect(database: str) -> Any:
         msg = str(exc)
         if "Can't open lib" in msg:
             raise RuntimeError(
-                f"ODBC driver '{driver}' not found. "
+                f"ODBC driver '{SQL_SERVER_ODBC_DRIVER}' not found. "
                 "Install FreeTDS using your platform package manager and ensure unixODBC can see it."
             ) from exc
         raise
