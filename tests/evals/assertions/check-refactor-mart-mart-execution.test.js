@@ -195,3 +195,43 @@ test('fails when an applied higher-layer output is missing', () => {
     assert.match(result.reason, /Output file not found/);
   });
 });
+
+test('fails when applied INT output is under intermediate but lacks int prefix', () => {
+  withRunProject((root, runPath) => {
+    writeHappyPathPlan(root, { intOutput: 'dbt/models/intermediate/orders.sql' });
+    writeFile(root, 'dbt/models/intermediate/orders.sql', "select * from {{ ref('stg_bronze__orders') }}\n");
+    writeFile(root, 'dbt/models/marts/fct_sales.sql', "select * from {{ ref('int_sales_orders') }}\n");
+
+    const result = check('applied int_sales_orders fct_sales', {
+      vars: {
+        run_path: runPath,
+        plan_file: 'docs/design/plan.md',
+        expected_candidate_statuses: 'STG-001:applied,INT-001:applied,MART-001:applied',
+        expected_validation_results: 'INT-001,MART-001',
+      },
+    });
+
+    assert.equal(result.pass, false);
+    assert.match(result.reason, /not an intermediate model/);
+  });
+});
+
+test('fails when applied MART output is under marts but lacks mart prefix', () => {
+  withRunProject((root, runPath) => {
+    writeHappyPathPlan(root, { martOutput: 'dbt/models/marts/sales.sql' });
+    writeFile(root, 'dbt/models/intermediate/int_sales_orders.sql', "select * from {{ ref('stg_bronze__orders') }}\n");
+    writeFile(root, 'dbt/models/marts/sales.sql', "select * from {{ ref('int_sales_orders') }}\n");
+
+    const result = check('applied int_sales_orders fct_sales', {
+      vars: {
+        run_path: runPath,
+        plan_file: 'docs/design/plan.md',
+        expected_candidate_statuses: 'STG-001:applied,INT-001:applied,MART-001:applied',
+        expected_validation_results: 'INT-001,MART-001',
+      },
+    });
+
+    assert.equal(result.pass, false);
+    assert.match(result.reason, /not a mart model/);
+  });
+});

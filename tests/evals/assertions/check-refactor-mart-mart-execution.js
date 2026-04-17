@@ -117,7 +117,7 @@ function verifyHigherLayerOutput(runRoot, section, type) {
   const modelName = modelNameFromOutput(output);
   const relativeOutput = path.relative(runRoot, outputFile);
   if (type === 'int') {
-    const validIntermediate = modelName.startsWith('int_') ||
+    const validIntermediate = modelName.startsWith('int_') &&
       isUnder(relativeOutput, 'dbt/models/intermediate/');
     if (!validIntermediate) {
       return fail(`Candidate ${section.id} Output is not an intermediate model: ${output}`);
@@ -125,7 +125,7 @@ function verifyHigherLayerOutput(runRoot, section, type) {
   }
 
   if (type === 'mart') {
-    const validMart = ['fct_', 'dim_', 'mart_'].some((prefix) => modelName.startsWith(prefix)) ||
+    const validMart = ['fct_', 'dim_', 'mart_'].some((prefix) => modelName.startsWith(prefix)) &&
       isUnder(relativeOutput, 'dbt/models/marts/');
     if (!validMart) {
       return fail(`Candidate ${section.id} Output is not a mart model: ${output}`);

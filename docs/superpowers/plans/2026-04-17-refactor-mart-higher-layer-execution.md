@@ -442,6 +442,8 @@ node --test tests/evals/assertions/check-refactor-mart-stg-execution.test.js tes
 
 Expected: pass.
 
+Evidence: assertion tests passed 11/11.
+
 - [x] **Step 10: Run command eval**
 
 Run:
@@ -451,6 +453,8 @@ cd tests/evals && npm run eval:cmd-refactor-mart
 ```
 
 Expected: pass. If model nondeterminism causes a case to fail while the contract and assertion are correct, capture the failure and revise the prompt or fixture to remove ambiguity.
+
+Evidence: `cmd-refactor-mart` promptfoo eval passed 5/5; markdownlint passed for the int prompt and implementation plan.
 
 - [x] **Step 11: Commit eval slice**
 
