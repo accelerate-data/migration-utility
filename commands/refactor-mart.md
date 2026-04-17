@@ -15,7 +15,8 @@ Modes:
 - `int`: approved `Type: int` and `Type: mart` candidates only.
 
 Never apply unapproved candidates. Never edit candidates outside the selected
-mode, though they may appear as skipped in the final summary.
+mode. `skipped` is a final-summary category only; do not write
+`Execution status: skipped`.
 
 ## Guards
 
@@ -57,6 +58,10 @@ Block the selected candidate in the plan when:
 
 Include the metadata problem, or each missing/unsatisfied dependency ID and its
 actual status, in exactly one `Blocked reason:` bullet.
+
+Process selected candidates in plan order. After each apply-skill invocation,
+reread the plan before gating the next selected candidate so a newly applied
+candidate can satisfy downstream dependencies in the same wave.
 
 ## Apply
 
