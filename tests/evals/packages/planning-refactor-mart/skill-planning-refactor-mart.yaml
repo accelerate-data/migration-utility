@@ -1,0 +1,52 @@
+# yaml-language-server: $schema=https://promptfoo.dev/config-schema.json
+description: "Planning-refactor-mart skill -- markdown candidate plan generation"
+
+prompts:
+  - id: planning-refactor-mart
+    label: planning-refactor-mart
+    raw: file://../../prompts/skill-planning-refactor-mart.txt
+
+extensions:
+  - file://../../scripts/run-workspace-extension.js:extensionHook
+
+providers:
+  - file://../../providers/haiku-120.yaml
+
+defaultTest:
+  assert:
+    - type: javascript
+      value: file://../../assertions/check-refactor-mart-plan.js
+
+tests:
+  - description: "[smoke] shared-source happy path -- staging and intermediate candidates"
+    vars:
+      fixture_path: "tests/evals/fixtures/cmd-generate-model/happy-path"
+      target_tables: "silver.DimCustomer silver.DimProduct"
+      plan_name: "refactor-mart-shared-source-plan"
+      expected_candidate_types: "stg,mart"
+      expected_terms: "depends on,validation,execution status"
+
+  - description: "view cleanup path -- mart candidate only"
+    vars:
+      fixture_path: "tests/evals/fixtures/cmd-generate-model/view-materialization"
+      target_tables: "silver.vw_activecustomers"
+      plan_name: "refactor-mart-split-source-plan"
+      expected_candidate_types: "mart"
+      expected_terms: "mart,validation,planned"
+
+  - description: "dependency path -- higher-layer candidate depends on staging"
+    vars:
+      fixture_path: "tests/evals/fixtures/cmd-generate-model/happy-path"
+      target_tables: "silver.DimCustomer silver.DimProduct"
+      plan_name: "refactor-mart-dependency-plan"
+      expected_candidate_types: "stg,mart"
+      expected_terms: "depends on: stg-,execution status: planned"
+
+  - description: "review gate -- uncertain candidates stay unapproved"
+    vars:
+      fixture_path: "tests/evals/fixtures/refactoring-sql/dynamic-sql"
+      target_tables: "silver.DimCurrency"
+      plan_name: "refactor-mart-review-required-plan"
+      expected_candidate_types: "stg,mart"
+      expected_terms: "approve: no"
+      expected_unapproved_terms: "column mapping"

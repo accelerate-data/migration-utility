@@ -1,0 +1,10 @@
+You are running in a DDL project with canonical fixture input at {{fixture_path}} and writable run workspace at {{run_path}}.
+
+Run /planning-refactor-mart for these targets: {{target_tables}}.
+
+Read the skill at `${CLAUDE_PLUGIN_ROOT}/skills/planning-refactor-mart/SKILL.md`.
+Read the plan contract at `${CLAUDE_PLUGIN_ROOT}/skills/planning-refactor-mart/references/plan-file-contract.md`.
+Keep `${CLAUDE_PLUGIN_ROOT}` references as written. Pass `--project-root {{run_path}}` to any CLI commands.
+
+Write the markdown plan to `{{run_path}}/docs/design/{{plan_name}}.md`.
+This is a planning-only workflow. Do not edit files under `{{run_path}}/dbt/models`.
