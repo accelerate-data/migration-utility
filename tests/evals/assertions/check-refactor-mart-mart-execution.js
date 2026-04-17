@@ -149,9 +149,11 @@ function countBullets(section, field) {
 module.exports = (output, context) => {
   let expectedStatuses;
   let expectedRefs;
+  let expectedAbsentRefs;
   try {
     expectedStatuses = parseExpectedStatuses(context.vars.expected_candidate_statuses);
     expectedRefs = parseExpectedPairs(context.vars.expected_model_refs);
+    expectedAbsentRefs = parseExpectedPairs(context.vars.expected_absent_model_refs);
   } catch (error) {
     return fail(error.message);
   }
@@ -229,6 +231,19 @@ module.exports = (output, context) => {
     if (!hasRef(consumerSql, expected.model)) {
       return fail(
         `Expected consumer ${expected.consumer} to reference ${expected.model}`,
+      );
+    }
+  }
+
+  for (const expected of expectedAbsentRefs) {
+    const consumerFile = findModelFile(runRoot, expected.consumer);
+    if (!consumerFile) {
+      return fail(`Expected consumer model not found: ${expected.consumer}`);
+    }
+    const consumerSql = fs.readFileSync(consumerFile, 'utf8');
+    if (hasRef(consumerSql, expected.model)) {
+      return fail(
+        `Expected consumer ${expected.consumer} not to reference ${expected.model}`,
       );
     }
   }
