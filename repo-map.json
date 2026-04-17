@@ -77,7 +77,7 @@
     },
     "sandbox_backends": {
       "path": "lib/shared/sandbox/",
-      "description": "Technology-specific sandbox backends for test harness. base.py: abstract SandboxBackend interface. sql_server.py: pyodbc-based SQL Server sandbox lifecycle (schema cloning via SELECT INTO, proc cloning via OBJECT_DEFINITION, scenario execution). oracle.py: oracledb-based Oracle sandbox lifecycle (schema-level via CREATE USER, table cloning via CTAS, proc cloning via ALL_SOURCE, scenario execution with NLS date handling)."
+      "description": "Technology-specific sandbox backends for test harness. base.py: abstract SandboxBackend interface and shared result helpers. sql_server.py and oracle.py: thin public facade classes for each dialect. sql_server_services.py and oracle_services.py: dialect core behavior for connection setup, lifecycle cloning, fixture seeding, scenario execution, SELECT execution, and SQL comparison. *_lifecycle.py, *_execution.py, *_fixtures.py, and *_comparison.py: focused service delegates used by the public facades."
     },
     "shared_python": {
       "path": "lib/shared/",
@@ -105,7 +105,7 @@
     },
     "tests_migration": {
       "path": "tests/unit/",
-      "description": "Shared-library unit pytest suite organized by module under tests/unit/<module>/. Each module directory contains focused test files split by responsibility (e.g. test_harness/ has test_test_harness.py and test_write_cli.py; diagnostics/ has test_diagnostics.py, test_diagnostics_oracle.py, test_diagnostics_sqlserver.py). Shared fixtures that support multiple modules remain under tests/unit/fixtures/. Shared pytest plumbing lives in tests/conftest.py. oracle_mcp_config/ locks the repository Oracle MCP config and install-doc fallback contract."
+      "description": "Shared-library unit pytest suite organized by module under tests/unit/<module>/. Each module directory contains focused test files split by responsibility (e.g. test_harness/ covers CLI behavior, sandbox facades/services, registry resolution, views/compare helpers, and write CLI behavior; diagnostics/ has test_diagnostics.py, test_diagnostics_oracle.py, test_diagnostics_sqlserver.py). Shared fixtures that support multiple modules remain under tests/unit/fixtures/. Shared pytest plumbing lives in tests/conftest.py. oracle_mcp_config/ locks the repository Oracle MCP config and install-doc fallback contract."
     },
     "tests_migration_integration": {
       "path": "tests/integration/",
