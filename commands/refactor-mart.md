@@ -62,13 +62,15 @@ Mode behavior:
 For `stg` mode, reject non-staging candidates without changing their execution
 status.
 
-For `int` mode, check dependencies before applying each selected candidate:
+For `int` mode, check dependencies before applying each selected candidate and
+before editing any dbt files:
 
 - `Depends on: none` is satisfied.
 - A dependency is satisfied only when the referenced candidate section has
   `Execution status: applied`.
-- If any dependency is not satisfied, mark the candidate as blocked in the plan,
-  include the missing dependency IDs, and skip application.
+- If any dependency is missing, unchecked, failed, blocked, planned, or
+  otherwise not applied, mark the candidate as blocked in the plan, include
+  the missing or unsatisfied dependency IDs, and skip application.
 
 ### Step 3 -- Apply Selected Wave
 
@@ -76,7 +78,7 @@ For each selected, unblocked candidate:
 
 - `stg` mode: run the `applying-staging-candidate` skill for
   `<plan-file> <candidate-id>`.
-- `int` mode: delegate to the future higher-layer candidate apply workflow for
+- `int` mode: run the internal `applying-mart-candidates` skill for
   `<plan-file> <candidate-id>`.
 
 The apply workflow owns dbt file changes, validation, and candidate status
