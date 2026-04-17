@@ -15,8 +15,9 @@ from shared.fixture_materialization import materialize_migration_test
 from tests.helpers import REPO_ROOT
 from tests.integration.runtime_helpers import (
     ORACLE_MIGRATION_SCHEMA,
-    build_oracle_admin_connect_kwargs,
-    build_oracle_admin_role,
+    build_oracle_dsn,
+    build_oracle_fixture_admin_role,
+    oracle_sandbox_is_available,
     oracle_is_available,
 )
 
@@ -35,7 +36,7 @@ LEGACY_FIXTURE_PROCEDURE = "SUMMARIZE_CHANNEL_SALES"
 
 
 def _have_oracle_env() -> bool:
-    return oracle_is_available(oracledb)
+    return oracle_is_available(oracledb) and oracle_sandbox_is_available(oracledb)
 
 
 def _table_exists(cursor: oracledb.Cursor, schema: str, table_name: str) -> bool:
@@ -71,15 +72,23 @@ def _procedure_names(cursor: oracledb.Cursor, schema: str) -> set[str]:
     return {row[0] for row in cursor.fetchall()}
 
 
+def _connect_source_schema() -> oracledb.Connection:
+    return oracledb.connect(
+        user=os.environ["SOURCE_ORACLE_USER"],
+        password=os.environ["SOURCE_ORACLE_PASSWORD"],
+        dsn=build_oracle_dsn(),
+    )
+
+
 @pytest.mark.skipif(not _have_oracle_env(), reason="Oracle fixture env not configured")
 def test_materialize_migration_test_oracle_creates_core_objects() -> None:
-    schema = os.environ.get("ORACLE_SCHEMA", ORACLE_MIGRATION_SCHEMA).upper()
+    schema = ORACLE_MIGRATION_SCHEMA
     assert schema == MIGRATION_FIXTURE_SCHEMA
-    role = build_oracle_admin_role()
+    role = build_oracle_fixture_admin_role()
     result = materialize_migration_test(role, REPO_ROOT)
     assert result.returncode == 0, result.stderr
 
-    conn = oracledb.connect(**build_oracle_admin_connect_kwargs(oracledb))
+    conn = _connect_source_schema()
     try:
         cursor = conn.cursor()
         assert _table_exists(cursor, schema, MIGRATION_FIXTURE_BRONZE_CURRENCY)
@@ -97,12 +106,12 @@ def test_materialize_migration_test_oracle_creates_core_objects() -> None:
 
 @pytest.mark.skipif(not _have_oracle_env(), reason="Oracle fixture env not configured")
 def test_materialize_migration_test_oracle_is_idempotent() -> None:
-    schema = os.environ.get("ORACLE_SCHEMA", ORACLE_MIGRATION_SCHEMA).upper()
-    role = build_oracle_admin_role()
+    schema = ORACLE_MIGRATION_SCHEMA
+    role = build_oracle_fixture_admin_role()
     first = materialize_migration_test(role, REPO_ROOT)
     assert first.returncode == 0, first.stderr
 
-    conn = oracledb.connect(**build_oracle_admin_connect_kwargs(oracledb))
+    conn = _connect_source_schema()
     try:
         cursor = conn.cursor()
         cursor.execute(f'DROP PROCEDURE "{schema}"."{MIGRATION_FIXTURE_SILVER_LOAD_DIMCURRENCY_PROC}"')
@@ -113,7 +122,7 @@ def test_materialize_migration_test_oracle_is_idempotent() -> None:
     second = materialize_migration_test(role, REPO_ROOT)
     assert second.returncode == 0, second.stderr
 
-    conn = oracledb.connect(**build_oracle_admin_connect_kwargs(oracledb))
+    conn = _connect_source_schema()
     try:
         cursor = conn.cursor()
         assert _procedure_exists(cursor, schema, MIGRATION_FIXTURE_SILVER_LOAD_DIMCURRENCY_PROC)
@@ -123,13 +132,13 @@ def test_materialize_migration_test_oracle_is_idempotent() -> None:
 
 @pytest.mark.skipif(not _have_oracle_env(), reason="Oracle fixture env not configured")
 def test_materialize_migration_test_oracle_removes_legacy_objects() -> None:
-    schema = os.environ.get("ORACLE_SCHEMA", ORACLE_MIGRATION_SCHEMA).upper()
-    role = build_oracle_admin_role()
+    schema = ORACLE_MIGRATION_SCHEMA
+    role = build_oracle_fixture_admin_role()
 
     first = materialize_migration_test(role, REPO_ROOT)
     assert first.returncode == 0, first.stderr
 
-    conn = oracledb.connect(**build_oracle_admin_connect_kwargs(oracledb))
+    conn = _connect_source_schema()
     try:
         cursor = conn.cursor()
         cursor.execute(
@@ -148,7 +157,7 @@ def test_materialize_migration_test_oracle_removes_legacy_objects() -> None:
     second = materialize_migration_test(role, REPO_ROOT)
     assert second.returncode == 0, second.stderr
 
-    conn = oracledb.connect(**build_oracle_admin_connect_kwargs(oracledb))
+    conn = _connect_source_schema()
     try:
         cursor = conn.cursor()
         assert LEGACY_FIXTURE_TABLE not in _table_names(cursor, schema)
