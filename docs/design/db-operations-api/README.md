@@ -186,6 +186,8 @@ Implementations should exist for:
 
 `MigrationTest` is the canonical integration fixture name across supported technologies.
 
+The role-specific source, sandbox, and target test contract is defined in [Integration Test Contract](../integration-test-contract/README.md).
+
 Rules:
 
 - the configured database or service is only the container; the fixture identity is the `MigrationTest` schema inside that container

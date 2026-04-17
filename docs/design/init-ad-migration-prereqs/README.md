@@ -13,7 +13,7 @@
 ## Required init behavior
 
 - Init does not ask for source, target, or sandbox connection details. Those are collected later by `/setup-ddl`, `/setup-target`, and `/setup-sandbox`.
-- SQL Server init discovers the effective ODBC driver for the local machine. If a suitable driver is found, write `MSSQL_DRIVER` to `.env`; otherwise tell the user exactly what to add.
+- SQL Server init checks FreeTDS and unixODBC readiness and tells the user what to install or register when they are missing.
 - Discovery writes only machine-specific overrides to `.env`; it does not commit laptop-specific paths or driver choices to shared repo files.
 - The command output must distinguish common startup readiness, source runtime readiness, and target runtime readiness.
 

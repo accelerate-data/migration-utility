@@ -159,20 +159,36 @@ See [`scripts/demo-warehouse/parity/README.md`](../../../scripts/demo-warehouse/
 
 ## `.env` Variables for MCP Servers
 
-Add to `.env` for the schema-level SQL Server `MigrationTest` contract used by tests/evals:
+Add to `.env` for the schema-level `MigrationTest` contract used by tests/evals:
 
 ```bash
-# SQL Server MigrationTest materialization source
-MSSQL_HOST=127.0.0.1
-MSSQL_PORT=1433
-MSSQL_DB=AdventureWorks2022
+# SQL Server source extraction role
+SOURCE_MSSQL_HOST=127.0.0.1
+SOURCE_MSSQL_PORT=1433
+SOURCE_MSSQL_DB=AdventureWorks2022
+SOURCE_MSSQL_USER=migrationtest_reader
+SOURCE_MSSQL_PASSWORD=readonly-password
 
-# Oracle
-ORACLE_HOST=localhost
-ORACLE_PORT=1521
-ORACLE_SERVICE=FREEPDB1
-ORACLE_USER=kimball
-ORACLE_PASSWORD=kimball
+# SQL Server sandbox/admin role for local Docker
+SANDBOX_MSSQL_HOST=127.0.0.1
+SANDBOX_MSSQL_PORT=1433
+SANDBOX_MSSQL_USER=sa
+SANDBOX_MSSQL_PASSWORD=P@ssw0rd123
+
+# Oracle source extraction role
+SOURCE_ORACLE_HOST=localhost
+SOURCE_ORACLE_PORT=1521
+SOURCE_ORACLE_SERVICE=FREEPDB1
+SOURCE_ORACLE_SCHEMA=MIGRATIONTEST
+SOURCE_ORACLE_USER=MIGRATIONTEST
+SOURCE_ORACLE_PASSWORD=migrationtest
+
+# Oracle sandbox/admin role for local Docker
+SANDBOX_ORACLE_HOST=localhost
+SANDBOX_ORACLE_PORT=1521
+SANDBOX_ORACLE_SERVICE=FREEPDB1
+SANDBOX_ORACLE_USER=sys
+SANDBOX_ORACLE_PASSWORD=P@ssw0rd123
 
 # PostgreSQL
 PG_HOST=localhost
@@ -182,9 +198,9 @@ PG_USER=postgres
 PG_PASSWORD=postgres
 ```
 
-Use `MSSQL_DB=KimballFixture` only when you intentionally want a direct connection to the pre-baked Kimball source-fixture image for parity/manual source-fixture work. That image is not the supported source for the schema-level SQL Server `MigrationTest` flow.
+Use `SOURCE_MSSQL_DB=KimballFixture` only when you intentionally want a direct connection to the pre-baked Kimball source-fixture image for parity/manual source-fixture work. That image is not the supported source for the schema-level SQL Server `MigrationTest` flow.
 
-The Oracle Docker image expects `ORACLE_PWD` as its container-internal env var (set via `docker run -e`). The `.env` variables above (`ORACLE_HOST`, `ORACLE_PORT`, `ORACLE_SERVICE`, `ORACLE_USER`, `ORACLE_PASSWORD`) are the canonical names used by plugin commands (`/init-ad-migration`, `/setup-ddl`) for host-side MCP connections.
+The Oracle Docker image expects `ORACLE_PWD` as its container-internal env var (set via `docker run -e`). Host-side integration tests and commands use the role-specific `SOURCE_ORACLE_*` and `SANDBOX_ORACLE_*` variables above.
 
 ## Rebuilding the SQL Server Image
 
