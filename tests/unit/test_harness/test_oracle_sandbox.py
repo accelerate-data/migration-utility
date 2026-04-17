@@ -15,6 +15,10 @@ from shared.sandbox.oracle import (
     _validate_oracle_identifier,
     _validate_oracle_sandbox_name,
 )
+from shared.sandbox.oracle_services import (
+    _parse_qualified_name,
+    _validate_oracle_qualified_name,
+)
 
 
 # ── Oracle identifier validation ──────────────────────────────────────────────
@@ -767,6 +771,11 @@ class TestCreateSandboxPdb:
              pytest.raises(RuntimeError, match="DBA_DATA_FILES is empty"):
             backend._create_sandbox_pdb("SBX_ABC123ABC123")
 
+    def test_create_pdb_rejects_invalid_name(self) -> None:
+        backend = _make_backend()
+        with pytest.raises(ValueError, match="Invalid Oracle sandbox schema name"):
+            backend._create_sandbox_pdb("bad_name")
+
 
 class TestDropSandboxPdb:
     """_drop_sandbox_pdb issues CLOSE + DROP PLUGGABLE DATABASE."""
@@ -813,3 +822,70 @@ class TestDropSandboxPdb:
             ora.return_value.DatabaseError = db_error_cls
             # Should not raise
             backend._drop_sandbox_pdb("SBX_ABC123ABC123")
+
+    def test_drop_pdb_rejects_invalid_name(self) -> None:
+        backend = _make_backend()
+        with pytest.raises(ValueError, match="Invalid Oracle sandbox schema name"):
+            backend._drop_sandbox_pdb("bad_name")
+
+
+# ── _parse_qualified_name ────────────────────────────────────────────────────
+
+
+class TestParseQualifiedName:
+    def test_splits_schema_and_table(self) -> None:
+        schema, table = _parse_qualified_name("MIGRATIONTEST.BRONZE_CURRENCY")
+        assert schema == "MIGRATIONTEST"
+        assert table == "BRONZE_CURRENCY"
+
+    def test_splits_lowercase(self) -> None:
+        schema, table = _parse_qualified_name("sh.channels")
+        assert schema == "sh"
+        assert table == "channels"
+
+    def test_rejects_bare_name(self) -> None:
+        with pytest.raises(ValueError, match="Expected schema-qualified name"):
+            _parse_qualified_name("CHANNELS")
+
+    def test_rejects_empty_string(self) -> None:
+        with pytest.raises(ValueError, match="Expected schema-qualified name"):
+            _parse_qualified_name("")
+
+    def test_rejects_trailing_dot(self) -> None:
+        with pytest.raises(ValueError, match="Expected schema-qualified name"):
+            _parse_qualified_name("SH.")
+
+    def test_rejects_leading_dot(self) -> None:
+        with pytest.raises(ValueError, match="Expected schema-qualified name"):
+            _parse_qualified_name(".CHANNELS")
+
+    def test_rejects_three_part_name(self) -> None:
+        with pytest.raises(ValueError, match="Expected schema-qualified name"):
+            _parse_qualified_name("DB.SCHEMA.TABLE")
+
+
+# ── _validate_oracle_qualified_name ─────────────────────────────────────────
+
+
+class TestValidateOracleQualifiedName:
+    def test_accepts_bare_identifier(self) -> None:
+        _validate_oracle_qualified_name("CHANNELS")  # should not raise
+
+    def test_accepts_qualified_name(self) -> None:
+        _validate_oracle_qualified_name("MIGRATIONTEST.BRONZE_CURRENCY")  # should not raise
+
+    def test_rejects_empty(self) -> None:
+        with pytest.raises(ValueError, match="Unsafe Oracle identifier"):
+            _validate_oracle_qualified_name("")
+
+    def test_rejects_injection_in_schema(self) -> None:
+        with pytest.raises(ValueError, match="Unsafe Oracle identifier"):
+            _validate_oracle_qualified_name("BAD; DROP TABLE.CHANNELS")
+
+    def test_rejects_injection_in_table(self) -> None:
+        with pytest.raises(ValueError, match="Unsafe Oracle identifier"):
+            _validate_oracle_qualified_name("SH.CHANNELS; DROP TABLE CHANNELS--")
+
+    def test_rejects_quoted_identifier(self) -> None:
+        with pytest.raises(ValueError, match="Unsafe Oracle identifier"):
+            _validate_oracle_qualified_name('"SH".CHANNELS')

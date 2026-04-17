@@ -50,8 +50,8 @@ class OracleFixtureService:
                 for col, default in not_null_defaults.items()
                 if col not in fixture_columns
             }
+            schema, bare_table = _parse_qualified_name(table_name)
             if fill_cols:
-                schema, bare_table = _parse_qualified_name(table_name)
                 logger.info(
                     "event=oracle_auto_fill_not_null schema=%s table=%s columns=%s",
                     schema,
@@ -62,7 +62,6 @@ class OracleFixtureService:
             columns = list(fixture_columns | fill_cols.keys())
             col_list = ", ".join(f'"{c}"' for c in columns)
             placeholders = ", ".join(f":{i + 1}" for i in range(len(columns)))
-            schema, bare_table = _parse_qualified_name(table_name)
             insert_sql = (
                 f'INSERT INTO "{schema}"."{bare_table}" '
                 f"({col_list}) VALUES ({placeholders})"

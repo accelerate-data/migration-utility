@@ -39,6 +39,8 @@ from shared.output_models.sandbox import (
     SandboxUpOutput,
     TestHarnessExecuteOutput,
 )
+from pathlib import PurePosixPath
+
 from shared.sandbox.base import (
     SandboxBackend,
     build_compare_error,
@@ -46,8 +48,7 @@ from shared.sandbox.base import (
     build_execute_error,
     build_execute_output,
     capture_rows as _capture_rows_base,
-    generate_sandbox_name,
-    validate_fixtures as _validate_fixtures_base,
+    validate_fixture_rows,
     validate_readonly_sql as _validate_readonly_sql_base,
 )
 from shared.runtime_config import get_runtime_role
@@ -197,7 +198,6 @@ def _validate_fixtures(fixtures: list[dict[str, Any]]) -> None:
         if rows:
             for col_name in rows[0].keys():
                 _validate_oracle_identifier(col_name)
-            from shared.sandbox.base import validate_fixture_rows
             validate_fixture_rows(fixture["table"], rows)
 
 
@@ -411,7 +411,6 @@ class _OracleSandboxCore(SandboxBackend):
             row = cursor.fetchone()
             if row is None:
                 raise RuntimeError("Cannot discover oradata path: DBA_DATA_FILES is empty")
-            from pathlib import PurePosixPath
             oradata_path = str(PurePosixPath(row[0]).parent.parent)
 
             cursor.execute(
