@@ -38,6 +38,56 @@ from .conftest import _make_backend, _mock_connect_factory
 class TestSqlServerSandboxUp:
     """Test sandbox_up generates correct SQL via mocked _connect."""
 
+    def test_public_lifecycle_methods_delegate_to_lifecycle_service(self) -> None:
+        backend = _make_backend()
+        backend._lifecycle = MagicMock()
+        backend._lifecycle.sandbox_up.return_value = "up-result"
+        backend._lifecycle.sandbox_reset.return_value = "reset-result"
+        backend._lifecycle.sandbox_down.return_value = "down-result"
+        backend._lifecycle.sandbox_status.return_value = "status-result"
+
+        assert backend.sandbox_up(["dbo"]) == "up-result"
+        assert backend.sandbox_reset("__test_existing", ["dbo"]) == "reset-result"
+        assert backend.sandbox_down("__test_existing") == "down-result"
+        assert backend.sandbox_status("__test_existing", ["dbo"]) == "status-result"
+
+        backend._lifecycle.sandbox_up.assert_called_once_with(["dbo"])
+        backend._lifecycle.sandbox_reset.assert_called_once_with("__test_existing", ["dbo"])
+        backend._lifecycle.sandbox_down.assert_called_once_with("__test_existing")
+        backend._lifecycle.sandbox_status.assert_called_once_with("__test_existing", ["dbo"])
+
+    def test_public_execution_methods_delegate_to_execution_service(self) -> None:
+        backend = _make_backend()
+        backend._execution = MagicMock()
+        backend._execution.execute_scenario.return_value = "scenario-result"
+        backend._execution.execute_select.return_value = "select-result"
+        backend._comparison = MagicMock()
+        backend._comparison.compare_two_sql.return_value = "compare-result"
+
+        scenario = {
+            "name": "case",
+            "target_table": "[dbo].[T]",
+            "procedure": "[dbo].[p]",
+            "given": [],
+        }
+        fixtures: list[dict[str, object]] = []
+
+        assert backend.execute_scenario("__test_existing", scenario) == "scenario-result"
+        assert backend.execute_select("__test_existing", "SELECT 1", fixtures) == "select-result"
+        assert backend.compare_two_sql(
+            "__test_existing", "SELECT 1", "SELECT 1", fixtures,
+        ) == "compare-result"
+
+        backend._execution.execute_scenario.assert_called_once_with(
+            "__test_existing", scenario,
+        )
+        backend._execution.execute_select.assert_called_once_with(
+            "__test_existing", "SELECT 1", fixtures,
+        )
+        backend._comparison.compare_two_sql.assert_called_once_with(
+            "__test_existing", "SELECT 1", "SELECT 1", fixtures,
+        )
+
     def test_sandbox_up_creates_database(self) -> None:
         backend = _make_backend()
 

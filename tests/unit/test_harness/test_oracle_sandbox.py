@@ -251,7 +251,7 @@ class TestOracleConnectionLifecycle:
         cursor.execute.side_effect = RuntimeError("nls failed")
         conn.cursor.return_value.__enter__.return_value = cursor
 
-        with patch("shared.sandbox.oracle._import_oracledb") as import_mock:
+        with patch("shared.sandbox.oracle_services._import_oracledb") as import_mock:
             import_mock.return_value.AUTH_MODE_SYSDBA = object()
             import_mock.return_value.AUTH_MODE_DEFAULT = object()
             import_mock.return_value.connect.return_value = conn
@@ -264,6 +264,62 @@ class TestOracleConnectionLifecycle:
 
 
 class TestOracleSandboxUpCleanup:
+    def test_public_lifecycle_methods_delegate_to_lifecycle_service(self) -> None:
+        backend = OracleSandbox(
+            host="localhost", port="1521", service="FREEPDB1",
+            password="pw", admin_user="sys", source_schema="SH",
+        )
+        backend._lifecycle = MagicMock()
+        backend._lifecycle.sandbox_up.return_value = "up-result"
+        backend._lifecycle.sandbox_reset.return_value = "reset-result"
+        backend._lifecycle.sandbox_down.return_value = "down-result"
+        backend._lifecycle.sandbox_status.return_value = "status-result"
+
+        assert backend.sandbox_up(["SH"]) == "up-result"
+        assert backend.sandbox_reset("__test_existing", ["SH"]) == "reset-result"
+        assert backend.sandbox_down("__test_existing") == "down-result"
+        assert backend.sandbox_status("__test_existing", ["SH"]) == "status-result"
+
+        backend._lifecycle.sandbox_up.assert_called_once_with(["SH"])
+        backend._lifecycle.sandbox_reset.assert_called_once_with("__test_existing", ["SH"])
+        backend._lifecycle.sandbox_down.assert_called_once_with("__test_existing")
+        backend._lifecycle.sandbox_status.assert_called_once_with("__test_existing", ["SH"])
+
+    def test_public_execution_methods_delegate_to_execution_service(self) -> None:
+        backend = OracleSandbox(
+            host="localhost", port="1521", service="FREEPDB1",
+            password="pw", admin_user="sys", source_schema="SH",
+        )
+        backend._execution = MagicMock()
+        backend._execution.execute_scenario.return_value = "scenario-result"
+        backend._execution.execute_select.return_value = "select-result"
+        backend._comparison = MagicMock()
+        backend._comparison.compare_two_sql.return_value = "compare-result"
+
+        scenario = {
+            "name": "case",
+            "target_table": "CHANNELS",
+            "procedure": "LOAD_CHANNELS",
+            "given": [],
+        }
+        fixtures: list[dict[str, object]] = []
+
+        assert backend.execute_scenario("__test_existing", scenario) == "scenario-result"
+        assert backend.execute_select("__test_existing", "SELECT 1 FROM dual", fixtures) == "select-result"
+        assert backend.compare_two_sql(
+            "__test_existing", "SELECT 1 FROM dual", "SELECT 1 FROM dual", fixtures,
+        ) == "compare-result"
+
+        backend._execution.execute_scenario.assert_called_once_with(
+            "__test_existing", scenario,
+        )
+        backend._execution.execute_select.assert_called_once_with(
+            "__test_existing", "SELECT 1 FROM dual", fixtures,
+        )
+        backend._comparison.compare_two_sql.assert_called_once_with(
+            "__test_existing", "SELECT 1 FROM dual", "SELECT 1 FROM dual", fixtures,
+        )
+
     def test_sandbox_up_calls_sandbox_down_on_failure(self) -> None:
         """sandbox_up cleans up the orphaned schema when cloning raises."""
         backend = OracleSandbox(
@@ -278,7 +334,7 @@ class TestOracleSandboxUpCleanup:
             raise db_error_cls("connection failed")
             yield  # noqa: unreachable — keeps it a generator
 
-        with patch("shared.sandbox.oracle._import_oracledb") as ora_mock, \
+        with patch("shared.sandbox.oracle_services._import_oracledb") as ora_mock, \
              patch.object(backend, "_connect", side_effect=_fail_connect), \
              patch.object(backend, "_connect_source", side_effect=_fail_connect), \
              patch.object(backend, "sandbox_down") as mock_down:

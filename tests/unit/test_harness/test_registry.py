@@ -229,7 +229,7 @@ class TestFromEnv:
         backend = SqlServerSandbox(
             host="localhost", port="1433", password="pass",
         )
-        with patch("shared.sandbox.sql_server._pyodbc") as mock_pyodbc:
+        with patch("shared.sandbox.sql_server_services._pyodbc") as mock_pyodbc:
             mock_pyodbc.Error = type("Error", (Exception,), {})
             mock_pyodbc.connect.side_effect = mock_pyodbc.Error(
                 "[unixODBC][Driver Manager]Can't open lib 'FreeTDS'"
