@@ -77,8 +77,8 @@ class TestOracleSandboxLifecycle:
             assert any(SILVER_USP_LOAD_DIMPROMOTION in p for p in result.procedures_cloned)
             assert any(SILVER_USP_UNIONALL in p for p in result.procedures_cloned)
 
-            # Verify sandbox user exists and tables are accessible
-            with backend._connect() as conn:
+            # Verify sandbox PDB exists and tables are accessible
+            with backend._connect_sandbox(sandbox_schema) as conn:
                 cursor = conn.cursor()
                 cursor.execute(
                     "SELECT COUNT(*) FROM ALL_TABLES WHERE OWNER = :1",
@@ -89,7 +89,7 @@ class TestOracleSandboxLifecycle:
         finally:
             backend.sandbox_down(sandbox_db=result.sandbox_database)
 
-    def test_sandbox_down_removes_user(self) -> None:
+    def test_sandbox_down_removes_pdb(self) -> None:
         backend = _make_backend()
 
         result = backend.sandbox_up(schemas=[ORACLE_MIGRATION_SCHEMA])
@@ -98,14 +98,14 @@ class TestOracleSandboxLifecycle:
 
         assert down_result.status == "ok"
 
-        # Verify user is gone from ALL_USERS — no orphaned schema
-        with backend._connect() as conn:
+        # Verify PDB is gone from V$PDBS — no orphaned sandbox
+        with backend._connect_cdb() as conn:
             cursor = conn.cursor()
             cursor.execute(
-                "SELECT COUNT(*) FROM ALL_USERS WHERE USERNAME = :1",
+                "SELECT COUNT(*) FROM V$PDBS WHERE NAME = UPPER(:1)",
                 [sandbox_schema],
             )
-            assert cursor.fetchone()[0] == 0, "Sandbox user should be dropped"
+            assert cursor.fetchone()[0] == 0, "Sandbox PDB should be dropped"
 
     def test_sandbox_status_reflects_existence(self) -> None:
         backend = _make_backend()
@@ -135,7 +135,7 @@ class TestOracleExecuteScenario:
     """Execute a real scenario against the sandbox using the MigrationTest schema."""
 
     def _create_temp_proc(self, backend: OracleSandbox, proc_name: str, body: str) -> None:
-        with backend._connect() as conn:
+        with backend._connect_source() as conn:
             cursor = conn.cursor()
             cursor.execute(
                 f"""
@@ -148,7 +148,7 @@ class TestOracleExecuteScenario:
             )
 
     def _drop_temp_proc(self, backend: OracleSandbox, proc_name: str) -> None:
-        with backend._connect() as conn:
+        with backend._connect_source() as conn:
             cursor = conn.cursor()
             try:
                 cursor.execute(f"DROP PROCEDURE {backend.source_schema}.{proc_name}")
@@ -244,7 +244,7 @@ class TestOracleExecuteScenario:
             backend.execute_scenario(sandbox_db=sandbox_schema, scenario=scenario)
 
             # Verify fixture data was rolled back
-            with backend._connect() as conn:
+            with backend._connect_sandbox(sandbox_schema) as conn:
                 cursor = conn.cursor()
                 cursor.execute(
                     f'SELECT COUNT(*) FROM "{sandbox_schema}"."{BRONZE_CURRENCY}" '
@@ -389,7 +389,7 @@ class TestOracleEnsureViewTablesIntegration:
     """Verify view-sourced fixtures are materialised end-to-end in a real Oracle sandbox."""
 
     def _create_view(self, backend: OracleSandbox, view_name: str) -> None:
-        with backend._connect() as conn:
+        with backend._connect_source() as conn:
             cursor = conn.cursor()
             # Unquoted identifiers so ALL_VIEWS stores them without quotes
             cursor.execute(
@@ -398,7 +398,7 @@ class TestOracleEnsureViewTablesIntegration:
             )
 
     def _drop_view(self, backend: OracleSandbox, view_name: str) -> None:
-        with backend._connect() as conn:
+        with backend._connect_source() as conn:
             cursor = conn.cursor()
             try:
                 cursor.execute(f"DROP VIEW {backend.source_schema}.{view_name}")
@@ -408,7 +408,7 @@ class TestOracleEnsureViewTablesIntegration:
     def _create_proc(
         self, backend: OracleSandbox, proc_name: str, view_name: str
     ) -> None:
-        with backend._connect() as conn:
+        with backend._connect_source() as conn:
             cursor = conn.cursor()
             # Unquoted identifiers so ALL_SOURCE stores them without quotes,
             # allowing _clone_procedures' regex substitution to match.
@@ -426,7 +426,7 @@ class TestOracleEnsureViewTablesIntegration:
             )
 
     def _drop_proc(self, backend: OracleSandbox, proc_name: str) -> None:
-        with backend._connect() as conn:
+        with backend._connect_source() as conn:
             cursor = conn.cursor()
             try:
                 cursor.execute(
@@ -484,10 +484,10 @@ class TestOracleEnsureViewTablesIntegration:
 
 
 @skip_no_oracle
-class TestOracleSandboxNoOrphanedUsers:
-    """Verify sandbox_down leaves no orphaned users in ALL_USERS."""
+class TestOracleSandboxNoOrphanedPdbs:
+    """Verify sandbox_down leaves no orphaned PDBs in V$PDBS."""
 
-    def test_sandbox_down_leaves_no_orphaned_user(self) -> None:
+    def test_sandbox_down_leaves_no_orphaned_pdb(self) -> None:
         backend = _make_backend()
 
         result = backend.sandbox_up(schemas=[ORACLE_MIGRATION_SCHEMA])
@@ -496,14 +496,116 @@ class TestOracleSandboxNoOrphanedUsers:
 
         backend.sandbox_down(sandbox_db=sandbox_schema)
 
-        with backend._connect() as conn:
+        with backend._connect_cdb() as conn:
             cursor = conn.cursor()
             cursor.execute(
-                "SELECT COUNT(*) FROM ALL_USERS WHERE USERNAME = :1",
+                "SELECT COUNT(*) FROM V$PDBS WHERE NAME = UPPER(:1)",
                 [sandbox_schema],
             )
             count = cursor.fetchone()[0]
-            assert count == 0, f"Orphaned user {sandbox_schema!r} found in ALL_USERS after teardown"
+            assert count == 0, f"Orphaned PDB {sandbox_schema!r} found in V$PDBS after teardown"
+
+
+@skip_no_oracle
+class TestOraclePdbLifecycle:
+    """Low-level PDB create/drop/connect tests against local Oracle Docker."""
+
+    def test_create_sandbox_pdb_creates_and_opens_pdb(self) -> None:
+        """_create_sandbox_pdb registers PDB in V$PDBS with OPEN status."""
+        backend = _make_backend()
+        from shared.sandbox.base import generate_sandbox_name
+
+        sandbox_name = generate_sandbox_name()
+        try:
+            backend._create_sandbox_pdb(sandbox_name)
+
+            with backend._connect_cdb() as conn:
+                cursor = conn.cursor()
+                cursor.execute(
+                    "SELECT OPEN_MODE FROM V$PDBS WHERE NAME = UPPER(:1)",
+                    [sandbox_name],
+                )
+                row = cursor.fetchone()
+                assert row is not None, f"PDB {sandbox_name!r} not found in V$PDBS"
+                assert row[0].startswith("READ WRITE"), (
+                    f"Expected OPEN status, got {row[0]!r}"
+                )
+        finally:
+            backend._drop_sandbox_pdb(sandbox_name)
+
+    def test_drop_sandbox_pdb_removes_pdb(self) -> None:
+        """_drop_sandbox_pdb removes PDB from V$PDBS."""
+        backend = _make_backend()
+        from shared.sandbox.base import generate_sandbox_name
+
+        sandbox_name = generate_sandbox_name()
+        backend._create_sandbox_pdb(sandbox_name)
+        backend._drop_sandbox_pdb(sandbox_name)
+
+        with backend._connect_cdb() as conn:
+            cursor = conn.cursor()
+            cursor.execute(
+                "SELECT COUNT(*) FROM V$PDBS WHERE NAME = UPPER(:1)",
+                [sandbox_name],
+            )
+            assert cursor.fetchone()[0] == 0, (
+                f"PDB {sandbox_name!r} should be gone from V$PDBS"
+            )
+
+    def test_drop_sandbox_pdb_idempotent_for_nonexistent(self) -> None:
+        """_drop_sandbox_pdb does not raise for a PDB that never existed."""
+        backend = _make_backend()
+        # Should not raise — silently ignores missing PDBs
+        backend._drop_sandbox_pdb("__test_nonexistent99")
+
+    def test_connect_sandbox_connects_to_pdb(self) -> None:
+        """_connect_sandbox opens a usable connection to a sandbox PDB."""
+        backend = _make_backend()
+        from shared.sandbox.base import generate_sandbox_name
+
+        sandbox_name = generate_sandbox_name()
+        try:
+            backend._create_sandbox_pdb(sandbox_name)
+
+            with backend._connect_sandbox(sandbox_name) as conn:
+                cursor = conn.cursor()
+                cursor.execute("SELECT 1 FROM DUAL")
+                assert cursor.fetchone()[0] == 1
+        finally:
+            backend._drop_sandbox_pdb(sandbox_name)
+
+    def test_sandbox_up_creates_pdb_with_schema_objects(self) -> None:
+        """Full sandbox_up creates a PDB visible in V$PDBS with cloned objects."""
+        backend = _make_backend()
+
+        result = backend.sandbox_up(schemas=[ORACLE_MIGRATION_SCHEMA])
+        sandbox_name = result.sandbox_database
+        try:
+            assert result.status in ("ok", "partial"), result.errors
+            assert sandbox_name.startswith("__test_")
+
+            # Verify PDB exists in V$PDBS
+            with backend._connect_cdb() as conn:
+                cursor = conn.cursor()
+                cursor.execute(
+                    "SELECT OPEN_MODE FROM V$PDBS WHERE NAME = UPPER(:1)",
+                    [sandbox_name],
+                )
+                row = cursor.fetchone()
+                assert row is not None, f"PDB {sandbox_name!r} not found in V$PDBS"
+                assert row[0].startswith("READ WRITE")
+
+            # Verify schema objects are accessible inside the PDB
+            with backend._connect_sandbox(sandbox_name) as conn:
+                cursor = conn.cursor()
+                cursor.execute(
+                    "SELECT COUNT(*) FROM ALL_TABLES WHERE OWNER = :1",
+                    [sandbox_name],
+                )
+                table_count = cursor.fetchone()[0]
+                assert table_count > 0, "Expected cloned tables in sandbox PDB"
+        finally:
+            backend.sandbox_down(sandbox_db=sandbox_name)
 
 
 @skip_no_oracle
@@ -649,7 +751,7 @@ class TestOracleExecuteSelectIntegration:
             )
 
             # Verify fixture row was rolled back
-            with backend._connect() as conn:
+            with backend._connect_sandbox(sandbox_schema) as conn:
                 cursor = conn.cursor()
                 cursor.execute(
                     f'SELECT COUNT(*) FROM "{sandbox_schema}"."{SILVER_DIMCURRENCY}" '
