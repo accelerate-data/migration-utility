@@ -68,7 +68,7 @@ class OracleExecutionService:
 
         result_rows: list[dict[str, Any]] = []
         try:
-            with self._backend._connect() as conn:
+            with self._backend._connect_sandbox(sandbox_db) as conn:
                 conn.autocommit = False
                 cursor = conn.cursor()
                 try:
@@ -120,7 +120,7 @@ class OracleExecutionService:
 
         result_rows: list[dict[str, Any]] = []
         try:
-            with self._backend._connect() as conn:
+            with self._backend._connect_sandbox(sandbox_db) as conn:
                 conn.autocommit = False
                 cursor = conn.cursor()
                 try:

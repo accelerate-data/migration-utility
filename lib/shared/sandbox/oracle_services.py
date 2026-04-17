@@ -1,19 +1,19 @@
 """Oracle sandbox backend using python-oracledb.
 
-Oracle sandboxes are schema-level (not database-level): ``sandbox_up`` creates
-a user ``__test_<hex>`` in the target PDB, clones tables and procedures from
-the source schema via CTAS and ALL_SOURCE, then ``sandbox_down`` drops the
-user with CASCADE.
+Oracle sandboxes are PDB-level (database-level): ``sandbox_up`` creates a
+Pluggable Database ``__test_<hex>`` via the CDB root connection, creates
+schema users inside the PDB, then clones tables and procedures from the source
+schema via explicit DDL and ALL_SOURCE.  ``sandbox_down`` closes and drops the
+PDB including datafiles.
 
 Known limitations:
 - ``RESOURCE`` role and ``UNLIMITED TABLESPACE`` are broad grants — acceptable
   for local sandbox use only.
-- CTAS does not copy FK, PK, CHECK, or UNIQUE constraints. Fixture FK
-  constraint disabling is therefore a no-op (and not needed).
+- Explicit DDL cloning does not copy FK, PK, CHECK, or UNIQUE constraints.
+  Fixture FK constraint disabling is therefore a no-op (and not needed).
 - Partitioned tables are cloned as non-partitioned heap tables.
-- Procedures referencing the source schema with fully-qualified names
-  (e.g. ``SH.TABLENAME``) resolve to the source schema, not the sandbox.
-  Write procedures using unqualified table names.
+- PDB names follow the ``__test_<12hex>`` pattern (19 chars), within Oracle's
+  30-character PDB name limit.
 - No GENERATED AS IDENTITY handling; callers must omit identity columns.
 """
 
@@ -177,7 +177,7 @@ class _OracleSandboxCore(SandboxBackend):
         self,
         host: str,
         port: str,
-        service: str,
+        cdb_service: str,
         password: str,
         admin_user: str = "sys",
         source_schema: str = "",
@@ -190,13 +190,13 @@ class _OracleSandboxCore(SandboxBackend):
     ) -> None:
         self.host = host
         self.port = port
-        self.service = service
+        self.cdb_service = cdb_service
         self.password = password
         self.admin_user = admin_user
         self.source_schema = source_schema
         self.source_host = source_host or host
         self.source_port = source_port or port
-        self.source_service = source_service or service
+        self.source_service = source_service or cdb_service
         self.source_user = source_user or admin_user
         self.source_password = source_password or password
 
@@ -221,7 +221,7 @@ class _OracleSandboxCore(SandboxBackend):
 
         host = sandbox_role.connection.host or ""
         port = sandbox_role.connection.port or "1521"
-        service = sandbox_role.connection.service or ""
+        cdb_service = sandbox_role.connection.service or ""
         admin_user = sandbox_role.connection.user or ""
         password_env = sandbox_role.connection.password_env
         password = os.environ.get(password_env or "", "")
@@ -237,7 +237,7 @@ class _OracleSandboxCore(SandboxBackend):
             missing.append("runtime.sandbox.connection.host")
         if not sandbox_role.connection.port:
             missing.append("runtime.sandbox.connection.port")
-        if not service:
+        if not cdb_service:
             missing.append("runtime.sandbox.connection.service")
         if not admin_user:
             missing.append("runtime.sandbox.connection.user")
@@ -268,7 +268,7 @@ class _OracleSandboxCore(SandboxBackend):
         return cls(
             host=host,
             port=port,
-            service=service,
+            cdb_service=cdb_service,
             password=password,
             admin_user=admin_user,
             source_schema=source_schema,
@@ -280,9 +280,13 @@ class _OracleSandboxCore(SandboxBackend):
         )
 
     @contextmanager
-    def _connect(self) -> Generator[oracledb.Connection, None, None]:
-        """Open an admin connection (SYSDBA when admin_user is ``sys``)."""
-        dsn = f"{self.host}:{self.port}/{self.service}"
+    def _connect_cdb(self) -> Generator[oracledb.Connection, None, None]:
+        """Open an admin connection to the CDB root for PDB lifecycle DDL.
+
+        No NLS session setup — this connection is only for CREATE/DROP
+        PLUGGABLE DATABASE statements.
+        """
+        dsn = f"{self.host}:{self.port}/{self.cdb_service}"
         _ora = _import_oracledb()
         mode = (
             _ora.AUTH_MODE_SYSDBA
@@ -296,8 +300,32 @@ class _OracleSandboxCore(SandboxBackend):
             mode=mode,
         )
         try:
-            # Set ISO date/timestamp formats so string literals like "1998-01-01"
-            # bind correctly to DATE/TIMESTAMP columns in fixtures and queries.
+            yield conn
+        finally:
+            conn.close()
+
+    @contextmanager
+    def _connect_sandbox(self, sandbox_name: str) -> Generator[oracledb.Connection, None, None]:
+        """Open an admin connection to a sandbox PDB by name.
+
+        After ``_create_sandbox_pdb`` opens the PDB, Oracle auto-registers a
+        service with the PDB name.  DSN = ``{host}:{port}/{sandbox_name}``.
+        Sets NLS date/timestamp formats for fixture and query compatibility.
+        """
+        dsn = f"{self.host}:{self.port}/{sandbox_name}"
+        _ora = _import_oracledb()
+        mode = (
+            _ora.AUTH_MODE_SYSDBA
+            if self.admin_user.lower() == "sys"
+            else _ora.AUTH_MODE_DEFAULT
+        )
+        conn = _ora.connect(
+            user=self.admin_user,
+            password=self.password,
+            dsn=dsn,
+            mode=mode,
+        )
+        try:
             with conn.cursor() as cur:
                 cur.execute("ALTER SESSION SET NLS_DATE_FORMAT = 'YYYY-MM-DD'")
                 cur.execute(
@@ -306,6 +334,46 @@ class _OracleSandboxCore(SandboxBackend):
             yield conn
         finally:
             conn.close()
+
+    def _create_sandbox_pdb(self, sandbox_name: str) -> None:
+        """Create a pluggable database from pdbseed and open it.
+
+        Uses ``_connect_cdb()`` to issue DDL against the CDB root.
+        The PDB name is double-quoted to support ``__test_`` prefixed names.
+        """
+        _validate_oracle_sandbox_name(sandbox_name)
+        temp_password = f"P{uuid.uuid4().hex[:16]}x"
+        with self._connect_cdb() as conn:
+            cursor = conn.cursor()
+            cursor.execute(
+                f'CREATE PLUGGABLE DATABASE "{sandbox_name}" '
+                f'ADMIN USER pdb_admin IDENTIFIED BY "{temp_password}"'
+            )
+            cursor.execute(
+                f'ALTER PLUGGABLE DATABASE "{sandbox_name}" OPEN'
+            )
+        logger.info("event=oracle_sandbox_pdb_created sandbox=%s", sandbox_name)
+
+    def _drop_sandbox_pdb(self, sandbox_name: str) -> None:
+        """Close and drop a sandbox PDB including datafiles.
+
+        Silently ignores errors if the PDB does not exist.
+        """
+        _validate_oracle_sandbox_name(sandbox_name)
+        try:
+            with self._connect_cdb() as conn:
+                cursor = conn.cursor()
+                cursor.execute(
+                    f'ALTER PLUGGABLE DATABASE "{sandbox_name}" CLOSE IMMEDIATE'
+                )
+                cursor.execute(
+                    f'DROP PLUGGABLE DATABASE "{sandbox_name}" INCLUDING DATAFILES'
+                )
+            logger.info("event=oracle_sandbox_pdb_dropped sandbox=%s", sandbox_name)
+        except _import_oracledb().DatabaseError:
+            logger.debug(
+                "event=oracle_sandbox_pdb_drop_ignored sandbox=%s", sandbox_name,
+            )
 
     @contextmanager
     def _connect_source(self) -> Generator[oracledb.Connection, None, None]:

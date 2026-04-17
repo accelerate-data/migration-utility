@@ -75,7 +75,7 @@ class OracleFixtureService:
         """CTAS view-sourced fixtures as empty shell tables in the sandbox."""
         materialized: list[str] = []
         with self._backend._connect_source() as source_conn, \
-             self._backend._connect() as sandbox_conn:
+             self._backend._connect_sandbox(sandbox_db) as sandbox_conn:
             source_cursor = source_conn.cursor()
             sandbox_cursor = sandbox_conn.cursor()
             for fixture in given:

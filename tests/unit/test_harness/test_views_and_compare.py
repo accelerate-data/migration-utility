@@ -164,7 +164,7 @@ class TestEnsureViewTablesOracle:
         return OracleSandbox(
             host="localhost",
             port="1521",
-            service="FREEPDB1",
+            cdb_service="FREEPDB1",
             password="TestPass123",
             admin_user="sys",
             source_schema="SH",
@@ -177,14 +177,14 @@ class TestEnsureViewTablesOracle:
         cursor.fetchone.return_value = (1,)  # object IS a view
 
         @contextmanager
-        def _fake_connect(**kwargs):
+        def _fake_connect(*args, **kwargs):
             conn = MagicMock()
             conn.cursor.return_value = cursor
             yield conn
 
         given = [{"table": "VW_PRODUCT", "rows": []}]
 
-        with patch.object(backend, "_connect", side_effect=_fake_connect), patch.object(
+        with patch.object(backend, "_connect_sandbox", side_effect=_fake_connect), patch.object(
             backend, "_connect_source", side_effect=_fake_connect
         ):
             materialized = backend._fixtures.ensure_view_tables("__test_abc123", given)
@@ -201,14 +201,14 @@ class TestEnsureViewTablesOracle:
         cursor.fetchone.return_value = None  # NOT a view
 
         @contextmanager
-        def _fake_connect(**kwargs):
+        def _fake_connect(*args, **kwargs):
             conn = MagicMock()
             conn.cursor.return_value = cursor
             yield conn
 
         given = [{"table": "CHANNELS", "rows": []}]
 
-        with patch.object(backend, "_connect", side_effect=_fake_connect), patch.object(
+        with patch.object(backend, "_connect_sandbox", side_effect=_fake_connect), patch.object(
             backend, "_connect_source", side_effect=_fake_connect
         ):
             materialized = backend._fixtures.ensure_view_tables("__test_abc123", given)
@@ -242,14 +242,14 @@ class TestEnsureViewTablesOracle:
             yield conn
 
         @contextmanager
-        def _fake_sandbox_connect(**kwargs):
+        def _fake_sandbox_connect(name: str):
             conn = MagicMock()
             conn.cursor.return_value = sandbox_cursor
             yield conn
 
         given = [{"table": "VW_STALE", "rows": []}]
 
-        with patch.object(backend, "_connect", side_effect=_fake_sandbox_connect), patch.object(
+        with patch.object(backend, "_connect_sandbox", side_effect=_fake_sandbox_connect), patch.object(
             backend, "_connect_source", side_effect=_fake_source_connect
         ):
             materialized = backend._fixtures.ensure_view_tables("__test_abc123", given)
@@ -369,7 +369,7 @@ class TestExecuteSelectOracle:
     def test_happy_path_returns_rows(self) -> None:
         """execute_select seeds fixtures, runs SELECT, returns rows."""
         backend = OracleSandbox(
-            host="localhost", port="1521", service="FREEPDB1",
+            host="localhost", port="1521", cdb_service="FREEPDB1",
             password="pw", admin_user="sys", source_schema="SH",
         )
         cursor = MagicMock()
@@ -380,10 +380,10 @@ class TestExecuteSelectOracle:
         conn.cursor.return_value = cursor
 
         @contextmanager
-        def _fake_connect():
+        def _fake_sandbox(name: str):
             yield conn
 
-        with patch.object(backend, "_connect", side_effect=_fake_connect), \
+        with patch.object(backend, "_connect_sandbox", side_effect=_fake_sandbox), \
              patch.object(backend._fixtures, "ensure_view_tables", return_value=[]), \
              patch.object(backend._fixtures, "seed_fixtures"):
             result = backend.execute_select(

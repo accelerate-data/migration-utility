@@ -93,14 +93,7 @@ class OracleLifecycleService:
         logger.info("event=oracle_sandbox_down sandbox=%s", sandbox_db)
 
         try:
-            with self._backend._connect() as conn:
-                cursor = conn.cursor()
-                cursor.execute(
-                    "SELECT COUNT(*) FROM ALL_USERS WHERE USERNAME = :1",
-                    [sandbox_db],
-                )
-                if cursor.fetchone()[0] > 0:
-                    cursor.execute(f'DROP USER "{sandbox_db}" CASCADE')
+            self._backend._drop_sandbox_pdb(sandbox_db)
             logger.info("event=oracle_sandbox_down_complete sandbox=%s", sandbox_db)
             return SandboxDownOutput(sandbox_database=sandbox_db, status="ok")
         except _import_oracledb().DatabaseError as exc:
@@ -124,20 +117,20 @@ class OracleLifecycleService:
         logger.info("event=oracle_sandbox_status sandbox=%s", sandbox_db)
 
         try:
-            with self._backend._connect() as conn:
-                cursor = conn.cursor()
-                cursor.execute(
-                    "SELECT COUNT(*) FROM ALL_USERS WHERE USERNAME = :1",
+            with self._backend._connect_cdb() as cdb_conn:
+                cdb_cursor = cdb_conn.cursor()
+                cdb_cursor.execute(
+                    "SELECT COUNT(*) FROM V$PDBS WHERE NAME = UPPER(:1)",
                     [sandbox_db],
                 )
-                exists = cursor.fetchone()[0] > 0
-                if exists:
-                    tables_count, views_count, procedures_count = self._sandbox_content_counts(
-                        cursor,
-                        sandbox_db,
-                    )
+                exists = cdb_cursor.fetchone()[0] > 0
 
             if exists:
+                with self._backend._connect_sandbox(sandbox_db) as sandbox_conn:
+                    sandbox_cursor = sandbox_conn.cursor()
+                    tables_count, views_count, procedures_count = (
+                        self._sandbox_content_counts(sandbox_cursor, sandbox_db)
+                    )
                 has_content = any(
                     count > 0 for count in (tables_count, views_count, procedures_count)
                 )
@@ -187,11 +180,11 @@ class OracleLifecycleService:
 
     def _sandbox_clone_into(
         self,
-        sandbox_schema: str,
+        sandbox_name: str,
         source_schema: str,
     ) -> SandboxUpOutput:
         _validate_oracle_identifier(source_schema)
-        _validate_oracle_sandbox_name(sandbox_schema)
+        _validate_oracle_sandbox_name(sandbox_name)
 
         errors: list[ErrorEntry] = []
         tables_cloned: list[str] = []
@@ -199,26 +192,28 @@ class OracleLifecycleService:
         procedures_cloned: list[str] = []
 
         try:
-            with self._backend._connect() as sandbox_conn, \
+            self._backend._create_sandbox_pdb(sandbox_name)
+
+            with self._backend._connect_sandbox(sandbox_name) as sandbox_conn, \
                  self._backend._connect_source() as source_conn:
                 sandbox_cursor = sandbox_conn.cursor()
                 source_cursor = source_conn.cursor()
-                self._backend._create_sandbox_schema(sandbox_cursor, sandbox_schema)
+                self._backend._create_sandbox_schema(sandbox_cursor, source_schema)
 
                 t_cloned, t_errors = self._backend._clone_tables(
-                    source_cursor, sandbox_cursor, sandbox_schema, source_schema,
+                    source_cursor, sandbox_cursor, source_schema, source_schema,
                 )
                 tables_cloned.extend(t_cloned)
                 errors.extend(ErrorEntry(**e) for e in t_errors)
 
                 v_cloned, v_errors = self._backend._clone_views(
-                    source_cursor, sandbox_cursor, sandbox_schema, source_schema,
+                    source_cursor, sandbox_cursor, source_schema, source_schema,
                 )
                 views_cloned.extend(v_cloned)
                 errors.extend(ErrorEntry(**e) for e in v_errors)
 
                 p_cloned, p_errors = self._backend._clone_procedures(
-                    source_cursor, sandbox_cursor, sandbox_schema, source_schema,
+                    source_cursor, sandbox_cursor, source_schema, source_schema,
                 )
                 procedures_cloned.extend(p_cloned)
                 errors.extend(ErrorEntry(**e) for e in p_errors)
@@ -226,12 +221,12 @@ class OracleLifecycleService:
         except _import_oracledb().DatabaseError as exc:
             logger.error(
                 "event=oracle_sandbox_up_failed sandbox=%s error=%s",
-                sandbox_schema,
+                sandbox_name,
                 exc,
             )
-            self._backend.sandbox_down(sandbox_schema)
+            self._backend.sandbox_down(sandbox_name)
             return SandboxUpOutput(
-                sandbox_database=sandbox_schema,
+                sandbox_database=sandbox_name,
                 status="error",
                 tables_cloned=tables_cloned,
                 views_cloned=views_cloned,
@@ -241,7 +236,7 @@ class OracleLifecycleService:
 
         status = "ok" if not errors else "partial"
         return SandboxUpOutput(
-            sandbox_database=sandbox_schema,
+            sandbox_database=sandbox_name,
             status=status,
             tables_cloned=tables_cloned,
             views_cloned=views_cloned,
