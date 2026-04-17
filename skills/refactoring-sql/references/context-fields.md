@@ -15,14 +15,14 @@ Expected context fields:
 - `profile`
 - `test_spec`
 - `sandbox`
-- `writer_ddl_slice` when the writer updates multiple targets
+- `selected_writer_ddl_slice` when the writer updates multiple targets
 
 Sub-agent inputs:
 
-- Sub-agent A: `proc_body`, `statements`, `columns`
-- Sub-agent B: `proc_body`, `statements`, `columns`, `source_tables`, `profile`
+- Sub-agent A: selected SQL, `statements`, `columns`
+- Sub-agent B: selected SQL, `statements`, `columns`, `source_tables`, `profile`
 
-If `writer_ddl_slice` is present, use it instead of the full `proc_body` for both sub-agents.
+Use `selected_writer_ddl_slice` as selected SQL when present. Otherwise use `proc_body`. If both are empty, stop with a context error.
 
 ## View and Materialized View Path
 

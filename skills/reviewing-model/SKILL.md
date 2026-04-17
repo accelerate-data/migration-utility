@@ -28,9 +28,8 @@ then return exactly one `ModelReviewResult`.
 1. Gather context and locate artifacts.
 
    Read and apply [review-inputs.md](references/review-inputs.md). Use
-   `proc_body` as the correctness ground truth. `refactored_sql` and
-   `writer_ddl_slice` explain generator input, but they do not override stored
-   procedure semantics during review.
+   `selected_writer_ddl_slice` as the correctness ground truth when present.
+   Otherwise use `proc_body`. If both are empty, return a context error.
 
 2. Verify artifact fundamentals.
 

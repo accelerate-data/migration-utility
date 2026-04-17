@@ -1,6 +1,8 @@
 # Sub-agent Prompt Templates
 
-Prompt templates for the two parallel sub-agents launched in Step 2 of the refactoring skill. Angle-bracket placeholders (`<proc_body>`, `<statements>`, `<columns>`, `<source_tables>`, `<profile>`) must be substituted with actual values from the Step 1 context output before passing to the sub-agent.
+Prompt templates for the two parallel sub-agents launched in Step 2 of the refactoring skill. Angle-bracket placeholders (`<selected_sql>`, `<statements>`, `<columns>`, `<source_tables>`, `<profile>`) must be substituted with actual values from the Step 1 context output before passing to the sub-agent.
+
+For tables, `<selected_sql>` is `selected_writer_ddl_slice` when present, otherwise `proc_body`. If both are empty, stop with a context error.
 
 ## Sub-agent A
 
@@ -12,8 +14,8 @@ as a pure SELECT statement.
 
 Read references/routine-migration-ref.md for extraction rules per DML type (routes to dialect-specific routine-migration-ref.md).
 
-Procedure body:
-<proc_body>
+Selected source SQL:
+<selected_sql>
 
 Resolved statements (action=migrate only):
 <statements>
@@ -33,7 +35,7 @@ Instructions:
 Return ONLY the extracted SELECT SQL, nothing else.
 ```
 
-For views, substitute `<view_sql>` for `<proc_body>` and omit `<statements>`.
+For views, substitute `<view_sql>` for `<selected_sql>` and omit `<statements>`.
 
 ## Sub-agent B
 
@@ -47,8 +49,8 @@ Read references/routine-migration-ref.md for dialect-specific restructuring rule
 Follow the shared SQL and CTE style references. Do not decide dbt model
 layer, folder, YAML, or ref/source wrapper placement.
 
-Procedure body:
-<proc_body>
+Selected source SQL:
+<selected_sql>
 
 Resolved statements (action=migrate only):
 <statements>
@@ -91,4 +93,4 @@ Instructions:
 Return ONLY the refactored CTE SELECT SQL, nothing else.
 ```
 
-For views, substitute `<view_sql>` for `<proc_body>` and omit `<statements>`. Keep `<profile>` when it is present in the refactor context.
+For views, substitute `<view_sql>` for `<selected_sql>` and omit `<statements>`. Keep `<profile>` when it is present in the refactor context.

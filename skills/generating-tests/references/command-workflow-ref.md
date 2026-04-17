@@ -20,6 +20,8 @@ uv run --project "${CLAUDE_PLUGIN_ROOT}/packages/ad-migration-internal" migrate 
 
 Use the selected writer from catalog scoping when the command output does not already provide it.
 
+For table contexts, use `selected_writer_ddl_slice` as current SQL when present. Otherwise use `proc_body`. If both are empty, stop with a context error.
+
 For views and materialized views:
 
 ```bash

@@ -1,6 +1,6 @@
 # Snapshot Generation
 
-Use snapshot syntax when the profile-derived materialization is SCD2-style history, but preserve the selected transformed SQL: `writer_ddl_slice` for multi-table writers, otherwise `refactored_sql`.
+Use snapshot syntax when the profile-derived materialization is SCD2-style history, but preserve the selected transformed SQL: `selected_writer_ddl_slice` for multi-table writers, otherwise `refactored_sql`.
 
 ## Core Rules
 

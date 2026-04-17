@@ -112,7 +112,7 @@ uv run --project "${CLAUDE_PLUGIN_ROOT}/packages/ad-migration-internal" profile 
 
 If the command exits non-zero, stop and report the error.
 
-If `writer_ddl_slice` is present, the writer is a multi-table procedure. Use `writer_ddl_slice` as the primary SQL for this table. Use the full `proc_body` only for supporting context.
+Use `selected_writer_ddl_slice` as the table SQL when present. Otherwise use `proc_body`. If both are empty, stop with a context error.
 
 ### 2. Answer the Six Profiling Questions
 
