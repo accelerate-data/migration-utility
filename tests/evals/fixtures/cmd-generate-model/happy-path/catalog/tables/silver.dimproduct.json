@@ -1,0 +1,116 @@
+{
+  "schema": "silver",
+  "name": "DimProduct",
+  "columns": [
+    {
+      "name": "ProductKey",
+      "sql_type": "INT",
+      "is_nullable": false,
+      "is_identity": true
+    },
+    {
+      "name": "ProductAlternateKey",
+      "sql_type": "NVARCHAR(25)",
+      "is_nullable": true,
+      "is_identity": false
+    },
+    {
+      "name": "EnglishProductName",
+      "sql_type": "NVARCHAR(50)",
+      "is_nullable": false,
+      "is_identity": false
+    },
+    {
+      "name": "StandardCost",
+      "sql_type": "MONEY",
+      "is_nullable": true,
+      "is_identity": false
+    },
+    {
+      "name": "ListPrice",
+      "sql_type": "MONEY",
+      "is_nullable": true,
+      "is_identity": false
+    },
+    {
+      "name": "Color",
+      "sql_type": "NVARCHAR(15)",
+      "is_nullable": false,
+      "is_identity": false
+    },
+    {
+      "name": "Size",
+      "sql_type": "NVARCHAR(50)",
+      "is_nullable": true,
+      "is_identity": false
+    },
+    {
+      "name": "StartDate",
+      "sql_type": "DATETIME",
+      "is_nullable": true,
+      "is_identity": false
+    },
+    {
+      "name": "EndDate",
+      "sql_type": "DATETIME",
+      "is_nullable": true,
+      "is_identity": false
+    }
+  ],
+  "primary_keys": [
+    {
+      "constraint_name": "PK_DimProduct",
+      "columns": [
+        "ProductKey"
+      ]
+    }
+  ],
+  "unique_indexes": [],
+  "foreign_keys": [],
+  "auto_increment_columns": [
+    {
+      "column": "ProductKey",
+      "mechanism": "identity"
+    }
+  ],
+  "change_capture": null,
+  "sensitivity_classifications": [],
+  "referenced_by": {
+    "procedures": {
+      "in_scope": [],
+      "out_of_scope": []
+    },
+    "views": {
+      "in_scope": [],
+      "out_of_scope": []
+    },
+    "functions": {
+      "in_scope": [],
+      "out_of_scope": []
+    }
+  },
+  "profile": {
+    "status": "ok",
+    "classification": {
+      "resolved_kind": "dim_scd1",
+      "source": "llm"
+    },
+    "primary_key": {
+      "columns": ["ProductKey"],
+      "primary_key_type": "surrogate",
+      "source": "catalog"
+    },
+    "natural_key": {
+      "columns": ["ProductAlternateKey"],
+      "source": "llm"
+    },
+    "foreign_keys": [],
+    "pii_actions": []
+  },
+  "refactor": {
+    "status": "ok",
+    "extracted_sql": "SELECT CAST(ProductID AS NVARCHAR(25)) AS ProductAlternateKey, ProductName AS EnglishProductName, StandardCost, ListPrice, ISNULL(Color, '') AS Color, Size, SellStartDate AS StartDate, SellEndDate AS EndDate FROM [bronze].[Product]",
+    "refactored_sql": "WITH src AS (SELECT * FROM [bronze].[Product]) SELECT CAST(ProductID AS NVARCHAR(25)) AS ProductAlternateKey, ProductName AS EnglishProductName, StandardCost, ListPrice, ISNULL(Color, '') AS Color, Size, SellStartDate AS StartDate, SellEndDate AS EndDate FROM src"
+  },
+  "statements": []
+}

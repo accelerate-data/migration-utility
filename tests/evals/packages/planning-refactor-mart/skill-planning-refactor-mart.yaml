@@ -1,0 +1,39 @@
+# yaml-language-server: $schema=https://promptfoo.dev/config-schema.json
+description: "Planning-refactor-mart skill -- markdown candidate plan generation"
+
+prompts:
+  - id: planning-refactor-mart
+    label: planning-refactor-mart
+    raw: file://../../prompts/skill-planning-refactor-mart.txt
+
+extensions:
+  - file://../../scripts/run-workspace-extension.js:extensionHook
+
+providers:
+  - file://../../providers/haiku-120.yaml
+
+defaultTest:
+  assert:
+    - type: javascript
+      value: file://../../assertions/check-refactor-mart-plan.js
+
+tests:
+  - description: "[smoke] happy dependency path -- higher-layer candidate depends on staging"
+    vars:
+      fixture_path: "tests/evals/fixtures/cmd-generate-model/happy-path"
+      target_tables: "silver.DimCustomer silver.DimProduct"
+      plan_name: "refactor-mart-dependency-plan"
+      expected_candidate_types: "stg,mart"
+      expected_higher_layer_candidate: "true"
+      expected_terms: "depends on: stg-,execution status: planned"
+      scenario_notes: "Generate a happy-path plan with at least one staging candidate and at least one higher-layer candidate that depends on staging."
+
+  - description: "review gate -- uncertain candidates stay unapproved"
+    vars:
+      fixture_path: "tests/evals/fixtures/refactoring-sql/dynamic-sql"
+      target_tables: "silver.DimCurrency"
+      plan_name: "refactor-mart-review-required-plan"
+      expected_candidate_types: "stg,mart"
+      expected_terms: "approve: no"
+      expected_unapproved_terms: "column mapping"
+      scenario_notes: "This fixture is recovered from dynamic SQL. Per the approval rules, any mart candidate that performs column mapping from the recovered dynamic SQL must be left unapproved with Approve: no."

@@ -13,10 +13,9 @@ The command surface is mart-oriented because the user selects final business out
 ## Skills
 
 - `planning-refactor-mart` analyzes the selected mart unit, derives candidates, and writes the markdown plan.
-- `applying-staging-candidate` applies one approved staging candidate for a source table and rewires all affected downstream consumers.
-- `applying-refactor-mart-candidate` applies one approved higher-layer candidate, including `int` extraction and the associated mart rewrites.
+- Future apply workflows will own approved staging and higher-layer execution.
 
-Validation is a required phase inside the apply skills rather than a separate top-level skill.
+Validation is a required phase inside apply workflows rather than a separate top-level skill.
 
 ## Layer Rules
 
@@ -50,13 +49,15 @@ Use a regular shape like this:
 - [x] Approve: yes
 - Type: stg
 - Output: models/staging/stg_bronze__<entity>.sql
-- Scope: source table <name>
-- Consumers: <consumer>, <consumer>
 - Depends on: none
-- Why: shared row-preserving renames, casts, computations, and categorizations
 - Validation: <model>, <consumer>, <consumer>
 - Execution status: planned
 ```
+
+Keep the labeled fields aligned with
+`skills/planning-refactor-mart/references/plan-file-contract.md`. Add explanatory notes as prose under the
+candidate only when they help a reviewer; do not introduce extra labeled fields that compete with the
+contract.
 
 The model is the primary interpreter of this file. Python should be limited to file I/O and simple orchestration, not semantic parsing.
 
