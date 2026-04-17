@@ -50,13 +50,15 @@ Use a regular shape like this:
 - [x] Approve: yes
 - Type: stg
 - Output: models/staging/stg_bronze__<entity>.sql
-- Scope: source table <name>
-- Consumers: <consumer>, <consumer>
 - Depends on: none
-- Why: shared row-preserving renames, casts, computations, and categorizations
 - Validation: <model>, <consumer>, <consumer>
 - Execution status: planned
 ```
+
+Keep the labeled fields aligned with
+`skills/planning-refactor-mart/references/plan-file-contract.md`. Add explanatory notes as prose under the
+candidate only when they help a reviewer; do not introduce extra labeled fields that compete with the
+contract.
 
 The model is the primary interpreter of this file. Python should be limited to file I/O and simple orchestration, not semantic parsing.
 

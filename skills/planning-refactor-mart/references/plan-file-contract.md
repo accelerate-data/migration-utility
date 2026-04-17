@@ -4,7 +4,9 @@ The refactor-mart plan is markdown optimized for human review and LLM
 interpretation. Do not create a Python parser, JSON schema, or parallel machine
 contract for this file.
 
-Each candidate must occupy exactly one markdown section:
+Each candidate must occupy exactly one level-2 markdown section. Do not add a
+separate `## Candidates` wrapper and do not nest candidates under `###`
+headings:
 
 ```md
 ## Candidate: <ID>

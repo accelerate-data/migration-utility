@@ -99,14 +99,15 @@ must include:
 - title and target list;
 - assumptions and non-goals;
 - candidate summary counts by type;
-- one section per candidate using `references/plan-file-contract.md`;
+- one level-2 section per candidate using `references/plan-file-contract.md`;
 - rejected or deferred candidates when useful;
 - execution order that runs staging first, then higher-layer candidates; and
 - a statement that no dbt models were mutated.
 
-Candidate sections must include approval, type, output, dependencies,
-validation, and execution status. Use `Execution status: planned` for every new
-candidate.
+Candidate sections must use `## Candidate: <ID>` exactly. Do not put candidates
+under a `## Candidates` wrapper or use `### Candidate` headings. Candidate
+sections must include approval, type, output, dependencies, validation, and
+execution status. Use `Execution status: planned` for every new candidate.
 
 ## Output
 

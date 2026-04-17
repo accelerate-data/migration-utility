@@ -73,7 +73,9 @@ The planning skill must:
 ### Step 3 -- Write Plan Artifact
 
 The plan must be optimized for agent and human review, not Python parsing.
-Each candidate must occupy one markdown section using this shape:
+Each candidate must occupy one level-2 markdown section using this shape. Do not
+wrap candidates in a separate `## Candidates` section or use `### Candidate`
+headings:
 
 ```md
 ## Candidate: <ID>

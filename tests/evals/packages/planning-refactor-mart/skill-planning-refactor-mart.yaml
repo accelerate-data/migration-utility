@@ -23,7 +23,7 @@ tests:
       fixture_path: "tests/evals/fixtures/cmd-generate-model/happy-path"
       target_tables: "silver.DimCustomer silver.DimProduct"
       plan_name: "refactor-mart-dependency-plan"
-      expected_candidate_types: "stg,mart"
+      expected_candidate_types: "stg,int"
       expected_terms: "depends on: stg-,execution status: planned"
       scenario_notes: "Generate a happy-path plan with at least one staging candidate and at least one higher-layer candidate that depends on staging."
 
