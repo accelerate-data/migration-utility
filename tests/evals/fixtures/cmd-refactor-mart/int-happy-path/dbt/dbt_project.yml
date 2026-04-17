@@ -1,0 +1,16 @@
+name: refactor_mart_eval
+version: "1.0"
+config-version: 2
+
+profile: refactor_mart_eval
+
+model-paths: ["models"]
+
+models:
+  refactor_mart_eval:
+    staging:
+      +materialized: view
+    intermediate:
+      +materialized: ephemeral
+    marts:
+      +materialized: table

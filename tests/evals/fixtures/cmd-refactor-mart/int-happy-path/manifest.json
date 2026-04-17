@@ -1,0 +1,22 @@
+{
+  "runtime": {
+    "source": {
+      "technology": "sql_server",
+      "connection": {
+        "database": "MigrationTest"
+      }
+    },
+    "target": {
+      "technology": "sql_server",
+      "connection": {
+        "database": "MigrationTest"
+      }
+    }
+  },
+  "extraction": {
+    "schemas": [
+      "silver",
+      "gold"
+    ]
+  }
+}

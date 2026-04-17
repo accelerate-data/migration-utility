@@ -237,7 +237,7 @@ git commit -m "VU-1104: add higher-layer refactor-mart contracts"
 - Create: `tests/evals/fixtures/cmd-refactor-mart/int-blocked-dependency/**`
 - Create: `tests/evals/fixtures/cmd-refactor-mart/int-validation-failure/**`
 
-- [ ] **Step 1: Write assertion helper tests first**
+- [x] **Step 1: Write assertion helper tests first**
 
 Create `tests/evals/assertions/check-refactor-mart-mart-execution.test.js` with tests for:
 
@@ -278,7 +278,7 @@ node --test tests/evals/assertions/check-refactor-mart-mart-execution.test.js
 
 Expected: fail because `check-refactor-mart-mart-execution.js` does not exist yet.
 
-- [ ] **Step 2: Implement assertion helper**
+- [x] **Step 2: Implement assertion helper**
 
 Create `tests/evals/assertions/check-refactor-mart-mart-execution.js` by following the structure of `check-refactor-mart-stg-execution.js`, with these higher-layer-specific rules:
 
@@ -299,7 +299,7 @@ const { normalizeTerms, resolveProjectPath } = require('./schema-helpers');
 
 The helper must not require staging outputs for higher-layer status checks unless the test explicitly includes them in expected refs.
 
-- [ ] **Step 3: Run assertion unit tests**
+- [x] **Step 3: Run assertion unit tests**
 
 Run:
 
@@ -309,7 +309,7 @@ node --test tests/evals/assertions/check-refactor-mart-mart-execution.test.js
 
 Expected: pass.
 
-- [ ] **Step 4: Add int-mode eval prompt**
+- [x] **Step 4: Add int-mode eval prompt**
 
 Create `tests/evals/prompts/cmd-refactor-mart-int.txt`:
 
@@ -340,7 +340,7 @@ Harness overrides:
 The eval expects the final answer to summarize applied, failed, blocked, and skipped counts.
 ```
 
-- [ ] **Step 5: Add happy-path fixture**
+- [x] **Step 5: Add happy-path fixture**
 
 Create fixture files under `tests/evals/fixtures/cmd-refactor-mart/int-happy-path/`:
 
@@ -356,7 +356,7 @@ docs/design/refactor-mart-int-happy-path.md
 
 The plan must start with `STG-001` already applied, then approved `INT-001`, then approved `MART-001` depending on `INT-001`.
 
-- [ ] **Step 6: Add blocked dependency fixture**
+- [x] **Step 6: Add blocked dependency fixture**
 
 Create fixture files under `tests/evals/fixtures/cmd-refactor-mart/int-blocked-dependency/`:
 
@@ -372,7 +372,7 @@ docs/design/refactor-mart-int-blocked-dependency.md
 
 The plan must include approved higher-layer candidates whose dependencies point to staging candidates with `Execution status: planned` and `Execution status: failed`. Expected result: higher-layer candidates become `blocked`, get `Blocked reason:`, and their outputs are not rewritten.
 
-- [ ] **Step 7: Add validation failure fixture**
+- [x] **Step 7: Add validation failure fixture**
 
 Create fixture files under `tests/evals/fixtures/cmd-refactor-mart/int-validation-failure/`:
 
@@ -388,7 +388,7 @@ docs/design/refactor-mart-int-validation-failure.md
 
 Include `EVAL_VALIDATION_FAIL` in one model named by the failing candidate's `Validation:` field. Expected result: attempted candidate becomes `failed` with `Validation result:`, while unrelated approved candidates with satisfied dependencies can still be applied or remain unchanged according to the fixture.
 
-- [ ] **Step 8: Register eval cases**
+- [x] **Step 8: Register eval cases**
 
 Modify `tests/evals/packages/cmd-refactor-mart/cmd-refactor-mart.yaml`:
 
@@ -432,7 +432,7 @@ Add three tests using `check-refactor-mart-mart-execution.js` as the assertion f
     expected_blocked_reasons: "MART-001"
 ```
 
-- [ ] **Step 9: Run eval assertion tests**
+- [x] **Step 9: Run eval assertion tests**
 
 Run:
 
@@ -452,7 +452,10 @@ cd tests/evals && npm run eval:cmd-refactor-mart
 
 Expected: pass. If model nondeterminism causes a case to fail while the contract and assertion are correct, capture the failure and revise the prompt or fixture to remove ambiguity.
 
-- [ ] **Step 11: Commit eval slice**
+Attempted during Task 2 implementation. Blocked before execution because
+`ANTHROPIC_API_KEY` was not set in the environment.
+
+- [x] **Step 11: Commit eval slice**
 
 Run:
 
