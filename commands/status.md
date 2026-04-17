@@ -33,8 +33,8 @@ argument-hint: "[schema.table]"
 
 | Mode | Required commands |
 |---|---|
-| `/status` | `uv run --project "${CLAUDE_PLUGIN_ROOT}/packages/ad-migration-internal" migrate-util sync-excluded-warnings`<br>`uv run --project "${CLAUDE_PLUGIN_ROOT}/packages/ad-migration-internal" migrate-util batch-plan` |
-| `/status <schema.table>` | `uv run --project "${CLAUDE_PLUGIN_ROOT}/packages/ad-migration-internal" migrate-util batch-plan`<br>`uv run --project "${CLAUDE_PLUGIN_ROOT}/packages/ad-migration-internal" migrate-util status <schema.table>` |
+| `/status` | `uv run --project "${CLAUDE_PLUGIN_ROOT}/packages/ad-migration-internal" migrate-util sync-excluded-warnings --project-root <project-root>`<br>`uv run --project "${CLAUDE_PLUGIN_ROOT}/packages/ad-migration-internal" migrate-util batch-plan --project-root <project-root>` |
+| `/status <schema.table>` | `uv run --project "${CLAUDE_PLUGIN_ROOT}/packages/ad-migration-internal" migrate-util batch-plan --project-root <project-root>`<br>`uv run --project "${CLAUDE_PLUGIN_ROOT}/packages/ad-migration-internal" migrate-util status <schema.table> --project-root <project-root>` |
 | detail + `pipeline_status == "test_gen_needed"` | Also run `uv run --project "${CLAUDE_PLUGIN_ROOT}/packages/ad-migration-internal" migrate-util ready test-gen --project-root <project-root> --object <schema.table>` |
 | detail + `pipeline_row.test_gen in ["pending", "setup-blocked"]` | Also run `migrate-util ready test-gen` as above. |
 | `sync-excluded-warnings` exits 2 | Continue and use fresh `batch-plan` output. |

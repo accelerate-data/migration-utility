@@ -13,6 +13,7 @@ from pathlib import Path
 import pytest
 import yaml
 
+import shared.generate_sources as generate_sources_module
 from shared.generate_sources import generate_sources, write_sources_yml
 
 
@@ -35,6 +36,13 @@ def _make_project(tables: list[dict]) -> tuple[tempfile.TemporaryDirectory, Path
 
 
 # ── Core filter logic ─────────────────────────────────────────────────────────
+
+
+def test_generate_sources_read_path_has_extracted_helpers() -> None:
+    """generate_sources delegates candidate collection, validation, and YAML building."""
+    assert callable(generate_sources_module._collect_source_candidates)
+    assert callable(generate_sources_module._validate_source_namespace)
+    assert callable(generate_sources_module._build_sources_yaml)
 
 
 def test_is_source_true_included() -> None:

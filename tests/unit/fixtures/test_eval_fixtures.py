@@ -51,3 +51,19 @@ def test_dynamic_sql_eval_fixtures_use_canonical_migrationtest_object_names() ->
 
         assert not any(fixture_dir.rglob("silver.dimcurrency.json"))
         assert not any(fixture_dir.rglob("silver.usp_load_dimcurrency.json"))
+
+
+def test_status_no_target_fixture_has_cataloged_object_state() -> None:
+    fixture_root = (
+        Path(__file__).resolve().parents[3]
+        / "tests/evals/fixtures/cmd-status/status-single-insertselecttarget-no-target"
+    )
+
+    expected_paths = [
+        "catalog/tables/silver.insertselecttarget.json",
+        "catalog/procedures/silver.usp_load_insertselecttarget.json",
+        "dbt/dbt_project.yml",
+    ]
+
+    for relative_path in expected_paths:
+        assert (fixture_root / relative_path).is_file()

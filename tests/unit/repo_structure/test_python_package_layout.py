@@ -220,3 +220,17 @@ def test_refactor_mart_eval_packages_are_in_smoke() -> None:
 
     for package_path in expected_packages:
         assert package_path in smoke_script, package_path
+
+
+def test_status_command_examples_pass_project_root() -> None:
+    status_text = (REPO_ROOT / "commands/status.md").read_text(encoding="utf-8")
+
+    required_examples = [
+        "migrate-util sync-excluded-warnings --project-root <project-root>",
+        "migrate-util batch-plan --project-root <project-root>",
+        "migrate-util status <schema.table> --project-root <project-root>",
+        "migrate-util ready test-gen --project-root <project-root> --object <schema.table>",
+    ]
+
+    for example in required_examples:
+        assert example in status_text
