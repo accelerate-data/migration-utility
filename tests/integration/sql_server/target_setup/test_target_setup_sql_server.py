@@ -61,7 +61,7 @@ def _target_connection(database: str | None = None):
 
 def _ensure_target_database() -> str:
     database = os.environ.get("TARGET_MSSQL_DB", SQL_SERVER_FIXTURE_DATABASE)
-    with _target_connection(_require_env("MSSQL_ADMIN_DATABASE")) as conn:
+    with _target_connection(os.environ.get("MSSQL_ADMIN_DATABASE", "master")) as conn:
         cursor = conn.cursor()
         cursor.execute("SELECT DB_ID(?)", database)
         if cursor.fetchone()[0] is None:
