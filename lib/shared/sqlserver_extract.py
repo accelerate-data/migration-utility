@@ -1,6 +1,8 @@
 from __future__ import annotations
 
 import logging
+from collections.abc import Callable
+from dataclasses import dataclass
 from pathlib import Path
 from typing import Any
 
@@ -29,28 +31,228 @@ def _is_optional_metadata_unavailable(exc: Exception) -> bool:
     return any(marker in message for marker in markers)
 
 
-def _run_optional_metadata_query(
+@dataclass(frozen=True)
+class _SqlServerQuerySpec:
+    filename: str
+    sql_factory: Callable[[list[str]], str]
+    optional: bool = False
+    row_transform: Callable[[list[dict[str, Any]]], list[Any]] | None = None
+
+
+def _run_sqlserver_query_spec(
     conn: Any,
-    *,
-    sql: str,
-    filename: str,
+    spec: _SqlServerQuerySpec,
     staging_dir: Path,
+    schemas: list[str],
 ) -> None:
-    """Run an optional metadata query, swallowing only known feature-absence errors."""
+    """Run one SQL Server metadata extraction query and write its staging artifact."""
+    cursor: Any = None
     try:
         cursor = conn.cursor()
+        sql = spec.sql_factory(schemas)
         cursor.execute(sql)
-        _write_json(staging_dir, filename, _rows_to_dicts(cursor))
-        cursor.close()
+        rows: list[Any] = _rows_to_dicts(cursor)
+        if spec.row_transform is not None:
+            rows = spec.row_transform(rows)
     except Exception as exc:  # noqa: BLE001
-        if not _is_optional_metadata_unavailable(exc):
+        if not spec.optional or not _is_optional_metadata_unavailable(exc):
             raise
         logger.warning(
             "event=sqlserver_query_skip file=%s reason=feature_unavailable error=%s",
-            filename,
+            spec.filename,
             exc,
         )
-        _write_json(staging_dir, filename, [])
+        rows = []
+    finally:
+        if cursor is not None:
+            cursor.close()
+
+    _write_json(staging_dir, spec.filename, rows)
+
+
+def _schema_clause(schemas: list[str]) -> str:
+    return build_schema_in_clause(schemas)
+
+
+def _table_columns_sql(schemas: list[str]) -> str:
+    in_clause = _schema_clause(schemas)
+    return (
+        f"SELECT "
+        f"    SCHEMA_NAME(t.schema_id) AS schema_name, "
+        f"    t.name AS table_name, "
+        f"    c.name AS column_name, "
+        f"    c.column_id, "
+        f"    tp.name AS type_name, "
+        f"    c.max_length, "
+        f"    c.precision, "
+        f"    c.scale, "
+        f"    c.is_nullable, "
+        f"    c.is_identity, "
+        f"    CONVERT(BIGINT, ic.seed_value) AS seed_value, "
+        f"    CONVERT(BIGINT, ic.increment_value) AS increment_value "
+        f"FROM sys.tables t "
+        f"JOIN sys.columns c ON c.object_id = t.object_id "
+        f"JOIN sys.types tp ON tp.user_type_id = c.user_type_id "
+        f"LEFT JOIN sys.identity_columns ic "
+        f"    ON ic.object_id = c.object_id AND ic.column_id = c.column_id "
+        f"WHERE t.is_ms_shipped = 0 "
+        f"  AND SCHEMA_NAME(t.schema_id) IN ({in_clause}) "
+        f"ORDER BY schema_name, table_name, c.column_id"
+    )
+
+
+def _pk_unique_sql(schemas: list[str]) -> str:
+    in_clause = _schema_clause(schemas)
+    return (
+        f"SELECT "
+        f"    SCHEMA_NAME(t.schema_id) AS schema_name, t.name AS table_name, "
+        f"    i.name AS index_name, i.is_unique, i.is_primary_key, "
+        f"    c.name AS column_name, ic.key_ordinal "
+        f"FROM sys.tables t "
+        f"JOIN sys.indexes i ON i.object_id = t.object_id "
+        f"    AND (i.is_primary_key = 1 OR (i.is_unique = 1 AND i.is_primary_key = 0 AND i.has_filter = 0)) "
+        f"JOIN sys.index_columns ic ON ic.object_id = i.object_id AND ic.index_id = i.index_id "
+        f"    AND ic.key_ordinal > 0 AND ic.is_included_column = 0 "
+        f"JOIN sys.columns c ON c.object_id = ic.object_id AND c.column_id = ic.column_id "
+        f"WHERE t.is_ms_shipped = 0 AND SCHEMA_NAME(t.schema_id) IN ({in_clause}) "
+        f"ORDER BY schema_name, table_name, i.index_id, ic.key_ordinal"
+    )
+
+
+def _foreign_keys_sql(schemas: list[str]) -> str:
+    in_clause = _schema_clause(schemas)
+    return (
+        f"SELECT "
+        f"    SCHEMA_NAME(t.schema_id) AS schema_name, t.name AS table_name, "
+        f"    fk.name AS constraint_name, "
+        f"    COL_NAME(fkc.parent_object_id, fkc.parent_column_id) AS column_name, "
+        f"    SCHEMA_NAME(rt.schema_id) AS ref_schema, rt.name AS ref_table, "
+        f"    COL_NAME(fkc.referenced_object_id, fkc.referenced_column_id) AS ref_column "
+        f"FROM sys.foreign_keys fk "
+        f"JOIN sys.tables t ON t.object_id = fk.parent_object_id "
+        f"JOIN sys.foreign_key_columns fkc ON fkc.constraint_object_id = fk.object_id "
+        f"JOIN sys.tables rt ON rt.object_id = fk.referenced_object_id "
+        f"WHERE t.is_ms_shipped = 0 AND SCHEMA_NAME(t.schema_id) IN ({in_clause}) "
+        f"ORDER BY schema_name, table_name, fk.name, fkc.constraint_column_id"
+    )
+
+
+def _identity_columns_sql(schemas: list[str]) -> str:
+    in_clause = _schema_clause(schemas)
+    return (
+        f"SELECT SCHEMA_NAME(t.schema_id) AS schema_name, t.name AS table_name, "
+        f"       c.name AS column_name "
+        f"FROM sys.identity_columns c "
+        f"JOIN sys.tables t ON t.object_id = c.object_id "
+        f"WHERE t.is_ms_shipped = 0 AND SCHEMA_NAME(t.schema_id) IN ({in_clause})"
+    )
+
+
+def _cdc_sql(schemas: list[str]) -> str:
+    in_clause = _schema_clause(schemas)
+    return (
+        f"SELECT SCHEMA_NAME(t.schema_id) AS schema_name, t.name AS table_name "
+        f"FROM sys.tables t "
+        f"WHERE t.is_ms_shipped = 0 AND t.is_tracked_by_cdc = 1 "
+        f"  AND SCHEMA_NAME(t.schema_id) IN ({in_clause})"
+    )
+
+
+def _change_tracking_sql(schemas: list[str]) -> str:
+    in_clause = _schema_clause(schemas)
+    return (
+        f"SELECT SCHEMA_NAME(t.schema_id) AS schema_name, t.name AS table_name "
+        f"FROM sys.change_tracking_tables ct "
+        f"JOIN sys.tables t ON t.object_id = ct.object_id "
+        f"WHERE SCHEMA_NAME(t.schema_id) IN ({in_clause})"
+    )
+
+
+def _sensitivity_sql(schemas: list[str]) -> str:
+    in_clause = _schema_clause(schemas)
+    return (
+        f"SELECT SCHEMA_NAME(t.schema_id) AS schema_name, t.name AS table_name, "
+        f"       sc.label, sc.information_type, "
+        f"       COL_NAME(sc.major_id, sc.minor_id) AS column_name "
+        f"FROM sys.sensitivity_classifications sc "
+        f"JOIN sys.tables t ON t.object_id = sc.major_id "
+        f"WHERE t.is_ms_shipped = 0 AND SCHEMA_NAME(t.schema_id) IN ({in_clause})"
+    )
+
+
+def _object_types_sql(schemas: list[str]) -> str:
+    in_clause = _schema_clause(schemas)
+    return (
+        f"SELECT SCHEMA_NAME(o.schema_id) AS schema_name, o.name, o.type "
+        f"FROM sys.objects o "
+        f"WHERE o.is_ms_shipped = 0 "
+        f"  AND o.type IN ('U', 'V', 'P', 'FN', 'IF', 'TF') "
+        f"  AND SCHEMA_NAME(o.schema_id) IN ({in_clause})"
+    )
+
+
+def _definitions_sql(schemas: list[str]) -> str:
+    in_clause = _schema_clause(schemas)
+    return (
+        f"SELECT SCHEMA_NAME(o.schema_id) AS schema_name, o.name AS object_name, "
+        f"       OBJECT_DEFINITION(o.object_id) AS definition "
+        f"FROM sys.objects o "
+        f"WHERE o.type IN ('P', 'V', 'FN', 'IF', 'TF') AND o.is_ms_shipped = 0 "
+        f"  AND SCHEMA_NAME(o.schema_id) IN ({in_clause})"
+    )
+
+
+def _proc_params_sql(schemas: list[str]) -> str:
+    in_clause = _schema_clause(schemas)
+    return (
+        f"SELECT "
+        f"    SCHEMA_NAME(o.schema_id) AS schema_name, "
+        f"    o.name AS proc_name, "
+        f"    p.name AS param_name, "
+        f"    TYPE_NAME(p.user_type_id) AS type_name, "
+        f"    p.max_length, "
+        f"    p.precision, "
+        f"    p.scale, "
+        f"    p.is_output, "
+        f"    p.has_default_value "
+        f"FROM sys.parameters p "
+        f"JOIN sys.objects o ON o.object_id = p.object_id "
+        f"WHERE o.type = 'P' AND o.is_ms_shipped = 0 AND p.parameter_id > 0 "
+        f"  AND SCHEMA_NAME(o.schema_id) IN ({in_clause}) "
+        f"ORDER BY schema_name, proc_name, p.parameter_id"
+    )
+
+
+def _indexed_views_sql(schemas: list[str]) -> str:
+    in_clause = _schema_clause(schemas)
+    return (
+        f"SELECT SCHEMA_NAME(v.schema_id) AS schema_name, v.name "
+        f"FROM sys.views v "
+        f"WHERE EXISTS (SELECT 1 FROM sys.indexes i "
+        f"  WHERE i.object_id = v.object_id AND i.type = 1) "
+        f"  AND v.is_ms_shipped = 0 "
+        f"  AND SCHEMA_NAME(v.schema_id) IN ({in_clause})"
+    )
+
+
+def _indexed_view_fqns(rows: list[dict[str, Any]]) -> list[str]:
+    return [f"{row['schema_name']}.{row['name']}".lower() for row in rows]
+
+
+def _sqlserver_query_specs() -> tuple[_SqlServerQuerySpec, ...]:
+    return (
+        _SqlServerQuerySpec("table_columns.json", _table_columns_sql),
+        _SqlServerQuerySpec("pk_unique.json", _pk_unique_sql),
+        _SqlServerQuerySpec("foreign_keys.json", _foreign_keys_sql),
+        _SqlServerQuerySpec("identity_columns.json", _identity_columns_sql),
+        _SqlServerQuerySpec("cdc.json", _cdc_sql),
+        _SqlServerQuerySpec("change_tracking.json", _change_tracking_sql, optional=True),
+        _SqlServerQuerySpec("sensitivity.json", _sensitivity_sql, optional=True),
+        _SqlServerQuerySpec("object_types.json", _object_types_sql),
+        _SqlServerQuerySpec("definitions.json", _definitions_sql),
+        _SqlServerQuerySpec("proc_params.json", _proc_params_sql),
+        _SqlServerQuerySpec("indexed_views.json", _indexed_views_sql, row_transform=_indexed_view_fqns),
+    )
 
 
 def _run_dmf_queries(
@@ -179,202 +381,13 @@ def run_sqlserver_extraction(
         schemas,
     )
 
-    in_clause = build_schema_in_clause(schemas)
     conn: Any = None
 
     try:
         conn = _sql_server_connect(database)
+        for spec in _sqlserver_query_specs():
+            _run_sqlserver_query_spec(conn, spec, staging_dir, schemas)
 
-        # --- table_columns.json ---
-        sql = (
-            f"SELECT "
-            f"    SCHEMA_NAME(t.schema_id) AS schema_name, "
-            f"    t.name AS table_name, "
-            f"    c.name AS column_name, "
-            f"    c.column_id, "
-            f"    tp.name AS type_name, "
-            f"    c.max_length, "
-            f"    c.precision, "
-            f"    c.scale, "
-            f"    c.is_nullable, "
-            f"    c.is_identity, "
-            f"    CONVERT(BIGINT, ic.seed_value) AS seed_value, "
-            f"    CONVERT(BIGINT, ic.increment_value) AS increment_value "
-            f"FROM sys.tables t "
-            f"JOIN sys.columns c ON c.object_id = t.object_id "
-            f"JOIN sys.types tp ON tp.user_type_id = c.user_type_id "
-            f"LEFT JOIN sys.identity_columns ic "
-            f"    ON ic.object_id = c.object_id AND ic.column_id = c.column_id "
-            f"WHERE t.is_ms_shipped = 0 "
-            f"  AND SCHEMA_NAME(t.schema_id) IN ({in_clause}) "
-            f"ORDER BY schema_name, table_name, c.column_id"
-        )
-        cursor = conn.cursor()
-        cursor.execute(sql)
-        _write_json(staging_dir, "table_columns.json", _rows_to_dicts(cursor))
-        cursor.close()
-
-        # --- pk_unique.json ---
-        sql = (
-            f"SELECT "
-            f"    SCHEMA_NAME(t.schema_id) AS schema_name, t.name AS table_name, "
-            f"    i.name AS index_name, i.is_unique, i.is_primary_key, "
-            f"    c.name AS column_name, ic.key_ordinal "
-            f"FROM sys.tables t "
-            f"JOIN sys.indexes i ON i.object_id = t.object_id "
-            f"    AND (i.is_primary_key = 1 OR (i.is_unique = 1 AND i.is_primary_key = 0 AND i.has_filter = 0)) "
-            f"JOIN sys.index_columns ic ON ic.object_id = i.object_id AND ic.index_id = i.index_id "
-            f"    AND ic.key_ordinal > 0 AND ic.is_included_column = 0 "
-            f"JOIN sys.columns c ON c.object_id = ic.object_id AND c.column_id = ic.column_id "
-            f"WHERE t.is_ms_shipped = 0 AND SCHEMA_NAME(t.schema_id) IN ({in_clause}) "
-            f"ORDER BY schema_name, table_name, i.index_id, ic.key_ordinal"
-        )
-        cursor = conn.cursor()
-        cursor.execute(sql)
-        _write_json(staging_dir, "pk_unique.json", _rows_to_dicts(cursor))
-        cursor.close()
-
-        # --- foreign_keys.json ---
-        sql = (
-            f"SELECT "
-            f"    SCHEMA_NAME(t.schema_id) AS schema_name, t.name AS table_name, "
-            f"    fk.name AS constraint_name, "
-            f"    COL_NAME(fkc.parent_object_id, fkc.parent_column_id) AS column_name, "
-            f"    SCHEMA_NAME(rt.schema_id) AS ref_schema, rt.name AS ref_table, "
-            f"    COL_NAME(fkc.referenced_object_id, fkc.referenced_column_id) AS ref_column "
-            f"FROM sys.foreign_keys fk "
-            f"JOIN sys.tables t ON t.object_id = fk.parent_object_id "
-            f"JOIN sys.foreign_key_columns fkc ON fkc.constraint_object_id = fk.object_id "
-            f"JOIN sys.tables rt ON rt.object_id = fk.referenced_object_id "
-            f"WHERE t.is_ms_shipped = 0 AND SCHEMA_NAME(t.schema_id) IN ({in_clause}) "
-            f"ORDER BY schema_name, table_name, fk.name, fkc.constraint_column_id"
-        )
-        cursor = conn.cursor()
-        cursor.execute(sql)
-        _write_json(staging_dir, "foreign_keys.json", _rows_to_dicts(cursor))
-        cursor.close()
-
-        # --- identity_columns.json ---
-        sql = (
-            f"SELECT SCHEMA_NAME(t.schema_id) AS schema_name, t.name AS table_name, "
-            f"       c.name AS column_name "
-            f"FROM sys.identity_columns c "
-            f"JOIN sys.tables t ON t.object_id = c.object_id "
-            f"WHERE t.is_ms_shipped = 0 AND SCHEMA_NAME(t.schema_id) IN ({in_clause})"
-        )
-        cursor = conn.cursor()
-        cursor.execute(sql)
-        _write_json(staging_dir, "identity_columns.json", _rows_to_dicts(cursor))
-        cursor.close()
-
-        # --- cdc.json ---
-        sql = (
-            f"SELECT SCHEMA_NAME(t.schema_id) AS schema_name, t.name AS table_name "
-            f"FROM sys.tables t "
-            f"WHERE t.is_ms_shipped = 0 AND t.is_tracked_by_cdc = 1 "
-            f"  AND SCHEMA_NAME(t.schema_id) IN ({in_clause})"
-        )
-        cursor = conn.cursor()
-        cursor.execute(sql)
-        _write_json(staging_dir, "cdc.json", _rows_to_dicts(cursor))
-        cursor.close()
-
-        # --- change_tracking.json (feature optional, other errors are fatal) ---
-        sql = (
-            f"SELECT SCHEMA_NAME(t.schema_id) AS schema_name, t.name AS table_name "
-            f"FROM sys.change_tracking_tables ct "
-            f"JOIN sys.tables t ON t.object_id = ct.object_id "
-            f"WHERE SCHEMA_NAME(t.schema_id) IN ({in_clause})"
-        )
-        _run_optional_metadata_query(
-            conn,
-            sql=sql,
-            filename="change_tracking.json",
-            staging_dir=staging_dir,
-        )
-
-        # --- sensitivity.json (feature optional, other errors are fatal) ---
-        sql = (
-            f"SELECT SCHEMA_NAME(t.schema_id) AS schema_name, t.name AS table_name, "
-            f"       sc.label, sc.information_type, "
-            f"       COL_NAME(sc.major_id, sc.minor_id) AS column_name "
-            f"FROM sys.sensitivity_classifications sc "
-            f"JOIN sys.tables t ON t.object_id = sc.major_id "
-            f"WHERE t.is_ms_shipped = 0 AND SCHEMA_NAME(t.schema_id) IN ({in_clause})"
-        )
-        _run_optional_metadata_query(
-            conn,
-            sql=sql,
-            filename="sensitivity.json",
-            staging_dir=staging_dir,
-        )
-
-        # --- object_types.json ---
-        sql = (
-            f"SELECT SCHEMA_NAME(o.schema_id) AS schema_name, o.name, o.type "
-            f"FROM sys.objects o "
-            f"WHERE o.is_ms_shipped = 0 "
-            f"  AND o.type IN ('U', 'V', 'P', 'FN', 'IF', 'TF') "
-            f"  AND SCHEMA_NAME(o.schema_id) IN ({in_clause})"
-        )
-        cursor = conn.cursor()
-        cursor.execute(sql)
-        _write_json(staging_dir, "object_types.json", _rows_to_dicts(cursor))
-        cursor.close()
-
-        # --- definitions.json ---
-        sql = (
-            f"SELECT SCHEMA_NAME(o.schema_id) AS schema_name, o.name AS object_name, "
-            f"       OBJECT_DEFINITION(o.object_id) AS definition "
-            f"FROM sys.objects o "
-            f"WHERE o.type IN ('P', 'V', 'FN', 'IF', 'TF') AND o.is_ms_shipped = 0 "
-            f"  AND SCHEMA_NAME(o.schema_id) IN ({in_clause})"
-        )
-        cursor = conn.cursor()
-        cursor.execute(sql)
-        _write_json(staging_dir, "definitions.json", _rows_to_dicts(cursor))
-        cursor.close()
-
-        # --- proc_params.json ---
-        sql = (
-            f"SELECT "
-            f"    SCHEMA_NAME(o.schema_id) AS schema_name, "
-            f"    o.name AS proc_name, "
-            f"    p.name AS param_name, "
-            f"    TYPE_NAME(p.user_type_id) AS type_name, "
-            f"    p.max_length, "
-            f"    p.precision, "
-            f"    p.scale, "
-            f"    p.is_output, "
-            f"    p.has_default_value "
-            f"FROM sys.parameters p "
-            f"JOIN sys.objects o ON o.object_id = p.object_id "
-            f"WHERE o.type = 'P' AND o.is_ms_shipped = 0 AND p.parameter_id > 0 "
-            f"  AND SCHEMA_NAME(o.schema_id) IN ({in_clause}) "
-            f"ORDER BY schema_name, proc_name, p.parameter_id"
-        )
-        cursor = conn.cursor()
-        cursor.execute(sql)
-        _write_json(staging_dir, "proc_params.json", _rows_to_dicts(cursor))
-        cursor.close()
-
-        # --- indexed_views.json (materialized view detection) ---
-        sql = (
-            f"SELECT SCHEMA_NAME(v.schema_id) AS schema_name, v.name "
-            f"FROM sys.views v "
-            f"WHERE EXISTS (SELECT 1 FROM sys.indexes i "
-            f"  WHERE i.object_id = v.object_id AND i.type = 1) "
-            f"  AND v.is_ms_shipped = 0 "
-            f"  AND SCHEMA_NAME(v.schema_id) IN ({in_clause})"
-        )
-        cursor = conn.cursor()
-        cursor.execute(sql)
-        indexed_rows = _rows_to_dicts(cursor)
-        cursor.close()
-        indexed_fqns = [f"{r['schema_name']}.{r['name']}".lower() for r in indexed_rows]
-        _write_json(staging_dir, "indexed_views.json", indexed_fqns)
-
-        # --- proc_dmf.json, view_dmf.json, func_dmf.json ---
         _run_dmf_queries(conn, schemas, "P", staging_dir, "proc_dmf.json")
         _run_dmf_queries(conn, schemas, "V", staging_dir, "view_dmf.json")
         _run_dmf_queries(conn, schemas, "FN", staging_dir, "func_dmf.json")

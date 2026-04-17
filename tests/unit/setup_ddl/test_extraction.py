@@ -142,6 +142,52 @@ def test_sqlserver_pk_unique_query_skips_filtered_and_included_index_columns(tmp
     assert "ic.is_included_column = 0" in pk_unique_sql
 
 
+def test_sqlserver_extraction_uses_shared_runner_for_metadata_specs(tmp_path: Path) -> None:
+    from shared import sqlserver_extract
+
+    conn = _RecordingSqlConn()
+    spec_calls: list[tuple[str, bool]] = []
+    dmf_calls: list[tuple[str, str]] = []
+
+    def record_spec(conn_arg, spec, staging_dir_arg, schemas_arg):
+        assert conn_arg is conn
+        assert staging_dir_arg == tmp_path
+        assert schemas_arg == ["dbo"]
+        spec_calls.append((spec.filename, spec.optional))
+
+    def record_dmf(conn_arg, schemas_arg, object_type_filter, staging_dir_arg, filename):
+        assert conn_arg is conn
+        assert schemas_arg == ["dbo"]
+        assert staging_dir_arg == tmp_path
+        dmf_calls.append((object_type_filter, filename))
+
+    with (
+        patch.object(sqlserver_extract, "_sql_server_connect", return_value=conn),
+        patch.object(sqlserver_extract, "_run_sqlserver_query_spec", side_effect=record_spec),
+        patch.object(sqlserver_extract, "_run_dmf_queries", side_effect=record_dmf),
+    ):
+        sqlserver_extract.run_sqlserver_extraction(tmp_path, database="MigrationTest", schemas=["dbo"])
+
+    assert spec_calls == [
+        ("table_columns.json", False),
+        ("pk_unique.json", False),
+        ("foreign_keys.json", False),
+        ("identity_columns.json", False),
+        ("cdc.json", False),
+        ("change_tracking.json", True),
+        ("sensitivity.json", True),
+        ("object_types.json", False),
+        ("definitions.json", False),
+        ("proc_params.json", False),
+        ("indexed_views.json", False),
+    ]
+    assert dmf_calls == [
+        ("P", "proc_dmf.json"),
+        ("V", "view_dmf.json"),
+        ("FN", "func_dmf.json"),
+    ]
+
+
 def test_sqlserver_optional_metadata_unexpected_error_raises(tmp_path: Path) -> None:
     from shared import sqlserver_extract
 
