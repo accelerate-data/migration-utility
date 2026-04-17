@@ -24,6 +24,10 @@ function withRunProject(callback) {
 }
 
 function writeHappyPathPlan(root, overrides = {}) {
+  const intValidationLine = overrides.omitIntValidation
+    ? ''
+    : `- Validation result: ${overrides.intValidationResult || 'dbt build --select int_sales_orders'}\n`;
+
   writeFile(root, 'docs/design/plan.md', `# Refactor Mart Plan
 
 ## Candidate: STG-001
@@ -34,6 +38,7 @@ function writeHappyPathPlan(root, overrides = {}) {
 - Depends on: none
 - Validation: dbt build --select stg_bronze__orders
 - Execution status: ${overrides.stgStatus || 'applied'}
+- Validation result: ${overrides.stgValidationResult || 'dbt build --select stg_bronze__orders'}
 
 ## Candidate: INT-001
 
@@ -43,7 +48,8 @@ function writeHappyPathPlan(root, overrides = {}) {
 - Depends on: STG-001
 - Validation: dbt build --select int_sales_orders
 - Execution status: ${overrides.intStatus || 'applied'}
-${overrides.omitIntValidation ? '' : '- Validation result: dbt build --select int_sales_orders\n'}
+${intValidationLine}
+
 ## Candidate: MART-001
 
 - [x] Approve: yes
@@ -52,7 +58,7 @@ ${overrides.omitIntValidation ? '' : '- Validation result: dbt build --select in
 - Depends on: INT-001
 - Validation: dbt build --select fct_sales
 - Execution status: ${overrides.martStatus || 'applied'}
-- Validation result: dbt build --select fct_sales
+- Validation result: ${overrides.martValidationResult || 'dbt build --select fct_sales'}
 `);
 }
 
@@ -70,7 +76,7 @@ test('passes when higher-layer statuses, validation details, and refs match', ()
         expected_candidate_statuses: 'STG-001:applied,INT-001:applied,MART-001:applied',
         expected_output_terms: 'applied,int_sales_orders,fct_sales',
         expected_model_refs: 'int_sales_orders:stg_bronze__orders,fct_sales:int_sales_orders',
-        expected_validation_results: 'INT-001,MART-001',
+        expected_validation_result_details: 'STG-001=dbt build --select stg_bronze__orders,INT-001=dbt build --select int_sales_orders,MART-001=dbt build --select fct_sales',
       },
     });
 
@@ -108,7 +114,7 @@ test('passes when blocked higher-layer candidates record blocked reasons', () =>
         plan_file: 'docs/design/plan.md',
         expected_candidate_statuses: 'STG-001:planned,INT-001:blocked',
         expected_output_terms: 'blocked,skipped',
-        expected_blocked_reasons: 'INT-001',
+        expected_blocked_reason_details: 'INT-001=dependency STG-001 is planned',
       },
     });
 
@@ -127,7 +133,7 @@ test('fails when a staging candidate status changes during int mode', () => {
         run_path: runPath,
         plan_file: 'docs/design/plan.md',
         expected_candidate_statuses: 'STG-001:planned,INT-001:applied,MART-001:applied',
-        expected_validation_results: 'INT-001,MART-001',
+        expected_validation_result_details: 'INT-001=dbt build --select int_sales_orders,MART-001=dbt build --select fct_sales',
       },
     });
 
@@ -147,12 +153,34 @@ test('fails when applied higher-layer candidate omits validation result', () => 
         run_path: runPath,
         plan_file: 'docs/design/plan.md',
         expected_candidate_statuses: 'STG-001:applied,INT-001:applied,MART-001:applied',
-        expected_validation_results: 'INT-001,MART-001',
+        expected_validation_result_details: 'STG-001=dbt build --select stg_bronze__orders,INT-001=dbt build --select int_sales_orders,MART-001=dbt build --select fct_sales',
       },
     });
 
     assert.equal(result.pass, false);
     assert.match(result.reason, /INT-001 missing Validation result/);
+  });
+});
+
+test('fails when applied higher-layer candidate writes the wrong validation detail', () => {
+  withRunProject((root, runPath) => {
+    writeHappyPathPlan(root, {
+      intValidationResult: 'dbt build --select int_sales_orders rewired and validated',
+    });
+    writeFile(root, 'dbt/models/intermediate/int_sales_orders.sql', "select * from {{ ref('stg_bronze__orders') }}\n");
+    writeFile(root, 'dbt/models/marts/fct_sales.sql', "select * from {{ ref('int_sales_orders') }}\n");
+
+    const result = check('applied int_sales_orders fct_sales', {
+      vars: {
+        run_path: runPath,
+        plan_file: 'docs/design/plan.md',
+        expected_candidate_statuses: 'STG-001:applied,INT-001:applied,MART-001:applied',
+        expected_validation_result_details: 'STG-001=dbt build --select stg_bronze__orders,INT-001=dbt build --select int_sales_orders,MART-001=dbt build --select fct_sales',
+      },
+    });
+
+    assert.equal(result.pass, false);
+    assert.match(result.reason, /INT-001 expected Validation result/);
   });
 });
 
@@ -168,7 +196,7 @@ test('fails when declared consumer does not reference expected model', () => {
         plan_file: 'docs/design/plan.md',
         expected_candidate_statuses: 'STG-001:applied,INT-001:applied,MART-001:applied',
         expected_model_refs: 'fct_sales:int_sales_orders',
-        expected_validation_results: 'INT-001,MART-001',
+        expected_validation_result_details: 'STG-001=dbt build --select stg_bronze__orders,INT-001=dbt build --select int_sales_orders,MART-001=dbt build --select fct_sales',
       },
     });
 
@@ -189,7 +217,7 @@ test('fails when a consumer contains an expected absent model ref', () => {
         plan_file: 'docs/design/plan.md',
         expected_candidate_statuses: 'STG-001:applied,INT-001:applied,MART-001:applied',
         expected_absent_model_refs: 'fct_sales:int_sales_orders',
-        expected_validation_results: 'INT-001,MART-001',
+        expected_validation_result_details: 'STG-001=dbt build --select stg_bronze__orders,INT-001=dbt build --select int_sales_orders,MART-001=dbt build --select fct_sales',
       },
     });
 
@@ -217,7 +245,7 @@ test('fails when a listed unchanged model content differs from fixture', () => {
         plan_file: 'docs/design/plan.md',
         expected_candidate_statuses: 'STG-001:applied,INT-001:applied,MART-001:applied',
         expected_unchanged_models: 'int_sales_orders,fct_sales',
-        expected_validation_results: 'INT-001,MART-001',
+        expected_validation_result_details: 'STG-001=dbt build --select stg_bronze__orders,INT-001=dbt build --select int_sales_orders,MART-001=dbt build --select fct_sales',
       },
     });
 
@@ -238,7 +266,7 @@ test('fails when expected ref appears only in a SQL comment', () => {
         plan_file: 'docs/design/plan.md',
         expected_candidate_statuses: 'STG-001:applied,INT-001:applied,MART-001:applied',
         expected_model_refs: 'fct_sales:int_sales_orders',
-        expected_validation_results: 'INT-001,MART-001',
+        expected_validation_result_details: 'STG-001=dbt build --select stg_bronze__orders,INT-001=dbt build --select int_sales_orders,MART-001=dbt build --select fct_sales',
       },
     });
 
@@ -277,7 +305,7 @@ test('fails when the plan contains duplicate candidate IDs', () => {
         run_path: runPath,
         plan_file: 'docs/design/plan.md',
         expected_candidate_statuses: 'INT-001:blocked',
-        expected_blocked_reasons: 'INT-001',
+        expected_blocked_reason_details: 'INT-001=Dependency STG-001 not applied (status: planned)',
       },
     });
 
@@ -295,7 +323,7 @@ test('fails when the plan contains an unexpected candidate ID', () => {
         run_path: runPath,
         plan_file: 'docs/design/plan.md',
         expected_candidate_statuses: 'STG-001:applied,INT-001:applied',
-        expected_validation_results: 'INT-001',
+        expected_validation_result_details: 'STG-001=dbt build --select stg_bronze__orders,INT-001=dbt build --select int_sales_orders',
       },
     });
 
@@ -314,7 +342,7 @@ test('fails when an applied higher-layer output is missing', () => {
         run_path: runPath,
         plan_file: 'docs/design/plan.md',
         expected_candidate_statuses: 'STG-001:applied,INT-001:applied,MART-001:applied',
-        expected_validation_results: 'INT-001,MART-001',
+        expected_validation_result_details: 'STG-001=dbt build --select stg_bronze__orders,INT-001=dbt build --select int_sales_orders,MART-001=dbt build --select fct_sales',
       },
     });
 
@@ -334,7 +362,7 @@ test('fails when applied INT output is under intermediate but lacks int prefix',
         run_path: runPath,
         plan_file: 'docs/design/plan.md',
         expected_candidate_statuses: 'STG-001:applied,INT-001:applied,MART-001:applied',
-        expected_validation_results: 'INT-001,MART-001',
+        expected_validation_result_details: 'STG-001=dbt build --select stg_bronze__orders,INT-001=dbt build --select int_sales_orders,MART-001=dbt build --select fct_sales',
       },
     });
 
@@ -354,7 +382,7 @@ test('fails when applied INT output has int prefix but is outside intermediate p
         run_path: runPath,
         plan_file: 'docs/design/plan.md',
         expected_candidate_statuses: 'STG-001:applied,INT-001:applied,MART-001:applied',
-        expected_validation_results: 'INT-001,MART-001',
+        expected_validation_result_details: 'STG-001=dbt build --select stg_bronze__orders,INT-001=dbt build --select int_sales_orders,MART-001=dbt build --select fct_sales',
       },
     });
 
@@ -374,7 +402,7 @@ test('fails when applied MART output is under marts but lacks mart prefix', () =
         run_path: runPath,
         plan_file: 'docs/design/plan.md',
         expected_candidate_statuses: 'STG-001:applied,INT-001:applied,MART-001:applied',
-        expected_validation_results: 'INT-001,MART-001',
+        expected_validation_result_details: 'STG-001=dbt build --select stg_bronze__orders,INT-001=dbt build --select int_sales_orders,MART-001=dbt build --select fct_sales',
       },
     });
 
@@ -394,7 +422,7 @@ test('fails when applied MART output has mart prefix but is outside marts path',
         run_path: runPath,
         plan_file: 'docs/design/plan.md',
         expected_candidate_statuses: 'STG-001:applied,INT-001:applied,MART-001:applied',
-        expected_validation_results: 'INT-001,MART-001',
+        expected_validation_result_details: 'STG-001=dbt build --select stg_bronze__orders,INT-001=dbt build --select int_sales_orders,MART-001=dbt build --select fct_sales',
       },
     });
 

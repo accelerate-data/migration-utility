@@ -35,6 +35,36 @@ function normalizedFieldValue(section, field) {
   return fieldValue(section, field)?.toLowerCase() || null;
 }
 
+function parseExpectedDetailPairs(value) {
+  if (!value) {
+    return [];
+  }
+
+  return String(value)
+    .split(/,\s*(?=(?:stg|int|mart)-\d+=)/i)
+    .map((entry) => entry.trim().toLowerCase())
+    .filter(Boolean)
+    .map((entry) => {
+      const separatorIndex = entry.indexOf('=');
+      if (separatorIndex <= 0 || separatorIndex === entry.length - 1) {
+        throw new Error(`Invalid expected candidate detail '${entry}'`);
+      }
+
+      const detailSpec = entry.slice(separatorIndex + 1).trim();
+      return {
+        candidateId: entry.slice(0, separatorIndex).toUpperCase(),
+        detail: detailSpec,
+        detailGroups: detailSpec.includes('|')
+          ? detailSpec
+              .split('||')
+              .map((group) => group.trim())
+              .filter(Boolean)
+              .map((group) => group.split('|').map((term) => term.trim()).filter(Boolean))
+          : null,
+      };
+    });
+}
+
 function parseExpectedStatuses(value) {
   return normalizeTerms(value).map((entry) => {
     const [candidateId, status, extra] = entry.split(':');
@@ -165,11 +195,15 @@ module.exports = (output, context) => {
   let expectedRefs;
   let expectedAbsentRefs;
   let expectedUnchangedModels;
+  let expectedValidationDetails;
+  let expectedBlockedReasonDetails;
   try {
     expectedStatuses = parseExpectedStatuses(context.vars.expected_candidate_statuses);
     expectedRefs = parseExpectedPairs(context.vars.expected_model_refs);
     expectedAbsentRefs = parseExpectedPairs(context.vars.expected_absent_model_refs);
     expectedUnchangedModels = normalizeTerms(context.vars.expected_unchanged_models);
+    expectedValidationDetails = parseExpectedDetailPairs(context.vars.expected_validation_result_details);
+    expectedBlockedReasonDetails = parseExpectedDetailPairs(context.vars.expected_blocked_reason_details);
   } catch (error) {
     return fail(error.message);
   }
@@ -231,25 +265,41 @@ module.exports = (output, context) => {
     }
   }
 
-  for (const candidateId of normalizeTerms(context.vars.expected_validation_results)) {
-    const normalizedCandidateId = candidateId.toUpperCase();
-    const section = sections.find((candidate) => candidate.id === normalizedCandidateId);
+  for (const expected of expectedValidationDetails) {
+    const section = sections.find((candidate) => candidate.id === expected.candidateId);
     if (!section) {
-      return fail(`Candidate ${normalizedCandidateId} not found`);
+      return fail(`Candidate ${expected.candidateId} not found`);
     }
     if (countBullets(section, 'Validation result') !== 1) {
-      return fail(`Candidate ${normalizedCandidateId} missing Validation result`);
+      return fail(`Candidate ${expected.candidateId} missing Validation result`);
+    }
+    const actualDetail = normalizedFieldValue(section, 'Validation result');
+    const detailMatches = expected.detailGroups
+      ? expected.detailGroups.some((group) => group.every((term) => actualDetail.includes(term)))
+      : actualDetail === expected.detail;
+    if (!detailMatches) {
+      return fail(
+        `Candidate ${expected.candidateId} expected Validation result '${expected.detail}', found '${actualDetail}'`,
+      );
     }
   }
 
-  for (const candidateId of normalizeTerms(context.vars.expected_blocked_reasons)) {
-    const normalizedCandidateId = candidateId.toUpperCase();
-    const section = sections.find((candidate) => candidate.id === normalizedCandidateId);
+  for (const expected of expectedBlockedReasonDetails) {
+    const section = sections.find((candidate) => candidate.id === expected.candidateId);
     if (!section) {
-      return fail(`Candidate ${normalizedCandidateId} not found`);
+      return fail(`Candidate ${expected.candidateId} not found`);
     }
     if (countBullets(section, 'Blocked reason') !== 1) {
-      return fail(`Candidate ${normalizedCandidateId} missing Blocked reason`);
+      return fail(`Candidate ${expected.candidateId} missing Blocked reason`);
+    }
+    const actualDetail = normalizedFieldValue(section, 'Blocked reason');
+    const detailMatches = expected.detailGroups
+      ? expected.detailGroups.some((group) => group.every((term) => actualDetail.includes(term)))
+      : actualDetail === expected.detail;
+    if (!detailMatches) {
+      return fail(
+        `Candidate ${expected.candidateId} expected Blocked reason '${expected.detail}', found '${actualDetail}'`,
+      );
     }
   }
 

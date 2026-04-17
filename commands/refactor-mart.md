@@ -60,6 +60,9 @@ Mode behavior:
 - `int` selects candidates with `Type: int` or `Type: mart`.
 
 For `stg` mode, leave non-staging candidates unselected and unchanged.
+For `int` mode, leave staging candidates unselected and unchanged. They may be
+reported as skipped in the final summary, but their candidate sections and
+`Execution status:` values must not be edited.
 
 For `int` mode, check dependencies before applying each selected candidate and
 before editing any dbt files:

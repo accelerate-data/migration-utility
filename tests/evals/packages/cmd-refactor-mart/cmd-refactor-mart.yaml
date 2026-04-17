@@ -24,7 +24,7 @@ tests:
       expected_candidate_statuses: "STG-001:applied,INT-001:planned,MART-001:planned"
       expected_output_terms: "applied,stg_bronze__orders,int_sales_orders,int_sales_order_summary"
       expected_consumer_refs: "int_sales_orders:stg_bronze__orders,int_sales_order_summary:stg_bronze__orders"
-      expected_validation_results: "STG-001"
+      expected_validation_result_details: "STG-001=stg_bronze__orders||declared|models|reference||declared|models|validated"
     assert:
       - type: javascript
         value: file://../../assertions/check-refactor-mart-stg-execution.js
@@ -35,10 +35,10 @@ tests:
       fixture_path: "tests/evals/fixtures/cmd-refactor-mart/stg-partial-failure"
       plan_file: "docs/design/refactor-mart-stg-partial-failure.md"
       expected_candidate_statuses: "STG-001:applied,STG-002:failed,STG-003:blocked,STG-004:planned,INT-001:planned"
-      expected_output_terms: "applied,failed,blocked,skipped,stg_bronze__orders"
+      expected_output_terms: "applied,failed,blocked,skipped"
       expected_consumer_refs: "int_sales_orders:stg_bronze__orders,int_returns:stg_bronze__returns"
-      expected_validation_results: "STG-001,STG-002"
-      expected_blocked_reasons: "STG-003"
+      expected_validation_result_details: "STG-001=stg_bronze__orders|int_sales_orders,STG-002=int_returns|EVAL_VALIDATION_FAIL||int_returns|validation failure marker"
+      expected_blocked_reason_details: "STG-003=output|not|found||output|missing||output|staging|model||output|path|missing||output|not|identify|valid|stg"
     assert:
       - type: javascript
         value: file://../../assertions/check-refactor-mart-stg-execution.js
@@ -51,21 +51,21 @@ tests:
       expected_candidate_statuses: "STG-001:applied,INT-001:applied,MART-001:applied"
       expected_output_terms: "applied,int_sales_orders,fct_sales"
       expected_model_refs: "int_sales_orders:stg_bronze__orders,fct_sales:int_sales_orders"
-      expected_validation_results: "INT-001,MART-001"
+      expected_validation_result_details: "INT-001=dbt build --select int_sales_orders||int_sales_orders|validation|passed,MART-001=dbt build --select fct_sales||fct_sales|validation|passed"
     assert:
       - type: javascript
         value: file://../../assertions/check-refactor-mart-mart-execution.js
 
-  - description: "int blocked dependency -- higher-layer candidates block before edits"
+  - description: "int blocked dependency -- higher-layer candidates block before edits and on missing or malformed dependency metadata"
     prompts: ["cmd-refactor-mart-int"]
     vars:
       fixture_path: "tests/evals/fixtures/cmd-refactor-mart/int-blocked-dependency"
       plan_file: "docs/design/refactor-mart-int-blocked-dependency.md"
-      expected_candidate_statuses: "STG-001:planned,STG-002:failed,INT-001:blocked,MART-001:blocked"
+      expected_candidate_statuses: "STG-001:planned,STG-002:failed,INT-001:blocked,MART-001:blocked,INT-002:blocked,INT-003:blocked,MART-002:blocked,INT-004:blocked"
       expected_output_terms: "blocked,skipped"
-      expected_blocked_reasons: "INT-001,MART-001"
+      expected_blocked_reason_details: "INT-001=stg-001|planned,MART-001=stg-002|failed,INT-002=depends on|missing||dependency|missing,INT-003=depends on|malformed||dependency|malformed,MART-002=depends on|ambiguous||dependency|ambiguous,INT-004=depends on|empty||dependency|empty"
       expected_absent_model_refs: "int_sales_orders:stg_bronze__orders,fct_sales:int_sales_orders"
-      expected_unchanged_models: "int_sales_orders,fct_sales"
+      expected_unchanged_models: "int_sales_orders,fct_sales,int_sales_returns,fct_returns,int_empty_dependency"
     assert:
       - type: javascript
         value: file://../../assertions/check-refactor-mart-mart-execution.js
@@ -77,8 +77,8 @@ tests:
       plan_file: "docs/design/refactor-mart-int-validation-failure.md"
       expected_candidate_statuses: "STG-001:applied,INT-001:failed,MART-001:blocked"
       expected_output_terms: "failed,blocked"
-      expected_validation_results: "INT-001"
-      expected_blocked_reasons: "MART-001"
+      expected_validation_result_details: "INT-001=int_sales_orders_validation|EVAL_VALIDATION_FAIL||validation|failed|int_sales_orders_validation"
+      expected_blocked_reason_details: "MART-001=int-001|failed|dependency||int-001|not applied||dependency|not satisfied"
       expected_model_refs: "int_sales_orders:stg_bronze__orders"
       expected_absent_model_refs: "fct_sales:int_sales_orders"
       expected_unchanged_models: "fct_sales"
