@@ -45,6 +45,9 @@ def build_sql_server_connection_string(
         f"PWD={_escape_odbc_value(password)}",
         "TrustServerCertificate=yes",
     ]
+    if driver == "FreeTDS":
+        parts.append("TDS_Version=7.4")
+
     if login_timeout is not None:
         parts.append(f"LoginTimeout={login_timeout}")
     return ";".join(parts) + ";"

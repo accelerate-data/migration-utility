@@ -81,8 +81,8 @@ class SqlServerExecutionService:
 
                 try:
                     cursor.execute("SELECT OBJECT_DEFINITION(OBJECT_ID(?))", procedure)
-                    proc_definition_row = cursor.fetchone()
-                    proc_definition = proc_definition_row[0] if proc_definition_row else None
+                    proc_definition_rows = cursor.fetchall()
+                    proc_definition = proc_definition_rows[0][0] if proc_definition_rows else None
                     remote_exec = (
                         _detect_remote_exec_target(proc_definition)
                         if proc_definition else None

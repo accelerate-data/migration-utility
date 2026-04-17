@@ -74,10 +74,10 @@ class TestEnsureViewTablesSqlServer:
         """A view in the source DB is materialised as an empty table in the sandbox."""
         backend = _make_backend()
         source_cursor = MagicMock()
-        source_cursor.fetchone.return_value = (1,)  # object IS a view
         source_cursor.fetchall.side_effect = [
-            [],
-            [("id", "int", None, 10, 0, None, "NO")],
+            [(1,)],  # object IS a view (INFORMATION_SCHEMA.VIEWS)
+            [],      # _get_identity_columns
+            [("id", "int", None, 10, 0, None, "NO")],  # INFORMATION_SCHEMA.COLUMNS
         ]
 
         sandbox_cursor = MagicMock()
@@ -101,7 +101,7 @@ class TestEnsureViewTablesSqlServer:
         """A base table (not a view) is not CTASed — it is already cloned by _clone_tables."""
         backend = _make_backend()
         source_cursor = MagicMock()
-        source_cursor.fetchone.return_value = None  # NOT a view
+        source_cursor.fetchall.return_value = []  # NOT a view
 
         sandbox_cursor = MagicMock()
 
@@ -125,10 +125,10 @@ class TestEnsureViewTablesSqlServer:
         pyodbc = pytest.importorskip("pyodbc")
         backend = _make_backend()
         source_cursor = MagicMock()
-        source_cursor.fetchone.return_value = (1,)  # IS a view
         source_cursor.fetchall.side_effect = [
-            [],
-            [("id", "int", None, 10, 0, None, "NO")],
+            [(1,)],  # IS a view (INFORMATION_SCHEMA.VIEWS)
+            [],      # _get_identity_columns
+            [("id", "int", None, 10, 0, None, "NO")],  # INFORMATION_SCHEMA.COLUMNS
         ]
 
         sandbox_cursor = MagicMock()

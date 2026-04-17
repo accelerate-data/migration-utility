@@ -95,14 +95,16 @@ class SqlServerFixtureService:
                     sorted(identity_cols & fixture_columns),
                 )
 
-            col_list = ", ".join(f"[{c}]" for c in columns)
-            placeholders = ", ".join("?" for _ in columns)
-            insert_sql = f"INSERT INTO {quoted_table} ({col_list}) VALUES ({placeholders})"
-            value_lists = [
-                [row.get(c, fill_cols.get(c)) for c in columns]
-                for row in rows
-            ]
-            cursor.executemany(insert_sql, value_lists)
+            for row in rows:
+                all_values = {c: row.get(c, fill_cols.get(c)) for c in columns}
+                non_null = [(c, v) for c, v in all_values.items() if v is not None]
+                col_list = ", ".join(f"[{c}]" for c, _ in non_null)
+                placeholders = ", ".join("?" for _ in non_null)
+                values = [v for _, v in non_null]
+                cursor.execute(
+                    f"INSERT INTO {quoted_table} ({col_list}) VALUES ({placeholders})",
+                    values,
+                )
 
             if needs_identity_insert:
                 cursor.execute(f"SET IDENTITY_INSERT {quoted_table} OFF")
@@ -137,7 +139,7 @@ class SqlServerFixtureService:
                     schema_name,
                     obj_name,
                 )
-                if src_cur.fetchone() is None:
+                if not src_cur.fetchall():
                     continue
                 fqn = f"[{schema_name}].[{obj_name}]"
                 try:

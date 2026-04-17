@@ -69,7 +69,6 @@ class SqlServerComparisonService:
                             cursor.execute("SET PARSEONLY OFF")
                         except _import_pyodbc().Error as parse_exc:
                             cursor.execute("SET PARSEONLY OFF")
-                            conn.rollback()
                             logger.error(
                                 "event=sql_syntax_error sandbox_db=%s label=%s error=%s",
                                 sandbox_db,
@@ -89,7 +88,10 @@ class SqlServerComparisonService:
                     cursor.execute(sql_b)
                     rows_b = _capture_rows_base(cursor)
                 finally:
-                    conn.rollback()
+                    try:
+                        conn.rollback()
+                    except _import_pyodbc().Error:
+                        pass  # no active transaction (FreeTDS surfaces this; MS driver does not)
 
             result = build_compare_result(rows_a, rows_b)
             logger.info(

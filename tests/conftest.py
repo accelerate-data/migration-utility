@@ -12,6 +12,14 @@ sys.path.insert(0, str(Path(__file__).resolve().parent / "unit"))
 
 
 def pytest_configure(config):
+    # Disable pyodbc connection pooling early — FreeTDS reuses connections
+    # with stale cursor state, causing "Invalid cursor state" errors.
+    try:
+        import pyodbc
+        pyodbc.pooling = False
+    except ImportError:
+        pass
+
     config.addinivalue_line(
         "markers",
         "integration: requires Docker SQL Server with the canonical MigrationTest schema fixture materialized in the configured database",

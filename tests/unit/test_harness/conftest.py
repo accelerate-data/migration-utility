@@ -46,7 +46,8 @@ def _mock_connect_factory(
             conn.cursor.return_value = default_cursor
         else:
             noop = MagicMock()
-            noop.fetchone.return_value = None  # "not a view" for _ensure_view_tables
+            noop.fetchone.return_value = None  # legacy "not a view" for _ensure_view_tables
+            noop.fetchall.return_value = []    # "not a view" for _ensure_view_tables (fetchall path)
             conn.cursor.return_value = noop
         yield conn
     return _fake_connect

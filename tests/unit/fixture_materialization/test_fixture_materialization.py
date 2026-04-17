@@ -167,7 +167,7 @@ def test_oracle_materializer_avoids_dropping_the_target_schema_user() -> None:
     assert "owner = UPPER('${ORACLE_SCHEMA}')" in script_text
 
 
-def test_oracle_materializer_exits_cleanly_when_no_cli_and_no_oracledb() -> None:
+def test_oracle_materializer_requires_oracledb() -> None:
     script_path = (
         Path(__file__).resolve().parents[3]
         / "tests/integration/oracle/fixtures/materialize.sh"
@@ -175,8 +175,6 @@ def test_oracle_materializer_exits_cleanly_when_no_cli_and_no_oracledb() -> None
     script_text = script_path.read_text(encoding="utf-8")
 
     assert (
-        "no Oracle CLI (SQLCL/sql or sqlplus) is installed and python package "
-        "'oracledb' is unavailable for Oracle materialization"
+        "python package 'oracledb' is unavailable for Oracle materialization"
     ) in script_text
-    assert 'importlib.util.find_spec("oracledb")' not in script_text
-    assert "\nrun_python_materialization\n" in script_text
+    assert "import oracledb" in script_text

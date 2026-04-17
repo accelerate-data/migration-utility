@@ -96,7 +96,8 @@ class SqlServerLifecycleService:
             with self._backend._connect() as conn:
                 cursor = conn.cursor()
                 cursor.execute("SELECT DB_ID(?)", sandbox_db)
-                exists = cursor.fetchone()[0] is not None
+                rows = cursor.fetchall()
+                exists = rows[0][0] is not None
                 if exists:
                     cursor.execute(
                         f"ALTER DATABASE {quoted} SET SINGLE_USER WITH ROLLBACK IMMEDIATE"
@@ -124,7 +125,8 @@ class SqlServerLifecycleService:
             with self._backend._connect() as conn:
                 cursor = conn.cursor()
                 cursor.execute("SELECT DB_ID(?)", sandbox_db)
-                exists = cursor.fetchone()[0] is not None
+                rows = cursor.fetchall()
+                exists = rows[0][0] is not None
 
             if exists:
                 tables_count, views_count, procedures_count = self._sandbox_content_counts(
@@ -275,5 +277,5 @@ class SqlServerLifecycleService:
             cursor = conn.cursor()
             for query in queries:
                 cursor.execute(query, *params)
-                counts.append(int(cursor.fetchone()[0]))
+                counts.append(int(cursor.fetchall()[0][0]))
         return counts[0], counts[1], counts[2]

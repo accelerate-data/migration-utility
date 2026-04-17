@@ -396,7 +396,8 @@ class _SqlServerSandboxCore(SandboxBackend):
         with self._connect() as conn:
             cursor = conn.cursor()
             cursor.execute("SELECT DB_ID(?)", sandbox_db)
-            exists = cursor.fetchone()[0] is not None
+            rows = cursor.fetchall()
+            exists = rows[0][0] is not None
             if exists:
                 cursor.execute(
                     f"ALTER DATABASE {quoted} SET SINGLE_USER WITH ROLLBACK IMMEDIATE"
@@ -414,9 +415,10 @@ class _SqlServerSandboxCore(SandboxBackend):
             _validate_identifier(schema)
             try:
                 sandbox_cursor.execute(
-                    "SELECT 1 FROM sys.schemas WHERE name = ?", schema,
+                    "SELECT COUNT(*) FROM sys.schemas WHERE name = ?", schema,
                 )
-                if sandbox_cursor.fetchone() is None:
+                schema_exists = sandbox_cursor.fetchall()[0][0] > 0
+                if not schema_exists:
                     sandbox_cursor.execute(f"CREATE SCHEMA [{schema}]")
             except _import_pyodbc().Error as exc:
                 errors.append({
@@ -550,8 +552,8 @@ class _SqlServerSandboxCore(SandboxBackend):
                 "SELECT OBJECT_DEFINITION(OBJECT_ID(?))",
                 f"{schema_name}.{view_name}",
             )
-            row = source_cursor.fetchone()
-            definition = row[0] if row else None
+            rows = source_cursor.fetchall()
+            definition = rows[0][0] if rows else None
             if definition is None:
                 errors.append({
                     "code": "VIEW_DEFINITION_NULL",

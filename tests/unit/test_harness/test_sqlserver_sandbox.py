@@ -99,12 +99,17 @@ class TestSqlServerSandboxUp:
             [],
             [("DimProductID", "int", None, 10, 0, None, "NO")],
             [("silver", "vw_customer")],
+            [("CREATE VIEW [silver].[vw_customer] AS SELECT 1 AS id",)],
             [("dbo", "usp_load", "CREATE PROCEDURE dbo.usp_load AS BEGIN SELECT 1 END")],
         ]
-        source_cursor.fetchone.return_value = ("CREATE VIEW [silver].[vw_customer] AS SELECT 1 AS id",)
 
         sandbox_cursor = MagicMock()
+        sandbox_cursor.fetchall.side_effect = [
+            [(0,)],  # _create_schemas: schema "dbo" does not exist
+            [(0,)],  # _create_schemas: schema "silver" does not exist
+        ]
         default_cursor = MagicMock()
+        default_cursor.fetchall.return_value = [(None,)]  # DB_ID check: does not exist
 
         admin_connect = _mock_connect_factory(
             source_cursor=source_cursor,
@@ -134,8 +139,9 @@ class TestSqlServerSandboxUp:
     def test_sandbox_reset_recreates_same_database_name(self) -> None:
         backend = _make_backend()
         default_cursor = MagicMock()
-        default_cursor.fetchone.return_value = (1,)
+        default_cursor.fetchall.return_value = [(1,)]
         sandbox_cursor = MagicMock()
+        sandbox_cursor.fetchall.return_value = [(0,)]  # _create_schemas: schema does not exist
         source_cursor = MagicMock()
 
         fake_connect = _mock_connect_factory(
@@ -210,11 +216,11 @@ class TestSqlServerSandboxStatus:
     def test_sandbox_status_exists(self) -> None:
         backend = _make_backend()
         default_cursor = MagicMock()
-        default_cursor.fetchone.side_effect = [
-            (1,),  # DB_ID returns non-None
-            (2,),
-            (1,),
-            (3,),
+        default_cursor.fetchall.side_effect = [
+            [(1,)],  # DB_ID returns non-None
+            [(2,)],
+            [(1,)],
+            [(3,)],
         ]
 
         fake_connect = _mock_connect_factory(default_cursor=default_cursor)
@@ -233,11 +239,11 @@ class TestSqlServerSandboxStatus:
     def test_sandbox_status_existing_empty_reports_no_content(self) -> None:
         backend = _make_backend()
         default_cursor = MagicMock()
-        default_cursor.fetchone.side_effect = [
-            (1,),  # DB_ID returns non-None
-            (0,),
-            (0,),
-            (0,),
+        default_cursor.fetchall.side_effect = [
+            [(1,)],  # DB_ID returns non-None
+            [(0,)],
+            [(0,)],
+            [(0,)],
         ]
 
         fake_connect = _mock_connect_factory(default_cursor=default_cursor)
@@ -254,7 +260,7 @@ class TestSqlServerSandboxStatus:
     def test_sandbox_status_not_found(self) -> None:
         backend = _make_backend()
         default_cursor = MagicMock()
-        default_cursor.fetchone.return_value = (None,)  # DB_ID returns None
+        default_cursor.fetchall.return_value = [(None,)]  # DB_ID returns None
 
         fake_connect = _mock_connect_factory(default_cursor=default_cursor)
 
@@ -320,7 +326,7 @@ class TestSqlServerExecuteScenario:
     def test_execute_remote_exec_returns_clear_error(self) -> None:
         backend = _make_backend()
         sandbox_cursor = MagicMock()
-        sandbox_cursor.fetchone.return_value = (
+        sandbox_cursor.fetchall.return_value = [(
             """
             CREATE PROCEDURE [silver].[usp_load_dimproduct]
             AS
@@ -328,7 +334,7 @@ class TestSqlServerExecuteScenario:
                 EXEC OtherDB.dbo.usp_load;
             END
             """,
-        )
+        )]
 
         fake_connect = _mock_connect_factory(sandbox_cursor=sandbox_cursor)
         source_connect = _mock_connect_factory(source_cursor=MagicMock(), sandbox_cursor=sandbox_cursor)
@@ -358,10 +364,13 @@ class TestSqlServerExecuteScenario:
         backend = _make_backend()
         sandbox_cursor = MagicMock()
         sandbox_cursor.description = [("id",), ("name",)]
-        sandbox_cursor.fetchall.return_value = [(1, "Widget")]
-        sandbox_cursor.fetchone.return_value = (
-            "CREATE PROCEDURE [dbo].[usp_load_dimproduct] AS BEGIN SELECT 1 END",
-        )
+        sandbox_cursor.fetchall.side_effect = [
+            [("CREATE PROCEDURE [dbo].[usp_load_dimproduct] AS BEGIN SELECT 1 END",)],  # OBJECT_DEFINITION
+            [("[dbo].[Product]",)],  # sys.tables (trigger disable)
+            [],                      # _get_not_null_defaults
+            [],                      # _get_identity_columns
+            [(1, "Widget")],         # SELECT * FROM target
+        ]
 
         fake_connect = _mock_connect_factory(sandbox_cursor=sandbox_cursor)
         source_connect = _mock_connect_factory(source_cursor=MagicMock(), sandbox_cursor=sandbox_cursor)
@@ -406,12 +415,8 @@ class TestIdentityInsert:
     def test_identity_insert_enabled_when_fixture_has_identity_column(self) -> None:
         backend = _make_backend()
         sandbox_cursor = MagicMock()
-        # First call: OBJECT_DEFINITION lookup (proc check)
-        sandbox_cursor.fetchone.return_value = (
-            "CREATE PROCEDURE [dbo].[usp_load] AS BEGIN SELECT 1 END",
-        )
-        # identity column lookup returns SalesOrderID as identity
         sandbox_cursor.fetchall.side_effect = [
+            [("CREATE PROCEDURE [dbo].[usp_load] AS BEGIN SELECT 1 END",)],  # OBJECT_DEFINITION
             [("[bronze].[SalesOrderHeader]",)],  # sys.tables (trigger disable)
             [],                         # _get_not_null_defaults
             [("SalesOrderID",)],       # _get_identity_columns
@@ -451,10 +456,8 @@ class TestIdentityInsert:
     def test_fixture_table_names_are_bracket_quoted_in_ddl(self) -> None:
         backend = _make_backend()
         sandbox_cursor = MagicMock()
-        sandbox_cursor.fetchone.return_value = (
-            "CREATE PROCEDURE [dbo].[usp_load] AS BEGIN SELECT 1 END",
-        )
         sandbox_cursor.fetchall.side_effect = [
+            [("CREATE PROCEDURE [dbo].[usp_load] AS BEGIN SELECT 1 END",)],  # OBJECT_DEFINITION
             [("[bronze].[Order Detail]",)],
             [],
             [("OrderID",)],
@@ -484,19 +487,16 @@ class TestIdentityInsert:
 
         assert result.status == "ok"
         execute_calls = [call.args[0] for call in sandbox_cursor.execute.call_args_list]
-        executemany_calls = [call.args[0] for call in sandbox_cursor.executemany.call_args_list]
         assert "ALTER TABLE [bronze].[Order Detail] NOCHECK CONSTRAINT ALL" in execute_calls
         assert "SET IDENTITY_INSERT [bronze].[Order Detail] ON" in execute_calls
-        assert any(sql.startswith("INSERT INTO [bronze].[Order Detail] ") for sql in executemany_calls)
+        assert any(sql.startswith("INSERT INTO [bronze].[Order Detail] ") for sql in execute_calls)
         assert "SET IDENTITY_INSERT [bronze].[Order Detail] OFF" in execute_calls
 
     def test_no_identity_insert_when_no_identity_columns(self) -> None:
         backend = _make_backend()
         sandbox_cursor = MagicMock()
-        sandbox_cursor.fetchone.return_value = (
-            "CREATE PROCEDURE [dbo].[usp_load] AS BEGIN SELECT 1 END",
-        )
         sandbox_cursor.fetchall.side_effect = [
+            [("CREATE PROCEDURE [dbo].[usp_load] AS BEGIN SELECT 1 END",)],  # OBJECT_DEFINITION
             [("[bronze].[Product]",)],  # sys.tables (trigger disable)
             [],                         # _get_not_null_defaults
             [],                         # _get_identity_columns: no identity cols
@@ -546,11 +546,9 @@ class TestNotNullDefaultsQuery:
     def test_identity_insert_toggles_per_table(self) -> None:
         backend = _make_backend()
         sandbox_cursor = MagicMock()
-        sandbox_cursor.fetchone.return_value = (
-            "CREATE PROCEDURE [dbo].[usp_load] AS BEGIN SELECT 1 END",
-        )
         # Two tables: first has identity, second does not
         sandbox_cursor.fetchall.side_effect = [
+            [("CREATE PROCEDURE [dbo].[usp_load] AS BEGIN SELECT 1 END",)],  # OBJECT_DEFINITION
             [("[bronze].[SalesOrderHeader]",), ("[bronze].[SalesOrderDetail]",)],  # sys.tables (trigger disable)
             [],                         # _get_not_null_defaults for table 1
             [("OrderID",)],             # _get_identity_columns for table 1
@@ -605,10 +603,8 @@ class TestFkConstraintDisabling:
     def test_fk_nocheck_wraps_fixture_insertion(self) -> None:
         backend = _make_backend()
         sandbox_cursor = MagicMock()
-        sandbox_cursor.fetchone.return_value = (
-            "CREATE PROCEDURE [dbo].[usp_load] AS BEGIN SELECT 1 END",
-        )
         sandbox_cursor.fetchall.side_effect = [
+            [("CREATE PROCEDURE [dbo].[usp_load] AS BEGIN SELECT 1 END",)],  # OBJECT_DEFINITION
             [("[bronze].[Product]",)],  # sys.tables (trigger disable)
             [],                         # _get_not_null_defaults
             [],                         # _get_identity_columns
@@ -648,22 +644,18 @@ class TestFkConstraintDisabling:
         check = [c for c in execute_calls if "CHECK CONSTRAINT ALL" in c and "NOCHECK" not in c]
         assert len(check) == 1, f"Expected 1 CHECK, got {check}"
 
-        # Verify ordering: NOCHECK < executemany (INSERT) < CHECK < EXEC
+        # Verify ordering: NOCHECK < INSERT < CHECK < EXEC
         nocheck_idx = next(i for i, c in enumerate(execute_calls) if "NOCHECK" in c)
+        insert_idx = next(i for i, c in enumerate(execute_calls) if "INSERT INTO" in c)
         check_idx = next(i for i, c in enumerate(execute_calls) if "CHECK CONSTRAINT ALL" in c and "NOCHECK" not in c)
         exec_idx = next(i for i, c in enumerate(execute_calls) if "EXEC [dbo]" in c)
-        assert nocheck_idx < check_idx < exec_idx
-
-        # executemany is called separately — verify it happened
-        assert sandbox_cursor.executemany.called
+        assert nocheck_idx < insert_idx < check_idx < exec_idx
 
     def test_fk_nocheck_skipped_for_empty_fixtures(self) -> None:
         backend = _make_backend()
         sandbox_cursor = MagicMock()
-        sandbox_cursor.fetchone.return_value = (
-            "CREATE PROCEDURE [dbo].[usp_load] AS BEGIN SELECT 1 END",
-        )
         sandbox_cursor.fetchall.side_effect = [
+            [("CREATE PROCEDURE [dbo].[usp_load] AS BEGIN SELECT 1 END",)],  # OBJECT_DEFINITION
             [("[silver].[DimProduct]",)],   # sys.tables (trigger disable — before FK)
             [(1, "Widget")],                # SELECT * FROM target
         ]
@@ -701,11 +693,8 @@ class TestTriggerDisabling:
     def test_triggers_disabled_on_all_sandbox_tables(self) -> None:
         backend = _make_backend()
         sandbox_cursor = MagicMock()
-        sandbox_cursor.fetchone.return_value = (
-            "CREATE PROCEDURE [dbo].[usp_load] AS BEGIN SELECT 1 END",
-        )
-        # Calls: sys.tables, not_null_defaults, identity_cols, SELECT * result
         sandbox_cursor.fetchall.side_effect = [
+            [("CREATE PROCEDURE [dbo].[usp_load] AS BEGIN SELECT 1 END",)],  # OBJECT_DEFINITION
             [("[bronze].[Product]",), ("[silver].[DimProduct]",), ("[dbo].[Config]",)],  # sys.tables (trigger disable)
             [],                                          # _get_not_null_defaults
             [],                                          # _get_identity_columns
@@ -745,10 +734,8 @@ class TestTriggerDisabling:
         """DISABLE TRIGGER must happen before EXEC procedure."""
         backend = _make_backend()
         sandbox_cursor = MagicMock()
-        sandbox_cursor.fetchone.return_value = (
-            "CREATE PROCEDURE [dbo].[usp_load] AS BEGIN SELECT 1 END",
-        )
         sandbox_cursor.fetchall.side_effect = [
+            [("CREATE PROCEDURE [dbo].[usp_load] AS BEGIN SELECT 1 END",)],  # OBJECT_DEFINITION
             [("[silver].[T1]",)],                        # sys.tables (trigger disable)
             [],                                          # _get_not_null_defaults
             [],                                          # _get_identity_columns
