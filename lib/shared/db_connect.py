@@ -91,7 +91,7 @@ def sql_server_connect(database: str) -> Any:
         if "Can't open lib" in msg:
             raise RuntimeError(
                 f"ODBC driver '{driver}' not found. "
-                "Install FreeTDS: brew install freetds"
+                "Install FreeTDS using your platform package manager and ensure unixODBC can see it."
             ) from exc
         raise
 

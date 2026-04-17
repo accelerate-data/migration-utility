@@ -17,12 +17,17 @@ from typer.testing import CliRunner
 from shared import init_templates
 from shared.init import (
     app,
+    classify_host_platform,
     GITIGNORE_ENTRIES,
     SOURCE_REGISTRY,
     get_source_config,
+    HostPlatform,
+    build_init_platform_gate_message,
     run_discover_mssql_driver_override,
     run_scaffold_hooks,
     run_scaffold_project,
+    supports_homebrew_install,
+    supports_native_windows,
     write_local_env_overrides,
 )
 from shared.output_models.init import LocalOverrideDiscoveryOutput
@@ -44,6 +49,61 @@ SCAFFOLD_GOLDEN_HASHES = {
     },
 }
 HOOK_GOLDEN_HASH = "647af779051fd9abb37885d0b46c9baf07a56fa2f4bd3e4afbd72ab28dfee025"
+
+
+class TestHostPlatform:
+    def test_classifies_macos_as_supported_homebrew_platform(
+        self,
+        monkeypatch: pytest.MonkeyPatch,
+    ) -> None:
+        monkeypatch.setattr("shared.platform.platform.system", lambda: "Darwin")
+
+        result = classify_host_platform()
+
+        assert result == HostPlatform(slug="macos", supported=True, display_name="macOS")
+        assert supports_homebrew_install(result) is True
+        assert supports_native_windows(result) is False
+
+    def test_classifies_linux_as_supported_non_homebrew_platform(
+        self,
+        monkeypatch: pytest.MonkeyPatch,
+    ) -> None:
+        monkeypatch.setattr("shared.platform.platform.system", lambda: "Linux")
+        monkeypatch.setattr("shared.platform._read_osrelease_text", lambda: "NAME=Ubuntu\n")
+        monkeypatch.setattr("shared.platform._read_proc_version_text", lambda: "Linux version 6.8")
+
+        result = classify_host_platform()
+
+        assert result == HostPlatform(slug="linux", supported=True, display_name="Linux")
+        assert supports_homebrew_install(result) is False
+
+    def test_classifies_wsl_as_supported_linux_path(
+        self,
+        monkeypatch: pytest.MonkeyPatch,
+    ) -> None:
+        monkeypatch.setattr("shared.platform.platform.system", lambda: "Linux")
+        monkeypatch.setattr("shared.platform._read_osrelease_text", lambda: "NAME=Ubuntu\n")
+        monkeypatch.setattr(
+            "shared.platform._read_proc_version_text",
+            lambda: "Linux version 6.6.87.2-microsoft-standard-WSL2",
+        )
+
+        result = classify_host_platform()
+
+        assert result == HostPlatform(slug="wsl", supported=True, display_name="WSL")
+        assert supports_homebrew_install(result) is False
+
+    def test_classifies_native_windows_as_unsupported(
+        self,
+        monkeypatch: pytest.MonkeyPatch,
+    ) -> None:
+        monkeypatch.setattr("shared.platform.platform.system", lambda: "Windows")
+
+        result = classify_host_platform()
+
+        assert result == HostPlatform(slug="windows", supported=False, display_name="Windows")
+        assert supports_native_windows(result) is True
+        assert "Use WSL" in build_init_platform_gate_message(result)
 
 
 # ── scaffold-project (sql_server default) ───────────────────────────────────

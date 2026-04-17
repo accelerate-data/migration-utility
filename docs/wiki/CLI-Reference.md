@@ -30,10 +30,21 @@ Each command's output section below lists exactly which files it writes, so you 
 
 ## Installation
 
+| Host | Install path |
+|---|---|
+| macOS | Homebrew |
+| Linux or WSL | GitHub release wheel artifacts for Python 3.11+ |
+| Native Windows | Unsupported; use WSL |
+
+macOS:
+
 ```bash
 brew tap accelerate-data/homebrew-tap
 brew install ad-migration
 ```
+
+On Linux or WSL, install the release wheel artifacts into Python 3.11+ and use
+your platform package manager for FreeTDS/unixODBC dependencies.
 
 ## Global options
 

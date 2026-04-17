@@ -34,12 +34,14 @@ Deterministic setup and pipeline state commands, usable from a terminal or CI wi
 
 Use this page as the one-page command summary. For flags, environment variables, files written, and exit-code behavior, use [[CLI Reference]].
 
-Install via `/init-ad-migration` (automatic) or manually:
+Install via `/init-ad-migration` or manually. On macOS:
 
 ```bash
 brew tap accelerate-data/homebrew-tap
 brew install ad-migration
 ```
+
+On Linux and WSL, install the GitHub release wheel artifacts into Python 3.11+. Native Windows is not supported. Use WSL for the local workflow.
 
 ### Setup commands
 

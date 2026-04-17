@@ -185,6 +185,19 @@ def test_init_command_runs_public_driver_doctor_and_keeps_internal_checks() -> N
     assert "Do not tell the user to run `pip install`, `uv pip install`, or otherwise mutate the brewed virtualenv" in init_text
 
 
+def test_init_command_documents_supported_host_platforms() -> None:
+    init_text = (REPO_ROOT / "commands/init-ad-migration.md").read_text(encoding="utf-8")
+
+    assert "macOS" in init_text
+    assert "Linux" in init_text
+    assert "WSL" in init_text
+    assert "Native Windows" in init_text
+    assert "Use WSL" in init_text
+    assert "brew install freetds" in init_text
+    assert "platform package manager" in init_text
+    assert "Do not attempt `brew install` on Linux or WSL." in init_text
+
+
 def test_refactor_mart_staging_execution_artifacts_exist() -> None:
     expected_paths = [
         "skills/applying-staging-candidate/SKILL.md",

@@ -33,7 +33,7 @@ class TestSqlServerConnect:
                 from importlib import reload
                 import shared.db_connect as mod
                 reload(mod)
-                with pytest.raises(RuntimeError, match="brew install freetds"):
+                with pytest.raises(RuntimeError, match="platform package manager"):
                     mod.sql_server_connect("testdb")
 
     def test_other_pyodbc_errors_propagate(self) -> None:

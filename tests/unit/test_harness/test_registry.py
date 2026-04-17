@@ -234,6 +234,6 @@ class TestFromEnv:
             mock_pyodbc.connect.side_effect = mock_pyodbc.Error(
                 "[unixODBC][Driver Manager]Can't open lib 'FreeTDS'"
             )
-            with pytest.raises(RuntimeError, match="brew install freetds"):
+            with pytest.raises(RuntimeError, match="platform package manager"):
                 with backend._connect():
                     pass

@@ -52,6 +52,13 @@ from shared.output_models.init import (
     ScaffoldHooksOutput,
     ScaffoldProjectOutput,
 )
+from shared.platform import (
+    HostPlatform,
+    build_init_platform_gate_message,
+    classify_host_platform,
+    supports_homebrew_install,
+    supports_native_windows,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -540,10 +547,10 @@ def check_freetds(
     register_missing: bool = typer.Option(
         False,
         "--register-missing",
-        help="Register FreeTDS in unixODBC when the brew package is installed but not registered.",
+        help="Register FreeTDS in unixODBC when the driver library is installed but not registered.",
     ),
 ) -> None:
-    """Check Homebrew FreeTDS installation and unixODBC registration."""
+    """Check FreeTDS installation and unixODBC registration."""
     try:
         result = run_check_freetds(register_missing=register_missing)
     except RuntimeError as exc:
