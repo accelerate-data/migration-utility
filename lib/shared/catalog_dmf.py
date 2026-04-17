@@ -22,7 +22,6 @@ from shared.dmf_processing import (
     flip_references,
     process_dmf_results,
 )
-from shared.name_resolver import normalize
 
 
 def _empty_refs() -> dict[str, dict[str, list[dict[str, Any]]]]:

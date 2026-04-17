@@ -20,7 +20,6 @@ from shared.env_config import resolve_catalog_dir, resolve_project_root
 from shared.name_resolver import normalize
 from shared.output_models.refactor import RefactorWriteOutput
 from shared.refactor_support.context import run_context
-from shared.refactor_support.diffing import symmetric_diff
 from shared.refactor_support.writeback import run_write as _run_write_impl
 
 logger = logging.getLogger(__name__)
