@@ -29,5 +29,6 @@ If information is mainly operational or contributor-facing, put it in `docs/refe
 - [Source YAML Catalog Enrichment](source-yaml-catalog-enrichment/README.md) — conservative source-column, test, relationship, and freshness generation from normalized table catalog metadata
 - [Seed Table Catalog State](seed-table-catalog-state/README.md) — explicit catalog ownership for source-backed vs seed-backed writerless tables
 - [Status Summary Contract](status-summary-contract/README.md) — summary `/status` dashboard scope, diagnostics table, and detailed-status boundary
+- [Integration Test Contract](integration-test-contract/README.md) — source fixture schema rules for live integration tests and the target setup exception
 
 When adding one, use `docs/design/<topic>/README.md` and record only the durable decision and the reason it matters to agents.
