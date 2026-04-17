@@ -129,7 +129,7 @@ class OracleLifecycleService:
                 with self._backend._connect_sandbox(sandbox_db) as sandbox_conn:
                     sandbox_cursor = sandbox_conn.cursor()
                     tables_count, views_count, procedures_count = (
-                        self._sandbox_content_counts(sandbox_cursor, sandbox_db)
+                        self._sandbox_content_counts(sandbox_cursor)
                     )
                 has_content = any(
                     count > 0 for count in (tables_count, views_count, procedures_count)
@@ -244,15 +244,19 @@ class OracleLifecycleService:
             errors=errors,
         )
 
-    def _sandbox_content_counts(self, cursor: Any, sandbox_db: str) -> tuple[int, int, int]:
-        cursor.execute("SELECT COUNT(*) FROM ALL_TABLES WHERE OWNER = :1", [sandbox_db])
+    def _sandbox_content_counts(self, cursor: Any) -> tuple[int, int, int]:
+        # Connected inside the sandbox PDB — count all non-oracle-maintained schema objects.
+        # ORACLE_MAINTAINED='N' excludes SYS, SYSTEM, and other built-in schemas.
+        _user_filter = (
+            "OWNER IN (SELECT USERNAME FROM DBA_USERS WHERE ORACLE_MAINTAINED = 'N')"
+        )
+        cursor.execute(f"SELECT COUNT(*) FROM ALL_TABLES WHERE {_user_filter}")
         tables_count = int(cursor.fetchone()[0])
-        cursor.execute("SELECT COUNT(*) FROM ALL_VIEWS WHERE OWNER = :1", [sandbox_db])
+        cursor.execute(f"SELECT COUNT(*) FROM ALL_VIEWS WHERE {_user_filter}")
         views_count = int(cursor.fetchone()[0])
         cursor.execute(
-            "SELECT COUNT(*) FROM ALL_OBJECTS "
-            "WHERE OWNER = :1 AND OBJECT_TYPE IN ('PROCEDURE', 'FUNCTION', 'PACKAGE')",
-            [sandbox_db],
+            f"SELECT COUNT(*) FROM ALL_OBJECTS "
+            f"WHERE {_user_filter} AND OBJECT_TYPE IN ('PROCEDURE', 'FUNCTION', 'PACKAGE')"
         )
         procedures_count = int(cursor.fetchone()[0])
         return tables_count, views_count, procedures_count

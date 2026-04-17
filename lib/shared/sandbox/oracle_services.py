@@ -105,13 +105,16 @@ def _validate_oracle_identifier(name: str) -> None:
 def _validate_oracle_qualified_name(name: str) -> None:
     """Validate a possibly schema-qualified Oracle name (``SCHEMA.TABLE``).
 
-    Accepts bare identifiers (``CHANNELS``) and dotted qualified names
-    (``MIGRATIONTEST.BRONZE_CURRENCY``).  Each segment must pass
-    ``_validate_oracle_identifier``.
+    Accepts bare identifiers (``CHANNELS``) and two-part qualified names
+    (``MIGRATIONTEST.BRONZE_CURRENCY``).  Three-or-more-part names are
+    rejected because ``_parse_qualified_name`` only accepts exactly two parts.
+    Each segment must pass ``_validate_oracle_identifier``.
     """
     if not name:
         raise ValueError(f"Unsafe Oracle identifier: {name!r}")
     parts = name.split(".")
+    if len(parts) > 2:
+        raise ValueError(f"Unsafe Oracle identifier: {name!r}")
     for part in parts:
         _validate_oracle_identifier(part)
 
@@ -418,18 +421,30 @@ class _OracleSandboxCore(SandboxBackend):
                 f'ADMIN USER pdb_admin IDENTIFIED BY "{temp_password}" '
                 f"CREATE_FILE_DEST = '{oradata_path}'"
             )
-            cursor.execute(
-                f"ALTER PLUGGABLE DATABASE {sandbox_name} OPEN"
-            )
+            try:
+                cursor.execute(f"ALTER PLUGGABLE DATABASE {sandbox_name} OPEN")
+            except _import_oracledb().DatabaseError:
+                # PDB was created but could not be opened — drop it to prevent orphan.
+                try:
+                    self._drop_sandbox_pdb(sandbox_name)
+                except _import_oracledb().DatabaseError:
+                    logger.warning(
+                        "event=oracle_sandbox_pdb_orphan sandbox=%s", sandbox_name
+                    )
+                raise
         logger.info("event=oracle_sandbox_pdb_created sandbox=%s", sandbox_name)
 
     def _drop_sandbox_pdb(self, sandbox_name: str) -> None:
         """Close and drop a sandbox PDB including datafiles.
 
-        Silently ignores errors if the PDB does not exist.
+        Ignores ORA-65011 (PDB does not exist) and ORA-65020 (already closed)
+        so the operation is idempotent. All other Oracle errors propagate.
         PDB names are valid unquoted identifiers — no double-quoting needed.
         """
         _validate_oracle_sandbox_name(sandbox_name)
+        # ORA-65011: pluggable database does not exist
+        # ORA-65020: pluggable database already closed
+        _IGNORABLE_ORA_CODES = frozenset((65011, 65020))
         try:
             with self._connect_cdb() as conn:
                 cursor = conn.cursor()
@@ -440,9 +455,14 @@ class _OracleSandboxCore(SandboxBackend):
                     f"DROP PLUGGABLE DATABASE {sandbox_name} INCLUDING DATAFILES"
                 )
             logger.info("event=oracle_sandbox_pdb_dropped sandbox=%s", sandbox_name)
-        except _import_oracledb().DatabaseError:
+        except _import_oracledb().DatabaseError as exc:
+            ora_code = getattr(exc.args[0], "code", 0) if exc.args else 0
+            if ora_code not in _IGNORABLE_ORA_CODES:
+                raise
             logger.debug(
-                "event=oracle_sandbox_pdb_drop_ignored sandbox=%s", sandbox_name,
+                "event=oracle_sandbox_pdb_drop_ignored sandbox=%s ora_code=%s",
+                sandbox_name,
+                ora_code,
             )
 
     @contextmanager

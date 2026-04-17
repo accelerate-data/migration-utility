@@ -805,12 +805,16 @@ class TestDropSandboxPdb:
         assert "INCLUDING DATAFILES" in drop_stmts[0]
 
     def test_drop_pdb_ignores_not_found(self) -> None:
-        """Silently ignores errors if PDB doesn't exist."""
+        """Silently ignores ORA-65011 (PDB does not exist)."""
         backend = _make_backend()
         db_error_cls = type("DatabaseError", (Exception,), {})
+        # Build an exception whose first arg has a .code attribute = 65011
+        ora_err = MagicMock()
+        ora_err.code = 65011
+        exc = db_error_cls(ora_err)
         cdb_conn = MagicMock()
         cdb_cursor = MagicMock()
-        cdb_cursor.execute.side_effect = db_error_cls("PDB does not exist")
+        cdb_cursor.execute.side_effect = exc
         cdb_conn.cursor.return_value = cdb_cursor
 
         @contextmanager
@@ -822,6 +826,28 @@ class TestDropSandboxPdb:
             ora.return_value.DatabaseError = db_error_cls
             # Should not raise
             backend._drop_sandbox_pdb("SBX_ABC123ABC123")
+
+    def test_drop_pdb_propagates_unexpected_error(self) -> None:
+        """Propagates errors that are not ORA-65011 or ORA-65020."""
+        backend = _make_backend()
+        db_error_cls = type("DatabaseError", (Exception,), {})
+        ora_err = MagicMock()
+        ora_err.code = 604  # ORA-00604: error occurred at recursive SQL level
+        exc = db_error_cls(ora_err)
+        cdb_conn = MagicMock()
+        cdb_cursor = MagicMock()
+        cdb_cursor.execute.side_effect = exc
+        cdb_conn.cursor.return_value = cdb_cursor
+
+        @contextmanager
+        def _fake_cdb():
+            yield cdb_conn
+
+        with patch.object(backend, "_connect_cdb", side_effect=_fake_cdb), \
+             patch("shared.sandbox.oracle_services._import_oracledb") as ora:
+            ora.return_value.DatabaseError = db_error_cls
+            with pytest.raises(db_error_cls):
+                backend._drop_sandbox_pdb("SBX_ABC123ABC123")
 
     def test_drop_pdb_rejects_invalid_name(self) -> None:
         backend = _make_backend()
@@ -889,3 +915,7 @@ class TestValidateOracleQualifiedName:
     def test_rejects_quoted_identifier(self) -> None:
         with pytest.raises(ValueError, match="Unsafe Oracle identifier"):
             _validate_oracle_qualified_name('"SH".CHANNELS')
+
+    def test_rejects_three_part_name(self) -> None:
+        with pytest.raises(ValueError, match="Unsafe Oracle identifier"):
+            _validate_oracle_qualified_name("DB.SH.CHANNELS")
