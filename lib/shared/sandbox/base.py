@@ -68,7 +68,7 @@ def validate_fixture_rows(table: str, rows: list[dict[str, Any]]) -> None:
 
 def generate_sandbox_name() -> str:
     """Generate a random sandbox database/schema name."""
-    return f"__test_{uuid.uuid4().hex[:12]}"
+    return f"SBX_{uuid.uuid4().hex[:12].upper()}"
 
 
 def validate_fixtures(

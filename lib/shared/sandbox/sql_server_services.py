@@ -99,10 +99,10 @@ def _validate_identifier(name: str) -> None:
 def _validate_sandbox_db_name(sandbox_db: str) -> None:
     """Validate a sandbox database name is safe for interpolation.
 
-    Sandbox names follow the pattern __test_<hex> and must only contain
-    safe characters.
+    Sandbox names follow the pattern SBX_<12 uppercase hex> and must only
+    contain safe characters.
     """
-    if not re.match(r"^__test_[a-zA-Z0-9_]{1,128}$", sandbox_db):
+    if not re.match(r"^SBX_[A-F0-9]{12}$", sandbox_db):
         raise ValueError(f"Invalid sandbox database name: {sandbox_db!r}")
 
 def _split_identifier_parts(identifier: str) -> list[str]:

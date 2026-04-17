@@ -27,7 +27,7 @@ def _mock_connect_factory(
     """Return a _connect side_effect that routes by database keyword arg.
 
     Routing:
-    - database starts with '__test_' → sandbox_cursor (if set)
+    - database starts with 'SBX_' → sandbox_cursor (if set)
     - named non-sandbox database → source_cursor (if set)
     - database=None (source default) → default_cursor if set, else noop cursor
     - fallback → noop cursor that returns None for fetchone (not a view)
@@ -38,9 +38,9 @@ def _mock_connect_factory(
     @contextmanager
     def _fake_connect(*, database: str | None = None):
         conn = MagicMock()
-        if database and database.startswith("__test_") and sandbox_cursor is not None:
+        if database and database.startswith("SBX_") and sandbox_cursor is not None:
             conn.cursor.return_value = sandbox_cursor
-        elif source_cursor is not None and database and not database.startswith("__test_"):
+        elif source_cursor is not None and database and not database.startswith("SBX_"):
             conn.cursor.return_value = source_cursor
         elif default_cursor is not None:
             conn.cursor.return_value = default_cursor

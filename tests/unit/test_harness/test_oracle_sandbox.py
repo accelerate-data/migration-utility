@@ -11,6 +11,7 @@ from shared.output_models.sandbox import ErrorEntry, SandboxDownOutput
 from shared.sandbox.base import generate_sandbox_name
 from shared.sandbox.oracle import (
     OracleSandbox,
+    _generate_oracle_pdb_name,
     _validate_oracle_identifier,
     _validate_oracle_sandbox_name,
 )
@@ -63,31 +64,44 @@ class TestOracleIdentifierValidation:
 
 
 class TestOracleSandboxName:
-    def test_name_has_correct_prefix(self) -> None:
-        name = generate_sandbox_name()
-        assert name.startswith("__test_")
+    def test_pdb_name_has_correct_prefix(self) -> None:
+        name = _generate_oracle_pdb_name()
+        assert name.startswith("SBX_")
 
-    def test_name_is_unique(self) -> None:
-        names = {generate_sandbox_name() for _ in range(10)}
+    def test_pdb_name_is_unique(self) -> None:
+        names = {_generate_oracle_pdb_name() for _ in range(10)}
         assert len(names) == 10
 
-    def test_name_passes_validation(self) -> None:
-        name = generate_sandbox_name()
+    def test_pdb_name_passes_validation(self) -> None:
+        name = _generate_oracle_pdb_name()
         _validate_oracle_sandbox_name(name)  # should not raise
 
-    def test_name_hex_length(self) -> None:
-        name = generate_sandbox_name()
-        hex_part = name[len("__test_"):]
+    def test_pdb_name_hex_length(self) -> None:
+        name = _generate_oracle_pdb_name()
+        hex_part = name[len("SBX_"):]
         assert len(hex_part) == 12
-        assert all(c in "0123456789abcdef" for c in hex_part)
+        assert all(c in "0123456789ABCDEF" for c in hex_part)
+
+    def test_pdb_name_is_uppercase(self) -> None:
+        name = _generate_oracle_pdb_name()
+        assert name == name.upper()
+
+    def test_base_generate_sandbox_name_passes_validation(self) -> None:
+        """Base generate_sandbox_name() now produces SBX_ names that pass validation."""
+        name = generate_sandbox_name()
+        _validate_oracle_sandbox_name(name)  # should not raise
 
     def test_rejects_name_without_prefix(self) -> None:
         with pytest.raises(ValueError, match="Invalid Oracle sandbox schema name"):
             _validate_oracle_sandbox_name("myschema")
 
+    def test_rejects_legacy_test_prefix(self) -> None:
+        with pytest.raises(ValueError, match="Invalid Oracle sandbox schema name"):
+            _validate_oracle_sandbox_name("__test_abc123abcd")
+
     def test_rejects_name_with_special_chars(self) -> None:
         with pytest.raises(ValueError, match="Invalid Oracle sandbox schema name"):
-            _validate_oracle_sandbox_name("__test_abc; DROP")
+            _validate_oracle_sandbox_name("SBX_ABC; DROP")
 
     def test_rejects_empty(self) -> None:
         with pytest.raises(ValueError, match="Invalid Oracle sandbox schema name"):
@@ -257,7 +271,7 @@ class TestOracleConnectionLifecycle:
             import_mock.return_value.connect.return_value = conn
 
             with pytest.raises(RuntimeError, match="nls failed"):
-                with backend._connect_sandbox("__test_abc123"):
+                with backend._connect_sandbox("SBX_ABC123000000"):
                     pass
 
         conn.close.assert_called_once()
@@ -276,14 +290,14 @@ class TestOracleSandboxUpCleanup:
         backend._lifecycle.sandbox_status.return_value = "status-result"
 
         assert backend.sandbox_up(["SH"]) == "up-result"
-        assert backend.sandbox_reset("__test_existing", ["SH"]) == "reset-result"
-        assert backend.sandbox_down("__test_existing") == "down-result"
-        assert backend.sandbox_status("__test_existing", ["SH"]) == "status-result"
+        assert backend.sandbox_reset("SBX_000000000001", ["SH"]) == "reset-result"
+        assert backend.sandbox_down("SBX_000000000001") == "down-result"
+        assert backend.sandbox_status("SBX_000000000001", ["SH"]) == "status-result"
 
         backend._lifecycle.sandbox_up.assert_called_once_with(["SH"])
-        backend._lifecycle.sandbox_reset.assert_called_once_with("__test_existing", ["SH"])
-        backend._lifecycle.sandbox_down.assert_called_once_with("__test_existing")
-        backend._lifecycle.sandbox_status.assert_called_once_with("__test_existing", ["SH"])
+        backend._lifecycle.sandbox_reset.assert_called_once_with("SBX_000000000001", ["SH"])
+        backend._lifecycle.sandbox_down.assert_called_once_with("SBX_000000000001")
+        backend._lifecycle.sandbox_status.assert_called_once_with("SBX_000000000001", ["SH"])
 
     def test_public_execution_methods_delegate_to_execution_service(self) -> None:
         backend = OracleSandbox(
@@ -304,20 +318,20 @@ class TestOracleSandboxUpCleanup:
         }
         fixtures: list[dict[str, object]] = []
 
-        assert backend.execute_scenario("__test_existing", scenario) == "scenario-result"
-        assert backend.execute_select("__test_existing", "SELECT 1 FROM dual", fixtures) == "select-result"
+        assert backend.execute_scenario("SBX_000000000001", scenario) == "scenario-result"
+        assert backend.execute_select("SBX_000000000001", "SELECT 1 FROM dual", fixtures) == "select-result"
         assert backend.compare_two_sql(
-            "__test_existing", "SELECT 1 FROM dual", "SELECT 1 FROM dual", fixtures,
+            "SBX_000000000001", "SELECT 1 FROM dual", "SELECT 1 FROM dual", fixtures,
         ) == "compare-result"
 
         backend._execution.execute_scenario.assert_called_once_with(
-            "__test_existing", scenario,
+            "SBX_000000000001", scenario,
         )
         backend._execution.execute_select.assert_called_once_with(
-            "__test_existing", "SELECT 1 FROM dual", fixtures,
+            "SBX_000000000001", "SELECT 1 FROM dual", fixtures,
         )
         backend._comparison.compare_two_sql.assert_called_once_with(
-            "__test_existing", "SELECT 1 FROM dual", "SELECT 1 FROM dual", fixtures,
+            "SBX_000000000001", "SELECT 1 FROM dual", "SELECT 1 FROM dual", fixtures,
         )
 
     def test_sandbox_up_calls_sandbox_down_on_failure(self) -> None:
@@ -370,12 +384,12 @@ class TestOracleSandboxUpCleanup:
              patch.object(backend, "_clone_tables", return_value=(["CUSTOMERS"], [])), \
              patch.object(backend, "_clone_views", return_value=([], [])), \
              patch.object(backend, "_clone_procedures", return_value=(["LOAD_CUSTOMERS"], [])):
-            result = backend.sandbox_reset("__test_existing", schemas=["SH"])
+            result = backend.sandbox_reset("SBX_000000000001", schemas=["SH"])
 
         assert result.status == "ok"
-        assert result.sandbox_database == "__test_existing"
-        mock_drop.assert_called_once_with("__test_existing")
-        mock_create.assert_called_once_with("__test_existing")
+        assert result.sandbox_database == "SBX_000000000001"
+        mock_drop.assert_called_once_with("SBX_000000000001")
+        mock_create.assert_called_once_with("SBX_000000000001")
 
     def test_sandbox_reset_validates_source_schema_before_drop(self) -> None:
         backend = OracleSandbox(
@@ -386,7 +400,7 @@ class TestOracleSandboxUpCleanup:
 
         with patch.object(backend, "sandbox_down", mock_down):
             with pytest.raises(ValueError, match="Unsafe Oracle identifier"):
-                backend.sandbox_reset("__test_existing", schemas=["bad.schema"])
+                backend.sandbox_reset("SBX_000000000001", schemas=["bad.schema"])
 
         mock_down.assert_not_called()
 
@@ -396,14 +410,14 @@ class TestOracleSandboxUpCleanup:
             password="pw", admin_user="sys", source_schema="SH",
         )
         down_result = SandboxDownOutput(
-            sandbox_database="__test_existing",
+            sandbox_database="SBX_000000000001",
             status="error",
             errors=[ErrorEntry(code="SANDBOX_DOWN_FAILED", message="drop failed")],
         )
 
         with patch.object(backend._lifecycle, "sandbox_down", return_value=down_result), \
              patch.object(backend._lifecycle, "_sandbox_clone_into") as mock_clone:
-            result = backend.sandbox_reset("__test_existing", schemas=["SH"])
+            result = backend.sandbox_reset("SBX_000000000001", schemas=["SH"])
 
         assert result.status == "error"
         assert result.errors[0].code == "SANDBOX_RESET_FAILED"
@@ -436,7 +450,7 @@ class TestOracleSandboxStatus:
 
         with patch.object(backend, "_connect_cdb", side_effect=_fake_cdb), \
              patch.object(backend, "_connect_sandbox", side_effect=_fake_sandbox):
-            result = backend.sandbox_status("__test_existing")
+            result = backend.sandbox_status("SBX_000000000001")
 
         assert result.status == "ok"
         assert result.exists is True
@@ -470,7 +484,7 @@ class TestOracleSandboxStatus:
 
         with patch.object(backend, "_connect_cdb", side_effect=_fake_cdb), \
              patch.object(backend, "_connect_sandbox", side_effect=_fake_sandbox):
-            result = backend.sandbox_status("__test_existing")
+            result = backend.sandbox_status("SBX_000000000001")
 
         assert result.status == "ok"
         assert result.exists is True
@@ -497,7 +511,7 @@ class TestExecuteScenarioOracle:
              patch.object(backend._fixtures, "ensure_view_tables", return_value=[]), \
              patch.object(backend._fixtures, "seed_fixtures"):
             result = backend.execute_scenario(
-                sandbox_db="__test_abc123",
+                sandbox_db="SBX_ABC123000000",
                 scenario={
                     "name": "quoted_proc",
                     "procedure": "Proc$Load",
@@ -508,7 +522,7 @@ class TestExecuteScenarioOracle:
 
         assert result.status == "ok"
         execute_calls = [call.args[0] for call in cursor.execute.call_args_list]
-        assert 'BEGIN "__test_abc123"."Proc$Load"; END;' in execute_calls
+        assert 'BEGIN "SBX_ABC123000000"."Proc$Load"; END;' in execute_calls
 
 
 class TestCompareTwoSqlOracle:
@@ -521,7 +535,7 @@ class TestCompareTwoSqlOracle:
         )
 
         result = backend.compare_two_sql(
-            sandbox_db="__test_abc123",
+            sandbox_db="SBX_ABC123000000",
             sql_a='SELECT ( FROM "SH"."CHANNELS"',
             sql_b='SELECT "CHANNEL_ID" FROM "SH"."CHANNELS"',
             fixtures=[],
@@ -658,13 +672,13 @@ class TestConnectSandbox:
             ora.return_value.AUTH_MODE_DEFAULT = object()
             ora.return_value.connect.return_value = conn
 
-            with backend._connect_sandbox("__test_abc123") as c:
+            with backend._connect_sandbox("SBX_ABC123000000") as c:
                 assert c is conn
 
         ora.return_value.connect.assert_called_once_with(
             user="sys",
             password="pw",
-            dsn="localhost:1521/__test_abc123",
+            dsn="localhost:1521/SBX_ABC123000000",
             mode=sysdba,
         )
 
@@ -680,7 +694,7 @@ class TestConnectSandbox:
             ora.return_value.AUTH_MODE_DEFAULT = object()
             ora.return_value.connect.return_value = conn
 
-            with backend._connect_sandbox("__test_abc123"):
+            with backend._connect_sandbox("SBX_ABC123000000"):
                 pass
 
         nls_calls = [c.args[0] for c in cursor.execute.call_args_list]
@@ -699,7 +713,7 @@ class TestConnectSandbox:
             ora.return_value.AUTH_MODE_DEFAULT = object()
             ora.return_value.connect.return_value = conn
 
-            with backend._connect_sandbox("__test_abc123"):
+            with backend._connect_sandbox("SBX_ABC123000000"):
                 pass
 
         conn.close.assert_called_once()
@@ -712,6 +726,8 @@ class TestCreateSandboxPdb:
         backend = _make_backend()
         cdb_conn = MagicMock()
         cdb_cursor = MagicMock()
+        # DBA_DATA_FILES query returns a sample datafile path
+        cdb_cursor.fetchone.return_value = ("/opt/oracle/oradata/FREE/FREEPDB1/system01.dbf",)
         cdb_conn.cursor.return_value = cdb_cursor
 
         @contextmanager
@@ -719,18 +735,37 @@ class TestCreateSandboxPdb:
             yield cdb_conn
 
         with patch.object(backend, "_connect_cdb", side_effect=_fake_cdb):
-            backend._create_sandbox_pdb("__test_abc123")
+            backend._create_sandbox_pdb("SBX_ABC123ABC123")
 
         executed = [c.args[0] for c in cdb_cursor.execute.call_args_list]
-        # Must have CREATE PLUGGABLE DATABASE
+        # First call is the DBA_DATA_FILES discovery query
+        assert "DBA_DATA_FILES" in executed[0]
+        # Must have CREATE PLUGGABLE DATABASE with unquoted name and CREATE_FILE_DEST
         create_stmts = [s for s in executed if "CREATE PLUGGABLE DATABASE" in s]
         assert len(create_stmts) == 1
-        assert '"__test_abc123"' in create_stmts[0]
+        assert "SBX_ABC123ABC123" in create_stmts[0]
         assert "ADMIN USER" in create_stmts[0]
-        # Must have ALTER ... OPEN
+        assert "CREATE_FILE_DEST" in create_stmts[0]
+        assert "/opt/oracle/oradata/FREE" in create_stmts[0]
+        # Must have ALTER ... OPEN with unquoted name
         open_stmts = [s for s in executed if "OPEN" in s]
         assert len(open_stmts) == 1
-        assert '"__test_abc123"' in open_stmts[0]
+        assert "SBX_ABC123ABC123" in open_stmts[0]
+
+    def test_create_pdb_raises_when_no_datafiles(self) -> None:
+        backend = _make_backend()
+        cdb_conn = MagicMock()
+        cdb_cursor = MagicMock()
+        cdb_cursor.fetchone.return_value = None
+        cdb_conn.cursor.return_value = cdb_cursor
+
+        @contextmanager
+        def _fake_cdb():
+            yield cdb_conn
+
+        with patch.object(backend, "_connect_cdb", side_effect=_fake_cdb), \
+             pytest.raises(RuntimeError, match="DBA_DATA_FILES is empty"):
+            backend._create_sandbox_pdb("SBX_ABC123ABC123")
 
 
 class TestDropSandboxPdb:
@@ -747,15 +782,17 @@ class TestDropSandboxPdb:
             yield cdb_conn
 
         with patch.object(backend, "_connect_cdb", side_effect=_fake_cdb):
-            backend._drop_sandbox_pdb("__test_abc123")
+            backend._drop_sandbox_pdb("SBX_ABC123ABC123")
 
         executed = [c.args[0] for c in cdb_cursor.execute.call_args_list]
         close_stmts = [s for s in executed if "CLOSE" in s]
         assert len(close_stmts) == 1
-        assert '"__test_abc123"' in close_stmts[0]
+        assert "SBX_ABC123ABC123" in close_stmts[0]
+        # Unquoted — no double-quotes around PDB name
+        assert '"SBX_ABC123ABC123"' not in close_stmts[0]
         drop_stmts = [s for s in executed if "DROP PLUGGABLE DATABASE" in s]
         assert len(drop_stmts) == 1
-        assert '"__test_abc123"' in drop_stmts[0]
+        assert "SBX_ABC123ABC123" in drop_stmts[0]
         assert "INCLUDING DATAFILES" in drop_stmts[0]
 
     def test_drop_pdb_ignores_not_found(self) -> None:
@@ -775,4 +812,4 @@ class TestDropSandboxPdb:
              patch("shared.sandbox.oracle_services._import_oracledb") as ora:
             ora.return_value.DatabaseError = db_error_cls
             # Should not raise
-            backend._drop_sandbox_pdb("__test_abc123")
+            backend._drop_sandbox_pdb("SBX_ABC123ABC123")

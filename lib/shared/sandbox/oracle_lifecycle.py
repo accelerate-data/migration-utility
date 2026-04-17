@@ -11,8 +11,8 @@ from shared.output_models.sandbox import (
     SandboxStatusOutput,
     SandboxUpOutput,
 )
-from shared.sandbox.base import generate_sandbox_name
 from shared.sandbox.oracle_services import (
+    _generate_oracle_pdb_name,
     _import_oracledb,
     _validate_oracle_identifier,
     _validate_oracle_sandbox_name,
@@ -30,7 +30,7 @@ class OracleLifecycleService:
 
     def sandbox_up(self, schemas: list[str]) -> SandboxUpOutput:
         source_schema = schemas[0] if schemas else self._backend.source_schema
-        sandbox_schema = generate_sandbox_name()
+        sandbox_schema = _generate_oracle_pdb_name()
         logger.info(
             "event=oracle_sandbox_up sandbox=%s source_schema=%s",
             sandbox_schema,

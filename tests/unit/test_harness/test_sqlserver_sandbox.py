@@ -47,14 +47,14 @@ class TestSqlServerSandboxUp:
         backend._lifecycle.sandbox_status.return_value = "status-result"
 
         assert backend.sandbox_up(["dbo"]) == "up-result"
-        assert backend.sandbox_reset("__test_existing", ["dbo"]) == "reset-result"
-        assert backend.sandbox_down("__test_existing") == "down-result"
-        assert backend.sandbox_status("__test_existing", ["dbo"]) == "status-result"
+        assert backend.sandbox_reset("SBX_000000000001", ["dbo"]) == "reset-result"
+        assert backend.sandbox_down("SBX_000000000001") == "down-result"
+        assert backend.sandbox_status("SBX_000000000001", ["dbo"]) == "status-result"
 
         backend._lifecycle.sandbox_up.assert_called_once_with(["dbo"])
-        backend._lifecycle.sandbox_reset.assert_called_once_with("__test_existing", ["dbo"])
-        backend._lifecycle.sandbox_down.assert_called_once_with("__test_existing")
-        backend._lifecycle.sandbox_status.assert_called_once_with("__test_existing", ["dbo"])
+        backend._lifecycle.sandbox_reset.assert_called_once_with("SBX_000000000001", ["dbo"])
+        backend._lifecycle.sandbox_down.assert_called_once_with("SBX_000000000001")
+        backend._lifecycle.sandbox_status.assert_called_once_with("SBX_000000000001", ["dbo"])
 
     def test_public_execution_methods_delegate_to_execution_service(self) -> None:
         backend = _make_backend()
@@ -72,20 +72,20 @@ class TestSqlServerSandboxUp:
         }
         fixtures: list[dict[str, object]] = []
 
-        assert backend.execute_scenario("__test_existing", scenario) == "scenario-result"
-        assert backend.execute_select("__test_existing", "SELECT 1", fixtures) == "select-result"
+        assert backend.execute_scenario("SBX_000000000001", scenario) == "scenario-result"
+        assert backend.execute_select("SBX_000000000001", "SELECT 1", fixtures) == "select-result"
         assert backend.compare_two_sql(
-            "__test_existing", "SELECT 1", "SELECT 1", fixtures,
+            "SBX_000000000001", "SELECT 1", "SELECT 1", fixtures,
         ) == "compare-result"
 
         backend._execution.execute_scenario.assert_called_once_with(
-            "__test_existing", scenario,
+            "SBX_000000000001", scenario,
         )
         backend._execution.execute_select.assert_called_once_with(
-            "__test_existing", "SELECT 1", fixtures,
+            "SBX_000000000001", "SELECT 1", fixtures,
         )
         backend._comparison.compare_two_sql.assert_called_once_with(
-            "__test_existing", "SELECT 1", "SELECT 1", fixtures,
+            "SBX_000000000001", "SELECT 1", "SELECT 1", fixtures,
         )
 
     def test_sandbox_up_creates_database(self) -> None:
@@ -126,7 +126,7 @@ class TestSqlServerSandboxUp:
             )
 
         assert result.status in ("ok", "partial")
-        assert result.sandbox_database.startswith("__test_")
+        assert result.sandbox_database.startswith("SBX_")
         assert result.tables_cloned == ["dbo.Product", "silver.DimProduct"]
         assert result.views_cloned == ["silver.vw_customer"]
         assert result.procedures_cloned == ["dbo.usp_load"]
@@ -156,25 +156,25 @@ class TestSqlServerSandboxUp:
              patch.object(backend, "_clone_tables", return_value=(["dbo.Customer"], [])), \
              patch.object(backend, "_clone_views", return_value=([], [])), \
              patch.object(backend, "_clone_procedures", return_value=(["dbo.usp_load"], [])):
-            result = backend.sandbox_reset("__test_existing", schemas=["dbo"])
+            result = backend.sandbox_reset("SBX_000000000001", schemas=["dbo"])
 
         assert result.status == "ok"
-        assert result.sandbox_database == "__test_existing"
+        assert result.sandbox_database == "SBX_000000000001"
         execute_calls = [call.args[0] for call in default_cursor.execute.call_args_list]
-        assert any("DROP DATABASE [__test_existing]" in sql for sql in execute_calls)
-        assert any("CREATE DATABASE [__test_existing]" in sql for sql in execute_calls)
+        assert any("DROP DATABASE [SBX_000000000001]" in sql for sql in execute_calls)
+        assert any("CREATE DATABASE [SBX_000000000001]" in sql for sql in execute_calls)
 
     def test_sandbox_reset_reports_drop_failure_without_cloning(self) -> None:
         backend = _make_backend()
         down_result = SandboxDownOutput(
-            sandbox_database="__test_existing",
+            sandbox_database="SBX_000000000001",
             status="error",
             errors=[ErrorEntry(code="SANDBOX_DOWN_FAILED", message="drop failed")],
         )
 
         with patch.object(backend, "sandbox_down", return_value=down_result), \
              patch.object(backend._lifecycle, "_sandbox_clone_into") as mock_clone:
-            result = backend.sandbox_reset("__test_existing", schemas=["dbo"])
+            result = backend.sandbox_reset("SBX_000000000001", schemas=["dbo"])
 
         assert result.status == "error"
         assert result.errors[0].code == "SANDBOX_RESET_FAILED"
@@ -189,7 +189,7 @@ class TestSqlServerSandboxUp:
 
         @contextmanager
         def _admin_connect(*, database=None):
-            if database and database.startswith("__test_"):
+            if database and database.startswith("SBX_"):
                 raise pyodbc.Error("connection failed to sandbox db")
             yield MagicMock(cursor=MagicMock(return_value=default_cursor))
 
@@ -226,7 +226,7 @@ class TestSqlServerSandboxStatus:
         fake_connect = _mock_connect_factory(default_cursor=default_cursor)
 
         with patch.object(backend, "_connect", side_effect=fake_connect):
-            result = backend.sandbox_status(sandbox_db="__test_abc123")
+            result = backend.sandbox_status(sandbox_db="SBX_ABC123000000")
 
         assert result.status == "ok"
         assert result.exists is True
@@ -249,7 +249,7 @@ class TestSqlServerSandboxStatus:
         fake_connect = _mock_connect_factory(default_cursor=default_cursor)
 
         with patch.object(backend, "_connect", side_effect=fake_connect):
-            result = backend.sandbox_status(sandbox_db="__test_abc123", schemas=["silver"])
+            result = backend.sandbox_status(sandbox_db="SBX_ABC123000000", schemas=["silver"])
 
         assert result.status == "ok"
         assert result.exists is True
@@ -265,7 +265,7 @@ class TestSqlServerSandboxStatus:
         fake_connect = _mock_connect_factory(default_cursor=default_cursor)
 
         with patch.object(backend, "_connect", side_effect=fake_connect):
-            result = backend.sandbox_status(sandbox_db="__test_abc123")
+            result = backend.sandbox_status(sandbox_db="SBX_ABC123000000")
 
         assert result.status == "not_found"
         assert result.exists is False
@@ -281,7 +281,7 @@ class TestSqlServerSandboxDown:
         fake_connect = _mock_connect_factory(default_cursor=default_cursor)
 
         with patch.object(backend, "_connect", side_effect=fake_connect):
-            result = backend.sandbox_down(sandbox_db="__test_abc123")
+            result = backend.sandbox_down(sandbox_db="SBX_ABC123000000")
 
         assert result.status == "ok"
         assert not hasattr(result, "run_id")
@@ -349,7 +349,7 @@ class TestSqlServerExecuteScenario:
         with patch.object(backend, "_connect", side_effect=fake_connect), patch.object(
             backend, "_connect_source", side_effect=source_connect
         ):
-            result = backend.execute_scenario(sandbox_db="__test_abc123", scenario=scenario)
+            result = backend.execute_scenario(sandbox_db="SBX_ABC123000000", scenario=scenario)
 
         assert result.status == "error"
         assert len(result.errors) == 1
@@ -390,7 +390,7 @@ class TestSqlServerExecuteScenario:
         with patch.object(backend, "_connect", side_effect=fake_connect), patch.object(
             backend, "_connect_source", side_effect=source_connect
         ):
-            result = backend.execute_scenario(sandbox_db="__test_abc123", scenario=scenario)
+            result = backend.execute_scenario(sandbox_db="SBX_ABC123000000", scenario=scenario)
 
         assert result.status == "ok"
         assert result.row_count == 1
@@ -403,7 +403,7 @@ class TestSqlServerExecuteScenario:
         scenario = {"name": "incomplete", "target_table": "[dbo].[T]"}
 
         with pytest.raises(KeyError, match="procedure"):
-            backend.execute_scenario(sandbox_db="__test_abc123", scenario=scenario)
+            backend.execute_scenario(sandbox_db="SBX_ABC123000000", scenario=scenario)
 
 
 # ── IDENTITY_INSERT handling ──────────────────────────────────────────────────
@@ -442,7 +442,7 @@ class TestIdentityInsert:
         with patch.object(backend, "_connect", side_effect=fake_connect), patch.object(
             backend, "_connect_source", side_effect=source_connect
         ):
-            result = backend.execute_scenario(sandbox_db="__test_abc123", scenario=scenario)
+            result = backend.execute_scenario(sandbox_db="SBX_ABC123000000", scenario=scenario)
 
         assert result.status == "ok"
 
@@ -483,7 +483,7 @@ class TestIdentityInsert:
         with patch.object(backend, "_connect", side_effect=fake_connect), patch.object(
             backend, "_connect_source", side_effect=source_connect
         ):
-            result = backend.execute_scenario(sandbox_db="__test_abc123", scenario=scenario)
+            result = backend.execute_scenario(sandbox_db="SBX_ABC123000000", scenario=scenario)
 
         assert result.status == "ok"
         execute_calls = [call.args[0] for call in sandbox_cursor.execute.call_args_list]
@@ -522,7 +522,7 @@ class TestIdentityInsert:
         with patch.object(backend, "_connect", side_effect=fake_connect), patch.object(
             backend, "_connect_source", side_effect=source_connect
         ):
-            result = backend.execute_scenario(sandbox_db="__test_abc123", scenario=scenario)
+            result = backend.execute_scenario(sandbox_db="SBX_ABC123000000", scenario=scenario)
 
         assert result.status == "ok"
         execute_calls = [str(c) for c in sandbox_cursor.execute.call_args_list]
@@ -580,7 +580,7 @@ class TestNotNullDefaultsQuery:
         with patch.object(backend, "_connect", side_effect=fake_connect), patch.object(
             backend, "_connect_source", side_effect=source_connect
         ):
-            result = backend.execute_scenario(sandbox_db="__test_abc123", scenario=scenario)
+            result = backend.execute_scenario(sandbox_db="SBX_ABC123000000", scenario=scenario)
 
         assert result.status == "ok"
         execute_calls = [str(c) for c in sandbox_cursor.execute.call_args_list]
@@ -630,7 +630,7 @@ class TestFkConstraintDisabling:
         with patch.object(backend, "_connect", side_effect=fake_connect), patch.object(
             backend, "_connect_source", side_effect=source_connect
         ):
-            result = backend.execute_scenario(sandbox_db="__test_abc123", scenario=scenario)
+            result = backend.execute_scenario(sandbox_db="SBX_ABC123000000", scenario=scenario)
 
         assert result.status == "ok"
         execute_calls = [str(c) for c in sandbox_cursor.execute.call_args_list]
@@ -676,7 +676,7 @@ class TestFkConstraintDisabling:
         with patch.object(backend, "_connect", side_effect=fake_connect), patch.object(
             backend, "_connect_source", side_effect=source_connect
         ):
-            result = backend.execute_scenario(sandbox_db="__test_abc123", scenario=scenario)
+            result = backend.execute_scenario(sandbox_db="SBX_ABC123000000", scenario=scenario)
 
         assert result.status == "ok"
         execute_calls = [str(c) for c in sandbox_cursor.execute.call_args_list]
@@ -720,7 +720,7 @@ class TestTriggerDisabling:
         with patch.object(backend, "_connect", side_effect=fake_connect), patch.object(
             backend, "_connect_source", side_effect=source_connect
         ):
-            result = backend.execute_scenario(sandbox_db="__test_abc123", scenario=scenario)
+            result = backend.execute_scenario(sandbox_db="SBX_ABC123000000", scenario=scenario)
 
         assert result.status == "ok"
         execute_calls = [str(c) for c in sandbox_cursor.execute.call_args_list]
@@ -758,7 +758,7 @@ class TestTriggerDisabling:
         with patch.object(backend, "_connect", side_effect=fake_connect), patch.object(
             backend, "_connect_source", side_effect=source_connect
         ):
-            result = backend.execute_scenario(sandbox_db="__test_abc123", scenario=scenario)
+            result = backend.execute_scenario(sandbox_db="SBX_ABC123000000", scenario=scenario)
 
         assert result.status == "ok"
         execute_calls = [str(c) for c in sandbox_cursor.execute.call_args_list]
@@ -845,7 +845,7 @@ class TestOutputModels:
 
     def test_sandbox_up_output_ok(self) -> None:
         result = SandboxUpOutput.model_validate({
-            "sandbox_database": "__test_abc_123",
+            "sandbox_database": "SBX_ABC123000000",
             "status": "ok",
             "tables_cloned": ["dbo.Product"],
             "views_cloned": ["dbo.vProduct"],
@@ -858,7 +858,7 @@ class TestOutputModels:
 
     def test_sandbox_up_output_error(self) -> None:
         result = SandboxUpOutput.model_validate({
-            "sandbox_database": "__test_abc_123",
+            "sandbox_database": "SBX_ABC123000000",
             "status": "error",
             "tables_cloned": [],
             "views_cloned": [],
@@ -870,7 +870,7 @@ class TestOutputModels:
 
     def test_sandbox_down_output_ok(self) -> None:
         result = SandboxDownOutput.model_validate({
-            "sandbox_database": "__test_abc_123",
+            "sandbox_database": "SBX_ABC123000000",
             "status": "ok",
         })
         assert result.status == "ok"
@@ -878,7 +878,7 @@ class TestOutputModels:
 
     def test_sandbox_down_output_error(self) -> None:
         result = SandboxDownOutput.model_validate({
-            "sandbox_database": "__test_abc_123",
+            "sandbox_database": "SBX_ABC123000000",
             "status": "error",
             "errors": [{"code": "SANDBOX_DOWN_FAILED", "message": "timeout"}],
         })
@@ -887,7 +887,7 @@ class TestOutputModels:
 
     def test_sandbox_status_output_exists(self) -> None:
         result = SandboxStatusOutput.model_validate({
-            "sandbox_database": "__test_abc_123",
+            "sandbox_database": "SBX_ABC123000000",
             "status": "ok",
             "exists": True,
             "has_content": True,
@@ -900,7 +900,7 @@ class TestOutputModels:
 
     def test_sandbox_status_output_not_found(self) -> None:
         result = SandboxStatusOutput.model_validate({
-            "sandbox_database": "__test_abc_123",
+            "sandbox_database": "SBX_ABC123000000",
             "status": "not_found",
             "exists": False,
         })
@@ -910,7 +910,7 @@ class TestOutputModels:
     def test_execute_spec_output_valid(self) -> None:
         result = ExecuteSpecOutput.model_validate({
             "schema_version": "1.0",
-            "sandbox_database": "__test_abc_123",
+            "sandbox_database": "SBX_ABC123000000",
             "spec_path": "test-specs/silver.dimproduct.json",
             "total": 2,
             "ok": 1,
@@ -931,7 +931,7 @@ class TestOutputModels:
         from pydantic import ValidationError
         with pytest.raises(ValidationError, match="extra_field"):
             SandboxUpOutput.model_validate({
-                "sandbox_database": "__test_abc_123",
+                "sandbox_database": "SBX_ABC123000000",
                 "status": "ok",
                 "tables_cloned": [],
                 "views_cloned": [],

@@ -120,7 +120,7 @@ class TestSandboxLifecycle:
             sandbox_db = result.sandbox_database
 
             assert result.status in ("ok", "partial")
-            assert sandbox_db.startswith("__test_")
+            assert sandbox_db.startswith("SBX_")
             assert len(result.tables_cloned) > 0
             assert any(
                 table.lower() == f"{SQL_SERVER_FIXTURE_SCHEMA.lower()}.silver_dimcurrency"
@@ -163,7 +163,7 @@ class TestSandboxLifecycle:
         backend = _make_backend()
 
         # Down on a non-existent sandbox should succeed
-        result = backend.sandbox_down(sandbox_db="__test_nonexistent99")
+        result = backend.sandbox_down(sandbox_db="SBX_000000000099")
         assert result.status == "ok"
 
     def test_sandbox_up_multiple_schemas(self) -> None:

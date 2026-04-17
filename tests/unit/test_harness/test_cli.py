@@ -110,21 +110,21 @@ def _write_fixture_manifest(dest: Path) -> None:
 class TestWriteManifestSandbox:
     def test_persist_sandbox_to_manifest(self, tmp_path: Path) -> None:
         _write_fixture_manifest(tmp_path)
-        write_manifest_sandbox(tmp_path, "__test_run_123")
+        write_manifest_sandbox(tmp_path, "SBX_000000000123")
 
         manifest = read_manifest(tmp_path)
-        assert manifest["runtime"]["sandbox"]["connection"]["database"] == "__test_run_123"
+        assert manifest["runtime"]["sandbox"]["connection"]["database"] == "SBX_000000000123"
         # Original fields are preserved
         assert manifest["technology"] == "sql_server"
         assert manifest["extraction"]["schemas"] == ["dbo", "silver"]
 
     def test_persist_overwrites_existing_sandbox(self, tmp_path: Path) -> None:
         _write_fixture_manifest(tmp_path)
-        write_manifest_sandbox(tmp_path, "__test_old_run")
-        write_manifest_sandbox(tmp_path, "__test_new_run")
+        write_manifest_sandbox(tmp_path, "SBX_000000000002")
+        write_manifest_sandbox(tmp_path, "SBX_000000000003")
 
         manifest = read_manifest(tmp_path)
-        assert manifest["runtime"]["sandbox"]["connection"]["database"] == "__test_new_run"
+        assert manifest["runtime"]["sandbox"]["connection"]["database"] == "SBX_000000000003"
 
     def test_missing_runtime_sandbox_raises(self, tmp_path: Path) -> None:
         (tmp_path / "manifest.json").write_text(
@@ -146,7 +146,7 @@ class TestWriteManifestSandbox:
         )
 
         with pytest.raises(ValueError, match="runtime.sandbox"):
-            write_manifest_sandbox(tmp_path, "__test_run_123")
+            write_manifest_sandbox(tmp_path, "SBX_000000000123")
 
     def test_preserves_existing_oracle_sandbox_role(self, tmp_path: Path) -> None:
         (tmp_path / "manifest.json").write_text(
@@ -182,7 +182,7 @@ class TestWriteManifestSandbox:
 class TestClearManifestSandbox:
     def test_clear_removes_sandbox_key(self, tmp_path: Path) -> None:
         _write_fixture_manifest(tmp_path)
-        write_manifest_sandbox(tmp_path, "__test_run_123")
+        write_manifest_sandbox(tmp_path, "SBX_000000000123")
         clear_manifest_sandbox(tmp_path)
 
         manifest = read_manifest(tmp_path)
@@ -203,10 +203,10 @@ class TestResolveSandboxDb:
         from shared.test_harness import _resolve_sandbox_db
 
         _write_fixture_manifest(tmp_path)
-        write_manifest_sandbox(tmp_path, "__test_manifest_run")
+        write_manifest_sandbox(tmp_path, "SBX_00000000000A")
 
         sandbox_db, manifest = _resolve_sandbox_db(tmp_path)
-        assert sandbox_db == "__test_manifest_run"
+        assert sandbox_db == "SBX_00000000000A"
         assert "technology" in manifest
 
     def test_missing_sandbox_exits(self, tmp_path: Path) -> None:
@@ -280,7 +280,7 @@ class TestCLISandboxUpPersists:
 
         backend_mock = MagicMock()
         backend_mock.sandbox_up.return_value = SandboxUpOutput(
-            sandbox_database="__test_e2e_run",
+            sandbox_database="SBX_00000000000B",
             status="ok",
             tables_cloned=["dbo.Product"],
             views_cloned=[],
@@ -297,7 +297,7 @@ class TestCLISandboxUpPersists:
 
         assert result.exit_code == 0
         manifest = json.loads((tmp_path / "manifest.json").read_text())
-        assert manifest["runtime"]["sandbox"]["connection"]["database"] == "__test_e2e_run"
+        assert manifest["runtime"]["sandbox"]["connection"]["database"] == "SBX_00000000000B"
 
     def test_sandbox_up_error_does_not_write_manifest(self, tmp_path: Path) -> None:
         from typer.testing import CliRunner
@@ -309,7 +309,7 @@ class TestCLISandboxUpPersists:
 
         backend_mock = MagicMock()
         backend_mock.sandbox_up.return_value = SandboxUpOutput(
-            sandbox_database="__test_e2e_run",
+            sandbox_database="SBX_00000000000B",
             status="error",
             tables_cloned=[],
             views_cloned=[],
@@ -326,7 +326,7 @@ class TestCLISandboxUpPersists:
 
         assert result.exit_code == 1
         manifest = json.loads((tmp_path / "manifest.json").read_text())
-        assert manifest["runtime"]["sandbox"]["connection"]["database"] == "__test_template"
+        assert manifest["runtime"]["sandbox"]["connection"]["database"] == "SBX_TEMPLATE0000"
 
 
 class TestCLISandboxDownClears:
@@ -338,12 +338,12 @@ class TestCLISandboxDownClears:
         from shared.test_harness import app
 
         _write_fixture_manifest(tmp_path)
-        write_manifest_sandbox(tmp_path, "__test_e2e_run")
+        write_manifest_sandbox(tmp_path, "SBX_00000000000B")
         runner = CliRunner()
 
         backend_mock = MagicMock()
         backend_mock.sandbox_down.return_value = SandboxDownOutput(
-            sandbox_database="__test_e2e_run", status="ok",
+            sandbox_database="SBX_00000000000B", status="ok",
         )
 
         with (
@@ -363,12 +363,12 @@ class TestCLISandboxDownClears:
         from shared.test_harness import app
 
         _write_fixture_manifest(tmp_path)
-        write_manifest_sandbox(tmp_path, "__test_manifest_run")
+        write_manifest_sandbox(tmp_path, "SBX_00000000000A")
         runner = CliRunner()
 
         backend_mock = MagicMock()
         backend_mock.sandbox_down.return_value = SandboxDownOutput(
-            sandbox_database="__test_manifest_run", status="ok",
+            sandbox_database="SBX_00000000000A", status="ok",
         )
 
         with (
@@ -379,7 +379,7 @@ class TestCLISandboxDownClears:
             result = runner.invoke(app, ["sandbox-down", "--project-root", str(tmp_path)])
 
         assert result.exit_code == 0
-        backend_mock.sandbox_down.assert_called_once_with(sandbox_db="__test_manifest_run")
+        backend_mock.sandbox_down.assert_called_once_with(sandbox_db="SBX_00000000000A")
 
     def test_sandbox_down_error_exits_1_and_preserves_manifest(self, tmp_path: Path) -> None:
         from typer.testing import CliRunner
@@ -387,12 +387,12 @@ class TestCLISandboxDownClears:
         from shared.test_harness import app
 
         _write_fixture_manifest(tmp_path)
-        write_manifest_sandbox(tmp_path, "__test_manifest_run")
+        write_manifest_sandbox(tmp_path, "SBX_00000000000A")
         runner = CliRunner()
 
         backend_mock = MagicMock()
         backend_mock.sandbox_down.return_value = SandboxDownOutput(
-            sandbox_database="__test_manifest_run",
+            sandbox_database="SBX_00000000000A",
             status="error",
             errors=[ErrorEntry(code="SANDBOX_DROP_FAILED", message="drop failed")],
         )
@@ -405,9 +405,9 @@ class TestCLISandboxDownClears:
             result = runner.invoke(app, ["sandbox-down", "--project-root", str(tmp_path)])
 
         assert result.exit_code == 1
-        backend_mock.sandbox_down.assert_called_once_with(sandbox_db="__test_manifest_run")
+        backend_mock.sandbox_down.assert_called_once_with(sandbox_db="SBX_00000000000A")
         manifest = json.loads((tmp_path / "manifest.json").read_text())
-        assert manifest["runtime"]["sandbox"]["connection"]["database"] == "__test_manifest_run"
+        assert manifest["runtime"]["sandbox"]["connection"]["database"] == "SBX_00000000000A"
 
 
 class TestCLIStatusFallback:
@@ -419,12 +419,12 @@ class TestCLIStatusFallback:
         from shared.test_harness import app
 
         _write_fixture_manifest(tmp_path)
-        write_manifest_sandbox(tmp_path, "__test_manifest_run")
+        write_manifest_sandbox(tmp_path, "SBX_00000000000A")
         runner = CliRunner()
 
         backend_mock = MagicMock()
         backend_mock.sandbox_status.return_value = SandboxStatusOutput(
-            sandbox_database="__test_manifest_run", status="ok", exists=True,
+            sandbox_database="SBX_00000000000A", status="ok", exists=True,
         )
 
         with (
@@ -436,7 +436,7 @@ class TestCLIStatusFallback:
 
         assert result.exit_code == 0
         backend_mock.sandbox_status.assert_called_once_with(
-            sandbox_db="__test_manifest_run",
+            sandbox_db="SBX_00000000000A",
             schemas=["dbo", "silver"],
         )
 
@@ -507,7 +507,7 @@ class TestCLIStatusFallback:
                             "connection": {
                                 "host": "127.0.0.1",
                                 "port": "1433",
-                                "database": "__test_existing",
+                                "database": "SBX_000000000001",
                                 "user": "sa",
                                 "password_env": "SANDBOX_MSSQL_PASSWORD",
                             },
@@ -565,7 +565,7 @@ class TestCLIExecuteSpec:
         from shared.test_harness import app
 
         _write_fixture_manifest(tmp_path)
-        write_manifest_sandbox(tmp_path, "__test_e2e_run")
+        write_manifest_sandbox(tmp_path, "SBX_00000000000B")
 
         unit_tests = [
             {
@@ -617,7 +617,7 @@ class TestCLIExecuteSpec:
         from shared.test_harness import app
 
         _write_fixture_manifest(tmp_path)
-        write_manifest_sandbox(tmp_path, "__test_e2e_run")
+        write_manifest_sandbox(tmp_path, "SBX_00000000000B")
 
         unit_tests = [
             {
@@ -676,7 +676,7 @@ class TestCLIExecuteSpec:
         from shared.test_harness import app
 
         _write_fixture_manifest(tmp_path)
-        write_manifest_sandbox(tmp_path, "__test_e2e_run")
+        write_manifest_sandbox(tmp_path, "SBX_00000000000B")
 
         unit_tests = [
             {
@@ -714,7 +714,7 @@ class TestCLIExecuteSpec:
     def test_execute_spec_output_model(self) -> None:
         result = ExecuteSpecOutput.model_validate({
             "schema_version": "1.0",
-            "sandbox_database": "__test_abc123",
+            "sandbox_database": "SBX_ABC123000000",
             "spec_path": "test-specs/silver.dimproduct.json",
             "total": 2,
             "ok": 1,
@@ -785,7 +785,7 @@ class TestCorruptJsonHandling:
                         "sandbox": {
                             "technology": "sql_server",
                             "dialect": "tsql",
-                            "connection": {"database": "__test_abc123"},
+                            "connection": {"database": "SBX_ABC123000000"},
                         }
                     },
                 }
@@ -815,7 +815,7 @@ class TestCorruptJsonHandling:
                         "sandbox": {
                             "technology": "sql_server",
                             "dialect": "tsql",
-                            "connection": {"database": "__test_abc123"},
+                            "connection": {"database": "SBX_ABC123000000"},
                         }
                     },
                 }

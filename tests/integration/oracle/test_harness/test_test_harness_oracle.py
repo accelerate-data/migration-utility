@@ -64,7 +64,7 @@ class TestOracleSandboxLifecycle:
             sandbox_schema = result.sandbox_database
 
             assert result.status in ("ok", "partial"), result.errors
-            assert sandbox_schema.startswith("__test_")
+            assert sandbox_schema.startswith("SBX_")
             assert len(result.tables_cloned) > 0
             assert any(BRONZE_CURRENCY in t for t in result.tables_cloned)
             assert any(BRONZE_PROMOTION in t for t in result.tables_cloned)
@@ -126,7 +126,7 @@ class TestOracleSandboxLifecycle:
 
     def test_sandbox_down_idempotent(self) -> None:
         backend = _make_backend()
-        result = backend.sandbox_down(sandbox_db="__test_nonexistent99")
+        result = backend.sandbox_down(sandbox_db="SBX_000000000099")
         assert result.status == "ok"
 
 
@@ -556,7 +556,7 @@ class TestOraclePdbLifecycle:
         """_drop_sandbox_pdb does not raise for a PDB that never existed."""
         backend = _make_backend()
         # Should not raise — silently ignores missing PDBs
-        backend._drop_sandbox_pdb("__test_nonexistent99")
+        backend._drop_sandbox_pdb("SBX_000000000099")
 
     def test_connect_sandbox_connects_to_pdb(self) -> None:
         """_connect_sandbox opens a usable connection to a sandbox PDB."""
@@ -582,7 +582,7 @@ class TestOraclePdbLifecycle:
         sandbox_name = result.sandbox_database
         try:
             assert result.status in ("ok", "partial"), result.errors
-            assert sandbox_name.startswith("__test_")
+            assert sandbox_name.startswith("SBX_")
 
             # Verify PDB exists in V$PDBS
             with backend._connect_cdb() as conn:

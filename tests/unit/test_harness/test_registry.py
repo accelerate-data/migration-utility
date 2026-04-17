@@ -46,7 +46,7 @@ class TestBackendRegistry:
 class TestSandboxDbNameGeneration:
     def test_name_has_correct_prefix(self) -> None:
         name = generate_sandbox_name()
-        assert name.startswith("__test_")
+        assert name.startswith("SBX_")
 
     def test_name_is_unique(self) -> None:
         names = {generate_sandbox_name() for _ in range(10)}

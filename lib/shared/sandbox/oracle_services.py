@@ -1,10 +1,10 @@
 """Oracle sandbox backend using python-oracledb.
 
 Oracle sandboxes are PDB-level (database-level): ``sandbox_up`` creates a
-Pluggable Database ``__test_<hex>`` via the CDB root connection, creates
-schema users inside the PDB, then clones tables and procedures from the source
-schema via explicit DDL and ALL_SOURCE.  ``sandbox_down`` closes and drops the
-PDB including datafiles.
+Pluggable Database ``SBX_<12 uppercase hex>`` via the CDB root connection,
+creates schema users inside the PDB, then clones tables and procedures from
+the source schema via explicit DDL and ALL_SOURCE.  ``sandbox_down`` closes
+and drops the PDB including datafiles.
 
 Known limitations:
 - ``RESOURCE`` role and ``UNLIMITED TABLESPACE`` are broad grants — acceptable
@@ -12,8 +12,8 @@ Known limitations:
 - Explicit DDL cloning does not copy FK, PK, CHECK, or UNIQUE constraints.
   Fixture FK constraint disabling is therefore a no-op (and not needed).
 - Partitioned tables are cloned as non-partitioned heap tables.
-- PDB names follow the ``__test_<12hex>`` pattern (19 chars), within Oracle's
-  30-character PDB name limit.
+- PDB names follow the ``SBX_<12 uppercase hex>`` pattern (16 chars), within
+  Oracle's 30-character PDB name limit.
 - No GENERATED AS IDENTITY handling; callers must omit identity columns.
 """
 
@@ -73,7 +73,16 @@ logger = logging.getLogger(__name__)
 
 # Oracle 23ai allows identifiers up to 128 bytes.
 _ORA_IDENTIFIER_RE = re.compile(r"^[a-zA-Z_$#][a-zA-Z0-9_$#]*$")
-_ORA_SANDBOX_NAME_RE = re.compile(r"^__test_[a-zA-Z0-9_]{1,116}$")
+_ORA_SANDBOX_NAME_RE = re.compile(r"^SBX_[A-F0-9]{12}$")
+
+
+def _generate_oracle_pdb_name() -> str:
+    """Generate an Oracle-safe PDB name: ``SBX_<12 uppercase hex>``.
+
+    Oracle rejects PDB names starting with ``__`` (ORA-65000), so PDBs use
+    this generator instead of the generic ``generate_sandbox_name()``.
+    """
+    return f"SBX_{uuid.uuid4().hex[:12].upper()}"
 
 
 def _validate_oracle_identifier(name: str) -> None:
@@ -339,18 +348,35 @@ class _OracleSandboxCore(SandboxBackend):
         """Create a pluggable database from pdbseed and open it.
 
         Uses ``_connect_cdb()`` to issue DDL against the CDB root.
-        The PDB name is double-quoted to support ``__test_`` prefixed names.
+        PDB names are ``SBX_<hex>`` — valid unquoted Oracle identifiers,
+        so no double-quoting is needed.
+
+        Oracle Free does not enable Oracle Managed Files (OMF) by default,
+        so we discover the oradata directory from ``DBA_DATA_FILES`` and
+        pass it as ``CREATE_FILE_DEST``.
         """
         _validate_oracle_sandbox_name(sandbox_name)
         temp_password = f"P{uuid.uuid4().hex[:16]}x"
         with self._connect_cdb() as conn:
             cursor = conn.cursor()
+
+            # Discover oradata directory (go up two levels from first datafile)
             cursor.execute(
-                f'CREATE PLUGGABLE DATABASE "{sandbox_name}" '
-                f'ADMIN USER pdb_admin IDENTIFIED BY "{temp_password}"'
+                "SELECT FILE_NAME FROM DBA_DATA_FILES WHERE ROWNUM = 1"
+            )
+            row = cursor.fetchone()
+            if row is None:
+                raise RuntimeError("Cannot discover oradata path: DBA_DATA_FILES is empty")
+            from pathlib import PurePosixPath
+            oradata_path = str(PurePosixPath(row[0]).parent.parent)
+
+            cursor.execute(
+                f"CREATE PLUGGABLE DATABASE {sandbox_name} "
+                f'ADMIN USER pdb_admin IDENTIFIED BY "{temp_password}" '
+                f"CREATE_FILE_DEST = '{oradata_path}'"
             )
             cursor.execute(
-                f'ALTER PLUGGABLE DATABASE "{sandbox_name}" OPEN'
+                f"ALTER PLUGGABLE DATABASE {sandbox_name} OPEN"
             )
         logger.info("event=oracle_sandbox_pdb_created sandbox=%s", sandbox_name)
 
@@ -358,16 +384,17 @@ class _OracleSandboxCore(SandboxBackend):
         """Close and drop a sandbox PDB including datafiles.
 
         Silently ignores errors if the PDB does not exist.
+        PDB names are valid unquoted identifiers — no double-quoting needed.
         """
         _validate_oracle_sandbox_name(sandbox_name)
         try:
             with self._connect_cdb() as conn:
                 cursor = conn.cursor()
                 cursor.execute(
-                    f'ALTER PLUGGABLE DATABASE "{sandbox_name}" CLOSE IMMEDIATE'
+                    f"ALTER PLUGGABLE DATABASE {sandbox_name} CLOSE IMMEDIATE"
                 )
                 cursor.execute(
-                    f'DROP PLUGGABLE DATABASE "{sandbox_name}" INCLUDING DATAFILES'
+                    f"DROP PLUGGABLE DATABASE {sandbox_name} INCLUDING DATAFILES"
                 )
             logger.info("event=oracle_sandbox_pdb_dropped sandbox=%s", sandbox_name)
         except _import_oracledb().DatabaseError:
@@ -391,10 +418,9 @@ class _OracleSandboxCore(SandboxBackend):
     def _create_sandbox_schema(self, cursor: Any, sandbox_schema: str) -> None:
         """Create sandbox user, dropping any prior instance first.
 
-        Sandbox names start with ``__`` so they must be double-quoted in Oracle
-        DDL (unquoted identifiers must start with a letter). Quoted identifiers
-        are stored verbatim (case-sensitive) in ALL_USERS, so all lookups use
-        exact-case matching rather than UPPER().
+        ``SBX_<hex>`` names are valid unquoted Oracle identifiers but are
+        double-quoted here for consistency.  ALL_USERS stores quoted names
+        verbatim (case-sensitive), so lookups use exact-case matching.
         """
         temp_password = f"P{uuid.uuid4().hex[:16]}x"
         cursor.execute(
