@@ -495,7 +495,7 @@ Evidence:
 - `python -m json.tool repo-map.json >/tmp/repo-map-vu-1104-final.json`
 - `git diff --check`
 
-- [ ] **Step 2: Run independent quality gates**
+- [x] **Step 2: Run independent quality gates**
 
 Dispatch independent reviewers with only the issue text, approved plan, changed-file diff, and verification results:
 
@@ -506,11 +506,21 @@ Dispatch independent reviewers with only the issue text, approved plan, changed-
 
 Expected: all reviewers approve or findings are fixed and re-reviewed.
 
-- [ ] **Step 3: Update Linear acceptance criteria**
+Evidence:
+
+- Code review: pass.
+- Simplification review: pass.
+- Acceptance-criteria review: pass.
+- Test coverage review: initial blocker on malformed-dependency unchanged-output
+  proof fixed in `5e549b2`; re-review passed with no blockers.
+
+- [x] **Step 3: Update Linear acceptance criteria**
 
 Update the main issue description in `VU-1104` so completed acceptance criteria are checked in place. Do not add a duplicate acceptance criteria section.
 
-- [ ] **Step 4: Post Linear implementation note**
+Evidence: Linear `VU-1104` acceptance criteria were checked in place.
+
+- [x] **Step 4: Post Linear implementation note**
 
 Post a final implementation comment on `VU-1104` summarizing:
 
@@ -519,6 +529,8 @@ Post a final implementation comment on `VU-1104` summarizing:
 - manual checks, or `No manual tests required.`;
 - code review, simplification review, test coverage review, and AC review outcomes;
 - remaining risks, if any.
+
+Evidence: posted Linear implementation comment `7d53ca09-5e9f-489f-b411-47dd958dcbb7`.
 
 - [ ] **Step 5: Create final implementation commit if needed**
 
