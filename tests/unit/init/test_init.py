@@ -8,11 +8,13 @@ from __future__ import annotations
 
 import json
 import subprocess
+from hashlib import sha256
 from pathlib import Path
 
 import pytest
 from typer.testing import CliRunner
 
+from shared import init_templates
 from shared.init import (
     app,
     GITIGNORE_ENTRIES,
@@ -26,6 +28,22 @@ from shared.init import (
 from shared.output_models.init import LocalOverrideDiscoveryOutput
 
 RUNNER = CliRunner()
+
+SCAFFOLD_GOLDEN_HASHES = {
+    "sql_server": {
+        "CLAUDE.md": "54388313acccc4f0b06c588010b3a336a8746faad78299fb874fb787df366f8d",
+        "README.md": "33bf498002cb54876a2a544109c7ef6b98664673b73c62b99c3322445b6f4824",
+        ".envrc": "05377c6d9606aea1451ca4b96d351252fdfe26e6d4ddc815e000af12e3c9f8ac",
+        "repo-map.json": "e706817c0eb802839cc8d26d474e604ec63cd350cc0ba8f2f043e6e34ed098ef",
+    },
+    "oracle": {
+        "CLAUDE.md": "881fcfa23518c3089059bd459e73ca2e6c3fc4efb833eb12ccefe04c385ee8b1",
+        "README.md": "76965ef2d1d770a804ee27e69b493003785fd9ecea26cf94e80fd4d4655da347",
+        ".envrc": "8f730cba08e545abe16e01b66b8a3a18ae0e20fa15e2e1fae3fb3d3f86c7710d",
+        "repo-map.json": "b4fc3898be790dfeffb7ecd90666e61e94139672e2b70a8caf609334ff17f619",
+    },
+}
+HOOK_GOLDEN_HASH = "647af779051fd9abb37885d0b46c9baf07a56fa2f4bd3e4afbd72ab28dfee025"
 
 
 # ── scaffold-project (sql_server default) ───────────────────────────────────
@@ -231,6 +249,19 @@ class TestScaffoldHooks:
 
         assert result.returncode == 1
 
+    @pytest.mark.parametrize("technology", ["sql_server", "oracle"])
+    def test_pre_commit_hook_output_matches_golden_hash(
+        self,
+        tmp_path: Path,
+        technology: str,
+    ) -> None:
+        subprocess.run(["git", "init"], cwd=tmp_path, capture_output=True, check=True)
+        run_scaffold_hooks(tmp_path, technology=technology)
+
+        hook_content = (tmp_path / ".githooks" / "pre-commit").read_text(encoding="utf-8")
+
+        assert sha256(hook_content.encode()).hexdigest() == HOOK_GOLDEN_HASH
+
 
 # ── source registry ─────────────────────────────────────────────────────────
 
@@ -262,6 +293,33 @@ class TestSourceRegistry:
             assert len(config.envrc_fn()) > 0
             assert len(config.repo_map_fn()) > 0
             assert len(config.pre_commit_hook_fn()) > 0
+
+
+class TestSourceTemplateConfig:
+    def test_source_template_configs_hold_explicit_technology_values(self) -> None:
+        configs = init_templates.SOURCE_TEMPLATE_CONFIGS
+
+        assert set(configs) == {"sql_server", "oracle"}
+        assert configs["sql_server"].source_system == "Microsoft SQL Server"
+        assert configs["sql_server"].procedure_language == "T-SQL"
+        assert configs["sql_server"].env_prefix == "MSSQL"
+        assert configs["sql_server"].example_database == "YourDatabase"
+        assert configs["oracle"].source_system == "Oracle Database"
+        assert configs["oracle"].procedure_language == "PL/SQL"
+        assert configs["oracle"].env_prefix == "ORACLE"
+        assert configs["oracle"].example_service == "FREEPDB1"
+
+    @pytest.mark.parametrize("technology", ["sql_server", "oracle"])
+    def test_scaffold_project_output_matches_golden_hashes(
+        self,
+        tmp_path: Path,
+        technology: str,
+    ) -> None:
+        run_scaffold_project(tmp_path, technology=technology)
+
+        for relative_path, expected_hash in SCAFFOLD_GOLDEN_HASHES[technology].items():
+            content = (tmp_path / relative_path).read_text(encoding="utf-8")
+            assert sha256(content.encode()).hexdigest() == expected_hash
 
 
 class TestWriteLocalEnvOverrides:
