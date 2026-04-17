@@ -16,6 +16,7 @@ Harness overrides:
 - Do not spawn sub-agents for this eval.
 - Do not run dbt. Simulate validation by inspecting whether every model named in each candidate's `Validation:` field exists in the run project after rewiring.
 - If a model named in `Validation:` exists but contains `EVAL_VALIDATION_FAIL`, treat validation as failed.
+- For eval fixtures, every non-staging model named in `Validation:` is a declared consumer and must reference the candidate's `stg_*` model after rewiring.
 - Process approved `Type: stg` candidates independently and continue after a candidate fails.
 - Do not apply `Type: int` or `Type: mart` candidates, and do not change their execution status.
 

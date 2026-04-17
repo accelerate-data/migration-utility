@@ -1,5 +1,5 @@
 select
-  order_id,
   customer_id,
-  amount
+  sum(amount) as total_amount
 from {{ source('bronze', 'orders') }}
+group by customer_id

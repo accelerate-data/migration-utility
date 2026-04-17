@@ -38,26 +38,28 @@ before editing files or plan status.
 
 1. Read the markdown plan and isolate exactly one `## Candidate: <candidate-id>`
    section.
-2. Extract `Output:`, `Validation:`, and any candidate notes that describe source
-   changes or consumer rewires.
+2. Extract `Output:` and `Validation:`.
 3. Create or update the declared `stg_*` model.
-4. Rewire every downstream consumer declared by the candidate. Treat consumers
-   named in `Validation:` as the authoritative validation scope.
+4. Rewire every downstream consumer named in `Validation:`. Treat `Validation:`
+   as the authoritative candidate scope.
 5. Run the smallest validation command that covers the changed staging model and
    every declared consumer. Prefer the command listed in `Validation:`.
 6. Update only this candidate section:
    - `Execution status: applied` when validation passes.
    - `Execution status: failed` when attempted validation fails.
    - `Execution status: blocked` when required candidate inputs are missing.
+   - Add exactly one `Validation result:` bullet for `applied` or `failed`.
+   - Add exactly one `Blocked reason:` bullet for `blocked`.
+   - Do not add alternate status fields such as `Applied:`.
 
 ## Rewire Rules
 
-- Rewire all declared consumers, not only the first consumer.
+- Rewire all consumers declared in `Validation:`, not only the first consumer.
 - Keep rewires mechanical and source-facing: update refs or source references
   needed by the staging candidate.
 - Do not implement higher-layer `int` or `mart` refactors here.
-- Do not infer extra consumers beyond the declared validation scope. If the plan
-  appears incomplete, note the risk in the final response without expanding the
+- Do not infer extra consumers beyond `Validation:`. If the plan appears
+  incomplete, note the risk in the final response without expanding the
   candidate scope.
 
 ## Validation

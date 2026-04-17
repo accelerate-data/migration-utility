@@ -24,7 +24,6 @@
 - Output: dbt/models/staging/stg_bronze__orders.sql
 - Depends on: none
 - Validation: dbt build --select stg_bronze__orders int_sales_orders
-- Rewire consumers: dbt/models/intermediate/int_sales_orders.sql
 - Execution status: planned
 
 ## Candidate: STG-002
@@ -34,7 +33,24 @@
 - Output: dbt/models/staging/stg_bronze__returns.sql
 - Depends on: none
 - Validation: dbt build --select stg_bronze__returns int_returns
-- Rewire consumers: dbt/models/intermediate/int_returns.sql
+- Execution status: planned
+
+## Candidate: STG-003
+
+- [x] Approve: yes
+- Type: stg
+- Output: missing
+- Depends on: none
+- Validation: dbt build --select stg_missing
+- Execution status: planned
+
+## Candidate: STG-004
+
+- [ ] Approve: no
+- Type: stg
+- Output: dbt/models/staging/stg_bronze__ignored.sql
+- Depends on: none
+- Validation: dbt build --select stg_bronze__ignored
 - Execution status: planned
 
 ## Candidate: INT-001

@@ -51,7 +51,8 @@ candidate to `in_progress` before it is applied and to `completed` or
 
 ### Step 2 -- Select Candidates
 
-Select only candidates with `Approve: yes` or checked approval syntax.
+Select only candidates with exact checked approval syntax:
+`- [x] Approve: yes`.
 
 Mode behavior:
 

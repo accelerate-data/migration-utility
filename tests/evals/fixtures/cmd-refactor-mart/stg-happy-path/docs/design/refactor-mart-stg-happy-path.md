@@ -15,7 +15,7 @@
 
 ## Candidate Summary
 
-- STG-001 normalizes `stg_bronze__orders` and rewires multiple consumers.
+- STG-001 normalizes `stg_bronze__orders` and rewires multiple direct consumers.
 - INT-001 and MART-001 remain planned for a later wave.
 
 ## Candidate: STG-001
@@ -24,8 +24,7 @@
 - Type: stg
 - Output: dbt/models/staging/stg_bronze__orders.sql
 - Depends on: none
-- Validation: dbt build --select stg_bronze__orders int_sales_orders fct_sales
-- Rewire consumers: dbt/models/intermediate/int_sales_orders.sql, dbt/models/marts/fct_sales.sql
+- Validation: dbt build --select stg_bronze__orders int_sales_orders int_sales_order_summary
 - Execution status: planned
 
 ## Candidate: INT-001
