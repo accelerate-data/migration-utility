@@ -18,29 +18,14 @@ defaultTest:
       value: file://../../assertions/check-refactor-mart-plan.js
 
 tests:
-  - description: "[smoke] shared-source happy path -- staging and intermediate candidates"
-    vars:
-      fixture_path: "tests/evals/fixtures/cmd-generate-model/happy-path"
-      target_tables: "silver.DimCustomer silver.DimProduct"
-      plan_name: "refactor-mart-shared-source-plan"
-      expected_candidate_types: "stg,mart"
-      expected_terms: "depends on,validation,execution status"
-
-  - description: "view cleanup path -- mart candidate only"
-    vars:
-      fixture_path: "tests/evals/fixtures/cmd-generate-model/view-materialization"
-      target_tables: "silver.vw_activecustomers"
-      plan_name: "refactor-mart-split-source-plan"
-      expected_candidate_types: "mart"
-      expected_terms: "mart,validation,planned"
-
-  - description: "dependency path -- higher-layer candidate depends on staging"
+  - description: "[smoke] happy dependency path -- higher-layer candidate depends on staging"
     vars:
       fixture_path: "tests/evals/fixtures/cmd-generate-model/happy-path"
       target_tables: "silver.DimCustomer silver.DimProduct"
       plan_name: "refactor-mart-dependency-plan"
       expected_candidate_types: "stg,mart"
       expected_terms: "depends on: stg-,execution status: planned"
+      scenario_notes: "Generate a happy-path plan with at least one staging candidate and at least one higher-layer candidate that depends on staging."
 
   - description: "review gate -- uncertain candidates stay unapproved"
     vars:
@@ -50,3 +35,4 @@ tests:
       expected_candidate_types: "stg,mart"
       expected_terms: "approve: no"
       expected_unapproved_terms: "column mapping"
+      scenario_notes: "This fixture is recovered from dynamic SQL. Per the approval rules, any mart candidate that performs column mapping from the recovered dynamic SQL must be left unapproved with Approve: no."

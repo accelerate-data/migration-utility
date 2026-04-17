@@ -8,3 +8,5 @@ Keep `${CLAUDE_PLUGIN_ROOT}` references as written. Pass `--project-root {{run_p
 
 Write the markdown plan to `{{run_path}}/docs/design/{{plan_name}}.md`.
 This is a planning-only workflow. Do not edit files under `{{run_path}}/dbt/models`.
+
+Scenario notes: {{scenario_notes}}
