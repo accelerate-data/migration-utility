@@ -550,7 +550,7 @@ def check_freetds(
         help="Register FreeTDS in unixODBC when the brew package is installed but not registered.",
     ),
 ) -> None:
-    """Check Homebrew FreeTDS installation and unixODBC registration."""
+    """Check FreeTDS installation and unixODBC registration."""
     try:
         result = run_check_freetds(register_missing=register_missing)
     except RuntimeError as exc:

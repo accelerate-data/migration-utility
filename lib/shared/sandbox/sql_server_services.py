@@ -358,7 +358,7 @@ class _SqlServerSandboxCore(SandboxBackend):
             if "Can't open lib" in msg:
                 raise RuntimeError(
                     f"ODBC driver '{self.driver}' not found. "
-                    "Install FreeTDS: brew install freetds"
+                    "Install FreeTDS using your platform package manager and ensure unixODBC can see it."
                 ) from exc
             raise
         try:
