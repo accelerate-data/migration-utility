@@ -60,6 +60,10 @@ Read these before drafting candidates:
    - replacing duplicated final select logic;
    - rewiring a mart to new staging or intermediate candidates; or
    - separating final metric naming from reusable upstream logic.
+   Every selected mart target must have a corresponding mart candidate, even
+   when that candidate remains unapproved for review. Do not collapse a target
+   mart's final column mapping into a staging candidate unless an existing
+   reviewed staging contract already proves that the mapping is source-facing.
 5. Reject or defer candidates that are too broad, mix grains, need domain
    confirmation, or would require execution behavior from `/refactor-mart`.
 
@@ -97,8 +101,8 @@ dbt model already proves the mapping.
 Write exactly one markdown plan to the path supplied by the command. The plan
 must include:
 
-- title and target list;
-- assumptions and non-goals;
+- title and target list that preserves every selected target FQN;
+- separate `## Targets`, `## Assumptions`, and `## Non-Goals` sections;
 - candidate summary counts by type;
 - one level-2 section per candidate using `references/plan-file-contract.md`;
 - rejected or deferred candidates when useful;

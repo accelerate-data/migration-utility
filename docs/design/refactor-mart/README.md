@@ -13,10 +13,9 @@ The command surface is mart-oriented because the user selects final business out
 ## Skills
 
 - `planning-refactor-mart` analyzes the selected mart unit, derives candidates, and writes the markdown plan.
-- `applying-staging-candidate` applies one approved staging candidate for a source table and rewires all affected downstream consumers.
-- `applying-refactor-mart-candidate` applies one approved higher-layer candidate, including `int` extraction and the associated mart rewrites.
+- Future apply workflows will own approved staging and higher-layer execution.
 
-Validation is a required phase inside the apply skills rather than a separate top-level skill.
+Validation is a required phase inside apply workflows rather than a separate top-level skill.
 
 ## Layer Rules
 

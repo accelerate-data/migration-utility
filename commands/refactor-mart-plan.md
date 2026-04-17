@@ -98,7 +98,7 @@ Candidate IDs use stable prefixes:
 The plan must also include:
 
 - source target list;
-- planning assumptions;
+- separate `## Targets`, `## Assumptions`, and `## Non-Goals` sections;
 - rejected or deferred candidates when relevant;
 - execution instructions: run `/refactor-mart <plan-file> stg` before
   `/refactor-mart <plan-file> int`; and

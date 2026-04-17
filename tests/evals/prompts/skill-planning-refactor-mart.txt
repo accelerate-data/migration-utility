@@ -8,6 +8,17 @@ Keep `${CLAUDE_PLUGIN_ROOT}` references as written. Pass `--project-root {{run_p
 
 Write the markdown plan to `{{run_path}}/docs/design/{{plan_name}}.md`.
 This is a planning-only workflow. Do not edit files under `{{run_path}}/dbt/models`.
+The plan must include these top-level sections: `## Targets`,
+`## Assumptions`, `## Non-Goals`, `## Candidate Summary`, one `## Candidate:
+<ID>` section per candidate, `## Execution Order`, and an explicit no-mutation
+statement.
+The `## Targets` section must list every selected target exactly as passed,
+including schema qualifiers.
+Every selected mart target must have a `mart` candidate. Keep target final
+column mapping in the mart candidate unless a reviewed existing staging contract
+already proves the mapping is source-facing.
+Approval lines must use only these valid combinations: `- [x] Approve: yes`
+or `- [ ] Approve: no`.
 In your final response, report the plan location as `docs/design/{{plan_name}}.md`
 or as the full path `{{run_path}}/docs/design/{{plan_name}}.md`.
 

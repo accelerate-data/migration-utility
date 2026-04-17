@@ -73,11 +73,12 @@ For `int` mode, check dependencies before applying each selected candidate:
 
 For each selected, unblocked candidate:
 
-- `stg` mode: run `/applying-staging-candidate <plan-file> <candidate-id>`.
-- `int` mode: run
-  `/applying-refactor-mart-candidate <plan-file> <candidate-id>`.
+- `stg` mode: delegate to the future staging-candidate apply workflow for
+  `<plan-file> <candidate-id>`.
+- `int` mode: delegate to the future higher-layer candidate apply workflow for
+  `<plan-file> <candidate-id>`.
 
-The applying skill owns dbt file changes, validation, and candidate status
+The apply workflow owns dbt file changes, validation, and candidate status
 writeback. It must update the candidate section to one of:
 
 - `Execution status: applied`

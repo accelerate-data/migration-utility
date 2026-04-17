@@ -3,6 +3,7 @@
 // {
 //   run_path,
 //   plan_name,
+//   target_tables?,
 //   expected_candidate_types,
 //   expected_higher_layer_candidate?,
 //   expected_terms?,
@@ -68,13 +69,13 @@ function sameSnapshot(left, right) {
 }
 
 function candidateSections(markdown) {
-  const candidateHeading = /^## Candidate:\s+([A-Z]+-\d+)\s*$/gm;
+  const candidateHeading = /^## Candidate:\s+((STG|INT|MART)-\d+)\s*$/gm;
   const sections = [];
   let match;
 
   while ((match = candidateHeading.exec(markdown)) !== null) {
     const bodyStart = candidateHeading.lastIndex;
-    const nextMatch = /^## Candidate:\s+[A-Z]+-\d+\s*$/gm;
+    const nextMatch = /^## Candidate:\s+(STG|INT|MART)-\d+\s*$/gm;
     nextMatch.lastIndex = bodyStart;
     const next = nextMatch.exec(markdown);
     sections.push({
@@ -84,6 +85,43 @@ function candidateSections(markdown) {
   }
 
   return sections;
+}
+
+function fieldValue(section, field) {
+  const escapedField = field.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+  const match = section.body.match(new RegExp(`^-\\s+${escapedField}:\\s+(.+?)\\s*$`, 'm'));
+  return match ? match[1].trim().toLowerCase() : null;
+}
+
+function candidateType(section) {
+  return fieldValue(section, 'Type');
+}
+
+function normalizeTargetTables(value) {
+  if (!value) return [];
+  return String(value)
+    .split(/[\s,]+/)
+    .map((term) => term.trim().toLowerCase())
+    .filter(Boolean);
+}
+
+function hasSection(markdown, heading) {
+  const escapedHeading = heading.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+  return new RegExp(`^##\\s+${escapedHeading}\\s*$`, 'mi').test(markdown);
+}
+
+function sectionBody(markdown, heading) {
+  const escapedHeading = heading.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+  const headingMatch = new RegExp(`^##\\s+${escapedHeading}\\s*$`, 'mi').exec(markdown);
+  if (!headingMatch) {
+    return '';
+  }
+
+  const bodyStart = headingMatch.index + headingMatch[0].length;
+  const nextHeading = /^##\s+/gm;
+  nextHeading.lastIndex = bodyStart;
+  const nextMatch = nextHeading.exec(markdown);
+  return markdown.slice(bodyStart, nextMatch ? nextMatch.index : markdown.length);
 }
 
 module.exports = (output, context) => {
@@ -116,14 +154,40 @@ module.exports = (output, context) => {
   if (/^#{3,}\s+Candidate:/m.test(markdown)) {
     return fail('Candidate headings must use level-2 markdown: ## Candidate: <ID>');
   }
+  if (!/^#\s+Refactor[ -]Mart\b.*\bPlan\b.*$/m.test(markdown)) {
+    return fail('Plan title must be a top-level refactor-mart plan heading');
+  }
+  for (const heading of ['Targets', 'Assumptions', 'Non-Goals', 'Candidate Summary', 'Execution Order']) {
+    if (!hasSection(markdown, heading)) {
+      return fail(`Plan missing required top-level section '${heading}'`);
+    }
+  }
+  const hasNoMutationStatement =
+    /no dbt models\b[\s\S]{0,120}\b(were|have been) (created|edited|deleted|mutated|rewired)/i.test(markdown) ||
+    /does not\b[\s\S]{0,80}\bmodify any dbt models/i.test(markdown) ||
+    /does not\b[\s\S]{0,80}\b(create|edit|delete|mutate|rewire)[\s\S]{0,80}\bany dbt models/i.test(markdown) ||
+    /did not\b[\s\S]{0,80}\bmutate any dbt models/i.test(markdown);
+  if (!hasNoMutationStatement) {
+    return fail('Plan missing explicit no-mutation statement');
+  }
 
   const sections = candidateSections(markdown);
   if (sections.length === 0) {
     return fail('No candidate sections found');
   }
 
+  const targetTables = normalizeTargetTables(context.vars.target_tables);
+  if (targetTables.length > 0) {
+    const targetsBody = sectionBody(markdown, 'Targets').toLowerCase();
+    for (const target of targetTables) {
+      if (!targetsBody.includes(target)) {
+        return fail(`Targets section missing selected target '${target}'`);
+      }
+    }
+  }
+
   const requiredFields = {
-    approve: /^-\s+\[[ xX]\]\s+Approve:\s+(yes|no)\s*$/m,
+    approve: /^-\s+(?:\[[xX]\]\s+Approve:\s+yes|\[\s\]\s+Approve:\s+no)\s*$/m,
     type: /^-\s+Type:\s+(stg|int|mart)\s*$/m,
     output: /^-\s+Output:\s+\S.+$/m,
     dependsOn: /^-\s+Depends on:\s+.+$/m,
@@ -136,21 +200,34 @@ module.exports = (output, context) => {
         return fail(`Candidate ${section.id} missing or malformed field '${field}'`);
       }
     }
+    const type = candidateType(section);
+    const expectedPrefix = type && `${type.toUpperCase()}-`;
+    if (!expectedPrefix || !section.id.startsWith(expectedPrefix)) {
+      return fail(`Candidate ${section.id} prefix does not match Type: ${type}`);
+    }
   }
 
   const expectedTypes = normalizeTerms(context.vars.expected_candidate_types);
   for (const type of expectedTypes) {
-    if (!normalized.includes(`type: ${type}`)) {
+    if (!sections.some((section) => candidateType(section) === type)) {
       return fail(`Expected candidate type '${type}' not found`);
+    }
+  }
+
+  if (targetTables.length > 0) {
+    const martCount = sections.filter((section) => candidateType(section) === 'mart').length;
+    if (martCount < targetTables.length) {
+      return fail(`Expected at least one mart candidate per selected target (${targetTables.length}); found ${martCount}`);
     }
   }
 
   if (String(context.vars.expected_higher_layer_candidate || '').toLowerCase() === 'true') {
     const hasHigherLayer = sections.some((section) =>
-      /^-\s+Type:\s+(int|mart)\s*$/m.test(section.body),
+      ['int', 'mart'].includes(candidateType(section)) &&
+      /^-\s+Depends on:\s+.*\bSTG-\d+\b.*$/im.test(section.body),
     );
     if (!hasHigherLayer) {
-      return fail('Expected higher-layer int or mart candidate not found');
+      return fail('Expected higher-layer int or mart candidate depending on staging not found');
     }
   }
 

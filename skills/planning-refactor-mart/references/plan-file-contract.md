@@ -32,6 +32,8 @@ headings:
 - Use unchecked approval syntax by default: `- [ ] Approve: no`.
 - Use checked approval syntax only when the change is narrow, evidence-backed,
   and mechanically safe: `- [x] Approve: yes`.
+- Do not mix checkbox state and approval value. The only valid combinations are
+  `- [x] Approve: yes` and `- [ ] Approve: no`.
 - Do not auto-approve broad grain changes, ambiguous business logic, or changes
   that require domain review.
 
