@@ -204,7 +204,7 @@ async function extensionHook(hookName, context, options = {}) {
 
   const fixtureRoot = path.resolve(REPO_ROOT, fixturePath);
   if (!fs.existsSync(fixtureRoot)) {
-    return context;
+    throw new Error(`fixture_path does not exist: ${fixtureRoot}`);
   }
 
   const runsRoot = resolveRunsRoot(options.runsRoot);
