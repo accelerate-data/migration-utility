@@ -16,6 +16,7 @@ import sqlglot
 logger = logging.getLogger(__name__)
 
 from shared.catalog import load_proc_catalog, load_table_catalog, load_view_catalog
+from shared.catalog_models import RefEntry, ReferencesBucket, ScopedRefList
 from shared.loader import (
     CatalogFileMissingError,
     ProfileMissingError,
@@ -77,11 +78,27 @@ def resolve_selected_writer_ddl_slice(proc_cat: Any, table_fqn: str, writer_fqn:
     )
 
 
+def project_sql_dialect(project_root: Path) -> str:
+    """Return the SQL dialect configured for a migration project."""
+    return str(read_manifest(project_root).get("dialect", "tsql"))
+
+
 def collect_source_tables_from_sql(sql: str, dialect: str = "tsql") -> list[str]:
     """Collect source tables from selected SQL instead of full writer metadata."""
     statements = sqlglot.parse(sql, dialect=dialect, error_level=sqlglot.ErrorLevel.IGNORE)
     refs = collect_refs_from_statements([stmt for stmt in statements if stmt is not None], dialect=dialect)
     return sorted(set(refs.reads_from))
+
+
+def references_from_selected_sql(sql: str, dialect: str = "tsql") -> ReferencesBucket:
+    """Build writer reference evidence from selected SQL only."""
+    table_refs: list[RefEntry] = []
+    for fqn in collect_source_tables_from_sql(sql, dialect=dialect):
+        schema, _, name = fqn.rpartition(".")
+        table_refs.append(
+            RefEntry(schema=schema, name=name, is_selected=True, is_updated=False)
+        )
+    return ReferencesBucket(tables=ScopedRefList(in_scope=table_refs, out_of_scope=[]))
 
 
 def collect_source_tables(project_root: Path, writer_fqn: str) -> list[str]:

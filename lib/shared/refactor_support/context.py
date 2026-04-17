@@ -16,6 +16,7 @@ from shared.context_helpers import (
     load_table_columns,
     load_table_profile,
     load_test_spec,
+    project_sql_dialect,
     resolve_selected_writer_ddl_slice,
     sandbox_metadata,
 )
@@ -74,8 +75,9 @@ def run_context(
     statements = [] if selected_writer_ddl_slice else load_proc_statements(project_root, writer_norm)
     proc_body = "" if selected_writer_ddl_slice else load_proc_body(project_root, writer_norm)
     columns = load_table_columns(project_root, fqn_norm)
+    dialect = project_sql_dialect(project_root)
     source_tables = (
-        collect_source_tables_from_sql(selected_writer_ddl_slice)
+        collect_source_tables_from_sql(selected_writer_ddl_slice, dialect=dialect)
         if selected_writer_ddl_slice
         else collect_source_tables(project_root, writer_norm)
     )

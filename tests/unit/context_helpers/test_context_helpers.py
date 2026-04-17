@@ -11,7 +11,7 @@ from pathlib import Path
 
 import pytest
 
-from shared.context_helpers import collect_source_tables, load_object_columns
+from shared.context_helpers import collect_source_tables, collect_source_tables_from_sql, load_object_columns
 
 
 @pytest.fixture()
@@ -135,6 +135,28 @@ class TestCollectSourceTables:
         )
         result = collect_source_tables(project, "dbo.usp_legacy")
         assert result == ["bronze.orders"]
+
+
+# ── collect_source_tables_from_sql ───────────────────────────────────────────
+
+
+class TestCollectSourceTablesFromSql:
+    """Selected SQL source extraction honors the project SQL dialect."""
+
+    def test_tsql_insert_select_sources(self) -> None:
+        sql = "INSERT INTO silver.Target SELECT id FROM bronze.Product"
+        result = collect_source_tables_from_sql(sql, dialect="tsql")
+        assert result == ["bronze.product"]
+
+    def test_oracle_minus_sources(self) -> None:
+        sql = """
+            INSERT INTO silver.Target (id)
+            SELECT id FROM bronze.A
+            MINUS
+            SELECT id FROM bronze.B
+        """
+        result = collect_source_tables_from_sql(sql, dialect="oracle")
+        assert result == ["bronze.a", "bronze.b"]
 
 
 # ── load_object_columns ──────────────────────────────────────────────────────

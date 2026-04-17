@@ -13,6 +13,7 @@ from shared.context_helpers import (
     load_proc_statements,
     load_table_columns,
     load_table_profile,
+    project_sql_dialect,
     resolve_selected_writer_ddl_slice,
 )
 from shared.loader import CatalogFileMissingError, CatalogNotFoundError
@@ -69,8 +70,9 @@ def run_context(
     needs_llm = _classify_proc(project_root, writer_norm)
     proc_body = "" if selected_writer_ddl_slice else load_proc_body(project_root, writer_norm)
     columns = load_table_columns(project_root, table_norm)
+    dialect = project_sql_dialect(project_root)
     source_tables = (
-        collect_source_tables_from_sql(selected_writer_ddl_slice)
+        collect_source_tables_from_sql(selected_writer_ddl_slice, dialect=dialect)
         if selected_writer_ddl_slice
         else collect_source_tables(project_root, writer_norm)
     )

@@ -271,12 +271,18 @@ class TestRunContext:
         proc_cat["table_slices"] = {
             "silver.factsales": "insert into silver.FactSales select sale_id from bronze.Sales"
         }
+        proc_cat["references"]["tables"]["in_scope"].append(
+            {"schema": "bronze", "name": "Unrelated", "is_selected": True, "is_updated": False}
+        )
         proc_path.write_text(json.dumps(proc_cat, indent=2) + "\n", encoding="utf-8")
 
         result = run_context(ddl_path, "silver.FactSales", "dbo.usp_load_fact_sales")
 
         assert result.selected_writer_ddl_slice == "insert into silver.FactSales select sale_id from bronze.Sales"
         assert result.proc_body == ""
+        assert result.statements == []
+        assert result.source_tables == ["bronze.sales"]
+        assert set(result.source_columns) == {"bronze.sales"}
         assert not hasattr(result, "writer_ddl_slice")
 
     def test_context_missing_selected_writer_slice_raises(self, ddl_path: Path) -> None:
@@ -290,6 +296,30 @@ class TestRunContext:
 
         with pytest.raises(ValueError, match="no slice exists for target silver\\.factsales"):
             run_context(ddl_path, "silver.FactSales", "dbo.usp_load_fact_sales")
+
+    def test_context_selected_writer_slice_uses_manifest_dialect(self, ddl_path: Path) -> None:
+        """Selected-slice source extraction uses the project dialect, not a T-SQL default."""
+        manifest_path = ddl_path / "manifest.json"
+        manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
+        manifest["technology"] = "oracle"
+        manifest["dialect"] = "oracle"
+        manifest_path.write_text(json.dumps(manifest, indent=2) + "\n", encoding="utf-8")
+
+        proc_path = ddl_path / "catalog" / "procedures" / "dbo.usp_load_fact_sales.json"
+        proc_cat = json.loads(proc_path.read_text(encoding="utf-8"))
+        proc_cat["table_slices"] = {
+            "silver.factsales": """
+                INSERT INTO silver.FactSales (sale_id)
+                SELECT sale_id FROM bronze.Sales
+                MINUS
+                SELECT sale_id FROM bronze.ReturnedSales
+            """
+        }
+        proc_path.write_text(json.dumps(proc_cat, indent=2) + "\n", encoding="utf-8")
+
+        result = run_context(ddl_path, "silver.FactSales", "dbo.usp_load_fact_sales")
+
+        assert result.source_tables == ["bronze.returnedsales", "bronze.sales"]
 
     def test_dim_scd2_materialization_snapshot(self, ddl_path: Path) -> None:
         result = run_context(ddl_path, "silver.DimCustomer", "dbo.usp_load_dim_customer")

@@ -785,19 +785,33 @@ def test_write_view_profile_idempotent() -> None:
 
 class TestContextWriterSlice:
 
-    def test_run_context_uses_selected_writer_slice_without_full_proc_body(self) -> None:
+    def test_run_context_uses_selected_writer_slice_without_full_proc_body(self, monkeypatch: pytest.MonkeyPatch) -> None:
         """Sliced writers expose only the selected table slice to LLM-facing context."""
         tmp, root = _make_writable_copy()
         try:
             proc_path = root / "catalog" / "procedures" / "dbo.usp_load_fact_sales.json"
             proc_cat = json.loads(proc_path.read_text(encoding="utf-8"))
-            proc_cat["table_slices"] = {"silver.factsales": "MERGE INTO silver.FactSales ..."}
+            proc_cat["table_slices"] = {
+                "silver.factsales": "MERGE INTO silver.FactSales AS tgt USING bronze.SalesRaw AS src ON tgt.sale_id = src.sale_id"
+            }
+            proc_cat["references"]["tables"]["in_scope"].append(
+                {"schema": "bronze", "name": "Unrelated", "is_selected": True, "is_updated": False}
+            )
             proc_path.write_text(json.dumps(proc_cat), encoding="utf-8")
+            monkeypatch.setattr(
+                profile,
+                "load_ddl",
+                lambda *_args, **_kwargs: pytest.fail("selected slice context must not load full DDL"),
+            )
 
             result = profile.run_context(root, "silver.FactSales", "dbo.usp_load_fact_sales")
             assert isinstance(result, ProfileContext)
-            assert result.selected_writer_ddl_slice == "MERGE INTO silver.FactSales ..."
+            assert result.selected_writer_ddl_slice.startswith("MERGE INTO silver.FactSales")
             assert result.proc_body == ""
+            refs = result.writer_references.tables.in_scope
+            assert [(ref.object_schema, ref.name, ref.is_selected, ref.is_updated) for ref in refs] == [
+                ("bronze", "salesraw", True, False),
+            ]
             assert not hasattr(result, "writer_ddl_slice")
         finally:
             tmp.cleanup()

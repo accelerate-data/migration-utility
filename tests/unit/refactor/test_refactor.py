@@ -524,13 +524,26 @@ class TestContextWriterSlice:
         with tmp:
             proc_path = root / "catalog" / "procedures" / "dbo.usp_load_dimcustomer.json"
             proc_cat = json.loads(proc_path.read_text(encoding="utf-8"))
-            proc_cat["table_slices"] = {"silver.dimcustomer": "MERGE INTO dim.dimcustomer ..."}
+            proc_cat["table_slices"] = {
+                "silver.dimcustomer": (
+                    "MERGE INTO silver.DimCustomer AS tgt "
+                    "USING bronze.CustomerRaw AS src "
+                    "ON tgt.CustomerID = src.CustomerID "
+                    "WHEN MATCHED THEN UPDATE SET FirstName = src.FirstName"
+                )
+            }
+            proc_cat["references"]["tables"]["in_scope"].append(
+                {"schema": "bronze", "name": "Unrelated", "is_selected": True, "is_updated": False}
+            )
             proc_path.write_text(json.dumps(proc_cat), encoding="utf-8")
 
             result = refactor.run_context(root, "silver.DimCustomer")
             assert isinstance(result, RefactorContextOutput)
-            assert result.selected_writer_ddl_slice == "MERGE INTO dim.dimcustomer ..."
+            assert result.selected_writer_ddl_slice.startswith("MERGE INTO silver.DimCustomer")
             assert result.proc_body == ""
+            assert result.statements == []
+            assert result.source_tables == ["bronze.customerraw"]
+            assert set(result.source_columns) == {"bronze.customerraw"}
             assert not hasattr(result, "writer_ddl_slice")
 
     def test_run_context_selected_writer_slice_absent_for_unsliced_writer(self) -> None:
@@ -552,6 +565,35 @@ class TestContextWriterSlice:
 
             with pytest.raises(ValueError, match="no slice exists for target silver\\.dimcustomer"):
                 refactor.run_context(root, "silver.DimCustomer")
+
+    def test_run_context_selected_writer_slice_uses_manifest_dialect(self) -> None:
+        """Selected-slice source extraction uses the project dialect, not a T-SQL default."""
+        tmp, root = _make_writable_copy()
+        with tmp:
+            manifest_path = root / "manifest.json"
+            manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
+            manifest["technology"] = "oracle"
+            manifest["dialect"] = "oracle"
+            for role in ("source", "sandbox", "target"):
+                manifest["runtime"][role]["technology"] = "oracle"
+                manifest["runtime"][role]["dialect"] = "oracle"
+            manifest_path.write_text(json.dumps(manifest, indent=2) + "\n", encoding="utf-8")
+
+            proc_path = root / "catalog" / "procedures" / "dbo.usp_load_dimcustomer.json"
+            proc_cat = json.loads(proc_path.read_text(encoding="utf-8"))
+            proc_cat["table_slices"] = {
+                "silver.dimcustomer": """
+                    INSERT INTO silver.DimCustomer (CustomerID)
+                    SELECT CustomerID FROM bronze.CustomerRaw
+                    MINUS
+                    SELECT CustomerID FROM bronze.CustomerRejects
+                """
+            }
+            proc_path.write_text(json.dumps(proc_cat), encoding="utf-8")
+
+            result = refactor.run_context(root, "silver.DimCustomer")
+
+            assert result.source_tables == ["bronze.customerraw", "bronze.customerrejects"]
 
 
 # ── Pydantic model validation ─────────────────────────────────────────────────
