@@ -10,7 +10,7 @@ from __future__ import annotations
 
 from typing import Any, Literal
 
-from pydantic import BaseModel, ConfigDict, Field
+from pydantic import BaseModel, ConfigDict, Field, model_validator
 
 
 # ── Shared config ───────────────────────────────────────────────────────────
@@ -99,6 +99,46 @@ class DiagnosticsEntry(BaseModel):
     item_id: str | None = None
     field: str | None = None
     details: dict[str, Any] | None = None
+
+
+class ProfileDiagnosticsEntry(BaseModel):
+    """A profile warning or error entry persisted in catalog profile sections."""
+
+    model_config = _STRICT_CONFIG
+
+    code: str
+    message: str
+    severity: Literal["error", "warning", "medium"]
+    item_id: str | None = None
+    field: str | None = None
+    details: dict[str, Any] | None = None
+
+
+# ── Profile decision enums ──────────────────────────────────────────────────
+
+
+TableProfileStatus = Literal["", "ok", "partial", "error"]
+ViewProfileStatus = Literal["ok"] | None
+ProfileSource = Literal["catalog", "llm", "catalog+llm", "manual"]
+TableResolvedKind = Literal[
+    "seed",
+    "insert",
+    "dim_non_scd",
+    "dim_scd1",
+    "dim_scd2",
+    "dim_junk",
+    "fact",
+    "fact_insert",
+    "fact_transaction",
+    "fact_periodic_snapshot",
+    "fact_accumulating_snapshot",
+    "fact_aggregate",
+]
+PrimaryKeyType = Literal["surrogate", "natural", "composite", "unknown", "none"]
+ForeignKeyType = Literal["standard", "role_playing", "degenerate"]
+PiiSuggestedAction = Literal["mask", "drop", "tokenize", "keep"]
+ViewClassification = Literal["stg", "mart"]
+ViewProfileSource = Literal["llm"]
 
 
 # ── Per-type scoping sections ───────────────────────────────────────────────
@@ -191,81 +231,122 @@ class ScopingSummary(BaseModel):
 # ── Per-type profile sections ───────────────────────────────────────────────
 
 
-ProfileResolvedKind = Literal[
-    "seed",
-    "insert",
-    "fact",
-    "fact_insert",
-    "dim_non_scd",
-    "dim_scd1",
-    "dim_scd2",
-    "dim_junk",
-    "fact_transaction",
-    "fact_periodic_snapshot",
-    "fact_accumulating_snapshot",
-    "fact_aggregate",
-]
-ProfileSource = Literal["catalog", "llm", "catalog+llm", "manual"]
-PrimaryKeyType = Literal["surrogate", "natural", "composite", "unknown", "none"]
-ForeignKeyType = Literal["standard", "role_playing", "degenerate"]
-PiiSuggestedAction = Literal["mask", "drop", "tokenize", "keep"]
+class ProfileClassification(BaseModel):
+    """Table kind classification decision."""
 
-
-class TableClassificationProfile(BaseModel):
     model_config = _STRICT_CONFIG
 
-    resolved_kind: ProfileResolvedKind | None = None
+    resolved_kind: TableResolvedKind | None = None
     source: ProfileSource | None = None
+    confidence: str | None = None
     rationale: str | None = None
 
 
-class TablePrimaryKeyProfile(BaseModel):
+class ProfilePrimaryKey(BaseModel):
+    """Primary key decision for a profiled table."""
+
     model_config = _STRICT_CONFIG
 
-    columns: list[str] = []
+    column: str | None = None
+    columns: list[str] = Field(default_factory=list)
     primary_key_type: PrimaryKeyType | None = None
     source: ProfileSource | None = None
     rationale: str | None = None
 
+    @model_validator(mode="before")
+    @classmethod
+    def _normalize_legacy_column(cls, data: Any) -> Any:
+        if not isinstance(data, dict):
+            return data
+        normalized = dict(data)
+        if normalized.get("column") and not normalized.get("columns"):
+            normalized["columns"] = [normalized["column"]]
+        return normalized
 
-class TableNaturalKeyProfile(BaseModel):
+
+class ProfileNaturalKey(BaseModel):
+    """Natural key decision for a profiled table."""
+
     model_config = _STRICT_CONFIG
 
-    columns: list[str] = []
+    columns: list[str] = Field(default_factory=list)
     source: ProfileSource | None = None
     rationale: str | None = None
 
 
-class TableWatermarkProfile(BaseModel):
+class ProfileWatermark(BaseModel):
+    """Incremental watermark decision for a profiled table."""
+
     model_config = _STRICT_CONFIG
 
     column: str | None = None
+    columns: list[str] = Field(default_factory=list)
+    strategy: str | None = None
+    watermark_type: str | None = None
     source: ProfileSource | None = None
     rationale: str | None = None
 
+    @model_validator(mode="before")
+    @classmethod
+    def _normalize_legacy_columns(cls, data: Any) -> Any:
+        if not isinstance(data, dict):
+            return data
+        normalized = dict(data)
+        columns = normalized.get("columns")
+        if not normalized.get("column") and isinstance(columns, list) and columns:
+            normalized["column"] = columns[0]
+        return normalized
 
-class TableForeignKeyProfile(BaseModel):
+
+class ProfileForeignKey(BaseModel):
+    """Foreign-key role decision for a profiled table column."""
+
     model_config = _STRICT_CONFIG
 
     column: str | None = None
-    columns: list[str] = []
-    referenced_table: str | None = None
-    referenced_columns: list[str] = []
+    columns: list[str] = Field(default_factory=list)
+    fk_type: ForeignKeyType | None = None
     references_source_relation: str | None = None
     references_column: str | None = None
-    fk_type: ForeignKeyType | None = None
+    references_table: str | None = None
     source: ProfileSource | None = None
     rationale: str | None = None
 
+    @model_validator(mode="before")
+    @classmethod
+    def _normalize_legacy_fk_fields(cls, data: Any) -> Any:
+        if not isinstance(data, dict):
+            return data
+        normalized = dict(data)
+        columns = normalized.get("columns")
+        if not normalized.get("column") and isinstance(columns, list) and columns:
+            normalized["column"] = columns[0]
+        if not normalized.get("references_source_relation") and normalized.get("references_table"):
+            normalized["references_source_relation"] = normalized["references_table"]
+        return normalized
 
-class TablePiiActionProfile(BaseModel):
+
+class ProfilePiiAction(BaseModel):
+    """PII handling decision for a profiled table column."""
+
     model_config = _STRICT_CONFIG
 
     column: str
-    entity: str | None = None
     suggested_action: PiiSuggestedAction | None = None
+    action: PiiSuggestedAction | None = None
+    entity: str | None = None
     source: ProfileSource | None = None
     rationale: str | None = None
+
+    @model_validator(mode="before")
+    @classmethod
+    def _normalize_legacy_action(cls, data: Any) -> Any:
+        if not isinstance(data, dict):
+            return data
+        normalized = dict(data)
+        if not normalized.get("suggested_action") and normalized.get("action"):
+            normalized["suggested_action"] = normalized["action"]
+        return normalized
 
 
 class TableProfileSection(BaseModel):
@@ -273,15 +354,26 @@ class TableProfileSection(BaseModel):
 
     model_config = _STRICT_CONFIG
 
-    status: Literal["", "ok", "partial", "error"] = ""
-    classification: TableClassificationProfile | None = None
-    primary_key: TablePrimaryKeyProfile | None = None
-    natural_key: TableNaturalKeyProfile | None = None
-    watermark: TableWatermarkProfile | None = None
-    foreign_keys: list[TableForeignKeyProfile] = []
-    pii_actions: list[TablePiiActionProfile] = []
-    warnings: list[DiagnosticsEntry] = []
-    errors: list[DiagnosticsEntry] = []
+    status: TableProfileStatus = ""
+    classification: ProfileClassification | None = None
+    primary_key: ProfilePrimaryKey | None = None
+    natural_key: ProfileNaturalKey | None = None
+    watermark: ProfileWatermark | None = None
+    foreign_keys: list[ProfileForeignKey] = Field(default_factory=list)
+    pii_actions: list[ProfilePiiAction] = Field(default_factory=list)
+    warnings: list[ProfileDiagnosticsEntry] = Field(default_factory=list)
+    errors: list[ProfileDiagnosticsEntry] = Field(default_factory=list)
+
+    @model_validator(mode="before")
+    @classmethod
+    def _normalize_legacy_profile_shapes(cls, data: Any) -> Any:
+        """Normalize older persisted shorthand shapes into typed profile sections."""
+        if not isinstance(data, dict):
+            return data
+        normalized = dict(data)
+        if isinstance(normalized.get("natural_key"), list):
+            normalized["natural_key"] = {"columns": normalized["natural_key"]}
+        return normalized
 
 
 class ViewProfileSection(BaseModel):
@@ -289,12 +381,12 @@ class ViewProfileSection(BaseModel):
 
     model_config = _STRICT_CONFIG
 
-    status: Literal["", "ok", "partial", "error"] = ""
-    classification: Literal["stg", "mart"]
+    status: ViewProfileStatus = None
+    classification: ViewClassification
     rationale: str = ""
-    source: Literal["llm"]
-    warnings: list[DiagnosticsEntry] = []
-    errors: list[DiagnosticsEntry] = []
+    source: ViewProfileSource
+    warnings: list[ProfileDiagnosticsEntry] = Field(default_factory=list)
+    errors: list[ProfileDiagnosticsEntry] = Field(default_factory=list)
 
 
 # ── Shared enriched-section models ──────────────────────────────────────────
