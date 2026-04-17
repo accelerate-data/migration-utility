@@ -122,7 +122,7 @@ def test_maintainer_docs_use_the_internal_project_path() -> None:
         "commands/init-ad-migration.md",
         "commands/generate-model.md",
         "commands/generate-tests.md",
-        "commands/refactor.md",
+        "commands/refactor-query.md",
         "commands/status.md",
         "skills/README.md",
         "skills/listing-objects/SKILL.md",

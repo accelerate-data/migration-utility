@@ -1176,7 +1176,7 @@ def test_generate_sources_empty_catalog() -> None:
 
 
 def test_generate_sources_multiple_schemas() -> None:
-    """Sources from multiple schemas are grouped correctly."""
+    """Sources from multiple schemas are emitted under the bronze namespace."""
     tmp, root = _make_project()
     with tmp:
         _add_source_table(root, "bronze", "CustomerRaw")
@@ -1184,9 +1184,10 @@ def test_generate_sources_multiple_schemas() -> None:
 
         result = gen_src.generate_sources(root)
         schema_names = sorted(s["name"] for s in result.sources["sources"])
-        assert "bronze" in schema_names
-        assert "staging" in schema_names
+        assert schema_names == ["bronze"]
         assert "silver" not in schema_names
+        table_names = {table["name"] for table in result.sources["sources"][0]["tables"]}
+        assert table_names == {"CustomerRaw", "LookupRegion"}
 
 
 def test_write_sources_yml() -> None:

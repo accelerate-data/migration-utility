@@ -1,5 +1,5 @@
 {
-  "schema": "silver",
+  "schema": "MigrationTest",
   "name": "dimcurrency",
   "columns": [
     {
@@ -43,7 +43,7 @@
     "procedures": {
       "in_scope": [
         {
-          "schema": "silver",
+          "schema": "MigrationTest",
           "name": "usp_load_dimcurrency",
           "is_selected": false,
           "is_updated": true,
