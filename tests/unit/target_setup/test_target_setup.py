@@ -396,7 +396,15 @@ def test_run_setup_target_applies_delta_after_new_source_added(tmp_path: Path) -
             ),
         ),
         patch("shared.target_setup.apply_target_source_tables", side_effect=[first_apply, second_apply]),
-        patch("shared.target_setup.export_seed_tables", return_value=MagicMock(files=[], csv_files=[], row_counts={}, written_paths=[])),
+        patch(
+            "shared.target_setup.export_seed_tables",
+            return_value=MagicMock(
+                files=["dbt/seeds/customertype.csv", "dbt/seeds/_seeds.yml"],
+                csv_files=["dbt/seeds/customertype.csv"],
+                row_counts={"silver.customertype": 1},
+                written_paths=[],
+            ),
+        ),
         patch("shared.target_setup.materialize_seed_tables", return_value=MagicMock(ran=False, command=[])),
     ):
         first = run_setup_target(project_root)
@@ -407,6 +415,8 @@ def test_run_setup_target_applies_delta_after_new_source_added(tmp_path: Path) -
     assert "dbt/models/staging/stg_bronze__customer.sql" in first.files
     assert "dbt/models/staging/_staging__models.yml" in first.written_paths
     assert "dbt/models/staging/stg_bronze__customer.sql" in first.written_paths
+    assert "dbt/seeds/customertype.csv" not in first.written_paths
+    assert "dbt/seeds/_seeds.yml" not in first.written_paths
     assert first.sources_path not in first.written_paths
     assert second.created_tables == ["bronze.Orders"]
     assert "bronze.Customer" in second.existing_tables
