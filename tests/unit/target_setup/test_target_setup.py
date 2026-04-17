@@ -266,6 +266,24 @@ def test_apply_target_source_tables_is_idempotent(tmp_path: Path) -> None:
     assert result.existing_tables == ["bronze.Customer"]
 
 
+def test_apply_target_source_tables_preserves_oracle_target_schema_case(
+    tmp_path: Path,
+) -> None:
+    project_root = _make_oracle_project(tmp_path)
+    _seed_catalog_table(project_root, "SILVER_CONFIG", schema="MIGRATIONTEST")
+    adapter = MagicMock()
+    adapter.list_source_tables.return_value = set()
+
+    with patch("shared.target_setup.get_dbops") as mock_get_dbops:
+        mock_get_dbops.return_value.from_role.return_value = adapter
+        result = apply_target_source_tables(project_root)
+
+    adapter.ensure_source_schema.assert_called_once_with("BRONZE")
+    adapter.create_source_table.assert_called_once()
+    assert adapter.create_source_table.call_args.args[0] == "BRONZE"
+    assert result.created_tables == ["BRONZE.SILVER_CONFIG"]
+
+
 def test_export_seed_tables_writes_seed_csv_from_source_table(tmp_path: Path) -> None:
     project_root = _make_sql_server_project(tmp_path)
     _seed_catalog_table(project_root, "CustomerType", is_source=False, is_seed=True)

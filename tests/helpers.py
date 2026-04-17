@@ -7,8 +7,8 @@ from pathlib import Path
 
 REPO_ROOT = Path(__file__).resolve().parents[1]
 SHARED_LIB_DIR = REPO_ROOT / "lib"
-SQL_SERVER_FIXTURE_DATABASE = os.environ.get("MSSQL_DB", "AdventureWorks2022")
-SQL_SERVER_FIXTURE_SCHEMA = "MigrationTest"
+SQL_SERVER_FIXTURE_DATABASE = os.environ.get("SOURCE_MSSQL_DB", "AdventureWorks2022")
+SQL_SERVER_FIXTURE_SCHEMA = os.environ.get("SOURCE_MSSQL_SCHEMA", "MigrationTest")
 SQL_SERVER_FIXTURE_BRONZE_CURRENCY = "bronze_currency"
 SQL_SERVER_FIXTURE_SILVER_CONFIG = "silver_config"
 SQL_SERVER_FIXTURE_SILVER_DIMCURRENCY = "silver_dimcurrency"

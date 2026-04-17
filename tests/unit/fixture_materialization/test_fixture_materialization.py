@@ -32,12 +32,16 @@ def test_materialize_migration_test_uses_adapter_script_and_env(
         return subprocess.CompletedProcess(cmd, 0, stdout="ok", stderr="")
 
     monkeypatch.setattr(subprocess, "run", fake_run)
-    monkeypatch.setenv("SA_PASSWORD", "secret")
+    monkeypatch.setenv("SANDBOX_MSSQL_PASSWORD", "secret")
 
     role = RuntimeRole(
         technology="sql_server",
         dialect="tsql",
-        connection=RuntimeConnection(database="MigrationTest", password_env="SA_PASSWORD"),
+        connection=RuntimeConnection(
+            database="MigrationTest",
+            user="sa",
+            password_env="SANDBOX_MSSQL_PASSWORD",
+        ),
     )
 
     result = materialize_migration_test(role, tmp_path, extra_env={"EXTRA_FLAG": "1"})
@@ -48,8 +52,9 @@ def test_materialize_migration_test_uses_adapter_script_and_env(
     assert captured["capture_output"] is True
     assert captured["text"] is True
     assert captured["check"] is False
-    assert captured["env"]["MSSQL_DB"] == "MigrationTest"
-    assert captured["env"]["SA_PASSWORD"] == "secret"
+    assert captured["env"]["SOURCE_MSSQL_DB"] == "MigrationTest"
+    assert captured["env"]["SANDBOX_MSSQL_USER"] == "sa"
+    assert captured["env"]["SANDBOX_MSSQL_PASSWORD"] == "secret"
     assert captured["env"]["EXTRA_FLAG"] == "1"
 
 
@@ -78,14 +83,15 @@ def test_materialize_migration_test_logs_sql_server_lifecycle(
         return subprocess.CompletedProcess(cmd, 0, stdout="ok", stderr="")
 
     monkeypatch.setattr(subprocess, "run", fake_run)
-    monkeypatch.setenv("SA_PASSWORD", "secret")
+    monkeypatch.setenv("SANDBOX_MSSQL_PASSWORD", "secret")
     role = RuntimeRole(
         technology="sql_server",
         dialect="tsql",
         connection=RuntimeConnection(
             database="AdventureWorks2022",
             schema="MigrationTest",
-            password_env="SA_PASSWORD",
+            user="sa",
+            password_env="SANDBOX_MSSQL_PASSWORD",
         ),
     )
 
@@ -150,7 +156,7 @@ def test_sql_server_materializer_pyodbc_fallback_uses_shared_connection_builder(
     assert "from shared.db_connect import SQL_SERVER_ODBC_DRIVER, build_sql_server_connection_string" in script_text
     assert "build_sql_server_connection_string(" in script_text
     assert "driver=SQL_SERVER_ODBC_DRIVER" in script_text
-    assert "PWD={os.environ['SA_PASSWORD']}" not in script_text
+    assert "PWD={os.environ['SANDBOX_MSSQL_PASSWORD']}" not in script_text
     assert 'sys.path.insert(0, str(Path(sys.argv[3]) / "lib"))' in script_text
     assert 'Path.cwd() / "lib"' not in script_text
 
@@ -171,8 +177,8 @@ def test_sql_server_materializer_bootstraps_source_reader_login() -> None:
     assert "SOURCE_MSSQL_PASSWORD" in script_text
     assert "CREATE LOGIN" in sql_text
     assert "CREATE USER" in sql_text
-    assert "GRANT SELECT ON SCHEMA::[__MSSQL_SCHEMA__]" in sql_text
-    assert "GRANT VIEW DEFINITION ON SCHEMA::[__MSSQL_SCHEMA__]" in sql_text
+    assert "GRANT SELECT ON SCHEMA::[__SOURCE_MSSQL_SCHEMA__]" in sql_text
+    assert "GRANT VIEW DEFINITION ON SCHEMA::[__SOURCE_MSSQL_SCHEMA__]" in sql_text
 
 
 def test_oracle_materializer_avoids_dropping_the_target_schema_user() -> None:

@@ -13,7 +13,7 @@ from shared.runtime_config_models import RuntimeConnection, RuntimeRole
 
 
 def test_sql_server_dbops_materialize_env(monkeypatch: pytest.MonkeyPatch) -> None:
-    monkeypatch.setenv("SA_PASSWORD", "secret")
+    monkeypatch.setenv("SANDBOX_MSSQL_PASSWORD", "secret")
     role = RuntimeRole(
         technology="sql_server",
         dialect="tsql",
@@ -21,19 +21,21 @@ def test_sql_server_dbops_materialize_env(monkeypatch: pytest.MonkeyPatch) -> No
             host="localhost",
             port="1433",
             database="WarehouseOne",
-            password_env="SA_PASSWORD",
+            user="sa",
+            password_env="SANDBOX_MSSQL_PASSWORD",
         ),
     )
     adapter = get_dbops("sql_server").from_role(role)
     env = adapter.materialize_migration_test_env()
-    assert env["MSSQL_DB"] == "WarehouseOne"
-    assert env["MSSQL_SCHEMA"] == "MigrationTest"
+    assert env["SOURCE_MSSQL_DB"] == "WarehouseOne"
+    assert env["SOURCE_MSSQL_SCHEMA"] == "MigrationTest"
     assert "driver" not in {key.lower() for key in env}
-    assert env["SA_PASSWORD"] == "secret"
+    assert env["SANDBOX_MSSQL_USER"] == "sa"
+    assert env["SANDBOX_MSSQL_PASSWORD"] == "secret"
 
 
 def test_sql_server_dbops_materialize_env_uses_runtime_schema(monkeypatch: pytest.MonkeyPatch) -> None:
-    monkeypatch.setenv("SA_PASSWORD", "secret")
+    monkeypatch.setenv("SANDBOX_MSSQL_PASSWORD", "secret")
     role = RuntimeRole(
         technology="sql_server",
         dialect="tsql",
@@ -42,15 +44,16 @@ def test_sql_server_dbops_materialize_env_uses_runtime_schema(monkeypatch: pytes
             port="1433",
             database="WarehouseOne",
             schema="FixtureSchema",
-            password_env="SA_PASSWORD",
+            user="sa",
+            password_env="SANDBOX_MSSQL_PASSWORD",
         ),
     )
     adapter = get_dbops("sql_server").from_role(role)
     env = adapter.materialize_migration_test_env()
-    assert env["MSSQL_DB"] == "WarehouseOne"
-    assert env["MSSQL_SCHEMA"] == "FixtureSchema"
+    assert env["SOURCE_MSSQL_DB"] == "WarehouseOne"
+    assert env["SOURCE_MSSQL_SCHEMA"] == "FixtureSchema"
     assert "driver" not in {key.lower() for key in env}
-    assert env["SA_PASSWORD"] == "secret"
+    assert env["SANDBOX_MSSQL_PASSWORD"] == "secret"
 
 
 def test_sql_server_materialize_script_ignores_legacy_driver_env() -> None:
@@ -150,7 +153,7 @@ def test_get_dbops_rejects_unknown_technology() -> None:
 
 
 def test_sql_server_dbops_closes_connection_after_schema_lookup(monkeypatch: pytest.MonkeyPatch) -> None:
-    monkeypatch.setenv("SA_PASSWORD", "secret")
+    monkeypatch.setenv("TARGET_MSSQL_PASSWORD", "secret")
     role = RuntimeRole(
         technology="sql_server",
         dialect="tsql",
@@ -158,7 +161,7 @@ def test_sql_server_dbops_closes_connection_after_schema_lookup(monkeypatch: pyt
             host="localhost",
             port="1433",
             database="MigrationTest",
-            password_env="SA_PASSWORD",
+            password_env="TARGET_MSSQL_PASSWORD",
         ),
     )
     adapter = get_dbops("sql_server").from_role(role)
@@ -233,7 +236,7 @@ def test_dbops_rejects_unsafe_identifier() -> None:
 
 
 def test_sql_server_dbops_connect_escapes_password(monkeypatch: pytest.MonkeyPatch) -> None:
-    monkeypatch.setenv("SA_PASSWORD", "pa;ss}word")
+    monkeypatch.setenv("TARGET_MSSQL_PASSWORD", "pa;ss}word")
     role = RuntimeRole(
         technology="sql_server",
         dialect="tsql",
@@ -241,7 +244,7 @@ def test_sql_server_dbops_connect_escapes_password(monkeypatch: pytest.MonkeyPat
             host="localhost",
             port="1433",
             database="WarehouseOne",
-            password_env="SA_PASSWORD",
+            password_env="TARGET_MSSQL_PASSWORD",
         ),
     )
     adapter = get_dbops("sql_server").from_role(role)

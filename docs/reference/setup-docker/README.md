@@ -93,7 +93,7 @@ docker exec sql-test /opt/mssql-tools18/bin/sqlcmd \
   -Q "SELECT COUNT(*) FROM dim.dim_customer;"
 ```
 
-`sql-test` only provides the pre-baked `KimballFixture` source fixture for parity runs and manual source-fixture checks. It is not the supported source for the schema-level SQL Server `MigrationTest` flow. For SQL Server integration tests, evals, and harness runs, point `MSSQL_DB` at the source database that owns the AdventureWorks objects (default `AdventureWorks2022`) and materialize the canonical `MigrationTest` schema with `tests/integration/sql_server/fixtures/materialize.sh` or the test helpers that wrap it.
+`sql-test` only provides the pre-baked `KimballFixture` source fixture for parity runs and manual source-fixture checks. It is not the supported source for the schema-level SQL Server `MigrationTest` flow. For SQL Server integration tests, evals, and harness runs, point `SOURCE_MSSQL_DB` at the source database that owns the AdventureWorks objects (default `AdventureWorks2022`) and materialize the canonical `MigrationTest` schema with `tests/integration/sql_server/fixtures/materialize.sh` or the test helpers that wrap it.
 
 ### Oracle
 
@@ -166,6 +166,7 @@ Add to `.env` for the schema-level `MigrationTest` contract used by tests/evals:
 SOURCE_MSSQL_HOST=127.0.0.1
 SOURCE_MSSQL_PORT=1433
 SOURCE_MSSQL_DB=AdventureWorks2022
+SOURCE_MSSQL_SCHEMA=MigrationTest
 SOURCE_MSSQL_USER=migrationtest_reader
 SOURCE_MSSQL_PASSWORD=readonly-password
 

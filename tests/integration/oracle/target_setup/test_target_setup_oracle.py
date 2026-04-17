@@ -141,7 +141,7 @@ def _write_manifest(project_root: Path, target_schema: str) -> None:
                     "user": user,
                     "password_env": "TARGET_ORACLE_PASSWORD",
                 },
-                "schemas": {"source": target_schema.lower()},
+                "schemas": {"source": target_schema},
             },
         },
     }
@@ -200,7 +200,7 @@ def test_setup_target_materializes_source_and_seed_tables(tmp_path: Path) -> Non
     try:
         result = run_setup_target(tmp_path)
 
-        assert result.target_source_schema == target_schema.lower()
+        assert result.target_source_schema == target_schema
         assert any("SILVER_CONFIG" in t for t in result.created_tables)
         assert any("BRONZE_CURRENCY" in f for f in result.seed_files)
         assert result.dbt_seed_ran is True

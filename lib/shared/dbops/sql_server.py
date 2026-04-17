@@ -31,16 +31,16 @@ class SqlServerOperations(DatabaseOperations):
 
     def materialize_migration_test_env(self) -> dict[str, str]:
         env = {
-            "MSSQL_HOST": self.role.connection.host or "localhost",
-            "MSSQL_PORT": self.role.connection.port or "1433",
-            "MSSQL_DB": self.environment_name(),
-            "MSSQL_SCHEMA": self.role.connection.schema_name or "MigrationTest",
+            "SOURCE_MSSQL_HOST": self.role.connection.host or "localhost",
+            "SOURCE_MSSQL_PORT": self.role.connection.port or "1433",
+            "SOURCE_MSSQL_DB": self.environment_name(),
+            "SOURCE_MSSQL_SCHEMA": self.role.connection.schema_name or "MigrationTest",
         }
         if self.role.connection.user:
-            env["MSSQL_USER"] = self.role.connection.user
+            env["SANDBOX_MSSQL_USER"] = self.role.connection.user
         password = self._read_secret(self.role.connection.password_env)
         if password:
-            env["SA_PASSWORD"] = password
+            env["SANDBOX_MSSQL_PASSWORD"] = password
         return env
 
     def _connect(self):
