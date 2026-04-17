@@ -81,6 +81,7 @@ tests:
       expected_blocked_reasons: "MART-001"
       expected_model_refs: "int_sales_orders:stg_bronze__orders"
       expected_absent_model_refs: "fct_sales:int_sales_orders"
+      expected_unchanged_models: "fct_sales"
     assert:
       - type: javascript
         value: file://../../assertions/check-refactor-mart-mart-execution.js
