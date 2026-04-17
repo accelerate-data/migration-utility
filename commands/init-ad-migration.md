@@ -16,16 +16,18 @@ Use `TaskCreate` and `TaskUpdate` to track the automated phases of this command.
 
 If `CLAUDE_PLUGIN_ROOT` is not set, stop immediately and tell the user to load the plugin with `claude --plugin-dir <path-to-ad-migration>` before running this command.
 
-Classify the host platform before any prerequisite checks:
+Classify the host before any prerequisite checks:
 
-- macOS: supported. The command may use the Homebrew install path when the CLI or macOS SQL Server prerequisites are missing.
-- Linux: supported. The command must use Linux/package-manager guidance instead of Homebrew remediation.
-- WSL: supported. Treat WSL as the Linux path.
-- Native Windows: unsupported. Stop immediately, say local native Windows execution is not supported, and tell the user: "Use WSL for the local workflow." Do not continue with any prerequisite checks on native Windows.
+| Host | Action |
+|---|---|
+| macOS | supported; use Homebrew remediation where documented |
+| Linux | supported; use platform package manager guidance |
+| WSL | supported; treat as Linux |
+| Native Windows | unsupported; stop and say "Use WSL for the local workflow." |
 
 ## Step 1.5: Install ad-migration CLI
 
-This Homebrew auto-install path is supported only on macOS. On Linux or WSL, if `ad-migration` is missing, stop and tell the user to install the supported Linux/WSL CLI package for their environment, then re-run `/init-ad-migration`; do not attempt `brew install`.
+This Homebrew auto-install path is supported only on macOS. On Linux or WSL, if `ad-migration` is missing, stop and tell the user to install the GitHub release wheel artifacts into Python 3.11+, then re-run `/init-ad-migration`; do not attempt `brew install`.
 
 Check whether `ad-migration` is already on PATH:
 

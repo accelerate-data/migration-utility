@@ -1,6 +1,6 @@
 # Project Init
 
-`/init-ad-migration` is the entrypoint for a new migration repo. It installs the `ad-migration` CLI via Homebrew on macOS, reports the supported Linux/WSL install path when needed, checks prerequisites, scaffolds the project, and prepares the repo for the pipeline. Native Windows is not supported; Use WSL for the local workflow.
+`/init-ad-migration` is the entrypoint for a new migration repo. It installs the `ad-migration` CLI via Homebrew on macOS, reports the supported Linux/WSL install path when needed, checks prerequisites, scaffolds the project, and prepares the repo for the pipeline. Native Windows is not supported. Use WSL for the local workflow.
 
 ```text
 /init-ad-migration
@@ -16,7 +16,7 @@ The command groups checks into common prerequisites plus source-specific checks.
 ### Common checks
 
 - Python 3.11+
-- `ad-migration` CLI installed (Homebrew on macOS; supported Linux/WSL package on Linux and WSL)
+- `ad-migration` CLI installed (Homebrew on macOS; GitHub release wheel artifacts on Linux and WSL)
 - git repository presence
 - `direnv` availability
 

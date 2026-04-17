@@ -41,7 +41,7 @@ brew tap accelerate-data/homebrew-tap
 brew install ad-migration
 ```
 
-On Linux and WSL, install the supported Linux/WSL CLI package for your environment. Native Windows is not supported; Use WSL for the local workflow.
+On Linux and WSL, install the GitHub release wheel artifacts into Python 3.11+. Native Windows is not supported. Use WSL for the local workflow.
 
 ### Setup commands
 

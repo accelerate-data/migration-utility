@@ -8,7 +8,7 @@ This page covers the tools, installation steps, and verification flow needed bef
 
 ## Platform Support
 
-Local execution is supported on macOS, Linux, and WSL. Native Windows is not supported for the current local workflow; Use WSL for the local workflow.
+Local execution is supported on macOS, Linux, and WSL. Native Windows is not supported for the current local workflow. Use WSL for the local workflow.
 
 ## Required Tools
 
@@ -97,7 +97,7 @@ brew install ad-migration
 ad-migration --version
 ```
 
-On Linux and WSL, install the supported Linux/WSL CLI package for your environment, then verify:
+On Linux and WSL, install the GitHub release wheel artifacts into Python 3.11+, then verify:
 
 ```bash
 ad-migration --version
