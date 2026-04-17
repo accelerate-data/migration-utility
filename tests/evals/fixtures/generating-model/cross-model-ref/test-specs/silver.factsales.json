@@ -13,7 +13,7 @@
   "unit_tests": [
     {
       "name": "test_insert_sales_row",
-      "model": "fact_sales",
+      "model": "factsales",
       "given": [
         {
           "rows": [

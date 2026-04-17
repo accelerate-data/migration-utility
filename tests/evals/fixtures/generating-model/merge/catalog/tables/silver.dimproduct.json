@@ -201,6 +201,9 @@
     "foreign_keys": [],
     "pii_actions": []
   },
+  "test_gen": {
+    "status": "ok"
+  },
   "refactor": {
     "status": "ok",
     "extracted_sql": "SELECT CAST(ProductID AS NVARCHAR(25)) AS ProductAlternateKey, ProductName AS EnglishProductName, StandardCost, ListPrice, ISNULL(Color, '') AS Color, Size, ProductLine, Class, Style, SellStartDate AS StartDate, SellEndDate AS EndDate, CASE WHEN DiscontinuedDate IS NOT NULL THEN 'Obsolete' WHEN SellEndDate IS NOT NULL THEN 'Outdated' ELSE 'Current' END AS Status FROM [bronze].[Product]",

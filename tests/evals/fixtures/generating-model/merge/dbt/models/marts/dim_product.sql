@@ -1,9 +1,5 @@
-{{ config(
-    materialized='table'
-) }}
-
 with source_product as (
-    select * from {{ source('bronze', 'product') }}
+    select * from {{ ref('stg_bronze__product') }}
 ),
 
 prepared_product as (

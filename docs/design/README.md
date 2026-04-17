@@ -25,6 +25,7 @@ If information is mainly operational or contributor-facing, put it in `docs/refe
 - [Homebrew CLI Publishing](homebrew-cli-publishing/README.md) — public CLI packaging split, Homebrew tap scope, and init-driven install contract for macOS
 - [Reset Migration Global Mode](reset-migration-global/README.md) — full-project migration-state reset that preserves init scaffolding and requires destructive confirmation
 - [Refactor Mart](refactor-mart/README.md) — mart-driven two-wave refactor plan, markdown candidate contract, dependency gating, and `stg`/`int` execution split
+- [dbt Project Standards](dbt-project-standards/README.md) — generated dbt layer layout, bronze staging wrappers, marts placement, and skill-facing source/reference rules
 - [Source YAML Catalog Enrichment](source-yaml-catalog-enrichment/README.md) — conservative source-column, test, relationship, and freshness generation from normalized table catalog metadata
 - [Seed Table Catalog State](seed-table-catalog-state/README.md) — explicit catalog ownership for source-backed vs seed-backed writerless tables
 - [Status Summary Contract](status-summary-contract/README.md) — summary `/status` dashboard scope, diagnostics table, and detailed-status boundary

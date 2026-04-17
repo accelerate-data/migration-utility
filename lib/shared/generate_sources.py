@@ -29,12 +29,16 @@ from shared.env_config import (
     resolve_dbt_project_path,
     resolve_project_root,
 )
+from shared.name_resolver import model_name_from_table, normalize
 from shared.output_models.generate_sources import GenerateSourcesOutput
 from shared.runtime_config import get_runtime_role
 
 logger = logging.getLogger(__name__)
 
 app = typer.Typer(add_completion=False, pretty_exceptions_enable=False)
+
+_BRONZE_SOURCE_NAME = "bronze"
+
 
 def _default_source_freshness() -> dict[str, dict[str, int | str]]:
     return {
@@ -253,8 +257,7 @@ def generate_sources(
         source_schema_override,
     )
 
-    # logical schema_name → list of catalog table dicts
-    sources_by_schema: dict[str, list[dict[str, Any]]] = {}
+    source_tables: list[dict[str, Any]] = []
 
     for table_file in sorted(tables_dir.glob("*.json")):
         try:
@@ -279,7 +282,7 @@ def generate_sources(
             continue
         if cat.get("is_source") is True:
             included.append(fqn)
-            sources_by_schema.setdefault(schema, []).append(cat)
+            source_tables.append(cat)
         elif status == "resolved":
             excluded.append(fqn)
         elif status == "no_writer_found":
@@ -287,7 +290,7 @@ def generate_sources(
         else:
             incomplete.append(fqn)
 
-    if not sources_by_schema:
+    if not source_tables:
         return GenerateSourcesOutput(
             sources=None,
             included=included,
@@ -296,44 +299,72 @@ def generate_sources(
             incomplete=incomplete,
         )
 
-    confirmed_sources: dict[str, tuple[str, str]] = {}
-    for schema_name, cats in sources_by_schema.items():
-        for cat in cats:
-            table_name = str(cat.get("name", ""))
-            confirmed_sources[f"{schema_name}.{table_name.lower()}"] = (
-                schema_name,
-                table_name,
+    source_name_to_fqn: dict[str, str] = {}
+    for cat in source_tables:
+        schema_name = str(cat.get("schema", "")).lower()
+        table_name = str(cat.get("name", ""))
+        fqn = f"{schema_name}.{table_name.lower()}"
+        source_table_name = table_name.lower()
+        existing_fqn = source_name_to_fqn.get(source_table_name)
+        if existing_fqn is not None and existing_fqn != fqn:
+            message = (
+                "Confirmed source tables must have unique names under the bronze "
+                f"source namespace: {existing_fqn}, {fqn}"
             )
-    source_entries = []
-    for schema_name in sorted(sources_by_schema):
-        tables = []
-        for cat in sorted(
-            sources_by_schema[schema_name],
-            key=lambda item: str(item.get("name", "")).lower(),
-        ):
-            table_name = str(cat.get("name", ""))
-            table_entry: dict[str, Any] = {
-                "name": table_name,
-                "description": f"{table_name} from source system",
-            }
-            columns = _build_source_columns(cat, confirmed_sources)
-            if columns:
-                table_entry["columns"] = columns
-            loaded_at_field = _source_loaded_at_field(cat, columns)
-            if loaded_at_field:
-                table_entry["loaded_at_field"] = loaded_at_field
-                table_entry["freshness"] = _default_source_freshness()
-            tables.append(table_entry)
-        source_entry: dict[str, Any] = {
-            "name": schema_name,
-            "description": f"Source tables from {schema_name} schema",
-            "tables": tables,
-        }
-        if physical_source_schema:
-            source_entry["schema"] = physical_source_schema
-        source_entries.append(source_entry)
+            logger.error(
+                "event=generate_sources_duplicate_source_name table=%s existing=%s duplicate=%s",
+                source_table_name,
+                existing_fqn,
+                fqn,
+            )
+            return GenerateSourcesOutput(
+                sources=None,
+                included=included,
+                excluded=excluded,
+                unconfirmed=unconfirmed,
+                incomplete=incomplete,
+                error="SOURCE_NAME_COLLISION",
+                message=message,
+            )
+        source_name_to_fqn[source_table_name] = fqn
 
-    sources_dict: dict[str, Any] = {"version": 2, "sources": source_entries}
+    confirmed_sources: dict[str, tuple[str, str]] = {}
+    for cat in source_tables:
+        schema_name = str(cat.get("schema", "")).lower()
+        table_name = str(cat.get("name", ""))
+        confirmed_sources[f"{schema_name}.{table_name.lower()}"] = (
+            _BRONZE_SOURCE_NAME,
+            table_name,
+        )
+
+    tables = []
+    for cat in sorted(
+        source_tables,
+        key=lambda item: str(item.get("name", "")).lower(),
+    ):
+        table_name = str(cat.get("name", ""))
+        table_entry: dict[str, Any] = {
+            "name": table_name,
+            "description": f"{table_name} from source system",
+        }
+        columns = _build_source_columns(cat, confirmed_sources)
+        if columns:
+            table_entry["columns"] = columns
+        loaded_at_field = _source_loaded_at_field(cat, columns)
+        if loaded_at_field:
+            table_entry["loaded_at_field"] = loaded_at_field
+            table_entry["freshness"] = _default_source_freshness()
+        tables.append(table_entry)
+
+    source_entry: dict[str, Any] = {
+        "name": _BRONZE_SOURCE_NAME,
+        "description": "Confirmed source tables available in the bronze layer",
+        "tables": tables,
+    }
+    if physical_source_schema:
+        source_entry["schema"] = physical_source_schema
+
+    sources_dict: dict[str, Any] = {"version": 2, "sources": [source_entry]}
 
     return GenerateSourcesOutput(
         sources=sources_dict,
@@ -342,6 +373,60 @@ def generate_sources(
         unconfirmed=unconfirmed,
         incomplete=incomplete,
     )
+
+
+def _staging_model_name(table_name: str) -> str:
+    return f"stg_bronze__{model_name_from_table(normalize(table_name))}"
+
+
+def _render_staging_wrapper(table_name: str) -> str:
+    return (
+        "with source as (\n"
+        "\n"
+        f"    select * from {{{{ source('bronze', '{table_name}') }}}}\n"
+        "\n"
+        ")\n"
+        "\n"
+        "select * from source\n"
+    )
+
+
+def _staging_models_from_sources(sources: dict[str, Any]) -> dict[str, Any]:
+    source_entries = sources.get("sources")
+    if not isinstance(source_entries, list):
+        return {"version": 2, "models": []}
+
+    models: list[dict[str, Any]] = []
+    for source in source_entries:
+        if not isinstance(source, dict):
+            continue
+        for table in source.get("tables", []):
+            if not isinstance(table, dict) or not table.get("name"):
+                continue
+            table_name = str(table["name"])
+            model_entry: dict[str, Any] = {
+                "name": _staging_model_name(table_name),
+                "description": f"Pass-through staging wrapper for bronze.{table_name}",
+            }
+            columns = table.get("columns")
+            if isinstance(columns, list) and columns:
+                model_entry["columns"] = columns
+            models.append(model_entry)
+    return {"version": 2, "models": models}
+
+
+def _cleanup_stale_staging_wrappers(staging_dir: Path, expected_wrapper_names: set[str]) -> None:
+    """Remove stale generated bronze staging wrappers from previous source runs."""
+    if not staging_dir.is_dir():
+        return
+    for wrapper_path in staging_dir.glob("stg_bronze__*.sql"):
+        if wrapper_path.name in expected_wrapper_names:
+            continue
+        wrapper_path.unlink()
+        logger.info(
+            "event=generate_sources_removed_stale_wrapper path=%s",
+            wrapper_path,
+        )
 
 
 def write_sources_yml(
@@ -358,12 +443,22 @@ def write_sources_yml(
         source_schema_override=source_schema_override,
     )
     dbt_root = resolve_dbt_project_path(project_root)
-    sources_path = dbt_root / "models" / "staging" / "sources.yml"
+    staging_dir = dbt_root / "models" / "staging"
+    sources_path = staging_dir / "_staging__sources.yml"
+    models_path = staging_dir / "_staging__models.yml"
 
     if result.sources is None:
+        _cleanup_stale_staging_wrappers(staging_dir, set())
+        for stale_yaml_path in (sources_path, models_path):
+            if stale_yaml_path.exists():
+                stale_yaml_path.unlink()
+                logger.info(
+                    "event=generate_sources_removed_stale_yaml path=%s",
+                    stale_yaml_path,
+                )
         return result.model_copy(update={"path": None})
 
-    sources_path.parent.mkdir(parents=True, exist_ok=True)
+    staging_dir.mkdir(parents=True, exist_ok=True)
     with sources_path.open("w", encoding="utf-8") as f:
         yaml.dump(
             result.sources,
@@ -372,6 +467,31 @@ def write_sources_yml(
             sort_keys=False,
             allow_unicode=True,
         )
+
+    staging_models = _staging_models_from_sources(result.sources)
+    with models_path.open("w", encoding="utf-8") as f:
+        yaml.dump(
+            staging_models,
+            f,
+            default_flow_style=False,
+            sort_keys=False,
+            allow_unicode=True,
+        )
+
+    expected_wrapper_names: set[str] = set()
+    for source in result.sources.get("sources", []):
+        if not isinstance(source, dict):
+            continue
+        for table in source.get("tables", []):
+            if not isinstance(table, dict) or not table.get("name"):
+                continue
+            table_name = str(table["name"])
+            wrapper_name = f"{_staging_model_name(table_name)}.sql"
+            expected_wrapper_names.add(wrapper_name)
+            wrapper_path = staging_dir / wrapper_name
+            wrapper_path.write_text(_render_staging_wrapper(table_name), encoding="utf-8")
+
+    _cleanup_stale_staging_wrappers(staging_dir, expected_wrapper_names)
 
     return result.model_copy(update={"path": str(sources_path)})
 
@@ -410,6 +530,10 @@ def main(
         logger.error("event=generate_sources_io_error error=%s", exc)
         emit({"error": "IO_ERROR", "message": str(exc)})
         raise typer.Exit(code=2) from exc
+
+    if result.error:
+        emit(result)
+        raise typer.Exit(code=1)
 
     if strict and result.incomplete:
         emit({

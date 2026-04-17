@@ -11,9 +11,11 @@ Do not infer catalog readiness from filenames or directory listings. Run the
 context assembly command from the skill and trust its result. Do not run
 `migrate-util ready` in this review step.
 
-Review the generated model files already present under `dbt/models/staging/`
-and `dbt/models/marts/`. Do not try to repair fixtures, add missing catalog
-fields, or create model files during review.
+Review the generated model files already present under `dbt/models/marts/`
+or `dbt/snapshots/`. Treat `dbt/models/staging/` as source-wrapper-only
+territory and flag migrated target models found there as standards violations.
+Do not try to repair fixtures, add missing catalog fields, or create model files
+during review.
 
 Return only the final `ModelReviewResult` JSON object. Do not return markdown,
 summaries, headings, or follow-up questions.

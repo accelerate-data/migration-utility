@@ -84,6 +84,9 @@
     "foreign_keys": [],
     "pii_actions": []
   },
+  "test_gen": {
+    "status": "ok"
+  },
   "refactor": {
     "status": "ok",
     "extracted_sql": "SELECT tgt.ProductAlternateKey, src.ProductName AS EnglishProductName, GETDATE() AS LastSeenDate FROM [silver].[UpdateJoinTarget] AS tgt INNER JOIN [bronze].[Product] AS src ON tgt.ProductAlternateKey = CAST(src.ProductID AS NVARCHAR(25))",

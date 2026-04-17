@@ -44,8 +44,8 @@ def _generator_input(**overrides: object) -> dict:
 
 def _artifact_paths(**overrides: object) -> dict:
     base = {
-        "model_sql": "models/staging/dimcustomer.sql",
-        "model_yaml": "models/staging/_dimcustomer.yml",
+        "model_sql": "models/marts/dimcustomer.sql",
+        "model_yaml": "models/marts/_marts__models.yml",
     }
     return {**base, **overrides}
 
@@ -337,7 +337,7 @@ class TestFeedbackItem:
 class TestArtifactPaths:
     def test_valid(self) -> None:
         m = ArtifactPaths.model_validate(_artifact_paths())
-        assert m.model_sql == "models/staging/dimcustomer.sql"
+        assert m.model_sql == "models/marts/dimcustomer.sql"
 
     def test_extra_rejected(self) -> None:
         with pytest.raises(ValidationError, match="extra"):

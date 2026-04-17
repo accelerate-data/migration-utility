@@ -34,12 +34,13 @@ Do not use this skill when:
 | Compare gate | Run `test-harness sandbox-status`; if unavailable or explicitly skipped, persist with `--no-compare-required` |
 | Contracts | Use [references/context-fields.md](references/context-fields.md), [references/refactor-contracts.md](references/refactor-contracts.md), and [`../../lib/shared/refactor_error_codes.md`](../../lib/shared/refactor_error_codes.md) |
 | Ground truth | Never modify the extracted SQL during self-correction |
+| Style | Apply shared SQL and CTE style only; dbt model layer, YAML, and source-wrapper decisions belong to generating/reviewing model workflows |
 
 ## Implementation
 
 1. Run the readiness guard. If `ready` is `false`, stop and report the returned `code` and `reason`.
 2. Run `refactor context --table <table_fqn>`. Use [references/context-fields.md](references/context-fields.md) for which fields to pass to each sub-agent. If context assembly fails, map the failure using [references/refactor-contracts.md](references/refactor-contracts.md) and do not expose raw internal labels.
-3. Create `.staging/`, then launch Sub-agent A and Sub-agent B in parallel using [references/sub-agent-prompts.md](references/sub-agent-prompts.md). They must not see each other’s output. Sub-agent B must produce a literal `final AS (...)` CTE and end with `SELECT * FROM final`.
+3. Create `.staging/`, then launch Sub-agent A and Sub-agent B in parallel using [references/sub-agent-prompts.md](references/sub-agent-prompts.md). They must not see each other’s output. Sub-agent B must follow [../_shared/references/sql-style.md](../_shared/references/sql-style.md) and [../_shared/references/cte-structure.md](../_shared/references/cte-structure.md), produce a literal `final AS (...)` CTE, and end with `SELECT * FROM final`.
 4. Write `.staging/<table_fqn>-extracted.sql` and `.staging/<table_fqn>-refactored.sql`.
 5. Run semantic review against extracted SQL vs refactored SQL only. The result must match [references/refactor-contracts.md](references/refactor-contracts.md). If semantic review fails, persist with `--no-compare-required`; this should normally remain `partial`.
 6. If the caller did not skip compare and `test-harness sandbox-status` succeeds, run `compare-sql` with `.staging/<table_fqn>-extracted.sql`, `.staging/<table_fqn>-refactored.sql`, and `test-specs/<table_fqn>.json`, then write `.staging/<table_fqn>-compare.json`.
@@ -56,6 +57,7 @@ Do not use this skill when:
 - Using `SELECT *` inside import, logical, or final CTE definitions.
 - Blocking on sandbox access when semantic-review-only fallback is allowed.
 - Inventing surfaced codes or payload fields outside the canonical `/refactor` contract.
+- Making dbt layer, folder, YAML, or `ref()`/`source()` placement decisions in this skill. This skill outputs refactored SQL only.
 
 ## References
 

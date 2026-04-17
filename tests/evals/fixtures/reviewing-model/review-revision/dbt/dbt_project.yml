@@ -10,3 +10,12 @@ macro-paths: ["macros"]
 test-paths: ["tests"]
 target-path: "target"
 clean-targets: ["target"]
+
+models:
+  migration_test:
+    staging:
+      +materialized: view
+    intermediate:
+      +materialized: ephemeral
+    marts:
+      +materialized: table

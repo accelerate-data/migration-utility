@@ -1,0 +1,13 @@
+version: 2
+models:
+- name: stg_bronze__employee
+  description: Pass-through staging wrapper for bronze.employee
+  columns:
+  - name: NationalIDNumber
+    data_type: nvarchar(15)
+  - name: LoginID
+    data_type: nvarchar(256)
+  - name: JobTitle
+    data_type: nvarchar(50)
+  - name: MaritalStatus
+    data_type: nchar(1)

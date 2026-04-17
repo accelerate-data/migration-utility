@@ -1,0 +1,4 @@
+version: 2
+models:
+- name: stg_bronze__customerraw
+  description: Pass-through staging wrapper for bronze.customerraw

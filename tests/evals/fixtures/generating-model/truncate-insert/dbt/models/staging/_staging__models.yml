@@ -1,0 +1,8 @@
+version: 2
+models:
+- name: stg_bronze__customer
+  description: Pass-through staging wrapper for bronze.customer
+- name: stg_bronze__person
+  description: Pass-through staging wrapper for bronze.person
+- name: stg_bronze__salesorderheader
+  description: Pass-through staging wrapper for bronze.salesorderheader

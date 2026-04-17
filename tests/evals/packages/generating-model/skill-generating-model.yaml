@@ -10,7 +10,7 @@ extensions:
   - file://../../scripts/run-workspace-extension.js:extensionHook
 
 providers:
-  - file://../../providers/haiku-60.yaml
+  - file://../../providers/haiku-100.yaml
 
 tests:
   - description: "[smoke] select-into — SelectIntoTarget writes single model artifact"
@@ -18,18 +18,22 @@ tests:
       fixture_path: "tests/evals/fixtures/generating-model/select-into"
       target_table: "silver.SelectIntoTarget"
       writer: "silver.usp_load_SelectIntoTarget"
-      expected_model_terms: "config(,source("
+      expected_model_path: "models/marts/selectintotarget.sql"
+      expected_model_terms: "ref('stg_bronze__product')"
+      forbidden_model_terms: "materialized='table'"
       expected_yaml_terms: "version: 2,description"
     assert:
       - type: javascript
         value: file://../../assertions/check-dbt-model.js
 
-  - description: "merge — DimProduct emits table model with source refs"
+  - description: "merge — DimProduct emits mart model with staging refs"
     vars:
       fixture_path: "tests/evals/fixtures/generating-model/merge"
       target_table: "silver.DimProduct"
       writer: "silver.usp_load_DimProduct"
-      expected_model_terms: "materialized='table',source("
+      expected_model_path: "models/marts/dim_product.sql"
+      expected_model_terms: "ref("
+      forbidden_model_terms: "materialized='table'"
       expected_yaml_terms: "version: 2,description"
     assert:
       - type: javascript
@@ -40,7 +44,9 @@ tests:
       fixture_path: "tests/evals/fixtures/generating-model/quality-etl-columns"
       target_table: "silver.InsertSelectTarget"
       writer: "silver.usp_load_InsertSelectTarget"
-      expected_model_terms: "_dbt_run_id,config("
+      expected_model_path: "models/marts/insertselecttarget.sql"
+      expected_model_terms: "_dbt_run_id"
+      forbidden_model_terms: "source('bronze'"
       expected_yaml_terms: "version: 2,description"
     assert:
       - type: javascript
@@ -51,6 +57,7 @@ tests:
       fixture_path: "tests/evals/fixtures/generating-model/snapshot-dim-scd2"
       target_table: "silver.DimEmployeeSCD2"
       writer: "silver.usp_load_DimEmployeeSCD2"
+      expected_model_path: "snapshots/dim_employee_scd2.sql"
       expected_model_terms: "snapshot,strategy"
       forbidden_model_terms: "materialized='table'"
     assert:

@@ -1,0 +1,11 @@
+version: 2
+models:
+- name: stg_bronze__salesorder
+  description: Pass-through staging wrapper for bronze.salesorder
+  columns:
+  - name: CustomerID
+    data_type: int
+  - name: OrderDate
+    data_type: date
+  - name: TotalAmount
+    data_type: decimal(18,2)

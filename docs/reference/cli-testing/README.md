@@ -71,7 +71,7 @@ ls -la ddl/ catalog/tables/ manifest.json
 
 ```bash
 ad-migration setup-target
-ls dbt/dbt_project.yml dbt/models/staging/sources.yml
+ls dbt/dbt_project.yml dbt/models/staging/_staging__sources.yml
 ```
 
 ### `setup-sandbox` / `teardown-sandbox`

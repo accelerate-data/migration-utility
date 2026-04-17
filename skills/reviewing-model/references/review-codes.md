@@ -2,6 +2,13 @@
 
 Use shared review codes in summary issue arrays and warning/error arrays. Use stable standards codes for detailed standards fixes.
 
+| Finding type | `checks.*.issues[]` code | `feedback_for_model_generator[].code` |
+|---|---|---|
+| Standards/style/naming/YAML | `REVIEW_STANDARDS_VIOLATION` | Stable standard code: `SQL_*`, `CTE_*`, `MDL_*`, or `YML_*` |
+| Transformation correctness | `REVIEW_CORRECTNESS_GAP` | `REVIEW_CORRECTNESS_GAP` |
+| Unit-test/spec integration | `REVIEW_TEST_INTEGRATION_GAP` | `REVIEW_TEST_INTEGRATION_GAP` |
+| Prerequisite/read/parse failure | n/a | Put the shared error code in `errors[]` |
+
 | Location | Allowed codes |
 |---|---|
 | `checks.standards.issues[]` | `REVIEW_STANDARDS_VIOLATION` |

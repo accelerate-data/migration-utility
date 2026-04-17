@@ -46,7 +46,7 @@ brew install ad-migration
 | Command | Purpose |
 |---|---|
 | `ad-migration setup-source` | Extract DDL and build the local catalog from a live source database |
-| `ad-migration setup-target` | Scaffold the dbt project and generate `sources.yml` |
+| `ad-migration setup-target` | Scaffold the dbt project and generate staging source metadata |
 | `ad-migration setup-sandbox` | Create the active sandbox execution endpoint |
 | `ad-migration teardown-sandbox` | Drop the sandbox endpoint and clear sandbox metadata |
 

@@ -39,6 +39,14 @@ def _load_refactored_sql(project_root: Path, table_fqn: str) -> str | None:
     return cat.refactor.refactored_sql or None
 
 
+def _load_writer_ddl_slice(project_root: Path, table_fqn: str, writer_fqn: str) -> str | None:
+    """Load the target-specific DDL slice for a multi-table writer."""
+    cat = load_proc_catalog(project_root, normalize(writer_fqn))
+    if cat is None:
+        return None
+    return (cat.table_slices or {}).get(normalize(table_fqn)) or None
+
+
 def run_context(
     project_root: Path,
     table_fqn: str,
@@ -69,6 +77,7 @@ def run_context(
     materialization = derive_materialization(profile)
     schema_tests = derive_schema_tests(profile)
     refactored_sql = _load_refactored_sql(project_root, table_norm)
+    writer_ddl_slice = _load_writer_ddl_slice(project_root, table_norm, writer_norm)
 
     return MigrateContextOutput(
         table=table_norm,
@@ -83,4 +92,5 @@ def run_context(
         source_columns=source_columns,
         schema_tests=schema_tests,
         refactored_sql=refactored_sql,
+        writer_ddl_slice=writer_ddl_slice,
     )

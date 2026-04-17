@@ -1,0 +1,52 @@
+version: 2
+
+models:
+- name: insertselecttarget
+  description: Migrated insert-select projection for silver.InsertSelectTarget.
+  columns:
+  - name: ProductAlternateKey
+    description: Business key derived from bronze.Product.ProductID.
+    data_tests:
+    - not_null
+    - unique
+  - name: EnglishProductName
+    description: Product name projected from bronze.Product.ProductName.
+- name: dimproduct
+  description: Migrated product dimension projection for silver.DimProduct.
+  columns:
+  - name: ProductAlternateKey
+    description: Business key derived from bronze.Product.ProductID.
+    data_tests:
+    - not_null
+    - unique
+  - name: EnglishProductName
+    description: Product name projected from bronze.Product.ProductName.
+  - name: Status
+    description: Lifecycle status derived from product dates.
+
+unit_tests:
+- name: test_insert_select_projects_source_row
+  model: insertselecttarget
+  given:
+  - input: ref('stg_bronze__product')
+    rows:
+    - ProductID: 10
+      ProductName: Touring-1000
+  expect:
+    rows:
+    - ProductAlternateKey: "10"
+      EnglishProductName: Touring-1000
+- name: test_status_current_when_active_product
+  model: dimproduct
+  given:
+  - input: ref('stg_bronze__product')
+    rows:
+    - ProductID: 1
+      ProductName: Road-150
+      SellEndDate: null
+      DiscontinuedDate: null
+  expect:
+    rows:
+    - ProductAlternateKey: "1"
+      EnglishProductName: Road-150
+      Status: Current

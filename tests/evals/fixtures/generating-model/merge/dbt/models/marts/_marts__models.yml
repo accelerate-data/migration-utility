@@ -1,0 +1,187 @@
+version: 2
+
+models:
+  - name: dim_product
+    description: "Migrated from silver.usp_load_dimproduct. Target: silver.DimProduct."
+    columns:
+      - name: ProductAlternateKey
+        description: "Product natural key (ProductID from source)"
+      - name: EnglishProductName
+        description: "Product name"
+      - name: StandardCost
+        description: "Standard cost of the product"
+      - name: ListPrice
+        description: "List price of the product"
+      - name: Color
+        description: "Product color"
+      - name: Size
+        description: "Product size"
+      - name: ProductLine
+        description: "Product line category"
+      - name: Class
+        description: "Product class"
+      - name: Style
+        description: "Product style"
+      - name: StartDate
+        description: "Product start date"
+      - name: EndDate
+        description: "Product end date"
+      - name: Status
+        description: "Product status (Current, Obsolete, or Outdated)"
+
+    unit_tests:
+      - name: test_status_current_when_active_product
+        model: dim_product
+        given:
+          - input: ref('stg_bronze__product')
+            rows:
+              - ProductID: 1
+                ProductName: "Road-150"
+                ProductNumber: "PR-001"
+                MakeFlag: 1
+                FinishedGoodsFlag: 1
+                SafetyStockLevel: 100
+                ReorderPoint: 75
+                StandardCost: 10.0
+                ListPrice: 25.0
+                Color: "Red"
+                Size: "M"
+                ProductLine: "R"
+                Class: "H"
+                Style: "U"
+                DaysToManufacture: 1
+                SellStartDate: "2024-01-01"
+                SellEndDate: null
+                DiscontinuedDate: null
+                ModifiedDate: "2024-01-01"
+        expect:
+          rows:
+            - ProductAlternateKey: "1"
+              EnglishProductName: "Road-150"
+              StandardCost: 10.0
+              ListPrice: 25.0
+              Color: "Red"
+              Size: "M"
+              ProductLine: "R"
+              Class: "H"
+              Style: "U"
+              StartDate: "2024-01-01"
+              EndDate: null
+              Status: "Current"
+
+      - name: test_status_obsolete_when_discontinued
+        model: dim_product
+        given:
+          - input: ref('stg_bronze__product')
+            rows:
+              - ProductID: 2
+                ProductName: "Mountain-200"
+                ProductNumber: "PR-002"
+                MakeFlag: 1
+                FinishedGoodsFlag: 1
+                SafetyStockLevel: 100
+                ReorderPoint: 75
+                StandardCost: 20.0
+                ListPrice: 45.0
+                Color: "Blue"
+                Size: "L"
+                ProductLine: "M"
+                Class: "M"
+                Style: "U"
+                DaysToManufacture: 2
+                SellStartDate: "2024-02-01"
+                SellEndDate: null
+                DiscontinuedDate: "2024-03-15"
+                ModifiedDate: "2024-02-01"
+        expect:
+          rows:
+            - ProductAlternateKey: "2"
+              EnglishProductName: "Mountain-200"
+              StandardCost: 20.0
+              ListPrice: 45.0
+              Color: "Blue"
+              Size: "L"
+              ProductLine: "M"
+              Class: "M"
+              Style: "U"
+              StartDate: "2024-02-01"
+              EndDate: null
+              Status: "Obsolete"
+
+      - name: test_status_outdated_when_sell_end_present
+        model: dim_product
+        given:
+          - input: ref('stg_bronze__product')
+            rows:
+              - ProductID: 3
+                ProductName: "Touring-300"
+                ProductNumber: "PR-003"
+                MakeFlag: 1
+                FinishedGoodsFlag: 1
+                SafetyStockLevel: 100
+                ReorderPoint: 75
+                StandardCost: 15.0
+                ListPrice: 30.0
+                Color: "Green"
+                Size: "S"
+                ProductLine: "T"
+                Class: "L"
+                Style: "W"
+                DaysToManufacture: 1
+                SellStartDate: "2023-05-01"
+                SellEndDate: "2024-01-31"
+                DiscontinuedDate: null
+                ModifiedDate: "2023-05-01"
+        expect:
+          rows:
+            - ProductAlternateKey: "3"
+              EnglishProductName: "Touring-300"
+              StandardCost: 15.0
+              ListPrice: 30.0
+              Color: "Green"
+              Size: "S"
+              ProductLine: "T"
+              Class: "L"
+              Style: "W"
+              StartDate: "2023-05-01"
+              EndDate: "2024-01-31"
+              Status: "Outdated"
+
+      - name: test_color_defaults_to_empty_string_when_null
+        model: dim_product
+        given:
+          - input: ref('stg_bronze__product')
+            rows:
+              - ProductID: 4
+                ProductName: "Helmet-400"
+                ProductNumber: "PR-004"
+                MakeFlag: 0
+                FinishedGoodsFlag: 1
+                SafetyStockLevel: 100
+                ReorderPoint: 75
+                StandardCost: 5.0
+                ListPrice: 12.0
+                Color: null
+                Size: "XS"
+                ProductLine: "A"
+                Class: "E"
+                Style: "U"
+                DaysToManufacture: 0
+                SellStartDate: "2024-04-01"
+                SellEndDate: null
+                DiscontinuedDate: null
+                ModifiedDate: "2024-04-01"
+        expect:
+          rows:
+            - ProductAlternateKey: "4"
+              EnglishProductName: "Helmet-400"
+              StandardCost: 5.0
+              ListPrice: 12.0
+              Color: ""
+              Size: "XS"
+              ProductLine: "A"
+              Class: "E"
+              Style: "U"
+              StartDate: "2024-04-01"
+              EndDate: null
+              Status: "Current"

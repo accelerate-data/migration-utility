@@ -71,6 +71,9 @@
     "foreign_keys": [],
     "pii_actions": []
   },
+  "test_gen": {
+    "status": "ok"
+  },
   "refactor": {
     "status": "ok",
     "extracted_sql": "SELECT CAST(ProductID AS NVARCHAR(25)) AS ProductAlternateKey, ProductName AS EnglishProductName FROM [bronze].[Product]",

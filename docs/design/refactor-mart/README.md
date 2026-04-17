@@ -49,7 +49,7 @@ Use a regular shape like this:
 ## Candidate: STG-001
 - [x] Approve: yes
 - Type: stg
-- Output: models/staging/<source_system>/stg_<source_system>__<entity>.sql
+- Output: models/staging/stg_bronze__<entity>.sql
 - Scope: source table <name>
 - Consumers: <consumer>, <consumer>
 - Depends on: none
@@ -128,6 +128,8 @@ Validation is scoped to the candidate being applied.
 - failures are isolated to the candidate scope and must not invalidate unrelated approved work
 
 The workflow should report candidate-level success and failure in both command output and plan-file status updates.
+
+Run dbt Project Evaluator after the changed candidate scope builds successfully. Treat evaluator findings as refactor review evidence: fix findings that align with the generated dbt standards, and document exceptions when a rule conflicts with migration fidelity or an explicit project standard.
 
 ## Reason For Markdown Plans
 

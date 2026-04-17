@@ -1,13 +1,14 @@
 # Snapshot Generation
 
-Use snapshot syntax when the profile-derived materialization is SCD2-style history, but preserve the transformed logic from `refactored_sql`.
+Use snapshot syntax when the profile-derived materialization is SCD2-style history, but preserve the selected transformed SQL: `writer_ddl_slice` for multi-table writers, otherwise `refactored_sql`.
 
 ## Core Rules
 
 - Snapshot config changes the wrapper, not the business logic.
 - Keep the same joins, filters, projections, and CTE flow that the non-snapshot model would use.
-- Do not collapse the body to raw `select * from {{ source(...) }}` unless `refactored_sql` is already that simple.
-- Let the runtime writer decide actual file paths. If the caller or CLI returns written paths, report those exact paths instead of assuming placement.
+- Snapshot SQL still follows the shared model artifact invariants, including `_dbt_run_id` and `_loaded_at`.
+- Do not collapse the body to raw `select * from {{ source(...) }}` unless the selected transformed SQL is already that simple.
+- Write snapshots through `migrate write`; report the CLI-returned `snapshots/<snapshot_name>.sql` and `snapshots/_snapshots__models.yml` paths.
 
 ## Strategy Selection
 
@@ -31,10 +32,13 @@ Wrap the transformed query in a snapshot block:
 ) }}
 
 with source_a as (
-    select * from {{ source('bronze', 'source_a') }}
+    select * from {{ ref('stg_bronze__source_a') }}
 ),
 final as (
-    select ...
+    select
+        ...,
+        '{{ invocation_id }}' as _dbt_run_id,
+        {{ current_timestamp() }} as _loaded_at
     from source_a
 )
 
@@ -43,8 +47,22 @@ select * from final
 {% endsnapshot %}
 ```
 
+Use snapshot YAML, not model YAML:
+
+```yaml
+version: 2
+snapshots:
+  - name: <model_name>_snapshot
+    description: "<target description>"
+    columns:
+      - name: <pk_column>
+        tests:
+          - unique
+          - not_null
+```
+
 ## Common Mistakes
 
 - Dropping transformed logic and snapshotting the raw source table instead.
 - Using snapshot config for tables that should remain `table` or `incremental`.
-- Assuming snapshots must be written to a hardcoded directory even when the caller or CLI owns path selection.
+- Direct-writing snapshot files instead of using `migrate write`.

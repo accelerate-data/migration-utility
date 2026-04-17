@@ -4,7 +4,7 @@
 
 **Goal:** Add the mart-driven two-wave refactor workflow and restructure generated dbt projects so their folders, YAML files, defaults, and model placement follow dbt’s published project-structure standards.
 
-**Architecture:** This feature has two coupled parts. First, normalize the generated dbt project layout to the dbt best-practice structure: `models/staging/<source_system>/`, `models/intermediate/<domain>/`, `models/marts/<domain>/`, directory-scoped YAML/docs files, and directory-level defaults in `dbt_project.yml`. Second, add the new `refactor-mart` commands and skills that operate against that normalized layout using an LLM-readable markdown plan file rather than a Python-first schema.
+**Architecture:** This feature has two coupled parts. First, normalize the generated dbt project layout to the dbt best-practice structure: `models/staging/`, `models/intermediate/`, `models/marts/`, layer-scoped YAML files, pass-through `stg_bronze__*` wrappers for confirmed sources, and directory-level defaults in `dbt_project.yml`. Second, add the new `refactor-mart` commands and skills that operate against that normalized layout using an LLM-readable markdown plan file rather than a Python-first schema.
 
 **Tech Stack:** Claude Code slash command specs, migration skills, Markdown plan artifacts, Promptfoo evals, pytest repo-structure regression checks, `markdownlint`, `rg`
 
@@ -72,14 +72,21 @@
 **Modify generated dbt project structure surfaces**
 
 - `lib/shared/target_setup.py` — scaffold `dbt_project.yml` defaults and the canonical dbt folder tree for staging, intermediate, marts, macros, snapshots, tests, and utilities
-- `lib/shared/generate_sources.py` — write staging source YAML into per-source-system directories using the directory-scoped YAML naming convention
-- `lib/shared/migrate_support/artifacts.py` — resolve and write generated model artifacts into the new staging/intermediate/marts directory structure
+- `lib/shared/generate_sources.py` — write layer-scoped source YAML and pure pass-through staging wrappers for confirmed bronze sources
+- `lib/shared/migrate_support/artifacts.py` — resolve and write first-pass generated migrated targets into `models/marts/`
+- `docs/design/dbt-project-standards/README.md` — durable design decision for generated dbt project standards
+- `skills/_shared/references/dbt-project-standards.md` — plugin-local shared dbt project rules consumed by generation and review skills
+- `skills/_shared/references/model-naming.md` — layer-aware model naming rules
+- `skills/_shared/references/sql-style.md` — dbt Labs SQL style rules
+- `skills/_shared/references/yaml-style.md` — dbt Labs YAML style rules
 - `tests/unit/target_setup/test_target_setup.py` — update scaffolded file expectations for the new dbt structure
-- `tests/unit/generate_sources/test_generate_sources.py` — update source-YAML placement and naming expectations
+- `tests/unit/generate_sources/test_generate_sources.py` — update source-YAML placement, staging-wrapper generation, and naming expectations
 - `tests/unit/migrate/test_migrate.py` — update model artifact path expectations and creation behavior for the new directory layout
 - `tests/unit/output_models/test_model_generation_models.py` — update serialized artifact path expectations
+- `skills/generating-model/SKILL.md` — read/apply the shared dbt standards and write first-pass generated targets as marts
 - `skills/reviewing-model/SKILL.md` — change review guidance to follow the new `staging` and `marts` directory conventions by domain/source system
-- `tests/evals/assertions/check-dbt-refs.js` and related dbt-aware assertions — update `_sources.yml` discovery to the new per-directory YAML convention
+- `skills/refactoring-sql/SKILL.md` and `skills/refactoring-sql/references/sub-agent-prompts.md` — apply dbt Labs SQL/CTE style only, without taking over dbt model placement decisions
+- `tests/evals/assertions/check-dbt-refs.js` and related dbt-aware assertions — update `_staging__sources.yml` discovery and staging-wrapper expectations
 - existing dbt fixture trees under `tests/evals/fixtures/` — move models and YAML files to the new standard layout so command and skill evals reflect the real project structure
 
 **Do not create**
@@ -92,27 +99,42 @@
 
 **Issue scope:** This task is a deterministic generator/scaffold contract change. It does not add a user-facing normalization command or skill, and it does not migrate arbitrary existing dbt projects.
 
+**Current rebase decision:** Keep `commands/status.md` from `main`; it is now outside the VU-1101 implementation surface. Preserve the `main` `setup-target` source/seed behavior, then layer the VU-1101 dbt project guarantees on top of it.
+
+**Current Task 1 status:** Source YAML placement, staging wrapper generation, mart artifact placement, target setup layer defaults/directories, seed properties YAML, shared dbt standards, generator/reviewer guidance, assertions, and representative fixture migration are present on the branch. Verification is complete for the VU-1101 scope; the remaining work is commit, Linear update, and implementation handoff.
+
 **Files:**
 
 - Modify: `lib/shared/target_setup.py`
 - Modify: `lib/shared/generate_sources.py`
 - Modify: `lib/shared/migrate_support/artifacts.py`
+- Create: `docs/design/dbt-project-standards/README.md`
+- Modify: `docs/design/README.md`
+- Create: `skills/_shared/references/dbt-project-standards.md`
+- Modify: `skills/_shared/references/model-naming.md`
+- Modify: `skills/_shared/references/sql-style.md`
+- Modify: `skills/_shared/references/yaml-style.md`
 - Modify: `tests/unit/target_setup/test_target_setup.py`
 - Modify: `tests/unit/generate_sources/test_generate_sources.py`
 - Modify: `tests/unit/migrate/test_migrate.py`
 - Modify: `tests/unit/output_models/test_model_generation_models.py`
+- Modify: `skills/generating-model/SKILL.md`
 - Modify: `skills/reviewing-model/SKILL.md`
+- Modify: `skills/refactoring-sql/SKILL.md`
+- Modify: `skills/refactoring-sql/references/sub-agent-prompts.md`
 - Modify: `tests/evals/assertions/check-dbt-refs.js`
 - Modify: representative fixture trees under `tests/evals/fixtures/`
 
-- [ ] **Step 1: Capture the current generated dbt layout and path assumptions**
+- [x] **Step 1: Capture the current generated dbt layout and path assumptions**
 
 Run:
 
 ```bash
-rg -n "models/staging|models/marts|_sources.yml|_.*\\.yml|dbt_project.yml" \
+rg -n "models/staging|models/marts|models/intermediate|sources.yml|_sources.yml|_staging__sources|_.*__models|dbt_project.yml|group by column|group by 1" \
   lib/shared \
-  skills/reviewing-model/SKILL.md \
+  skills \
+  commands \
+  docs \
   tests/unit \
   tests/evals \
   -g '!**/.venv/**'
@@ -121,35 +143,42 @@ rg -n "models/staging|models/marts|_sources.yml|_.*\\.yml|dbt_project.yml" \
 Expected:
 
 - hits show the current flat `models/staging/` assumptions
-- some fixtures and tests still expect non-standard folders like `models/silver/` or single-file staging YAML placement
-- `target_setup.py` and `generate_sources.py` expose the current scaffold and source-YAML decisions that need to change
+- hits show stale `models/staging/sources.yml`, `_sources.yml`, and flat generated-model path assumptions
+- some fixtures and tests still expect non-standard folders like `models/silver/`
+- `target_setup.py`, `generate_sources.py`, and `migrate_support/artifacts.py` expose the scaffold, source-YAML, staging-wrapper, and mart artifact decisions that need to change
 
-- [ ] **Step 2: Update unit tests first to codify the dbt-standard layout**
+- [x] **Step 2: Update unit tests first to codify the dbt-standard layout**
+
+Status: done. The branch updates the source YAML, staging wrapper, mart artifact, layer-default, and seed properties YAML expectations, including `dbt/seeds/_seeds.yml` with seed column entries.
 
 Apply these expectation changes before touching implementation:
 
 ```text
 staging:
-  dbt/models/staging/<source_system>/stg_<source_system>__<entity>.sql
-  dbt/models/staging/<source_system>/_<source_system>__sources.yml
-  dbt/models/staging/<source_system>/_<source_system>__models.yml
+  dbt/models/staging/_staging__sources.yml
+  dbt/models/staging/_staging__models.yml
+  dbt/models/staging/stg_bronze__<entity>.sql
 
 intermediate:
-  dbt/models/intermediate/<domain>/int_<domain>__<purpose>.sql
-  dbt/models/intermediate/<domain>/_int_<domain>__models.yml
+  dbt/models/intermediate/_intermediate__models.yml
+  dbt/models/intermediate/int_<entity>_<purpose>.sql
 
 marts:
-  dbt/models/marts/<domain>/<entity>.sql
-  dbt/models/marts/<domain>/_<domain>__models.yml
+  dbt/models/marts/<entity>.sql
+  dbt/models/marts/_marts__models.yml
 ```
 
 Implementation notes:
 
 - in `tests/unit/target_setup/test_target_setup.py`, assert the scaffolded `dbt_project.yml` sets directory-level defaults for `staging`, `intermediate`, and `marts`
-- in `tests/unit/generate_sources/test_generate_sources.py`, assert sources are written into per-source folders, not one flat `models/staging/sources.yml`
+- in `tests/unit/target_setup/test_target_setup.py`, assert exported seeds write `dbt/seeds/_seeds.yml` with `version: 2`, `seeds:`, seed names, and all seed columns
+- in `tests/unit/generate_sources/test_generate_sources.py`, assert sources are written to `models/staging/_staging__sources.yml` with `name: bronze`, and confirmed sources get pure pass-through `stg_bronze__<entity>.sql` wrappers plus entries in `_staging__models.yml`
 - in `tests/unit/migrate/test_migrate.py` and `tests/unit/output_models/test_model_generation_models.py`, replace old flat artifact paths with the new standard ones
+- in shared-reference tests or direct markdown checks, assert dbt Labs SQL style prefers positional grouping (`group by 1, 2`) and model naming is layer-aware
 
-- [ ] **Step 3: Run the targeted tests and verify they fail on the old layout**
+- [x] **Step 3: Run the targeted tests and verify they fail on the old layout**
+
+Status: done after the rebase. The focused unit suite currently fails on `tests/unit/target_setup/test_target_setup.py::test_scaffold_target_project_writes_dbt_files` because `target_setup.py` was temporarily resolved to `main` and no longer renders the dbt layer defaults.
 
 Run:
 
@@ -166,78 +195,126 @@ Expected:
 - FAIL with path and scaffold mismatches
 - failures are limited to the dbt layout assumptions you just changed
 
-- [ ] **Step 4: Implement the dbt-standard scaffold and artifact paths**
+- [x] **Step 4: Implement the dbt-standard scaffold and artifact paths**
+
+Status: done. `generate_sources.py`, `migrate_support/artifacts.py`, and `target_setup.py` apply the normalized layout. `target_setup.py` preserves `main` source/seed orchestration while adding layer defaults, canonical directories, and seed properties YAML.
 
 Make these code changes:
 
 ```text
 lib/shared/target_setup.py:
-  - scaffold `models/staging/`, `models/intermediate/`, `models/marts/`, `models/utilities/`, `macros/`, `snapshots/`, and `tests/`
+  - scaffold `models/staging/`, `models/intermediate/`, `models/marts/`, `macros/`, `snapshots/`, and `tests/`
+  - keep `seed-paths: ["seeds"]` and preserve the `main` seed export/materialization behavior
   - render `dbt_project.yml` with folder-level defaults:
       staging -> view
       intermediate -> ephemeral
       marts -> table
+  - write `dbt/seeds/_seeds.yml` using dbt seed properties shape with every exported seed and its catalog columns
 
 lib/shared/generate_sources.py:
-  - write per-source-system `_...__sources.yml` files
-  - keep YAML placement directory-scoped rather than one file per model
+  - write `models/staging/_staging__sources.yml`
+  - emit dbt source `name: bronze`; preserve physical schema through `schema:` when configured
+  - create pure pass-through `models/staging/stg_bronze__<entity>.sql` wrappers for every confirmed source table
+  - update `models/staging/_staging__models.yml` with one model entry per wrapper
+  - never cast, rename, filter, join, aggregate, categorize, compute new business columns, or change grain in initial staging wrappers
 
 lib/shared/migrate_support/artifacts.py:
-  - resolve staging, intermediate, and mart model destinations according to the new layout
+  - write first-pass generated migrated targets to `models/marts/<model_name>.sql`
+  - write paired model YAML to `models/marts/_marts__models.yml`
+  - merge new model YAML into the layer YAML rather than one YAML file per model
 ```
 
 Constraints:
 
-- follow the dbt structure guidance from the five referenced docs, including directory-scoped YAML files and folder-based default configs
+- follow the dbt structure and style guidance captured in `docs/design/dbt-project-standards/README.md` and `skills/_shared/references/dbt-project-standards.md`
+- adopt dbt Labs SQL style wholesale, including trailing commas and positional grouping
+- follow dbt seed documentation for seed CSVs, `dbt seed`, `ref()` usage, and seed properties YAML
 - do not introduce a compatibility shim that preserves the old flat paths unless a specific test proves it is required
+- do not use dbt Project Evaluator as a `setup-target` dependency; it belongs to later refactor validation
 
-- [ ] **Step 5: Update fixture trees and dbt-aware review/assertion docs**
+- [x] **Step 5: Update fixture trees and dbt-aware review/assertion docs**
+
+Status: done for the existing VU-1101 layout scope. The branch includes shared dbt standards, generator/reviewer/refactor guidance updates, dbt-aware assertion updates, and representative fixture moves to `_staging__sources.yml`, `_staging__models.yml`, `stg_bronze__*`, `models/marts/`, and `_marts__models.yml`.
 
 Update:
 
 ```text
+skills/generating-model/SKILL.md
 skills/reviewing-model/SKILL.md
+skills/refactoring-sql/SKILL.md
+skills/refactoring-sql/references/sub-agent-prompts.md
 tests/evals/assertions/check-dbt-refs.js
 tests/evals/fixtures/**/dbt/models/**
+docs/reference/**
+docs/wiki/**
 ```
 
 Required outcomes:
 
-- review guidance points at `staging/<source_system>/`, `intermediate/<domain>/`, and `marts/<domain>/`
-- dbt ref assertions discover `_...__sources.yml` in per-directory locations
+- generator guidance reads/applies `skills/_shared/references/dbt-project-standards.md`, `model-naming.md`, `sql-style.md`, and `yaml-style.md`
+- reviewer guidance enforces the same shared references
+- refactor SQL guidance applies SQL/CTE style only
+- dbt ref assertions discover `models/staging/_staging__sources.yml`
+- mart models are expected to use `ref('stg_bronze__<entity>')` when a matching staging wrapper exists
 - representative fixtures in `generating-model`, `cmd-generate-model`, `refactoring-sql`, and `cmd-status` reflect the new standard layout
 
-- [ ] **Step 6: Run the layout verification suite and commit**
+- [x] **Step 6: Run the layout verification suite and commit**
+
+Status: done. `markdownlint`, `git diff --check`, the focused unit suite, `eval:generating-model`, and `eval:cmd-generate-model` passed. After the final reviewer output-shape tightening, the previously failing `review-approved-clean` targeted reviewing-model eval passed.
 
 Run:
 
 ```bash
-markdownlint skills/reviewing-model/SKILL.md
+markdownlint \
+  docs/design/dbt-project-standards/README.md \
+  skills/_shared/references/dbt-project-standards.md \
+  skills/_shared/references/model-naming.md \
+  skills/_shared/references/sql-style.md \
+  skills/_shared/references/yaml-style.md \
+  skills/generating-model/SKILL.md \
+  skills/reviewing-model/SKILL.md \
+  skills/refactoring-sql/SKILL.md \
+  skills/refactoring-sql/references/sub-agent-prompts.md
 cd lib && uv run pytest \
   ../tests/unit/target_setup/test_target_setup.py \
   ../tests/unit/generate_sources/test_generate_sources.py \
   ../tests/unit/migrate/test_migrate.py \
   ../tests/unit/output_models/test_model_generation_models.py -q
+cd tests/evals && npm run eval:generating-model
+cd tests/evals && npm run eval:reviewing-model
 ```
 
 Expected:
 
 - markdownlint passes
 - the targeted unit tests pass with the new dbt structure
+- generating/reviewing evals pass against updated fixtures
 
 Run:
 
 ```bash
 git add \
+  docs/design/dbt-project-standards/README.md \
+  docs/design/README.md \
+  docs/design/refactor-mart/README.md \
   lib/shared/target_setup.py \
   lib/shared/generate_sources.py \
   lib/shared/migrate_support/artifacts.py \
+  skills/_shared/references/dbt-project-standards.md \
+  skills/_shared/references/model-naming.md \
+  skills/_shared/references/sql-style.md \
+  skills/_shared/references/yaml-style.md \
+  skills/generating-model/SKILL.md \
   tests/unit/target_setup/test_target_setup.py \
   tests/unit/generate_sources/test_generate_sources.py \
   tests/unit/migrate/test_migrate.py \
   tests/unit/output_models/test_model_generation_models.py \
   skills/reviewing-model/SKILL.md \
+  skills/refactoring-sql/SKILL.md \
+  skills/refactoring-sql/references/sub-agent-prompts.md \
   tests/evals/assertions/check-dbt-refs.js \
+  docs/reference \
+  docs/wiki \
   tests/evals/fixtures
 git commit -m "feat: normalize generated dbt project structure"
 ```

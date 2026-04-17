@@ -1,0 +1,8 @@
+version: 2
+
+seeds:
+  - name: currency
+    description: "Currency seed for migration review dependency checks."
+    columns:
+      - name: CurrencyCode
+        data_type: nvarchar(3)

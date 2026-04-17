@@ -15,10 +15,10 @@ Generate dbt models for a batch of tables. Launches one sub-agent per table in p
 ## Guards
 
 - `manifest.json` must exist. If missing, fail all items with `MANIFEST_NOT_FOUND`.
-- For each FQN argument: if `catalog/tables/<fqn>.json` has `"is_seed": true`, skip that table and print:
+- For each FQN argument: if `catalog/tables/<fqn>.json` has `"is_seed": true`, skip that table, write the workflow-exempt skip result described in Step 2, and print:
   > `<fqn>` is marked as a dbt seed -- no migration needed. Use `ad-migration add-seed-table` to manage seed tables.
-- For each FQN argument: if `catalog/tables/<fqn>.json` has `"is_source": true`, skip that table and print:
-  > `<fqn>` is marked as a dbt source — no migration needed. Use `ad-migration add-source-table` to manage source tables.
+- For each FQN argument: if `catalog/tables/<fqn>.json` has `"is_source": true`, skip that table, write the workflow-exempt skip result described in Step 2, and print:
+  > `<fqn>` is marked as a dbt source -- no migration needed. Use `ad-migration add-source-table` to manage source tables.
 - `dbt_project.yml` must exist at `./dbt/`. If missing, fail all items with `DBT_PROJECT_MISSING`.
 - `dbt/profiles.yml` must exist. If missing, fail all items with `DBT_PROFILE_MISSING` and tell the user to run `ad-migration setup-target`.
 - `dbt debug` must show "Connection test: OK". If it fails, fail all items with `DBT_CONNECTION_FAILED` and tell the user to check the resolved `runtime.target` credentials and endpoint in `manifest.json` and the matching `dbt/profiles.yml` configuration.
@@ -48,7 +48,25 @@ Use `TaskCreate` and `TaskUpdate` to show live progress. At the start of Step 2,
 
 Create `.migration-runs/` first if it does not already exist.
 
-**Idempotency check:** For each item, read `catalog/tables/<fqn>.json`. If `generate.status == "ok"` and the user did not explicitly request a rerun, skip fresh generation but still carry the item into Step 3 review using the existing written artifacts. Write a skip result:
+**Workflow-exempt source and seed check:** For each item, read
+`catalog/tables/<fqn>.json` before any idempotency check or model generation.
+If the catalog marks the table as a source or seed, do not invoke
+`/generating-model` or `/reviewing-model` for that item. Write one of these
+skip results to `.migration-runs/<schema.table>.<run_id>.json` and continue to
+the next item:
+
+```json
+{"item_id": "<fqn>", "status": "skipped", "output": {"skipped": true, "reason": "is_source", "message": "<fqn> is marked as a dbt source -- no migration needed. Use `ad-migration add-source-table` to manage source tables."}}
+```
+
+```json
+{"item_id": "<fqn>", "status": "skipped", "output": {"skipped": true, "reason": "is_seed", "message": "<fqn> is marked as a dbt seed -- no migration needed. Use `ad-migration add-seed-table` to manage seed tables."}}
+```
+
+**Idempotency check:** For each non-source, non-seed item, read
+`catalog/tables/<fqn>.json`. If `generate.status == "ok"` and the user did not
+explicitly request a rerun, skip fresh generation but still carry the item into
+Step 3 review using the existing written artifacts. Write a skip result:
 
 ```json
 {"item_id": "<fqn>", "status": "ok", "output": {"skipped": true, "reason": "model_already_generated"}}
@@ -72,7 +90,10 @@ Return the item result JSON.
 
 ### Step 3 — Review model
 
-For each item, read `.migration-runs/<item_id>.<run_id>.json` from Step 2. If `status` is `error`, skip the item. For each remaining item, invoke `/reviewing-model <item_id>`, including items whose Step 2 result was a skip.
+For each item, read `.migration-runs/<item_id>.<run_id>.json` from Step 2. If
+`status` is `error` or `skipped`, skip review for that item. For each remaining
+item, invoke `/reviewing-model <item_id>`, including items whose Step 2 result
+was an idempotency skip.
 
 - If verdict is `approved`: proceed to commit/revert below.
 - If Step 2 was a skip and review returns `error` because the persisted artifacts are missing or stale, invoke `/generating-model <item_id>` once to rebuild the artifacts, then invoke `/reviewing-model <item_id>` again.
@@ -84,19 +105,25 @@ Once the review outcome is final for an item, derive `<model_name>` from item_id
 If the item final status is `error`, revert any files the skill may have partially written:
 
 ```bash
-git checkout -- dbt/models/staging/<model_name>.sql dbt/models/staging/_<model_name>.yml
+git checkout -- dbt/models/marts/<model_name>.sql dbt/models/marts/_marts__models.yml
+```
+
+For snapshot artifacts, revert the snapshot paths returned by the item result:
+
+```bash
+git checkout -- dbt/snapshots/<snapshot_name>.sql dbt/snapshots/_snapshots__models.yml
 ```
 
 Use `rm -f` instead of `git checkout` for newly created files with no prior version.
 
 If the item final status is not `error`, stage the generated dbt files, create a checkpoint commit, and push the current branch.
 
-For multi-table sub-agents: include the commit/revert instructions in the sub-agent prompt at the end of the review loop, using "stage <files>, create a checkpoint commit, and push the current branch".
+In multi-table runs, the parent command owns review and commit/revert after each generation result is written. Generation sub-agents only run `/generating-model` and write their item result JSON.
 
 ### Step 4 — Summarize
 
 1. Read each `.migration-runs/<schema.table>.<run_id>.json`.
-2. Write `.migration-runs/summary.<run_id>.json` with `{total, ok, partial, error}` counts and per-item status.
+2. Write `.migration-runs/summary.<run_id>.json` with `{total, ok, partial, error, skipped}` counts and per-item status.
 3. Present human-readable summary:
 
    ```text
@@ -130,6 +157,10 @@ For multi-table sub-agents: include the commit/revert instructions in the sub-ag
 
 ## Item Result Schema
 
+For snapshots, `artifact_paths.model_sql` uses
+`snapshots/<snapshot_name>.sql` and `artifact_paths.model_yaml` uses
+`snapshots/_snapshots__models.yml`.
+
 ```json
 {
   "item_id": "<table_fqn>",
@@ -138,8 +169,8 @@ For multi-table sub-agents: include the commit/revert instructions in the sub-ag
     "table_ref": "<table_fqn>",
     "model_name": "<model_name>",
     "artifact_paths": {
-      "model_sql": "models/staging/<model_name>.sql",
-      "model_yaml": "models/staging/_<model_name>.yml"
+      "model_sql": "models/marts/<model_name>.sql",
+      "model_yaml": "models/marts/_marts__models.yml"
     },
     "generated": {
       "model_sql": {
@@ -154,7 +185,7 @@ For multi-table sub-agents: include the commit/revert instructions in the sub-ag
     },
     "execution": {
       "dbt_compile_passed": true,
-      "dbt_build_passed": true,
+      "dbt_test_passed": true,
       "self_correction_iterations": 0,
       "dbt_errors": []
     },
