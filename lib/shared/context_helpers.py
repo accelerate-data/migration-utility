@@ -11,12 +11,15 @@ import logging
 from pathlib import Path
 from typing import Any
 
+import sqlglot
+
 logger = logging.getLogger(__name__)
 
 from shared.catalog import load_proc_catalog, load_table_catalog, load_view_catalog
 from shared.loader import (
     CatalogFileMissingError,
     ProfileMissingError,
+    collect_refs_from_statements,
     load_directory,
 )
 from shared.loader_io import read_manifest
@@ -56,6 +59,30 @@ def load_table_columns(project_root: Path, table_fqn: str) -> list[dict[str, Any
     if cat and cat.columns:
         return cat.columns
     return []
+
+
+def resolve_selected_writer_ddl_slice(proc_cat: Any, table_fqn: str, writer_fqn: str) -> str | None:
+    """Return the target-specific slice, or fail if a sliced writer lacks it."""
+    table_norm = normalize(table_fqn)
+    writer_norm = normalize(writer_fqn)
+    table_slices = proc_cat.table_slices or {}
+    if not table_slices:
+        return None
+    selected_slice = table_slices.get(table_norm)
+    if selected_slice:
+        return selected_slice
+    raise ValueError(
+        f"Writer {writer_norm} has table_slices, but no slice exists for target {table_norm}. "
+        "Re-run slice extraction or write the table slice before continuing."
+    )
+
+
+def collect_source_tables_from_sql(sql: str, dialect: str = "tsql") -> list[str]:
+    """Collect source tables from selected SQL instead of full writer metadata."""
+    statements = sqlglot.parse(sql, dialect=dialect, error_level=sqlglot.ErrorLevel.IGNORE)
+    refs = collect_refs_from_statements([stmt for stmt in statements if stmt is not None], dialect=dialect)
+    return sorted(set(refs.reads_from))
+
 
 def collect_source_tables(project_root: Path, writer_fqn: str) -> list[str]:
     """Collect source tables and views from the writer procedure's references.

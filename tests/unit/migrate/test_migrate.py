@@ -261,10 +261,11 @@ class TestRunContext:
         assert result.schema_tests is not None
         assert result.refactored_sql is not None
         assert len(result.refactored_sql) > 0
-        assert result.writer_ddl_slice is None
+        assert result.selected_writer_ddl_slice is None
+        assert not hasattr(result, "writer_ddl_slice")
 
-    def test_context_includes_writer_ddl_slice(self, ddl_path: Path) -> None:
-        """Multi-table writer slice is included for model generation."""
+    def test_context_uses_selected_writer_slice_without_full_proc_body(self, ddl_path: Path) -> None:
+        """Sliced writers expose only the selected table slice to LLM-facing context."""
         proc_path = ddl_path / "catalog" / "procedures" / "dbo.usp_load_fact_sales.json"
         proc_cat = json.loads(proc_path.read_text(encoding="utf-8"))
         proc_cat["table_slices"] = {
@@ -274,7 +275,21 @@ class TestRunContext:
 
         result = run_context(ddl_path, "silver.FactSales", "dbo.usp_load_fact_sales")
 
-        assert result.writer_ddl_slice == "insert into silver.FactSales select sale_id from bronze.Sales"
+        assert result.selected_writer_ddl_slice == "insert into silver.FactSales select sale_id from bronze.Sales"
+        assert result.proc_body == ""
+        assert not hasattr(result, "writer_ddl_slice")
+
+    def test_context_missing_selected_writer_slice_raises(self, ddl_path: Path) -> None:
+        """A sliced writer without a target-table slice is not safe LLM context."""
+        proc_path = ddl_path / "catalog" / "procedures" / "dbo.usp_load_fact_sales.json"
+        proc_cat = json.loads(proc_path.read_text(encoding="utf-8"))
+        proc_cat["table_slices"] = {
+            "silver.other": "insert into silver.Other select sale_id from bronze.Sales"
+        }
+        proc_path.write_text(json.dumps(proc_cat, indent=2) + "\n", encoding="utf-8")
+
+        with pytest.raises(ValueError, match="no slice exists for target silver\\.factsales"):
+            run_context(ddl_path, "silver.FactSales", "dbo.usp_load_fact_sales")
 
     def test_dim_scd2_materialization_snapshot(self, ddl_path: Path) -> None:
         result = run_context(ddl_path, "silver.DimCustomer", "dbo.usp_load_dim_customer")

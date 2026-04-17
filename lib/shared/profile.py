@@ -32,6 +32,7 @@ from shared.catalog import (
     write_json as _write_catalog_json,
 )
 from shared.catalog_models import ReferencesBucket, TableCatalog, TableProfileSection, ViewProfileSection
+from shared.context_helpers import resolve_selected_writer_ddl_slice
 from shared.loader import (
     CatalogFileMissingError,
     CatalogLoadError,
@@ -141,16 +142,17 @@ def run_context(project_root: Path, table: str, writer: str | None = None) -> Pr
     if proc_cat is None:
         raise CatalogFileMissingError("procedure", writer_norm)
 
-    table_slices = proc_cat.table_slices or {}
-    writer_ddl_slice = table_slices.get(table_norm) or None
+    selected_writer_ddl_slice = resolve_selected_writer_ddl_slice(proc_cat, table_norm, writer_norm)
 
-    writer_references = proc_cat.references
+    writer_references = None if selected_writer_ddl_slice else proc_cat.references
 
     # Load proc body from DDL files
     ddl_catalog, _ = load_ddl(project_root)
-    proc_entry = ddl_catalog.get_procedure(writer_norm)
-    proc_body = proc_entry.raw_ddl if proc_entry else ""
-    if not proc_body:
+    proc_body = ""
+    if not selected_writer_ddl_slice:
+        proc_entry = ddl_catalog.get_procedure(writer_norm)
+        proc_body = proc_entry.raw_ddl if proc_entry else ""
+    if not proc_body and not selected_writer_ddl_slice:
         logger.warning("event=context_warning operation=load_proc_body table=%s writer=%s reason=no_ddl_body", table_norm, writer_norm)
 
     related_procedures = _build_related_procedures(project_root, ddl_catalog, writer_references)
@@ -166,7 +168,7 @@ def run_context(project_root: Path, table: str, writer: str | None = None) -> Pr
         proc_body=proc_body,
         columns=columns,
         related_procedures=related_procedures,
-        writer_ddl_slice=writer_ddl_slice,
+        selected_writer_ddl_slice=selected_writer_ddl_slice,
     )
 
 

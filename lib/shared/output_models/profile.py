@@ -102,7 +102,7 @@ class ProfileContext(BaseModel):
     proc_body: str
     columns: list[ProfileColumnDef]
     related_procedures: list[RelatedProcedure]
-    writer_ddl_slice: str | None = None
+    selected_writer_ddl_slice: str | None = None
 
 
 ViewColumnDef = ColumnDef

@@ -513,13 +513,13 @@ def test_write_view_happy_path() -> None:
         assert "CustomerID" in view_cat["refactor"]["extracted_sql"]
 
 
-# ── Context: writer_ddl_slice ─────────────────────────────────────────────────
+# ── Context: selected_writer_ddl_slice ─────────────────────────────────────────
 
 
 class TestContextWriterSlice:
 
-    def test_run_context_includes_writer_ddl_slice(self) -> None:
-        """run_context returns writer_ddl_slice when the proc catalog has table_slices for the target table."""
+    def test_run_context_uses_selected_writer_slice_without_full_proc_body(self) -> None:
+        """Sliced writers expose only the selected table slice to LLM-facing context."""
         tmp, root = _make_writable_copy()
         with tmp:
             proc_path = root / "catalog" / "procedures" / "dbo.usp_load_dimcustomer.json"
@@ -529,13 +529,29 @@ class TestContextWriterSlice:
 
             result = refactor.run_context(root, "silver.DimCustomer")
             assert isinstance(result, RefactorContextOutput)
-            assert result.writer_ddl_slice == "MERGE INTO dim.dimcustomer ..."
+            assert result.selected_writer_ddl_slice == "MERGE INTO dim.dimcustomer ..."
+            assert result.proc_body == ""
+            assert not hasattr(result, "writer_ddl_slice")
 
-    def test_run_context_writer_ddl_slice_absent(self) -> None:
-        """run_context returns writer_ddl_slice as None when proc catalog has no table_slices."""
+    def test_run_context_selected_writer_slice_absent_for_unsliced_writer(self) -> None:
+        """Unsliced writers keep full proc_body and no selected slice."""
         result = refactor.run_context(_REFACTOR_FIXTURES, "silver.DimCustomer")
         assert isinstance(result, RefactorContextOutput)
-        assert result.writer_ddl_slice is None
+        assert result.selected_writer_ddl_slice is None
+        assert result.proc_body
+        assert not hasattr(result, "writer_ddl_slice")
+
+    def test_run_context_missing_selected_writer_slice_raises(self) -> None:
+        """A sliced writer without a target-table slice is not safe LLM context."""
+        tmp, root = _make_writable_copy()
+        with tmp:
+            proc_path = root / "catalog" / "procedures" / "dbo.usp_load_dimcustomer.json"
+            proc_cat = json.loads(proc_path.read_text(encoding="utf-8"))
+            proc_cat["table_slices"] = {"silver.other": "MERGE INTO silver.Other ..."}
+            proc_path.write_text(json.dumps(proc_cat), encoding="utf-8")
+
+            with pytest.raises(ValueError, match="no slice exists for target silver\\.dimcustomer"):
+                refactor.run_context(root, "silver.DimCustomer")
 
 
 # ── Pydantic model validation ─────────────────────────────────────────────────

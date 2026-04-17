@@ -780,13 +780,13 @@ def test_write_view_profile_idempotent() -> None:
         tmp.cleanup()
 
 
-# ── Context: writer_ddl_slice ─────────────────────────────────────────────────
+# ── Context: selected_writer_ddl_slice ─────────────────────────────────────────
 
 
 class TestContextWriterSlice:
 
-    def test_run_context_includes_writer_ddl_slice(self) -> None:
-        """run_context returns writer_ddl_slice when the proc catalog has table_slices for the target table."""
+    def test_run_context_uses_selected_writer_slice_without_full_proc_body(self) -> None:
+        """Sliced writers expose only the selected table slice to LLM-facing context."""
         tmp, root = _make_writable_copy()
         try:
             proc_path = root / "catalog" / "procedures" / "dbo.usp_load_fact_sales.json"
@@ -796,14 +796,32 @@ class TestContextWriterSlice:
 
             result = profile.run_context(root, "silver.FactSales", "dbo.usp_load_fact_sales")
             assert isinstance(result, ProfileContext)
-            assert result.writer_ddl_slice == "MERGE INTO silver.FactSales ..."
+            assert result.selected_writer_ddl_slice == "MERGE INTO silver.FactSales ..."
+            assert result.proc_body == ""
+            assert not hasattr(result, "writer_ddl_slice")
         finally:
             tmp.cleanup()
 
-    def test_run_context_writer_ddl_slice_absent(self) -> None:
-        """run_context returns writer_ddl_slice as None when proc catalog has no table_slices."""
+    def test_run_context_selected_writer_slice_absent_for_unsliced_writer(self) -> None:
+        """Unsliced writers keep full proc_body and no selected slice."""
         result = profile.run_context(
             _PROFILE_FIXTURES, "silver.FactSales", "dbo.usp_load_fact_sales",
         )
         assert isinstance(result, ProfileContext)
-        assert result.writer_ddl_slice is None
+        assert result.selected_writer_ddl_slice is None
+        assert result.proc_body
+        assert not hasattr(result, "writer_ddl_slice")
+
+    def test_run_context_missing_selected_writer_slice_raises(self) -> None:
+        """A sliced writer without a target-table slice is not safe LLM context."""
+        tmp, root = _make_writable_copy()
+        try:
+            proc_path = root / "catalog" / "procedures" / "dbo.usp_load_fact_sales.json"
+            proc_cat = json.loads(proc_path.read_text(encoding="utf-8"))
+            proc_cat["table_slices"] = {"silver.other": "MERGE INTO silver.Other ..."}
+            proc_path.write_text(json.dumps(proc_cat), encoding="utf-8")
+
+            with pytest.raises(ValueError, match="no slice exists for target silver\\.factsales"):
+                profile.run_context(root, "silver.FactSales", "dbo.usp_load_fact_sales")
+        finally:
+            tmp.cleanup()

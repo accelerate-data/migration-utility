@@ -6,12 +6,14 @@ from pathlib import Path
 
 from shared.catalog import has_catalog, load_proc_catalog, read_selected_writer
 from shared.context_helpers import (
+    collect_source_tables_from_sql,
     collect_source_tables,
     load_object_columns,
     load_proc_body,
     load_proc_statements,
     load_table_columns,
     load_table_profile,
+    resolve_selected_writer_ddl_slice,
 )
 from shared.loader import CatalogFileMissingError, CatalogNotFoundError
 from shared.name_resolver import normalize
@@ -39,14 +41,6 @@ def _load_refactored_sql(project_root: Path, table_fqn: str) -> str | None:
     return cat.refactor.refactored_sql or None
 
 
-def _load_writer_ddl_slice(project_root: Path, table_fqn: str, writer_fqn: str) -> str | None:
-    """Load the target-specific DDL slice for a multi-table writer."""
-    cat = load_proc_catalog(project_root, normalize(writer_fqn))
-    if cat is None:
-        return None
-    return (cat.table_slices or {}).get(normalize(table_fqn)) or None
-
-
 def run_context(
     project_root: Path,
     table_fqn: str,
@@ -65,19 +59,27 @@ def run_context(
     if not has_catalog(project_root):
         raise CatalogNotFoundError(project_root)
 
+    proc_cat = load_proc_catalog(project_root, writer_norm)
+    if proc_cat is None:
+        raise CatalogFileMissingError("procedure", writer_norm)
+    selected_writer_ddl_slice = resolve_selected_writer_ddl_slice(proc_cat, table_norm, writer_norm)
+
     profile = load_table_profile(project_root, table_norm)
-    statements = load_proc_statements(project_root, writer_norm)
+    statements = [] if selected_writer_ddl_slice else load_proc_statements(project_root, writer_norm)
     needs_llm = _classify_proc(project_root, writer_norm)
-    proc_body = load_proc_body(project_root, writer_norm)
+    proc_body = "" if selected_writer_ddl_slice else load_proc_body(project_root, writer_norm)
     columns = load_table_columns(project_root, table_norm)
-    source_tables = collect_source_tables(project_root, writer_norm)
+    source_tables = (
+        collect_source_tables_from_sql(selected_writer_ddl_slice)
+        if selected_writer_ddl_slice
+        else collect_source_tables(project_root, writer_norm)
+    )
     source_columns = {
         fqn: load_object_columns(project_root, fqn) for fqn in source_tables
     }
     materialization = derive_materialization(profile)
     schema_tests = derive_schema_tests(profile)
     refactored_sql = _load_refactored_sql(project_root, table_norm)
-    writer_ddl_slice = _load_writer_ddl_slice(project_root, table_norm, writer_norm)
 
     return MigrateContextOutput(
         table=table_norm,
@@ -92,5 +94,5 @@ def run_context(
         source_columns=source_columns,
         schema_tests=schema_tests,
         refactored_sql=refactored_sql,
-        writer_ddl_slice=writer_ddl_slice,
+        selected_writer_ddl_slice=selected_writer_ddl_slice,
     )
