@@ -283,7 +283,6 @@ class TestDiffAwareReexportIntegration:
             # First extraction + write
             _extract_staging(conn, staging, database, schemas)
             counts1 = _run_write_catalog(staging, output, database)
-            total_first = counts1["tables"] + counts1["procedures"] + counts1["views"] + counts1["functions"]
 
             # Inject fake LLM section into a table catalog to prove preservation
             table_files = list((output / "catalog" / "tables").glob("*.json"))
@@ -388,7 +387,6 @@ class TestViewCatalogEnrichmentIntegration:
         database = SQL_SERVER_MIGRATION_DATABASE
         view_schema = SQL_SERVER_FIXTURE_SCHEMA
         view_name = "vw_integration_test_view"
-        fqn = f"{view_schema}.{view_name}"
 
         # Find a table to base the view on
         tables = _query_rows(conn, f"""

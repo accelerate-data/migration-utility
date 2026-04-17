@@ -3,21 +3,11 @@ from __future__ import annotations
 import json
 from pathlib import Path
 
-import pytest
 
 from shared import dry_run
-from shared import dry_run_core
-from shared import generate_sources as gen_src
-from shared.dry_run_support import status as dry_run_status
-from shared.output_models.dry_run import DryRunOutput
 from tests.unit.dry_run.dry_run_test_helpers import (
-    _add_source_table,
-    _add_table_to_project,
     _cli_runner,
-    _make_bare_project,
     _make_exclude_project,
-    _make_project,
-    _make_reset_project,
 )
 
 def test_run_exclude_table_sets_flag(tmp_path: Path) -> None:

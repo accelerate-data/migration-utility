@@ -3,7 +3,6 @@
 from __future__ import annotations
 
 import json
-import os
 from pathlib import Path
 from typing import Any
 
@@ -15,7 +14,6 @@ from shared import catalog_enrich
 from tests.helpers import (
     git_init as _git_init,
     run_catalog_enrich_cli as _run_enrich_cli,
-    run_setup_ddl_cli as _run_setup_ddl_cli,
 )
 
 
@@ -366,7 +364,6 @@ def test_enrich_preserves_catalog_query_entries(tmp_path: Path) -> None:
     # Capture original proc catalog
     original_proc = _read_catalog_json(ddl, "procedures", "dbo.usp_simple_insert")
     assert original_proc is not None
-    original_tables = original_proc["references"]["tables"]["in_scope"]
 
     result = enrich_catalog(ddl)
 

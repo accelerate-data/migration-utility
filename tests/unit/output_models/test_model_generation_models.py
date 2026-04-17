@@ -9,19 +9,12 @@ from shared.output_models.migrate import RenderUnitTestsOutput
 from shared.output_models.model_generation import (
     ArtifactPaths,
     CheckResult,
-    ExecutionInfo,
     FeedbackItem,
-    GeneratedInfo,
-    GeneratedModelInfo,
-    GeneratedYamlInfo,
     GeneratorItem,
     ModelGenerationHandoff,
-    ModelGenerationItemOutput,
     ModelGenerationOutput,
     ModelGeneratorInput,
     ModelReviewOutput,
-    ReviewChecks,
-    ReviewInfo,
 )
 
 

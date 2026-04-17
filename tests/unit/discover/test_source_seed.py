@@ -7,23 +7,11 @@ from pathlib import Path
 import pytest
 
 from shared import discover
+from shared.catalog_writer import run_write_seed
 from shared.loader import (
     CatalogFileMissingError,
-    CatalogLoadError,
-    CatalogNotFoundError,
-    DdlParseError,
-    ObjectNotFoundError,
 )
 from tests.unit.discover.discover_test_helpers import (
-    _CATALOG_FIXTURES,
-    _FLAT_FIXTURES,
-    _LISTING_OBJECTS_EVAL_FIXTURES,
-    _SOURCE_TABLE_GUARD_FIXTURES,
-    _UNPARSEABLE_FIXTURES,
-    _make_proc_cat,
-    _make_project_with_corrupt_catalog,
-    _make_project_with_proc_view_refs,
-    _make_project_with_view_catalog,
     _make_table_cat,
 )
 
@@ -45,7 +33,7 @@ def test_write_source_resolved_table() -> None:
             root, "silver.crossdomain",
             {"status": "resolved", "selected_writer": "dbo.usp_other"},
         )
-        result = discover.run_write_source(root, "silver.crossdomain", True)
+        discover.run_write_source(root, "silver.crossdomain", True)
         written = json.loads(cat_path.read_text(encoding="utf-8"))
         assert written["is_source"] is True
 
@@ -87,7 +75,7 @@ def test_write_seed_sets_seed_and_clears_source_with_profile() -> None:
             {"status": "no_writer_found"},
             {"is_source": True},
         )
-        result = discover.run_write_seed(root, "silver.lookup", True)
+        result = run_write_seed(root, "silver.lookup", True)
         written = json.loads(cat_path.read_text(encoding="utf-8"))
         assert result.is_seed is True
         assert written["is_seed"] is True
@@ -107,7 +95,7 @@ def test_write_seed_rejects_resolved_migration_table() -> None:
             {"is_source": False},
         )
         with pytest.raises(ValueError, match="no_writer_found"):
-            discover.run_write_seed(root, "silver.dimcustomer", True)
+            run_write_seed(root, "silver.dimcustomer", True)
 
 def test_write_seed_false_resets_flag_without_clearing_profile() -> None:
     """run_write_seed with value=False writes is_seed false and leaves other state alone."""
@@ -126,7 +114,7 @@ def test_write_seed_false_resets_flag_without_clearing_profile() -> None:
                 },
             },
         )
-        result = discover.run_write_seed(root, "silver.lookup", False)
+        result = run_write_seed(root, "silver.lookup", False)
         written = json.loads(cat_path.read_text(encoding="utf-8"))
         assert result.is_seed is False
         assert written["is_seed"] is False

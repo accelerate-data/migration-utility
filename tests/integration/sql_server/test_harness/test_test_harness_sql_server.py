@@ -6,9 +6,7 @@ Requires role-specific SQL Server source and sandbox env vars or a reachable loc
 
 from __future__ import annotations
 
-import json
 import uuid
-from pathlib import Path
 
 import pytest
 
@@ -63,10 +61,9 @@ class TestSandboxLifecycle:
 
         try:
             result = backend.sandbox_up(schemas=[SQL_SERVER_FIXTURE_SCHEMA])
-            sandbox_db = result.sandbox_database
 
             assert result.status in ("ok", "partial")
-            assert sandbox_db.startswith("SBX_")
+            assert result.sandbox_database.startswith("SBX_")
             assert len(result.tables_cloned) > 0
             assert any(
                 table.lower() == f"{SQL_SERVER_FIXTURE_SCHEMA.lower()}.silver_dimcurrency"
@@ -117,9 +114,9 @@ class TestSandboxLifecycle:
 
         try:
             result = backend.sandbox_up(schemas=[SQL_SERVER_FIXTURE_SCHEMA])
-            sandbox_db = result.sandbox_database
 
             assert result.status in ("ok", "partial")
+            assert result.sandbox_database.startswith("SBX_")
             schemas_seen = {t.split(".")[0].lower() for t in result.tables_cloned}
             assert schemas_seen == {SQL_SERVER_FIXTURE_SCHEMA.lower()}
         finally:
