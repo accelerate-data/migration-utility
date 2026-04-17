@@ -8,7 +8,9 @@ import typer
 
 from shared.cli.error_handler import cli_error_handler
 from shared.cli.output import error, remind_review_and_commit, success
+from shared.catalog import detect_catalog_bucket
 from shared.dry_run_core import run_exclude
+from shared.name_resolver import normalize
 
 logger = logging.getLogger(__name__)
 
@@ -40,6 +42,15 @@ def exclude_table(
 
     if result.marked:
         success(f"Excluded ({len(result.marked)}): {', '.join(result.marked)}")
-        remind_review_and_commit()
+        remind_review_and_commit(_catalog_paths_for_marked(root, result.marked))
     if result.not_found:
         error(f"Not found ({len(result.not_found)}): {', '.join(result.not_found)}")
+
+
+def _catalog_paths_for_marked(root: Path, fqns: list[str]) -> list[str]:
+    paths: list[str] = []
+    for fqn in fqns:
+        norm = normalize(fqn)
+        bucket = detect_catalog_bucket(root, norm) or "tables"
+        paths.append(f"catalog/{bucket}/{norm}.json")
+    return paths

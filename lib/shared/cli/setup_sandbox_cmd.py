@@ -224,4 +224,4 @@ def setup_sandbox(
         ],
         columns=("", ""),
     )
-    remind_review_and_commit()
+    remind_review_and_commit(["manifest.json"])

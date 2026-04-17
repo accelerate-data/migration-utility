@@ -6,7 +6,10 @@ The `ad-migration` CLI manages migration state — DDL extraction, catalog, sand
 
 Git is your responsibility. The CLI writes files; you decide when to commit them.
 
-When a CLI command successfully mutates durable repo state, it ends with a reminder to review and commit those changes before continuing.
+When a CLI command successfully mutates durable repo state, it ends with an
+`Updated repo state` summary and a reminder to review and commit those changes
+before continuing. The summary lists individual root files, lists up to three
+files per directory, and collapses larger directory updates to a file count.
 
 The CLI does **not**:
 
@@ -19,14 +22,9 @@ The CLI does **not**:
 
 **Recommended flow:**
 
-```bash
-git checkout -b feature/migration-setup
-# run your CLI commands
-git add manifest.json ddl/ catalog/ dbt/
-git commit -m "chore: initial migration setup"
-git push origin feature/migration-setup
-# open PR, review, merge to main
-```
+Work on a feature branch, run the needed CLI commands, review the paths shown in
+the `Updated repo state` summary, commit the reviewed changes when they form a
+coherent checkpoint, then open a PR through your normal repository workflow.
 
 Each command's output section below lists exactly which files it writes, so you know what to stage manually.
 

@@ -38,7 +38,12 @@ def test_reset_runs_after_confirmation(tmp_path):
         )
     assert result.exit_code == 0, result.output
     mock_reset.assert_called_once_with(tmp_path, "scope", ["silver.DimCustomer"])
+    assert "Updated repo state" in result.output
+    assert "catalog/tables/silver.dimcustomer.json" in result.output
     assert "Review and commit the repo changes before continuing" in result.output
+    assert "git add" not in result.output
+    assert "git commit" not in result.output
+    assert "git push" not in result.output
 
 
 def test_reset_aborts_on_no(tmp_path):
@@ -102,6 +107,10 @@ def test_reset_all_no_sandbox_delegates_to_core(tmp_path):
         result = runner.invoke(app, ["reset", "all", "--yes", "--project-root", str(tmp_path)])
     assert result.exit_code == 0, result.output
     mock_reset.assert_called_once_with(tmp_path, "all", [])
+    assert "Updated repo state" in result.output
+    assert "manifest.json" in result.output
+    assert "catalog/" in result.output
+    assert "ddl/" in result.output
     assert "Review and commit the repo changes before continuing" in result.output
 
 
@@ -231,7 +240,12 @@ def test_exclude_table_marks_tables(tmp_path):
         )
 
     assert result.exit_code == 0, result.output
+    assert "Updated repo state" in result.output
+    assert "catalog/tables/silver.auditlog.json" in result.output
     assert "Review and commit the repo changes before continuing" in result.output
+    assert "git add" not in result.output
+    assert "git commit" not in result.output
+    assert "git push" not in result.output
 
 
 # ── add-source-table ─────────────────────────────────────────────────────────
@@ -256,6 +270,11 @@ def test_add_source_table_marks_valid_tables(tmp_path):
         )
 
     assert result.exit_code == 0, result.output
+    assert "Updated repo state" in result.output
+    assert "catalog/tables/silver.audittest.json" in result.output
+    assert "git add" not in result.output
+    assert "git commit" not in result.output
+    assert "git push" not in result.output
 
 
 def test_add_source_table_skips_tables_that_fail_guard(tmp_path):
@@ -331,6 +350,11 @@ def test_add_seed_table_marks_valid_tables(tmp_path):
     mock_write.assert_called_once_with(tmp_path, "silver.lookup", value=True)
     assert "seed     silver.lookup" in result.output
     assert "is_seed: true" in result.output
+    assert "Updated repo state" in result.output
+    assert "catalog/tables/silver.lookup.json" in result.output
+    assert "git add" not in result.output
+    assert "git commit" not in result.output
+    assert "git push" not in result.output
 
 
 def test_add_seed_table_skips_tables_that_fail_guard(tmp_path):

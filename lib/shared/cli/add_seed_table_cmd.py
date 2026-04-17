@@ -29,7 +29,7 @@ def add_seed_table(
         fqns,
     )
 
-    written_pairs: list[tuple[str, Path]] = []
+    written_paths: list[str] = []
 
     for fqn in fqns:
         ready_result: DryRunOutput = run_ready(root, "scope", fqn)
@@ -66,11 +66,11 @@ def add_seed_table(
                 fqn,
                 write_result.written,
             )
-            written_pairs.append((fqn, root / write_result.written))
+            written_paths.append(write_result.written)
         except CatalogFileMissingError:
             warn(f"missing  {fqn} (no catalog file -- run setup-source first)")
         except ValueError as exc:
             warn(f"skipped  {fqn} -- {exc}")
 
-    if written_pairs:
-        remind_review_and_commit()
+    if written_paths:
+        remind_review_and_commit(written_paths)

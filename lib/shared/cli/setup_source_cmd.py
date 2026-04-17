@@ -103,7 +103,13 @@ def setup_source(
             result = run_extract(root, database, schema_list)
 
     _report_extract(result)
-    remind_review_and_commit()
+    written_paths = _repo_mutation_paths(
+        root,
+        scaffold_result.files_created,
+        scaffold_result.files_updated,
+        hooks_result.hook_created,
+    )
+    remind_review_and_commit(written_paths)
 
 
 def _check_source_prereqs(technology: str) -> None:
@@ -137,3 +143,34 @@ def _report_extract(result: dict[str, Any]) -> None:
             count = len(count)
         rows.append((label, str(count)))
     print_table("Extraction Summary", rows, columns=("Object Type", "Count"))
+
+
+def _scaffold_path(entry: str) -> str:
+    return entry.split(" (", 1)[0]
+
+
+def _repo_mutation_paths(
+    root: Path,
+    files_created: list[str],
+    files_updated: list[str],
+    hook_created: bool,
+) -> list[str]:
+    paths = [
+        "manifest.json",
+        *(_scaffold_path(path) for path in files_created),
+        *(_scaffold_path(path) for path in files_updated),
+    ]
+    if hook_created:
+        paths.append(".githooks/pre-commit")
+
+    for ddl_name in ("tables", "procedures", "views", "functions"):
+        ddl_path = root / "ddl" / f"{ddl_name}.sql"
+        if ddl_path.exists():
+            paths.append(str(ddl_path.relative_to(root)))
+
+    for catalog_bucket in ("tables", "procedures", "views", "functions"):
+        catalog_dir = root / "catalog" / catalog_bucket
+        if catalog_dir.is_dir():
+            paths.extend(str(path.relative_to(root)) for path in catalog_dir.glob("*.json"))
+
+    return paths

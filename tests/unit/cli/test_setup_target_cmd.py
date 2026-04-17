@@ -45,7 +45,14 @@ def test_setup_target_sql_server_uses_manifest_runtime_target(tmp_path):
         )
     assert result.exit_code == 0, result.output
     mock_write.assert_called_once_with(tmp_path, "sql_server", "bronze")
+    assert "Updated repo state" in result.output
+    assert "manifest.json" in result.output
+    assert "dbt/dbt_project.yml" in result.output
+    assert "dbt/models/staging/sources.yml" in result.output
     assert "Review and commit the repo changes before continuing" in result.output
+    assert "git add" not in result.output
+    assert "git commit" not in result.output
+    assert "git push" not in result.output
 
 
 def test_setup_target_oracle_uses_manifest_runtime_target(tmp_path):

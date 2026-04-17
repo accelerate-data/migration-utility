@@ -49,7 +49,13 @@ def test_setup_source_sql_server_runs_extraction(tmp_path, monkeypatch):
 
     assert result.exit_code == 0, result.output
     mock_extract.assert_called_once_with(tmp_path, "AdventureWorks2022", ["silver", "gold"])
+    assert "Updated repo state" in result.output
+    assert "manifest.json" in result.output
+    assert "CLAUDE.md" in result.output
     assert "Review and commit the repo changes before continuing" in result.output
+    assert "git add" not in result.output
+    assert "git commit" not in result.output
+    assert "git push" not in result.output
 
 
 def test_setup_source_fails_fast_on_missing_env(tmp_path, monkeypatch):

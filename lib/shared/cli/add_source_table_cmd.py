@@ -31,7 +31,7 @@ def add_source_table(
         fqns,
     )
 
-    written_pairs: list[tuple[str, Path]] = []
+    written_paths: list[str] = []
 
     for fqn in fqns:
         ready_result: DryRunOutput = run_ready(root, "scope", fqn)
@@ -69,7 +69,7 @@ def add_source_table(
                 fqn,
                 write_result.written,
             )
-            written_pairs.append((fqn, root / write_result.written))
+            written_paths.append(write_result.written)
         except typer.Exit:
             raise
         except CatalogFileMissingError:
@@ -77,6 +77,6 @@ def add_source_table(
         except ValueError as exc:
             warn(f"skipped  {fqn} — {exc}")
 
-    if not written_pairs:
+    if not written_paths:
         return
-    remind_review_and_commit()
+    remind_review_and_commit(written_paths)
