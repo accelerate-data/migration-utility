@@ -1,40 +1,30 @@
 # Staging Validation Contract
 
-Use this contract when applying one approved staging candidate from a
-refactor-mart plan.
+Use for one approved `Type: stg` candidate.
 
 ## Scope
 
-- One `stg` candidate is scoped to one source-facing staging model.
-- A staging candidate may fan out to many declared downstream consumers.
-- Validate the changed `stg_*` model.
-- Validate each downstream consumer listed in `Validation:`.
-- Do not validate or invalidate unrelated approved candidates.
+- One candidate owns one source-facing `stg_*` model.
+- Staging may fan out to many downstream consumers.
+- Do not edit non-staging candidate sections or unrelated dbt assets.
 
-## Status Vocabulary
+## Resolving Consumers
 
-Write back exactly one of these values in the candidate section:
+Prefer explicit consumer model names in the candidate text.
 
-- `Execution status: applied`
-- `Execution status: failed`
-- `Execution status: blocked`
+If candidate text has no separate consumer list, use model names explicitly
+listed in `Validation:` as the declared consumer scope. This staging-only rule
+exists because staging plans use `Validation:` to name the fan-out scope.
 
-Use `applied` only after the staging model, all declared rewires, and the
-declared validation scope are complete.
+Do not infer consumers from selector operators alone. If the scope is ambiguous,
+block before edits.
 
-Use `failed` when the candidate was attempted but validation did not pass. Add
-one short `Validation result:` bullet in the same candidate section describing
-the failing model or command.
+## Validation
 
-Use `blocked` when required inputs are missing before edits begin, such as a
-missing output path, ambiguous candidate fields, or a missing declared consumer
-that prevents a scoped rewire. Add one short `Blocked reason:` bullet in the
-same candidate section.
+Validate:
 
-## Plan Updates
+- the changed `stg_*` model; and
+- every resolved downstream consumer.
 
-- Update only the selected candidate section.
-- Preserve candidate IDs, approval state, candidate order, and unrelated
-  candidate statuses.
-- Never change non-staging candidate execution status from this workflow.
-- Keep the plan as markdown; do not introduce a JSON or Python plan contract.
+Prefer the validation command or scope listed in `Validation:` when executable.
+Do not validate or invalidate unrelated approved candidates.

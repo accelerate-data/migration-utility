@@ -1,104 +1,78 @@
 ---
 name: refactor-mart
-description: >
-  Mart refactor execution command. Consumes a markdown plan file and applies
-  approved staging or higher-layer candidates with validation.
+description: Use when applying approved candidates from a refactor-mart markdown plan
 user-invocable: true
 argument-hint: "<plan-file> stg|int"
 ---
 
 # Refactor Mart
 
-Consume a markdown candidate plan written by `/refactor-mart-plan` and apply one
-approved wave. This command runs in two explicit modes:
+Apply one approved wave from a `/refactor-mart-plan` markdown plan.
 
-- `stg`: apply only approved staging candidates.
-- `int`: apply only approved non-staging candidates after dependency checks.
+Modes:
 
-Validation is part of both modes. The command must not apply unapproved
-candidates.
+- `stg`: approved `Type: stg` candidates only.
+- `int`: approved `Type: int` and `Type: mart` candidates only.
+
+Never apply unapproved candidates. Never edit candidates outside the selected
+mode, though they may appear as skipped in the final summary.
 
 ## Guards
 
-- Parse exactly two positional arguments from `$ARGUMENTS`: `<plan-file>` and
-  `stg|int`.
+- Parse exactly two positional arguments: `<plan-file>` and `stg|int`.
 - If the plan file is missing, fail with `PLAN_NOT_FOUND`.
 - If mode is not `stg` or `int`, fail with `INVALID_MODE`.
-- `manifest.json` must exist. If missing, fail with `MANIFEST_NOT_FOUND`.
-- `dbt/dbt_project.yml` must exist. If missing, fail with
-  `DBT_PROJECT_MISSING` and tell the user to run `ad-migration setup-target`.
+- If `manifest.json` is missing, fail with `MANIFEST_NOT_FOUND`.
+- If `dbt/dbt_project.yml` is missing, fail with `DBT_PROJECT_MISSING` and
+  tell the user to run `ad-migration setup-target`.
 
-## Progress Tracking
+## Setup
 
-Use `TaskCreate` and `TaskUpdate` to show live progress. Create one task per
-candidate selected for the current mode with status `pending`. Update each
-candidate to `in_progress` before it is applied and to `completed` or
-`cancelled` after validation and plan-status writeback.
+1. Generate run slug `refactor-mart-<mode>-<plan-stem>`.
+2. Run `git-checkpoints` with the run slug.
+3. Use the returned worktree path for reads, writes, commits, and plan updates.
+   If it returns the default branch name, use the current repository root.
+4. Read the plan in that working directory.
 
-## Pipeline
+## Candidate Selection
 
-### Step 1 -- Setup
-
-1. Parse `<plan-file>` and mode from `$ARGUMENTS`.
-2. Generate a run slug from the plan filename and mode:
-   `refactor-mart-<mode>-<plan-stem>`.
-3. Run the `git-checkpoints` skill with the run slug as the argument.
-   - If it returns the default branch name, use the current repository root as
-     the working directory.
-   - Otherwise, use the returned worktree path for all reads, writes, commits,
-     and plan-status updates.
-4. Read the markdown plan in the selected working directory.
-
-### Step 2 -- Select Candidates
-
-Select only candidates with exact checked approval syntax:
+Select only sections with exact checked approval syntax:
 `- [x] Approve: yes`.
 
-Mode behavior:
+| Mode | Select | Leave unchanged |
+| --- | --- | --- |
+| `stg` | `Type: stg` | `Type: int`, `Type: mart`, unapproved candidates |
+| `int` | `Type: int`, `Type: mart` | `Type: stg`, unapproved candidates |
 
-- `stg` selects candidates with `Type: stg`.
-- `int` selects candidates with `Type: int` or `Type: mart`.
+## Dependency Gate For `int`
 
-For `stg` mode, leave non-staging candidates unselected and unchanged.
-For `int` mode, leave staging candidates unselected and unchanged. They may be
-reported as skipped in the final summary, but their candidate sections and
-`Execution status:` values must not be edited.
+Check dependencies before any dbt edit or apply-skill invocation.
 
-For `int` mode, check dependencies before applying each selected candidate and
-before editing any dbt files:
+Block the selected candidate in the plan when:
 
-- `Depends on: none` is satisfied only when it is present exactly as written.
-- If `Depends on:` is missing, empty, malformed, ambiguous, or otherwise does
-  not clearly declare upstream candidate IDs or `none`, mark the candidate as
-  blocked in the plan and do not invoke the apply skill.
-- A dependency is satisfied only when the referenced candidate section has
-  `Execution status: applied`.
-- If any listed dependency is missing, unchecked, failed, blocked, planned, or
-  otherwise not applied, mark the candidate as blocked in the plan, include
-  the missing or unsatisfied dependency IDs, and skip application.
+- `Depends on:` is missing, empty, malformed, ambiguous, or not exactly `none`
+  or candidate IDs;
+- a referenced dependency section is missing; or
+- any dependency is not `Execution status: applied`.
 
-### Step 3 -- Apply Selected Wave
+Include the metadata problem, or each missing/unsatisfied dependency ID and its
+actual status, in exactly one `Blocked reason:` bullet.
 
-For each selected, unblocked candidate:
+## Apply
 
-- `stg` mode: run the `applying-staging-candidate` skill for
-  `<plan-file> <candidate-id>`.
-- `int` mode: run the internal `applying-mart-candidates` skill for
-  `<plan-file> <candidate-id>`.
+| Mode | Dispatch |
+| --- | --- |
+| `stg` | `applying-staging-candidate <plan-file> <candidate-id>` |
+| `int` | `applying-mart-candidates <plan-file> <candidate-id>` |
 
-The command owns dependency-blocked candidate writeback because blocked
-candidates do not enter the apply skill. This includes missing, empty,
-malformed, or ambiguous `Depends on:` declarations and any listed dependency
-that is missing, unchecked, failed, blocked, planned, or otherwise not
-applied. The apply skill owns dbt file changes, validation, and status
-writeback only after a candidate passes command-level dependency gating and is
-invoked. It must update the candidate section to one of:
+Ownership:
 
-- `Execution status: applied`
-- `Execution status: failed`
-- `Execution status: blocked`
+| Owner | Writes |
+| --- | --- |
+| `/refactor-mart` | dependency-blocked candidate statuses and reasons |
+| apply skill | dbt edits, candidate-scoped validation, non-dependency input blocks |
 
-### Step 4 -- Summarize
+## Summary
 
 After all selected candidates are processed, reread the plan and report:
 
@@ -111,11 +85,7 @@ blocked: <n>
 skipped: <n>
 ```
 
-For blocked candidates, list the candidate ID and missing or unsatisfied
-dependencies or reasons. For failed candidates, list the candidate ID and
-validation failure summary. For skipped candidates, list approved candidates
-not selected for the current mode plus unapproved candidates in the current
-wave; blocked candidates are not counted as skipped.
-
-If every selected candidate is blocked or failed, report that no dbt changes
-were completed and stop.
+List blocked candidate IDs with dependency or metadata reasons. List failed
+candidate IDs with validation summaries. Skipped means approved candidates not
+selected for the current mode plus unapproved candidates in the current wave;
+blocked candidates are not skipped.

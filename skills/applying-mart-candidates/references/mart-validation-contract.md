@@ -1,62 +1,57 @@
-# Mart Candidate Validation Contract
+# Mart Validation Contract
 
-Use this contract when applying one approved non-staging candidate from a
-refactor-mart plan.
+Use after dependency gating has passed for one `Type: int` or `Type: mart`
+candidate.
 
-## Scope
+## Output
 
-- One candidate is scoped to one `int` or `mart` output model.
-- `Validation:` is the validation command or scope only.
-- It must not be treated as a structured consumer list.
-- Do not infer broad rewrites from dbt selector syntax such as
-  `+int_sales_orders`.
-- Consumer rewrites are only explicit in the candidate text or an unambiguous
-  local output rewrite.
-- Ambiguous rewrite scope blocks before edits.
-- Do not validate or invalidate unrelated candidates.
+Valid outputs:
 
-## Status Values
+- `Type: int`: an `int_*` model name or a path under
+  `dbt/models/intermediate/**`.
+- `Type: mart`: a model name with `fct_`, `dim_`, or `mart_`, or a path under
+  `dbt/models/marts/**`.
 
-Write back exactly one of these values in the candidate section:
+Missing or invalid output blocks before edits.
 
-- `Execution status: applied`
-- `Execution status: failed`
-- `Execution status: blocked`
+## Rewrite Scope
 
-Do not use `blocked` for dependency gating failures. `/refactor-mart` owns
-writeback for dependency-blocked candidates and does not invoke this skill for
-them.
+`Validation:` is a validation command or scope, not a structured consumer list.
 
-If `applying-mart-candidates` receives dependency metadata that failed
-command-level gating, stop with `DEPENDENCY_GATE_NOT_SATISFIED` and leave
-candidate status unchanged.
+Rewire only:
 
-Use `applied` only when edits were attempted and candidate-scoped validation
-passed. Add one short `Validation result:` bullet in the same candidate section
-describing the command or scope used.
+- models explicitly named in the candidate text; or
+- models required by an unambiguous local output rewrite.
 
-Use `failed` when edits were attempted but candidate-scoped validation did not
-pass. Add one short `Validation result:` bullet in the same candidate section
-describing the failure.
+Do not infer broad rewrites from dbt selector syntax such as
+`+int_sales_orders`. Ambiguous rewrite scope blocks before edits.
 
-Use `blocked` when required inputs are missing before edits begin, such as a
-missing output path, ambiguous validation scope, or a missing required model.
-Add one short `Blocked reason:` bullet in the same candidate section.
+## Validation
 
-## Writeback Rules
+Validate only:
 
-- Update only the selected candidate section.
-- Preserve candidate IDs, approval state, candidate order, dependency
-  declarations, and unrelated candidate statuses.
+- the changed `int` or `mart` output model; and
+- additional existing models required by the candidate section.
+
+Prefer the command or scope listed in `Validation:` when executable. Do not
+broaden validation to unrelated dbt assets.
+
+## Status Writeback
+
+Update only the selected candidate section.
+
+Use exactly one status:
+
+- `Execution status: applied`: edits were made and scoped validation passed.
+- `Execution status: failed`: edits were attempted and scoped validation failed.
+- `Execution status: blocked`: non-dependency inputs were missing or ambiguous
+  before edits began.
+
+Detail bullets:
+
+- Add exactly one `Validation result:` for `applied` or `failed`.
+- Add exactly one `Blocked reason:` for `blocked`.
 - Do not add alternate status fields such as `Applied:`.
-- Do not edit staging candidates from this skill.
 
-## Validation Scope
-
-Validation is candidate-scoped:
-
-- validate the changed `int` or `mart` output model;
-- validate every additional existing model required by the candidate section;
-- prefer the command or scope listed in `Validation:` when it is executable;
-- capture the command or scope in `Validation result:`; and
-- do not broaden validation to unrelated dbt assets.
+Preserve candidate IDs, approval state, order, dependency declarations, and
+unrelated candidate statuses. Do not edit staging candidates or staging outputs.
