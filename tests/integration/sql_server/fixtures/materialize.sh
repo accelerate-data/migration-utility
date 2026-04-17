@@ -64,7 +64,7 @@ from pathlib import Path
 
 sys.path.insert(0, str(Path(sys.argv[3]) / "lib"))
 
-from shared.db_connect import build_sql_server_connection_string
+from shared.db_connect import SQL_SERVER_ODBC_DRIVER, build_sql_server_connection_string
 
 try:
     import pyodbc
@@ -87,9 +87,9 @@ conn = pyodbc.connect(
         host=_require_env("MSSQL_HOST"),
         port=_require_env("MSSQL_PORT"),
         database=database_name,
-        user=_require_env("MSSQL_USER"),
-        password=_require_env("SA_PASSWORD"),
-        driver=_require_env("MSSQL_DRIVER"),
+        user=os.environ.get("MSSQL_USER", "sa"),
+        password=os.environ["SA_PASSWORD"],
+        driver=SQL_SERVER_ODBC_DRIVER,
     ),
     autocommit=True,
 )

@@ -14,6 +14,7 @@ from shared.runtime_config_models import RuntimeConnection, RuntimeRole
 
 def test_sql_server_dbops_materialize_env(monkeypatch: pytest.MonkeyPatch) -> None:
     monkeypatch.setenv("SA_PASSWORD", "secret")
+    monkeypatch.setenv("MSSQL_DRIVER", "ODBC Driver 18 for SQL Server")
     role = RuntimeRole(
         technology="sql_server",
         dialect="tsql",
@@ -28,11 +29,13 @@ def test_sql_server_dbops_materialize_env(monkeypatch: pytest.MonkeyPatch) -> No
     env = adapter.materialize_migration_test_env()
     assert env["MSSQL_DB"] == "WarehouseOne"
     assert env["MSSQL_SCHEMA"] == "MigrationTest"
+    assert "MSSQL_DRIVER" not in env
     assert env["SA_PASSWORD"] == "secret"
 
 
 def test_sql_server_dbops_materialize_env_uses_runtime_schema(monkeypatch: pytest.MonkeyPatch) -> None:
     monkeypatch.setenv("SA_PASSWORD", "secret")
+    monkeypatch.setenv("MSSQL_DRIVER", "ODBC Driver 18 for SQL Server")
     role = RuntimeRole(
         technology="sql_server",
         dialect="tsql",
@@ -48,7 +51,16 @@ def test_sql_server_dbops_materialize_env_uses_runtime_schema(monkeypatch: pytes
     env = adapter.materialize_migration_test_env()
     assert env["MSSQL_DB"] == "WarehouseOne"
     assert env["MSSQL_SCHEMA"] == "FixtureSchema"
+    assert "MSSQL_DRIVER" not in env
     assert env["SA_PASSWORD"] == "secret"
+
+
+def test_sql_server_materialize_script_ignores_legacy_driver_env() -> None:
+    script = Path(__file__).resolve().parents[2] / "integration/sql_server/fixtures/materialize.sh"
+    script_text = script.read_text(encoding="utf-8")
+
+    assert 'os.environ.get("MSSQL_DRIVER"' not in script_text
+    assert "SQL_SERVER_ODBC_DRIVER" in script_text
 
 
 def test_oracle_dbops_materialize_env(monkeypatch: pytest.MonkeyPatch) -> None:
@@ -240,4 +252,5 @@ def test_sql_server_dbops_connect_escapes_password(monkeypatch: pytest.MonkeyPat
     adapter._connect()  # type: ignore[attr-defined]
 
     conn_str = mock_pyodbc.connect.call_args.args[0]
+    assert "DRIVER={FreeTDS};" in conn_str
     assert "PWD={pa;ss}}word};" in conn_str

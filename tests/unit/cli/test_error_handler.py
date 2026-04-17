@@ -48,7 +48,8 @@ def test_classify_pyodbc_interface_error():
     with _patch_drivers():
         code, msg, hint = _classify(_FakePyodbcInterface("driver missing"))
     assert code == 2
-    assert "supported SQL Server ODBC driver" in hint
+    assert "Install FreeTDS and unixODBC" in hint
+    assert "MSSQL_DRIVER" not in hint
     assert "brew install" not in hint
 
 

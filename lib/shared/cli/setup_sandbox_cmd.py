@@ -74,7 +74,6 @@ def _build_sandbox_connection_manifest(
             database=sandbox_role.connection.database,
             user=os.environ.get("SANDBOX_MSSQL_USER") or None,
             password_env="SANDBOX_MSSQL_PASSWORD",
-            driver=os.environ.get("MSSQL_DRIVER", "FreeTDS") or None,
         )
     elif technology == "oracle":
         connection = RuntimeConnection(

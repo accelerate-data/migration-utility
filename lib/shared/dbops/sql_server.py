@@ -4,7 +4,7 @@ from __future__ import annotations
 
 from typing import Any
 
-from shared.db_connect import build_sql_server_connection_string
+from shared.db_connect import SQL_SERVER_ODBC_DRIVER, build_sql_server_connection_string
 from shared.dbops.base import ColumnSpec, DatabaseOperations
 
 _pyodbc = None
@@ -38,8 +38,6 @@ class SqlServerOperations(DatabaseOperations):
         }
         if self.role.connection.user:
             env["MSSQL_USER"] = self.role.connection.user
-        if self.role.connection.driver:
-            env["MSSQL_DRIVER"] = self.role.connection.driver
         password = self._read_secret(self.role.connection.password_env)
         if password:
             env["SA_PASSWORD"] = password
@@ -50,7 +48,7 @@ class SqlServerOperations(DatabaseOperations):
         port = self.role.connection.port or "1433"
         database = self.role.connection.database or self.environment_name()
         user = self.role.connection.user or "sa"
-        driver = self.role.connection.driver or "ODBC Driver 18 for SQL Server"
+        driver = SQL_SERVER_ODBC_DRIVER
         password = self._read_secret(self.role.connection.password_env)
         if not password:
             raise ValueError(

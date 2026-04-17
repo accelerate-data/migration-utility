@@ -166,6 +166,7 @@ def test_write_target_runtime_from_env_maps_sql_server_to_tsql_dialect(
     assert role.dialect == "tsql"
     assert manifest["runtime"]["target"]["technology"] == "sql_server"
     assert manifest["runtime"]["target"]["dialect"] == "tsql"
+    assert "driver" not in manifest["runtime"]["target"]["connection"]
 
 
 def test_generate_target_sources_uses_target_schema_override(tmp_path: Path) -> None:
@@ -210,6 +211,8 @@ def test_scaffold_target_project_writes_sql_server_profile(tmp_path: Path) -> No
     scaffold_target_project(project_root)
     profiles = (project_root / "dbt" / "profiles.yml").read_text(encoding="utf-8")
     assert 'type: sqlserver' in profiles
+    assert 'driver: "FreeTDS"' in profiles
+    assert 'driver: "ODBC Driver 18 for SQL Server"' not in profiles
     assert "env_var('SA_PASSWORD')" in profiles
     assert 'database: "TargetDB"' in profiles
 

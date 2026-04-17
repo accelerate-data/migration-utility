@@ -19,7 +19,7 @@ from shared.output_models.sandbox import (
     SandboxUpOutput,
     TestHarnessExecuteOutput,
 )
-from shared.db_connect import build_sql_server_connection_string
+from shared.db_connect import SQL_SERVER_ODBC_DRIVER, build_sql_server_connection_string
 from shared.sandbox.base import (
     SandboxBackend,
     build_compare_error,
@@ -242,7 +242,7 @@ class _SqlServerSandboxCore(SandboxBackend):
         port: str,
         password: str,
         user: str = "sa",
-        driver: str = "ODBC Driver 18 for SQL Server",
+        driver: str = SQL_SERVER_ODBC_DRIVER,
         *,
         source_host: str | None = None,
         source_port: str | None = None,
@@ -285,7 +285,7 @@ class _SqlServerSandboxCore(SandboxBackend):
         sandbox_host = sandbox_role.connection.host or ""
         sandbox_port = sandbox_role.connection.port or "1433"
         sandbox_user = sandbox_role.connection.user or ""
-        sandbox_driver = sandbox_role.connection.driver or "FreeTDS"
+        sandbox_driver = SQL_SERVER_ODBC_DRIVER
         sandbox_password_env = sandbox_role.connection.password_env
         sandbox_password = os.environ.get(sandbox_password_env or "", "")
 
@@ -293,7 +293,7 @@ class _SqlServerSandboxCore(SandboxBackend):
         source_port = source_role.connection.port or "1433"
         source_database = source_role.connection.database or ""
         source_user = source_role.connection.user or "sa"
-        source_driver = source_role.connection.driver or "FreeTDS"
+        source_driver = SQL_SERVER_ODBC_DRIVER
         source_password_env = source_role.connection.password_env
         source_password = os.environ.get(source_password_env or "", "")
 

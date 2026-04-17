@@ -18,6 +18,7 @@ from shared.generate_sources import generate_sources, write_sources_yml
 from shared.name_resolver import model_name_from_table, normalize
 from shared.output_models.generate_sources import GenerateSourcesOutput
 from shared.output_models.target_setup import SetupTargetOutput
+from shared.db_connect import SQL_SERVER_ODBC_DRIVER
 from shared.runtime_config import dialect_for_technology, get_runtime_role
 from shared.runtime_config_models import RuntimeConnection, RuntimeRole, RuntimeSchemas
 from shared.setup_ddl_support.manifest import read_manifest_strict
@@ -207,7 +208,7 @@ def _render_profiles_yml(profile_name: str, target_role: RuntimeRole, target_sou
         password_env = connection.password_env
         if not password_env:
             raise ValueError("runtime.target.connection.password_env is required for SQL Server target setup")
-        driver = connection.driver or "ODBC Driver 18 for SQL Server"
+        driver = SQL_SERVER_ODBC_DRIVER
         user = connection.user or "sa"
         host = connection.host or "localhost"
         port = connection.port or "1433"
