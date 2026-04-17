@@ -2,17 +2,26 @@
 
 from __future__ import annotations
 
+import logging
 from typing import TYPE_CHECKING
 
 from shared.output_models.sandbox import (
+    ErrorEntry,
     SandboxDownOutput,
     SandboxStatusOutput,
     SandboxUpOutput,
 )
-from shared.sandbox.oracle_services import _OracleSandboxCore
+from shared.sandbox.base import generate_sandbox_name
+from shared.sandbox.oracle_services import (
+    _import_oracledb,
+    _validate_oracle_identifier,
+    _validate_oracle_sandbox_name,
+)
 
 if TYPE_CHECKING:
     from shared.sandbox.oracle import OracleSandbox
+
+logger = logging.getLogger(__name__)
 
 
 class OracleLifecycleService:
@@ -20,17 +29,157 @@ class OracleLifecycleService:
         self._backend = backend
 
     def sandbox_up(self, schemas: list[str]) -> SandboxUpOutput:
-        return _OracleSandboxCore.sandbox_up(self._backend, schemas)
+        source_schema = schemas[0] if schemas else self._backend.source_schema
+        sandbox_schema = generate_sandbox_name()
+        logger.info(
+            "event=oracle_sandbox_up sandbox=%s source_schema=%s",
+            sandbox_schema,
+            source_schema,
+        )
+        result = self._backend._sandbox_clone_into(sandbox_schema, source_schema)
+        logger.info(
+            "event=oracle_sandbox_up_complete sandbox=%s status=%s "
+            "tables=%d views=%d procedures=%d errors=%d",
+            sandbox_schema,
+            result.status,
+            len(result.tables_cloned),
+            len(result.views_cloned),
+            len(result.procedures_cloned),
+            len(result.errors),
+        )
+        return result
 
     def sandbox_reset(self, sandbox_db: str, schemas: list[str]) -> SandboxUpOutput:
-        return _OracleSandboxCore.sandbox_reset(self._backend, sandbox_db, schemas)
+        _validate_oracle_sandbox_name(sandbox_db)
+        source_schema = schemas[0] if schemas else self._backend.source_schema
+        _validate_oracle_identifier(source_schema)
+        logger.info(
+            "event=oracle_sandbox_reset sandbox=%s schemas=%s",
+            sandbox_db,
+            schemas,
+        )
+        down_result = self.sandbox_down(sandbox_db)
+        if down_result.status == "error":
+            return SandboxUpOutput(
+                sandbox_database=sandbox_db,
+                status="error",
+                tables_cloned=[],
+                views_cloned=[],
+                procedures_cloned=[],
+                errors=[
+                    ErrorEntry(
+                        code="SANDBOX_RESET_FAILED",
+                        message="Failed to drop existing sandbox before reset.",
+                    ),
+                    *down_result.errors,
+                ],
+            )
+
+        result = self._backend._sandbox_clone_into(sandbox_db, source_schema)
+        logger.info(
+            "event=oracle_sandbox_reset_complete sandbox=%s status=%s "
+            "tables=%d views=%d procedures=%d errors=%d",
+            sandbox_db,
+            result.status,
+            len(result.tables_cloned),
+            len(result.views_cloned),
+            len(result.procedures_cloned),
+            len(result.errors),
+        )
+        return result
 
     def sandbox_down(self, sandbox_db: str) -> SandboxDownOutput:
-        return _OracleSandboxCore.sandbox_down(self._backend, sandbox_db)
+        _validate_oracle_sandbox_name(sandbox_db)
+        logger.info("event=oracle_sandbox_down sandbox=%s", sandbox_db)
+
+        try:
+            with self._backend._connect() as conn:
+                cursor = conn.cursor()
+                cursor.execute(
+                    "SELECT COUNT(*) FROM ALL_USERS WHERE USERNAME = :1",
+                    [sandbox_db],
+                )
+                if cursor.fetchone()[0] > 0:
+                    cursor.execute(f'DROP USER "{sandbox_db}" CASCADE')
+            logger.info("event=oracle_sandbox_down_complete sandbox=%s", sandbox_db)
+            return SandboxDownOutput(sandbox_database=sandbox_db, status="ok")
+        except _import_oracledb().DatabaseError as exc:
+            logger.error(
+                "event=oracle_sandbox_down_failed sandbox=%s error=%s",
+                sandbox_db,
+                exc,
+            )
+            return SandboxDownOutput(
+                sandbox_database=sandbox_db,
+                status="error",
+                errors=[ErrorEntry(code="SANDBOX_DOWN_FAILED", message=str(exc))],
+            )
 
     def sandbox_status(
         self,
         sandbox_db: str,
         schemas: list[str] | None = None,
     ) -> SandboxStatusOutput:
-        return _OracleSandboxCore.sandbox_status(self._backend, sandbox_db, schemas)
+        _validate_oracle_sandbox_name(sandbox_db)
+        logger.info("event=oracle_sandbox_status sandbox=%s", sandbox_db)
+
+        try:
+            with self._backend._connect() as conn:
+                cursor = conn.cursor()
+                cursor.execute(
+                    "SELECT COUNT(*) FROM ALL_USERS WHERE USERNAME = :1",
+                    [sandbox_db],
+                )
+                exists = cursor.fetchone()[0] > 0
+                if exists:
+                    tables_count, views_count, procedures_count = (
+                        self._backend._sandbox_content_counts(cursor, sandbox_db)
+                    )
+
+            if exists:
+                has_content = any(
+                    count > 0 for count in (tables_count, views_count, procedures_count)
+                )
+                logger.info(
+                    "event=oracle_sandbox_status_complete sandbox=%s exists=true "
+                    "has_content=%s tables=%d views=%d procedures=%d",
+                    sandbox_db,
+                    has_content,
+                    tables_count,
+                    views_count,
+                    procedures_count,
+                )
+                return SandboxStatusOutput(
+                    sandbox_database=sandbox_db,
+                    status="ok",
+                    exists=True,
+                    has_content=has_content,
+                    tables_count=tables_count,
+                    views_count=views_count,
+                    procedures_count=procedures_count,
+                )
+            logger.info(
+                "event=oracle_sandbox_status_complete sandbox=%s exists=false",
+                sandbox_db,
+            )
+            return SandboxStatusOutput(
+                sandbox_database=sandbox_db,
+                status="not_found",
+                exists=False,
+                has_content=False,
+                tables_count=0,
+                views_count=0,
+                procedures_count=0,
+            )
+        except _import_oracledb().DatabaseError as exc:
+            logger.error(
+                "event=oracle_sandbox_status_failed sandbox=%s error=%s",
+                sandbox_db,
+                exc,
+            )
+            return SandboxStatusOutput(
+                sandbox_database=sandbox_db,
+                status="error",
+                exists=False,
+                errors=[ErrorEntry(code="SANDBOX_STATUS_FAILED", message=str(exc))],
+            )
