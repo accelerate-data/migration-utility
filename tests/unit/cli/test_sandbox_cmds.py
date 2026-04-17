@@ -289,6 +289,33 @@ def test_setup_sandbox_creates_new_when_canonical_sandbox_not_found(tmp_path):
     mock_write_sandbox.assert_called_once_with(tmp_path, "SBX_ABC123000000")
 
 
+def test_build_sql_server_sandbox_connection_omits_driver(monkeypatch):
+    from shared.cli.setup_sandbox_cmd import _build_sandbox_connection_manifest
+
+    monkeypatch.setenv("SANDBOX_MSSQL_HOST", "sandbox-host")
+    monkeypatch.setenv("SANDBOX_MSSQL_PORT", "1433")
+    monkeypatch.setenv("SANDBOX_MSSQL_USER", "sandbox_admin")
+    monkeypatch.setenv("SANDBOX_MSSQL_PASSWORD", "sandbox-password")
+
+    manifest = {
+        "runtime": {
+            "sandbox": {
+                "technology": "sql_server",
+                "dialect": "tsql",
+                "connection": {"database": "__test_existing"},
+            }
+        }
+    }
+
+    updated = _build_sandbox_connection_manifest(manifest, "sql_server")
+
+    connection = updated["runtime"]["sandbox"]["connection"]
+    assert connection["host"] == "sandbox-host"
+    assert connection["user"] == "sandbox_admin"
+    assert connection["password_env"] == "SANDBOX_MSSQL_PASSWORD"
+    assert "driver" not in connection
+
+
 def test_write_sandbox_connection_preserves_existing_canonical_name_and_ignores_legacy(tmp_path, monkeypatch):
     manifest = {
         "runtime": {
@@ -304,13 +331,13 @@ def test_write_sandbox_connection_preserves_existing_canonical_name_and_ignores_
     monkeypatch.setenv("SANDBOX_MSSQL_HOST", "127.0.0.1")
     monkeypatch.setenv("SANDBOX_MSSQL_PORT", "1433")
     monkeypatch.setenv("SANDBOX_MSSQL_USER", "sa")
-    monkeypatch.setenv("MSSQL_DRIVER", "ODBC Driver 18 for SQL Server")
 
     updated = _write_sandbox_connection_to_manifest(tmp_path, manifest, "sql_server")
 
     connection = updated["runtime"]["sandbox"]["connection"]
     assert connection["database"] == "SBX_000000000001"
     assert connection["host"] == "127.0.0.1"
+    assert "driver" not in connection
     assert updated["sandbox"]["database"] == "SBX_LEGACY000000"
 
 

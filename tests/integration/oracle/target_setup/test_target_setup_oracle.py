@@ -5,6 +5,7 @@ from __future__ import annotations
 import json
 import os
 import shutil
+import subprocess
 from pathlib import Path
 
 import pytest
@@ -17,6 +18,7 @@ oracledb = pytest.importorskip(
 from shared.target_setup import run_setup_target
 from tests.integration.runtime_helpers import (
     ORACLE_MIGRATION_SCHEMA,
+    ORACLE_SOURCE_ENV,
     ensure_oracle_migration_test_materialized,
     oracle_is_available,
 )
@@ -25,6 +27,13 @@ pytestmark = pytest.mark.oracle
 
 # Target schema where tables are created — matches the bronze/source layer.
 _TARGET_SCHEMA = os.environ.get("TARGET_ORACLE_SCHEMA", "BRONZE")
+_ORACLE_TARGET_ENV = (
+    "TARGET_ORACLE_HOST",
+    "TARGET_ORACLE_PORT",
+    "TARGET_ORACLE_SERVICE",
+    "TARGET_ORACLE_USER",
+    "TARGET_ORACLE_PASSWORD",
+)
 
 
 def _require_oracle_target_env() -> None:
@@ -32,23 +41,28 @@ def _require_oracle_target_env() -> None:
         pytest.skip("Oracle test database not reachable")
     missing = [
         name
-        for name in (
-            "TARGET_ORACLE_HOST",
-            "TARGET_ORACLE_PASSWORD",
-        )
+        for name in (*ORACLE_SOURCE_ENV, *_ORACLE_TARGET_ENV)
         if not os.environ.get(name)
     ]
     if missing:
         pytest.skip(f"Missing Oracle target setup env vars: {', '.join(missing)}")
     if shutil.which("dbt") is None:
         pytest.skip("dbt executable not found on PATH")
+    completed = subprocess.run(
+        ["dbt", "--version"],
+        capture_output=True,
+        check=False,
+        text=True,
+    )
+    if completed.returncode != 0 or "oracle:" not in completed.stdout.lower():
+        pytest.skip("dbt-oracle adapter not installed")
 
 
 def _target_connection():
-    host = os.environ.get("TARGET_ORACLE_HOST", os.environ.get("ORACLE_HOST", "localhost"))
-    port = os.environ.get("TARGET_ORACLE_PORT", os.environ.get("ORACLE_PORT", "1521"))
-    service = os.environ.get("TARGET_ORACLE_SERVICE", os.environ.get("ORACLE_SERVICE", "FREEPDB1"))
-    user = os.environ.get("TARGET_ORACLE_USER", os.environ.get("ORACLE_ADMIN_USER", "sys"))
+    host = os.environ["TARGET_ORACLE_HOST"]
+    port = os.environ["TARGET_ORACLE_PORT"]
+    service = os.environ["TARGET_ORACLE_SERVICE"]
+    user = os.environ["TARGET_ORACLE_USER"]
     password = os.environ["TARGET_ORACLE_PASSWORD"]
     mode = (
         oracledb.AUTH_MODE_SYSDBA
@@ -101,16 +115,6 @@ def _table_exists(cursor, schema: str, table: str) -> bool:
 
 
 def _write_manifest(project_root: Path, target_schema: str) -> None:
-    host = os.environ.get("TARGET_ORACLE_HOST", os.environ.get("ORACLE_HOST", "localhost"))
-    port = os.environ.get("TARGET_ORACLE_PORT", os.environ.get("ORACLE_PORT", "1521"))
-    service = os.environ.get("TARGET_ORACLE_SERVICE", os.environ.get("ORACLE_SERVICE", "FREEPDB1"))
-    user = os.environ.get("TARGET_ORACLE_USER", os.environ.get("ORACLE_ADMIN_USER", "sys"))
-
-    source_host = os.environ.get("ORACLE_HOST", "localhost")
-    source_port = os.environ.get("ORACLE_PORT", "1521")
-    source_service = os.environ.get("ORACLE_SERVICE", "FREEPDB1")
-    source_user = os.environ.get("ORACLE_SOURCE_USER", ORACLE_MIGRATION_SCHEMA)
-
     manifest = {
         "schema_version": "1.0",
         "technology": "oracle",
@@ -120,28 +124,25 @@ def _write_manifest(project_root: Path, target_schema: str) -> None:
                 "technology": "oracle",
                 "dialect": "oracle",
                 "connection": {
-                    "host": source_host,
-                    "port": source_port,
-                    "service": source_service,
-                    "user": source_user,
+                    "host": os.environ["SOURCE_ORACLE_HOST"],
+                    "port": os.environ["SOURCE_ORACLE_PORT"],
+                    "service": os.environ["SOURCE_ORACLE_SERVICE"],
+                    "user": os.environ["SOURCE_ORACLE_USER"],
                     "schema": ORACLE_MIGRATION_SCHEMA,
-                    "password_env": os.environ.get(
-                        "ORACLE_SOURCE_PASSWORD_ENV",
-                        "ORACLE_SCHEMA_PASSWORD",
-                    ),
+                    "password_env": "SOURCE_ORACLE_PASSWORD",
                 },
             },
             "target": {
                 "technology": "oracle",
                 "dialect": "oracle",
                 "connection": {
-                    "host": host,
-                    "port": port,
-                    "service": service,
-                    "user": user,
+                    "host": os.environ["TARGET_ORACLE_HOST"],
+                    "port": os.environ["TARGET_ORACLE_PORT"],
+                    "service": os.environ["TARGET_ORACLE_SERVICE"],
+                    "user": os.environ["TARGET_ORACLE_USER"],
                     "password_env": "TARGET_ORACLE_PASSWORD",
                 },
-                "schemas": {"source": target_schema.lower()},
+                "schemas": {"source": target_schema},
             },
         },
     }
@@ -154,10 +155,10 @@ def _write_manifest(project_root: Path, target_schema: str) -> None:
 def _write_catalog(project_root: Path) -> None:
     tables_dir = project_root / "catalog" / "tables"
     tables_dir.mkdir(parents=True)
-    (tables_dir / "migrationtest.silver_config.json").write_text(
+    (tables_dir / "MIGRATIONTEST.SILVER_CONFIG.json").write_text(
         json.dumps(
             {
-                "schema": ORACLE_MIGRATION_SCHEMA.lower(),
+                "schema": ORACLE_MIGRATION_SCHEMA,
                 "name": "SILVER_CONFIG",
                 "scoping": {"status": "no_writer_found"},
                 "is_source": True,
@@ -170,10 +171,10 @@ def _write_catalog(project_root: Path) -> None:
         ),
         encoding="utf-8",
     )
-    (tables_dir / "migrationtest.bronze_currency.json").write_text(
+    (tables_dir / "MIGRATIONTEST.BRONZE_CURRENCY.json").write_text(
         json.dumps(
             {
-                "schema": ORACLE_MIGRATION_SCHEMA.lower(),
+                "schema": ORACLE_MIGRATION_SCHEMA,
                 "name": "BRONZE_CURRENCY",
                 "scoping": {"status": "no_writer_found"},
                 "is_source": False,
@@ -200,7 +201,7 @@ def test_setup_target_materializes_source_and_seed_tables(tmp_path: Path) -> Non
     try:
         result = run_setup_target(tmp_path)
 
-        assert result.target_source_schema == target_schema.lower()
+        assert result.target_source_schema == target_schema
         assert any("SILVER_CONFIG" in t for t in result.created_tables)
         assert any("BRONZE_CURRENCY" in f for f in result.seed_files)
         assert result.dbt_seed_ran is True

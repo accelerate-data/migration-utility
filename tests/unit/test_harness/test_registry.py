@@ -225,6 +225,43 @@ class TestFromEnv:
         assert backend.driver == "FreeTDS"
         assert backend.source_user == "source_user"
 
+    def test_from_env_ignores_runtime_driver_overrides(self) -> None:
+        manifest = {
+            "runtime": {
+                "source": {
+                    "technology": "sql_server",
+                    "dialect": "tsql",
+                    "connection": {
+                        "host": "localhost",
+                        "port": "1433",
+                        "database": "manifestDB",
+                        "user": "source_user",
+                        "driver": "ODBC Driver 18 for SQL Server",
+                        "password_env": "SQL_SOURCE_PASSWORD",
+                    },
+                },
+                "sandbox": {
+                    "technology": "sql_server",
+                    "dialect": "tsql",
+                    "connection": {
+                        "host": "localhost",
+                        "port": "1433",
+                        "user": "admin",
+                        "driver": "ODBC Driver 18 for SQL Server",
+                        "password_env": "SQL_SANDBOX_PASSWORD",
+                    },
+                },
+            }
+        }
+        with patch.dict(
+            os.environ,
+            {"SQL_SOURCE_PASSWORD": "source-pass", "SQL_SANDBOX_PASSWORD": "pass"},
+            clear=True,
+        ):
+            backend = SqlServerSandbox.from_env(manifest)
+        assert backend.driver == "FreeTDS"
+        assert backend.source_driver == "FreeTDS"
+
     def test_connect_cant_open_lib_raises_runtime_error(self) -> None:
         backend = SqlServerSandbox(
             host="localhost", port="1433", password="pass",

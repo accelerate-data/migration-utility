@@ -2,8 +2,6 @@
 
 from __future__ import annotations
 
-import os
-
 import pytest
 
 pyodbc = pytest.importorskip(
@@ -11,7 +9,6 @@ pyodbc = pytest.importorskip(
     reason="pyodbc not installed — skipping SQL Server materialization integration tests",
 )
 
-from shared.runtime_config_models import RuntimeConnection, RuntimeRole
 from shared.fixture_materialization import materialize_migration_test
 from tests.helpers import (
     REPO_ROOT,
@@ -23,9 +20,11 @@ from tests.helpers import (
     SQL_SERVER_FIXTURE_SILVER_PATTERN_PROC,
 )
 from tests.integration.runtime_helpers import (
-    _require_env,
+    build_sql_server_admin_connection_string,
     build_sql_server_connection_string,
+    build_sql_server_fixture_admin_role,
     sql_server_is_available,
+    sql_server_sandbox_is_available,
 )
 
 pytestmark = pytest.mark.integration
@@ -66,23 +65,7 @@ STALE_FIXTURE_TABLE = "stale_contract_probe"
 
 
 def _have_mssql_env() -> bool:
-    return sql_server_is_available(pyodbc)
-
-
-def _build_sql_server_fixture_role() -> RuntimeRole:
-    return RuntimeRole(
-        technology="sql_server",
-        dialect="tsql",
-        connection=RuntimeConnection(
-            host=_require_env("MSSQL_HOST"),
-            port=_require_env("MSSQL_PORT"),
-            database=SQL_SERVER_FIXTURE_DATABASE,
-            schema=SQL_SERVER_FIXTURE_SCHEMA,
-            user=_require_env("MSSQL_USER"),
-            driver=_require_env("MSSQL_DRIVER"),
-            password_env="SA_PASSWORD",
-        ),
-    )
+    return sql_server_is_available(pyodbc) and sql_server_sandbox_is_available(pyodbc)
 
 
 def _table_exists(cursor: pyodbc.Cursor, table_name: str) -> bool:
@@ -133,12 +116,12 @@ def test_materialize_migration_test_sql_server_script_rebuilds_instead_of_short_
 
 @pytest.mark.skipif(not _have_mssql_env(), reason="SQL Server fixture env not configured")
 def test_materialize_migration_test_sql_server_creates_core_objects() -> None:
-    role = _build_sql_server_fixture_role()
+    role = build_sql_server_fixture_admin_role()
     result = materialize_migration_test(role, REPO_ROOT)
     assert result.returncode == 0, result.stderr
 
     conn = pyodbc.connect(
-        build_sql_server_connection_string(database=SQL_SERVER_FIXTURE_DATABASE),
+        build_sql_server_admin_connection_string(database=SQL_SERVER_FIXTURE_DATABASE),
         autocommit=True,
     )
     try:
@@ -150,12 +133,12 @@ def test_materialize_migration_test_sql_server_creates_core_objects() -> None:
 
 @pytest.mark.skipif(not _have_mssql_env(), reason="SQL Server fixture env not configured")
 def test_materialize_migration_test_sql_server_repairs_downstream_contract_objects() -> None:
-    role = _build_sql_server_fixture_role()
+    role = build_sql_server_fixture_admin_role()
     first = materialize_migration_test(role, REPO_ROOT)
     assert first.returncode == 0, first.stderr
 
     conn = pyodbc.connect(
-        build_sql_server_connection_string(database=SQL_SERVER_FIXTURE_DATABASE),
+        build_sql_server_admin_connection_string(database=SQL_SERVER_FIXTURE_DATABASE),
         autocommit=True,
     )
     try:

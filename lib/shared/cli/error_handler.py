@@ -38,8 +38,7 @@ def _classify(exc: BaseException) -> tuple[int, str, str | None]:
     """
     if _PYODBC_INTERFACE_ERROR and isinstance(exc, _PYODBC_INTERFACE_ERROR):
         return 2, str(exc), (
-            "Install a supported SQL Server ODBC driver for this platform and set "
-            "MSSQL_DRIVER if you are not using FreeTDS."
+            "Install FreeTDS and unixODBC, then ensure FreeTDS is registered with unixODBC."
         )
     if _PYODBC_PROGRAMMING_ERROR and isinstance(exc, _PYODBC_PROGRAMMING_ERROR):
         return 2, str(exc), (

@@ -4,23 +4,22 @@ Run with: cd lib && uv run pytest ../tests/integration/oracle/test_harness -v
 
 Requires:
 - Docker Oracle container running (see docs/reference/setup-docker/README.md)
-- ORACLE_PWD env var set (SYS password)
+- source and sandbox Oracle env vars set for the MigrationTest schema
 - the Oracle materialize-migration-test script can connect to the container
 """
 
 from __future__ import annotations
 
-import os
 import oracledb
 import pytest
 
 from shared.sandbox.oracle import OracleSandbox
 from tests.integration.runtime_helpers import (
     ORACLE_MIGRATION_SCHEMA,
-    ORACLE_MIGRATION_SCHEMA_PASSWORD,
     build_oracle_sandbox_manifest,
     ensure_oracle_migration_test_materialized,
     oracle_is_available,
+    oracle_sandbox_is_available,
 )
 
 pytestmark = pytest.mark.oracle
@@ -37,18 +36,17 @@ SILVER_USP_UNIONALL = f"{ORACLE_MIGRATION_SCHEMA}.SILVER_USP_UNIONALL"
 
 
 def _have_oracle_env() -> bool:
-    return oracle_is_available(oracledb)
+    return oracle_is_available(oracledb) and oracle_sandbox_is_available(oracledb)
 
 
 def _make_backend() -> OracleSandbox:
     ensure_oracle_migration_test_materialized()
-    os.environ.setdefault("ORACLE_SCHEMA_PASSWORD", ORACLE_MIGRATION_SCHEMA_PASSWORD)
     return OracleSandbox.from_env(build_oracle_sandbox_manifest())
 
 
 skip_no_oracle = pytest.mark.skipif(
     not _have_oracle_env(),
-    reason="ORACLE_PWD not set — local Oracle Docker required",
+    reason="Oracle source/sandbox env not configured — local Oracle Docker required",
 )
 
 

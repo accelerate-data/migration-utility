@@ -14,27 +14,48 @@ from tests.helpers import (
     SQL_SERVER_FIXTURE_SCHEMA,
 )
 
-
-def _require_env(name: str) -> str:
-    """Return env var value or raise with a clear message."""
-    value = os.environ.get(name, "")
-    if not value:
-        raise EnvironmentError(
-            f"Required environment variable {name} is not set. Check .envrc and .env"
-        )
-    return value
-
-
-ORACLE_MIGRATION_SCHEMA = os.environ.get("ORACLE_SCHEMA", "MIGRATIONTEST").upper()
-ORACLE_MIGRATION_SCHEMA_PASSWORD = os.environ.get(
-    "ORACLE_SCHEMA_PASSWORD",
-    ORACLE_MIGRATION_SCHEMA.lower(),
+SQL_SERVER_SOURCE_ENV = (
+    "SOURCE_MSSQL_HOST",
+    "SOURCE_MSSQL_PORT",
+    "SOURCE_MSSQL_DB",
+    "SOURCE_MSSQL_SCHEMA",
+    "SOURCE_MSSQL_USER",
+    "SOURCE_MSSQL_PASSWORD",
 )
+SQL_SERVER_SANDBOX_ENV = (
+    "SANDBOX_MSSQL_HOST",
+    "SANDBOX_MSSQL_PORT",
+    "SANDBOX_MSSQL_USER",
+    "SANDBOX_MSSQL_PASSWORD",
+)
+ORACLE_SOURCE_ENV = (
+    "SOURCE_ORACLE_HOST",
+    "SOURCE_ORACLE_PORT",
+    "SOURCE_ORACLE_SERVICE",
+    "SOURCE_ORACLE_SCHEMA",
+    "SOURCE_ORACLE_USER",
+    "SOURCE_ORACLE_PASSWORD",
+)
+ORACLE_SANDBOX_ENV = (
+    "SANDBOX_ORACLE_HOST",
+    "SANDBOX_ORACLE_PORT",
+    "SANDBOX_ORACLE_SERVICE",
+    "SANDBOX_ORACLE_USER",
+    "SANDBOX_ORACLE_PASSWORD",
+)
+
+SQL_SERVER_MIGRATION_DATABASE = os.environ.get("SOURCE_MSSQL_DB", SQL_SERVER_FIXTURE_DATABASE)
+SQL_SERVER_MIGRATION_SCHEMA = os.environ.get("SOURCE_MSSQL_SCHEMA", SQL_SERVER_FIXTURE_SCHEMA)
+ORACLE_MIGRATION_SCHEMA = os.environ.get("SOURCE_ORACLE_SCHEMA", "MIGRATIONTEST").upper()
 
 _ORACLE_MIGRATION_TEST_READY = False
 _SQL_SERVER_MIGRATION_TEST_READY = False
-SQL_SERVER_MIGRATION_DATABASE = SQL_SERVER_FIXTURE_DATABASE
-SQL_SERVER_MIGRATION_SCHEMA = SQL_SERVER_FIXTURE_SCHEMA
+
+
+def require_env(role: str, variable_names: tuple[str, ...] | list[str]) -> None:
+    missing = [name for name in variable_names if not os.environ.get(name)]
+    if missing:
+        pytest.skip(f"{role} env missing: {', '.join(missing)}")
 
 
 def build_sql_server_connection_string(
@@ -43,28 +64,49 @@ def build_sql_server_connection_string(
     login_timeout: int | None = None,
 ) -> str:
     return _build_sql_server_connection_string(
-        host=_require_env("MSSQL_HOST"),
-        port=_require_env("MSSQL_PORT"),
+        host=os.environ["SOURCE_MSSQL_HOST"],
+        port=os.environ.get("SOURCE_MSSQL_PORT", "1433"),
         database=database,
-        user=_require_env("MSSQL_USER"),
-        password=_require_env("SA_PASSWORD"),
-        driver=_require_env("MSSQL_DRIVER"),
+        user=os.environ["SOURCE_MSSQL_USER"],
+        password=os.environ["SOURCE_MSSQL_PASSWORD"],
+        driver="FreeTDS",
         login_timeout=login_timeout,
     )
 
 
-def build_sql_server_source_role() -> RuntimeRole:
+def build_sql_server_admin_connection_string(
+    *,
+    database: str = "master",
+    login_timeout: int | None = None,
+) -> str:
+    return _build_sql_server_connection_string(
+        host=os.environ["SANDBOX_MSSQL_HOST"],
+        port=os.environ.get("SANDBOX_MSSQL_PORT", "1433"),
+        database=database,
+        user=os.environ["SANDBOX_MSSQL_USER"],
+        password=os.environ["SANDBOX_MSSQL_PASSWORD"],
+        driver="FreeTDS",
+        login_timeout=login_timeout,
+    )
+
+
+def build_sql_server_fixture_admin_role() -> RuntimeRole:
+    if os.environ["SOURCE_MSSQL_HOST"] != os.environ["SANDBOX_MSSQL_HOST"]:
+        raise RuntimeError(
+            "SQL Server fixture materialization requires sandbox/admin credentials "
+            "that can connect to SOURCE_MSSQL_HOST. Set SOURCE_MSSQL_HOST and "
+            "SANDBOX_MSSQL_HOST to the same test instance for local bootstrap."
+        )
     return RuntimeRole(
         technology="sql_server",
         dialect="tsql",
         connection=RuntimeConnection(
-            host=_require_env("MSSQL_HOST"),
-            port=_require_env("MSSQL_PORT"),
+            host=os.environ["SOURCE_MSSQL_HOST"],
+            port=os.environ.get("SOURCE_MSSQL_PORT", "1433"),
             database=SQL_SERVER_MIGRATION_DATABASE,
             schema=SQL_SERVER_MIGRATION_SCHEMA,
-            user=_require_env("MSSQL_USER"),
-            driver=_require_env("MSSQL_DRIVER"),
-            password_env="SA_PASSWORD",
+            user=os.environ["SANDBOX_MSSQL_USER"],
+            password_env="SANDBOX_MSSQL_PASSWORD",
         ),
     )
 
@@ -76,62 +118,74 @@ def build_sql_server_sandbox_manifest() -> dict[str, object]:
                 "technology": "sql_server",
                 "dialect": "tsql",
                 "connection": {
-                    "host": _require_env("MSSQL_HOST"),
-                    "port": _require_env("MSSQL_PORT"),
+                    "host": os.environ["SOURCE_MSSQL_HOST"],
+                    "port": os.environ.get("SOURCE_MSSQL_PORT", "1433"),
                     "database": SQL_SERVER_MIGRATION_DATABASE,
                     "schema": SQL_SERVER_MIGRATION_SCHEMA,
-                    "user": _require_env("MSSQL_USER"),
-                    "driver": _require_env("MSSQL_DRIVER"),
-                    "password_env": "SA_PASSWORD",
+                    "user": os.environ["SOURCE_MSSQL_USER"],
+                    "password_env": "SOURCE_MSSQL_PASSWORD",
                 },
             },
             "sandbox": {
                 "technology": "sql_server",
                 "dialect": "tsql",
                 "connection": {
-                    "host": _require_env("MSSQL_HOST"),
-                    "port": _require_env("MSSQL_PORT"),
-                    "user": _require_env("MSSQL_USER"),
-                    "driver": _require_env("MSSQL_DRIVER"),
-                    "password_env": "SA_PASSWORD",
+                    "host": os.environ["SANDBOX_MSSQL_HOST"],
+                    "port": os.environ.get("SANDBOX_MSSQL_PORT", "1433"),
+                    "user": os.environ["SANDBOX_MSSQL_USER"],
+                    "password_env": "SANDBOX_MSSQL_PASSWORD",
                 },
             },
         }
     }
 
 
-def build_oracle_admin_role() -> RuntimeRole:
+def build_oracle_fixture_admin_role() -> RuntimeRole:
+    if os.environ["SOURCE_ORACLE_HOST"] != os.environ["SANDBOX_ORACLE_HOST"]:
+        raise RuntimeError(
+            "Oracle fixture materialization requires sandbox/admin credentials "
+            "that can connect to SOURCE_ORACLE_HOST. Set SOURCE_ORACLE_HOST and "
+            "SANDBOX_ORACLE_HOST to the same test instance for local bootstrap."
+        )
     return RuntimeRole(
         technology="oracle",
         dialect="oracle",
         connection=RuntimeConnection(
-            host=_require_env("ORACLE_HOST"),
-            port=_require_env("ORACLE_PORT"),
-            service=_require_env("ORACLE_SERVICE"),
-            user=_require_env("ORACLE_ADMIN_USER"),
+            host=os.environ["SOURCE_ORACLE_HOST"],
+            port=os.environ.get("SOURCE_ORACLE_PORT", "1521"),
+            service=os.environ["SOURCE_ORACLE_SERVICE"],
+            user=os.environ["SANDBOX_ORACLE_USER"],
             schema=ORACLE_MIGRATION_SCHEMA,
-            password_env="ORACLE_PWD",
+            password_env="SANDBOX_ORACLE_PASSWORD",
         ),
     )
 
 
 def build_oracle_dsn() -> str:
     return (
-        f"{_require_env('ORACLE_HOST')}:"
-        f"{_require_env('ORACLE_PORT')}/"
-        f"{_require_env('ORACLE_SERVICE')}"
+        f"{os.environ['SOURCE_ORACLE_HOST']}:"
+        f"{os.environ.get('SOURCE_ORACLE_PORT', '1521')}/"
+        f"{os.environ['SOURCE_ORACLE_SERVICE']}"
     )
 
 
-def build_oracle_admin_connect_kwargs(oracledb_module: Any) -> dict[str, object]:
-    admin_user = _require_env("ORACLE_ADMIN_USER")
+def build_oracle_sandbox_dsn() -> str:
+    return (
+        f"{os.environ['SANDBOX_ORACLE_HOST']}:"
+        f"{os.environ.get('SANDBOX_ORACLE_PORT', '1521')}/"
+        f"{os.environ['SANDBOX_ORACLE_SERVICE']}"
+    )
+
+
+def build_oracle_sandbox_admin_connect_kwargs(oracledb_module: Any) -> dict[str, object]:
+    user = os.environ["SANDBOX_ORACLE_USER"]
     return {
-        "user": admin_user,
-        "password": os.environ["ORACLE_PWD"],
-        "dsn": build_oracle_dsn(),
+        "user": user,
+        "password": os.environ["SANDBOX_ORACLE_PASSWORD"],
+        "dsn": build_oracle_sandbox_dsn(),
         "mode": (
             oracledb_module.AUTH_MODE_SYSDBA
-            if admin_user.lower() == "sys"
+            if user.lower() == "sys"
             else oracledb_module.AUTH_MODE_DEFAULT
         ),
     }
@@ -144,26 +198,23 @@ def build_oracle_sandbox_manifest() -> dict[str, object]:
                 "technology": "oracle",
                 "dialect": "oracle",
                 "connection": {
-                    "host": _require_env("ORACLE_HOST"),
-                    "port": _require_env("ORACLE_PORT"),
-                    "service": _require_env("ORACLE_SERVICE"),
-                    "user": os.environ.get("ORACLE_SOURCE_USER", ORACLE_MIGRATION_SCHEMA),
-                    "schema": os.environ.get("ORACLE_SCHEMA", ORACLE_MIGRATION_SCHEMA),
-                    "password_env": os.environ.get(
-                        "ORACLE_SOURCE_PASSWORD_ENV",
-                        "ORACLE_SCHEMA_PASSWORD",
-                    ),
+                    "host": os.environ["SOURCE_ORACLE_HOST"],
+                    "port": os.environ.get("SOURCE_ORACLE_PORT", "1521"),
+                    "service": os.environ["SOURCE_ORACLE_SERVICE"],
+                    "user": os.environ["SOURCE_ORACLE_USER"],
+                    "schema": ORACLE_MIGRATION_SCHEMA,
+                    "password_env": "SOURCE_ORACLE_PASSWORD",
                 },
             },
             "sandbox": {
                 "technology": "oracle",
                 "dialect": "oracle",
                 "connection": {
-                    "host": _require_env("ORACLE_HOST"),
-                    "port": _require_env("ORACLE_PORT"),
-                    "service": _require_env("SANDBOX_ORACLE_SERVICE"),
-                    "user": _require_env("ORACLE_ADMIN_USER"),
-                    "password_env": "ORACLE_PWD",
+                    "host": os.environ["SANDBOX_ORACLE_HOST"],
+                    "port": os.environ.get("SANDBOX_ORACLE_PORT", "1521"),
+                    "service": os.environ["SANDBOX_ORACLE_SERVICE"],
+                    "user": os.environ["SANDBOX_ORACLE_USER"],
+                    "password_env": "SANDBOX_ORACLE_PASSWORD",
                 },
             },
         }
@@ -171,12 +222,29 @@ def build_oracle_sandbox_manifest() -> dict[str, object]:
 
 
 def sql_server_is_available(pyodbc_module: Any) -> bool:
-    if not all(os.environ.get(name) for name in ("MSSQL_HOST", "SA_PASSWORD")):
+    if any(not os.environ.get(name) for name in SQL_SERVER_SOURCE_ENV):
         return False
     try:
         conn = pyodbc_module.connect(
             build_sql_server_connection_string(
-                database=os.environ.get("MSSQL_ADMIN_DATABASE", "master"),
+                database=SQL_SERVER_MIGRATION_DATABASE,
+                login_timeout=1,
+            ),
+            autocommit=True,
+        )
+        conn.close()
+        return True
+    except (pyodbc_module.Error, EnvironmentError):
+        return False
+
+
+def sql_server_sandbox_is_available(pyodbc_module: Any) -> bool:
+    if any(not os.environ.get(name) for name in SQL_SERVER_SANDBOX_ENV):
+        return False
+    try:
+        conn = pyodbc_module.connect(
+            build_sql_server_admin_connection_string(
+                database=os.environ.get("SANDBOX_MSSQL_ADMIN_DATABASE", "master"),
                 login_timeout=1,
             ),
             autocommit=True,
@@ -188,10 +256,27 @@ def sql_server_is_available(pyodbc_module: Any) -> bool:
 
 
 def oracle_is_available(oracledb_module: Any) -> bool:
-    if not os.environ.get("ORACLE_PWD"):
+    if any(not os.environ.get(name) for name in ORACLE_SOURCE_ENV):
         return False
     try:
-        conn = oracledb_module.connect(**build_oracle_admin_connect_kwargs(oracledb_module))
+        conn = oracledb_module.connect(
+            user=os.environ["SOURCE_ORACLE_USER"],
+            password=os.environ["SOURCE_ORACLE_PASSWORD"],
+            dsn=build_oracle_dsn(),
+        )
+        conn.close()
+        return True
+    except (oracledb_module.Error, EnvironmentError):
+        return False
+
+
+def oracle_sandbox_is_available(oracledb_module: Any) -> bool:
+    if any(not os.environ.get(name) for name in ORACLE_SANDBOX_ENV):
+        return False
+    try:
+        conn = oracledb_module.connect(
+            **build_oracle_sandbox_admin_connect_kwargs(oracledb_module)
+        )
         conn.close()
         return True
     except (oracledb_module.Error, EnvironmentError):
@@ -203,7 +288,9 @@ def ensure_sql_server_migration_test_materialized() -> None:
     if _SQL_SERVER_MIGRATION_TEST_READY:
         return
 
-    role = build_sql_server_source_role()
+    require_env("source", SQL_SERVER_SOURCE_ENV)
+    require_env("sandbox", SQL_SERVER_SANDBOX_ENV)
+    role = build_sql_server_fixture_admin_role()
     result = materialize_migration_test(role, REPO_ROOT)
     if result.returncode != 0:
         raise RuntimeError(
@@ -219,19 +306,15 @@ def ensure_oracle_migration_test_materialized() -> None:
     if _ORACLE_MIGRATION_TEST_READY:
         return
 
-    if not os.environ.get("ORACLE_PWD"):
-        pytest.skip("ORACLE_PWD not set")
+    require_env("source", ORACLE_SOURCE_ENV)
+    require_env("sandbox", ORACLE_SANDBOX_ENV)
     pytest.importorskip(
         "oracledb",
         reason="oracledb not installed — required for Oracle materialization",
     )
 
-    role = build_oracle_admin_role()
-    result = materialize_migration_test(
-        role,
-        REPO_ROOT,
-        extra_env={"ORACLE_SCHEMA_PASSWORD": ORACLE_MIGRATION_SCHEMA_PASSWORD},
-    )
+    role = build_oracle_fixture_admin_role()
+    result = materialize_migration_test(role, REPO_ROOT)
     if result.returncode != 0:
         raise RuntimeError(
             "Oracle MigrationTest materialization failed:\n"
@@ -243,8 +326,8 @@ def ensure_oracle_migration_test_materialized() -> None:
 
 def configure_oracle_extract_env(monkeypatch: pytest.MonkeyPatch) -> None:
     ensure_oracle_migration_test_materialized()
-    monkeypatch.setenv("ORACLE_USER", ORACLE_MIGRATION_SCHEMA)
-    monkeypatch.setenv("ORACLE_PASSWORD", ORACLE_MIGRATION_SCHEMA_PASSWORD)
+    monkeypatch.setenv("SOURCE_ORACLE_USER", os.environ["SOURCE_ORACLE_USER"])
+    monkeypatch.setenv("SOURCE_ORACLE_PASSWORD", os.environ["SOURCE_ORACLE_PASSWORD"])
     monkeypatch.setenv("ORACLE_DSN", build_oracle_dsn())
 
 
@@ -253,13 +336,13 @@ def require_oracle_extract_env() -> None:
         "oracledb",
         reason="oracledb not installed - skipping Oracle integration tests",
     )
-    for var in ("ORACLE_USER", "ORACLE_PASSWORD", "ORACLE_DSN"):
+    for var in ("SOURCE_ORACLE_USER", "SOURCE_ORACLE_PASSWORD", "ORACLE_DSN"):
         if not os.environ.get(var):
-            pytest.skip(f"{var} not set")
+            pytest.skip(f"source env missing: {var}")
     try:
         conn = oracledb.connect(
-            user=os.environ["ORACLE_USER"],
-            password=os.environ["ORACLE_PASSWORD"],
+            user=os.environ["SOURCE_ORACLE_USER"],
+            password=os.environ["SOURCE_ORACLE_PASSWORD"],
             dsn=os.environ["ORACLE_DSN"],
         )
         conn.close()

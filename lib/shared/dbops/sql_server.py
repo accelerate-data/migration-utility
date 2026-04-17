@@ -4,7 +4,7 @@ from __future__ import annotations
 
 from typing import Any
 
-from shared.db_connect import build_sql_server_connection_string
+from shared.db_connect import SQL_SERVER_ODBC_DRIVER, build_sql_server_connection_string
 from shared.dbops.base import ColumnSpec, DatabaseOperations
 
 _pyodbc = None
@@ -31,18 +31,16 @@ class SqlServerOperations(DatabaseOperations):
 
     def materialize_migration_test_env(self) -> dict[str, str]:
         env = {
-            "MSSQL_HOST": self.role.connection.host or "localhost",
-            "MSSQL_PORT": self.role.connection.port or "1433",
-            "MSSQL_DB": self.environment_name(),
-            "MSSQL_SCHEMA": self.role.connection.schema_name or "MigrationTest",
+            "SOURCE_MSSQL_HOST": self.role.connection.host or "localhost",
+            "SOURCE_MSSQL_PORT": self.role.connection.port or "1433",
+            "SOURCE_MSSQL_DB": self.environment_name(),
+            "SOURCE_MSSQL_SCHEMA": self.role.connection.schema_name or "MigrationTest",
         }
         if self.role.connection.user:
-            env["MSSQL_USER"] = self.role.connection.user
-        if self.role.connection.driver:
-            env["MSSQL_DRIVER"] = self.role.connection.driver
+            env["SANDBOX_MSSQL_USER"] = self.role.connection.user
         password = self._read_secret(self.role.connection.password_env)
         if password:
-            env["SA_PASSWORD"] = password
+            env["SANDBOX_MSSQL_PASSWORD"] = password
         return env
 
     def _connect(self):
@@ -50,7 +48,7 @@ class SqlServerOperations(DatabaseOperations):
         port = self.role.connection.port or "1433"
         database = self.role.connection.database or self.environment_name()
         user = self.role.connection.user or "sa"
-        driver = self.role.connection.driver or "ODBC Driver 18 for SQL Server"
+        driver = SQL_SERVER_ODBC_DRIVER
         password = self._read_secret(self.role.connection.password_env)
         if not password:
             raise ValueError(

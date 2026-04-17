@@ -18,6 +18,7 @@ from shared.generate_sources import generate_sources, write_sources_yml
 from shared.name_resolver import model_name_from_table, normalize
 from shared.output_models.generate_sources import GenerateSourcesOutput
 from shared.output_models.target_setup import SetupTargetOutput
+from shared.db_connect import SQL_SERVER_ODBC_DRIVER
 from shared.runtime_config import dialect_for_technology, get_runtime_role
 from shared.runtime_config_models import RuntimeConnection, RuntimeRole, RuntimeSchemas
 from shared.setup_ddl_support.manifest import read_manifest_strict
@@ -136,7 +137,7 @@ class SeedTableSpec:
 
     @property
     def fqn(self) -> str:
-        return f"{self.logical_schema}.{self.table_name.lower()}"
+        return normalize(f"{self.logical_schema}.{self.table_name}")
 
     @property
     def seed_name(self) -> str:
@@ -207,7 +208,7 @@ def _render_profiles_yml(profile_name: str, target_role: RuntimeRole, target_sou
         password_env = connection.password_env
         if not password_env:
             raise ValueError("runtime.target.connection.password_env is required for SQL Server target setup")
-        driver = connection.driver or "ODBC Driver 18 for SQL Server"
+        driver = SQL_SERVER_ODBC_DRIVER
         user = connection.user or "sa"
         host = connection.host or "localhost"
         port = connection.port or "1433"
@@ -323,7 +324,7 @@ def _load_source_table_specs(project_root: Path) -> list[TargetTableSpec]:
         payload = json.loads(table_file.read_text(encoding="utf-8"))
         if payload.get("excluded") or payload.get("is_source") is not True:
             continue
-        logical_schema = str(payload.get("schema", "")).lower()
+        logical_schema = str(payload.get("schema", ""))
         table_name = str(payload.get("name", ""))
         if not logical_schema or not table_name:
             continue
@@ -366,7 +367,7 @@ def _load_seed_table_specs(project_root: Path) -> list[SeedTableSpec]:
         payload = json.loads(table_file.read_text(encoding="utf-8"))
         if payload.get("excluded") or payload.get("is_seed") is not True:
             continue
-        logical_schema = str(payload.get("schema", "")).lower()
+        logical_schema = str(payload.get("schema", ""))
         table_name = str(payload.get("name", ""))
         if not logical_schema or not table_name:
             continue

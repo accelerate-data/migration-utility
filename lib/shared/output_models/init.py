@@ -1,7 +1,5 @@
 """Init command output contracts."""
 
-from typing import Literal
-
 from pydantic import BaseModel, Field
 
 from shared.output_models.shared import OUTPUT_CONFIG
@@ -42,12 +40,3 @@ class LocalEnvOverrideWriteOutput(BaseModel):
 
     file: str
     changed: bool
-
-
-class LocalOverrideDiscoveryOutput(BaseModel):
-    model_config = OUTPUT_CONFIG
-
-    key: str
-    status: Literal["resolved", "default", "manual"]
-    value: str | None = None
-    message: str | None = None

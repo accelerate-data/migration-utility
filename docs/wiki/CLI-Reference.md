@@ -87,7 +87,8 @@ Technology comes from `manifest.json` as `runtime.source`, seeded by `/init-ad-m
 | `SOURCE_MSSQL_DB` | Database name |
 | `SOURCE_MSSQL_USER` | Username |
 | `SOURCE_MSSQL_PASSWORD` | Password |
-| `MSSQL_DRIVER` | Optional ODBC driver override; defaults to `FreeTDS` |
+
+SQL Server connectivity uses FreeTDS. Install FreeTDS and unixODBC before running SQL Server source commands.
 
 **Environment variables — Oracle:**
 
@@ -96,6 +97,7 @@ Technology comes from `manifest.json` as `runtime.source`, seeded by `/init-ad-m
 | `SOURCE_ORACLE_HOST` | Hostname or IP |
 | `SOURCE_ORACLE_PORT` | Port (usually `1521`) |
 | `SOURCE_ORACLE_SERVICE` | Service name |
+| `SOURCE_ORACLE_SCHEMA` | Schema/user selected for extraction |
 | `SOURCE_ORACLE_USER` | Username |
 | `SOURCE_ORACLE_PASSWORD` | Password |
 

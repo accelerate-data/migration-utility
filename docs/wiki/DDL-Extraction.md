@@ -46,7 +46,8 @@ The CLI validates all required environment variables before connecting. Missing 
 - `SOURCE_MSSQL_DB`
 - `SOURCE_MSSQL_USER`
 - `SOURCE_MSSQL_PASSWORD`
-- optional `MSSQL_DRIVER` override if you are not using the default `FreeTDS` driver
+
+SQL Server connectivity uses FreeTDS. Install FreeTDS and unixODBC before running SQL Server source commands.
 
 These are bootstrap inputs for the initial source connection. Once `ad-migration setup-source` completes, the active source endpoint is persisted in `manifest.json` as `runtime.source`.
 
@@ -56,6 +57,7 @@ These are bootstrap inputs for the initial source connection. Once `ad-migration
 - `SOURCE_ORACLE_HOST`
 - `SOURCE_ORACLE_PORT`
 - `SOURCE_ORACLE_SERVICE`
+- `SOURCE_ORACLE_SCHEMA`
 - `SOURCE_ORACLE_USER`
 - `SOURCE_ORACLE_PASSWORD`
 

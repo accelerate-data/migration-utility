@@ -39,13 +39,9 @@ Required by `ad-migration setup-sandbox`.
 | `SANDBOX_MSSQL_USER` | Sandbox SQL Server username |
 | `SANDBOX_MSSQL_PASSWORD` | Sandbox SQL Server password |
 
-## Optional driver override
+## Driver
 
-| Variable | Description |
-|---|---|
-| `MSSQL_DRIVER` | Optional ODBC driver override. Defaults to `FreeTDS` when unset. |
-
-Use `MSSQL_DRIVER=ODBC Driver 18 for SQL Server` only if that driver is installed and configured locally.
+SQL Server connectivity uses FreeTDS. Install FreeTDS and unixODBC before running SQL Server source, target, or sandbox commands.
 
 ## Related pages
 

@@ -13,6 +13,7 @@ Required by `ad-migration setup-source`.
 | `SOURCE_ORACLE_HOST` | Source Oracle hostname or IP |
 | `SOURCE_ORACLE_PORT` | Source Oracle port |
 | `SOURCE_ORACLE_SERVICE` | Source Oracle service name |
+| `SOURCE_ORACLE_SCHEMA` | Source Oracle schema/user selected for extraction |
 | `SOURCE_ORACLE_USER` | Source Oracle username |
 | `SOURCE_ORACLE_PASSWORD` | Source Oracle password |
 

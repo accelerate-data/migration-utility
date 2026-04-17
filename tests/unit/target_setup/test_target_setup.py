@@ -166,6 +166,7 @@ def test_write_target_runtime_from_env_maps_sql_server_to_tsql_dialect(
     assert role.dialect == "tsql"
     assert manifest["runtime"]["target"]["technology"] == "sql_server"
     assert manifest["runtime"]["target"]["dialect"] == "tsql"
+    assert "driver" not in manifest["runtime"]["target"]["connection"]
 
 
 def test_generate_target_sources_uses_target_schema_override(tmp_path: Path) -> None:
@@ -210,6 +211,8 @@ def test_scaffold_target_project_writes_sql_server_profile(tmp_path: Path) -> No
     scaffold_target_project(project_root)
     profiles = (project_root / "dbt" / "profiles.yml").read_text(encoding="utf-8")
     assert 'type: sqlserver' in profiles
+    assert 'driver: "FreeTDS"' in profiles
+    assert 'driver: "ODBC Driver 18 for SQL Server"' not in profiles
     assert "env_var('SA_PASSWORD')" in profiles
     assert 'database: "TargetDB"' in profiles
 
@@ -263,6 +266,24 @@ def test_apply_target_source_tables_is_idempotent(tmp_path: Path) -> None:
     assert result.existing_tables == ["bronze.Customer"]
 
 
+def test_apply_target_source_tables_preserves_oracle_target_schema_case(
+    tmp_path: Path,
+) -> None:
+    project_root = _make_oracle_project(tmp_path)
+    _seed_catalog_table(project_root, "SILVER_CONFIG", schema="MIGRATIONTEST")
+    adapter = MagicMock()
+    adapter.list_source_tables.return_value = set()
+
+    with patch("shared.target_setup.get_dbops") as mock_get_dbops:
+        mock_get_dbops.return_value.from_role.return_value = adapter
+        result = apply_target_source_tables(project_root)
+
+    adapter.ensure_source_schema.assert_called_once_with("BRONZE")
+    adapter.create_source_table.assert_called_once()
+    assert adapter.create_source_table.call_args.args[0] == "BRONZE"
+    assert result.created_tables == ["BRONZE.SILVER_CONFIG"]
+
+
 def test_export_seed_tables_writes_seed_csv_from_source_table(tmp_path: Path) -> None:
     project_root = _make_sql_server_project(tmp_path)
     _seed_catalog_table(project_root, "CustomerType", is_source=False, is_seed=True)
@@ -299,6 +320,33 @@ def test_export_seed_tables_writes_seed_csv_from_source_table(tmp_path: Path) ->
         "  - name: name\n"
         "    data_type: NVARCHAR(50)\n"
     )
+
+
+def test_export_seed_tables_preserves_oracle_source_schema_case(tmp_path: Path) -> None:
+    project_root = _make_oracle_project(tmp_path)
+    _seed_catalog_table(
+        project_root,
+        "BRONZE_CURRENCY",
+        schema="MIGRATIONTEST",
+        is_source=False,
+        is_seed=True,
+    )
+    adapter = MagicMock()
+    adapter.read_table_rows.return_value = (
+        ["ID", "NAME"],
+        [(1, "USD")],
+    )
+
+    with patch("shared.target_setup.get_dbops") as mock_get_dbops:
+        mock_get_dbops.return_value.from_role.return_value = adapter
+        result = export_seed_tables(project_root)
+
+    adapter.read_table_rows.assert_called_once_with(
+        "MIGRATIONTEST",
+        "BRONZE_CURRENCY",
+        ["id", "name"],
+    )
+    assert result.row_counts == {"migrationtest.bronze_currency": 1}
 
 
 def test_export_seed_tables_reports_no_written_paths_when_content_unchanged(tmp_path: Path) -> None:

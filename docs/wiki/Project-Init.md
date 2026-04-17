@@ -24,7 +24,8 @@ The command groups checks into common prerequisites plus source-specific checks.
 
 - FreeTDS and unixODBC registration
 - source connection variables for `ad-migration setup-source`
-- optional `MSSQL_DRIVER` override when you are not using the default `FreeTDS` path
+
+SQL Server connectivity uses FreeTDS. Install FreeTDS and unixODBC before running SQL Server source commands.
 
 ### Oracle-specific checks
 

@@ -16,31 +16,30 @@ pyodbc = pytest.importorskip(
 
 from shared.db_connect import build_sql_server_connection_string
 from shared.target_setup import run_setup_target
-from tests.helpers import SQL_SERVER_FIXTURE_DATABASE, SQL_SERVER_FIXTURE_SCHEMA
+from tests.helpers import SQL_SERVER_FIXTURE_SCHEMA
 from tests.integration.runtime_helpers import (
-    _require_env,
+    SQL_SERVER_SOURCE_ENV,
     ensure_sql_server_migration_test_materialized,
+    require_env,
     sql_server_is_available,
 )
 
 pytestmark = pytest.mark.integration
 
+TARGET_MSSQL_ENV = (
+    "TARGET_MSSQL_HOST",
+    "TARGET_MSSQL_PORT",
+    "TARGET_MSSQL_DB",
+    "TARGET_MSSQL_USER",
+    "TARGET_MSSQL_PASSWORD",
+)
+
 
 def _require_sql_server_target_env() -> None:
+    require_env("source", SQL_SERVER_SOURCE_ENV)
+    require_env("target", TARGET_MSSQL_ENV)
     if not sql_server_is_available(pyodbc):
-        pytest.skip("SQL Server test database not reachable")
-    missing = [
-        name
-        for name in (
-            "SOURCE_MSSQL_HOST",
-            "SOURCE_MSSQL_PASSWORD",
-            "TARGET_MSSQL_HOST",
-            "TARGET_MSSQL_PASSWORD",
-        )
-        if not os.environ.get(name)
-    ]
-    if missing:
-        pytest.skip(f"Missing SQL Server target setup env vars: {', '.join(missing)}")
+        pytest.skip("SQL Server source env not reachable")
     if shutil.which("dbt") is None:
         pytest.skip("dbt executable not found on PATH")
 
@@ -48,20 +47,20 @@ def _require_sql_server_target_env() -> None:
 def _target_connection(database: str | None = None):
     return pyodbc.connect(
         build_sql_server_connection_string(
-            host=os.environ.get("TARGET_MSSQL_HOST", _require_env("MSSQL_HOST")),
-            port=os.environ.get("TARGET_MSSQL_PORT", _require_env("MSSQL_PORT")),
-            database=database or os.environ.get("TARGET_MSSQL_DB", SQL_SERVER_FIXTURE_DATABASE),
-            user=os.environ.get("TARGET_MSSQL_USER", _require_env("MSSQL_USER")),
+            host=os.environ["TARGET_MSSQL_HOST"],
+            port=os.environ.get("TARGET_MSSQL_PORT", "1433"),
+            database=database or os.environ["TARGET_MSSQL_DB"],
+            user=os.environ["TARGET_MSSQL_USER"],
             password=os.environ["TARGET_MSSQL_PASSWORD"],
-            driver=_require_env("MSSQL_DRIVER"),
+            driver="FreeTDS",
         ),
         autocommit=True,
     )
 
 
 def _ensure_target_database() -> str:
-    database = os.environ.get("TARGET_MSSQL_DB", SQL_SERVER_FIXTURE_DATABASE)
-    with _target_connection(os.environ.get("MSSQL_ADMIN_DATABASE", "master")) as conn:
+    database = os.environ["TARGET_MSSQL_DB"]
+    with _target_connection(os.environ.get("TARGET_MSSQL_ADMIN_DATABASE", "master")) as conn:
         cursor = conn.cursor()
         cursor.execute("SELECT DB_ID(?)", database)
         if cursor.fetchone()[0] is None:
@@ -96,12 +95,11 @@ def _write_manifest(project_root: Path, target_database: str) -> None:
                 "technology": "sql_server",
                 "dialect": "tsql",
                 "connection": {
-                    "host": os.environ.get("SOURCE_MSSQL_HOST", _require_env("MSSQL_HOST")),
-                    "port": os.environ.get("SOURCE_MSSQL_PORT", _require_env("MSSQL_PORT")),
-                    "database": os.environ.get("SOURCE_MSSQL_DB", SQL_SERVER_FIXTURE_DATABASE),
+                    "host": os.environ["SOURCE_MSSQL_HOST"],
+                    "port": os.environ.get("SOURCE_MSSQL_PORT", "1433"),
+                    "database": os.environ["SOURCE_MSSQL_DB"],
                     "schema": SQL_SERVER_FIXTURE_SCHEMA,
-                    "user": os.environ.get("SOURCE_MSSQL_USER", _require_env("MSSQL_USER")),
-                    "driver": _require_env("MSSQL_DRIVER"),
+                    "user": os.environ["SOURCE_MSSQL_USER"],
                     "password_env": "SOURCE_MSSQL_PASSWORD",
                 },
             },
@@ -109,11 +107,10 @@ def _write_manifest(project_root: Path, target_database: str) -> None:
                 "technology": "sql_server",
                 "dialect": "tsql",
                 "connection": {
-                    "host": os.environ.get("TARGET_MSSQL_HOST", _require_env("MSSQL_HOST")),
-                    "port": os.environ.get("TARGET_MSSQL_PORT", _require_env("MSSQL_PORT")),
+                    "host": os.environ["TARGET_MSSQL_HOST"],
+                    "port": os.environ.get("TARGET_MSSQL_PORT", "1433"),
                     "database": target_database,
-                    "user": os.environ.get("TARGET_MSSQL_USER", _require_env("MSSQL_USER")),
-                    "driver": _require_env("MSSQL_DRIVER"),
+                    "user": os.environ["TARGET_MSSQL_USER"],
                     "password_env": "TARGET_MSSQL_PASSWORD",
                 },
                 "schemas": {"source": "bronze"},

@@ -1,13 +1,12 @@
 """Integration tests for test harness against the schema-level MigrationTest contract on SQL Server.
 
 Run with: uv run --project lib pytest -m integration -v
-Requires: MSSQL_HOST, SA_PASSWORD, MSSQL_DB env vars (or Docker 'sql-test' on localhost:1433).
+Requires role-specific SQL Server source and sandbox env vars or a reachable local test instance.
 """
 
 from __future__ import annotations
 
 import json
-import os
 import uuid
 from pathlib import Path
 
@@ -15,18 +14,16 @@ import pytest
 
 pyodbc = pytest.importorskip("pyodbc", reason="pyodbc not installed — skipping integration tests")
 
-from shared.fixture_materialization import materialize_migration_test
 from shared.sandbox.sql_server import SqlServerSandbox
-from shared.runtime_config_models import RuntimeConnection, RuntimeRole
-from tests.helpers import REPO_ROOT, SQL_SERVER_FIXTURE_DATABASE, SQL_SERVER_FIXTURE_SCHEMA
+from tests.helpers import SQL_SERVER_FIXTURE_SCHEMA
 from tests.integration.runtime_helpers import (
-    _require_env,
-    sql_server_is_available,
+    build_sql_server_admin_connection_string,
+    build_sql_server_sandbox_manifest,
+    ensure_sql_server_migration_test_materialized,
+    sql_server_sandbox_is_available,
 )
 
 pytestmark = pytest.mark.integration
-
-_SQL_SERVER_FIXTURE_READY = False
 
 BRONZE_CURRENCY = f"[{SQL_SERVER_FIXTURE_SCHEMA}].[bronze_currency]"
 BRONZE_PRODUCT = f"[{SQL_SERVER_FIXTURE_SCHEMA}].[bronze_product]"
@@ -39,72 +36,21 @@ SILVER_USP_LOAD_DIMCURRENCY = f"[{SQL_SERVER_FIXTURE_SCHEMA}].[silver_usp_load_d
 SILVER_USP_LOAD_DIMPRODUCT = f"[{SQL_SERVER_FIXTURE_SCHEMA}].[silver_usp_load_dimproduct]"
 
 
-def _have_mssql_env() -> bool:
-    return sql_server_is_available(pyodbc)
-
-
-def _ensure_sql_server_fixture_materialized() -> None:
-    global _SQL_SERVER_FIXTURE_READY
-    if _SQL_SERVER_FIXTURE_READY:
-        return
-
-    role = RuntimeRole(
-        technology="sql_server",
-        dialect="tsql",
-        connection=RuntimeConnection(
-            host=_require_env("MSSQL_HOST"),
-            port=_require_env("MSSQL_PORT"),
-            database=SQL_SERVER_FIXTURE_DATABASE,
-            schema=SQL_SERVER_FIXTURE_SCHEMA,
-            user=_require_env("MSSQL_USER"),
-            driver=_require_env("MSSQL_DRIVER"),
-            password_env="SA_PASSWORD",
-        ),
-    )
-    result = materialize_migration_test(role, REPO_ROOT)
-    if result.returncode != 0:
-        raise RuntimeError(
-            "SQL Server MigrationTest materialization failed:\n"
-            f"stdout:\n{result.stdout}\n"
-            f"stderr:\n{result.stderr}"
-        )
-    _SQL_SERVER_FIXTURE_READY = True
-
-
 def _make_backend() -> SqlServerSandbox:
-    _ensure_sql_server_fixture_materialized()
-    return SqlServerSandbox.from_env({
-        "runtime": {
-            "source": {
-                "technology": "sql_server",
-                "dialect": "tsql",
-                "connection": {
-                    "host": _require_env("MSSQL_HOST"),
-                    "port": _require_env("MSSQL_PORT"),
-                    "database": SQL_SERVER_FIXTURE_DATABASE,
-                    "user": _require_env("MSSQL_USER"),
-                    "driver": _require_env("MSSQL_DRIVER"),
-                    "password_env": "SA_PASSWORD",
-                },
-            },
-            "sandbox": {
-                "technology": "sql_server",
-                "dialect": "tsql",
-                "connection": {
-                    "host": _require_env("MSSQL_HOST"),
-                    "port": _require_env("MSSQL_PORT"),
-                    "user": _require_env("MSSQL_USER"),
-                    "driver": _require_env("MSSQL_DRIVER"),
-                    "password_env": "SA_PASSWORD",
-                },
-            },
-        }
-    })
+    ensure_sql_server_migration_test_materialized()
+    return SqlServerSandbox.from_env(build_sql_server_sandbox_manifest())
+
+
+def _connect_source_admin(backend: SqlServerSandbox):
+    return pyodbc.connect(
+        build_sql_server_admin_connection_string(database=backend.source_database),
+        autocommit=True,
+    )
 
 
 skip_no_mssql = pytest.mark.skipif(
-    not _have_mssql_env(),
-    reason="MSSQL integration DB not reachable (MSSQL_HOST, SA_PASSWORD and a listening server required)",
+    not sql_server_sandbox_is_available(pyodbc),
+    reason="SQL Server sandbox env not configured or not reachable",
 )
 
 
@@ -202,7 +148,7 @@ class TestExecuteScenario:
     """Execute a real scenario against a sandbox database."""
 
     def _create_temp_proc(self, backend: SqlServerSandbox, proc_name: str, body: str) -> None:
-        with backend._connect_source(database=backend.source_database) as conn:
+        with _connect_source_admin(backend) as conn:
             cursor = conn.cursor()
             cursor.execute(
                 f"""
@@ -215,7 +161,7 @@ class TestExecuteScenario:
             )
 
     def _drop_temp_proc(self, backend: SqlServerSandbox, proc_name: str) -> None:
-        with backend._connect_source(database=backend.source_database) as conn:
+        with _connect_source_admin(backend) as conn:
             cursor = conn.cursor()
             cursor.execute(f"DROP PROCEDURE IF EXISTS [{SQL_SERVER_FIXTURE_SCHEMA}].[{proc_name}]")
 
@@ -376,10 +322,11 @@ class TestExecuteScenario:
         backend = _make_backend()
         table_name = f"__money_test_{uuid.uuid4().hex[:12]}"
         proc_name = f"usp_money_test_{uuid.uuid4().hex[:12]}"
+        up_result = None
 
         try:
             # Create a temp table with MONEY columns in the source DB
-            with backend._connect_source(database=backend.source_database) as conn:
+            with _connect_source_admin(backend) as conn:
                 cursor = conn.cursor()
                 cursor.execute(
                     f"CREATE TABLE [{SQL_SERVER_FIXTURE_SCHEMA}].[{table_name}] ("
@@ -422,7 +369,7 @@ class TestExecuteScenario:
         finally:
             if up_result:
                 backend.sandbox_down(sandbox_db=up_result.sandbox_database)
-            with backend._connect_source(database=backend.source_database) as conn:
+            with _connect_source_admin(backend) as conn:
                 cursor = conn.cursor()
                 cursor.execute(f"DROP PROCEDURE IF EXISTS [{SQL_SERVER_FIXTURE_SCHEMA}].[{proc_name}]")
                 cursor.execute(f"DROP TABLE IF EXISTS [{SQL_SERVER_FIXTURE_SCHEMA}].[{table_name}]")
@@ -568,7 +515,7 @@ class TestEnsureViewTablesIntegration:
     """Verify that view-sourced fixtures are materialised end-to-end in a real SQL Server sandbox."""
 
     def _create_view(self, backend: SqlServerSandbox, view_name: str) -> None:
-        with backend._connect_source(database=backend.source_database) as conn:
+        with _connect_source_admin(backend) as conn:
             cursor = conn.cursor()
             cursor.execute(
                 f"CREATE OR ALTER VIEW [{SQL_SERVER_FIXTURE_SCHEMA}].[{view_name}] "
@@ -576,14 +523,14 @@ class TestEnsureViewTablesIntegration:
             )
 
     def _drop_view(self, backend: SqlServerSandbox, view_name: str) -> None:
-        with backend._connect_source(database=backend.source_database) as conn:
+        with _connect_source_admin(backend) as conn:
             cursor = conn.cursor()
             cursor.execute(f"DROP VIEW IF EXISTS [{SQL_SERVER_FIXTURE_SCHEMA}].[{view_name}]")
 
     def _create_proc(
         self, backend: SqlServerSandbox, proc_name: str, view_name: str
     ) -> None:
-        with backend._connect_source(database=backend.source_database) as conn:
+        with _connect_source_admin(backend) as conn:
             cursor = conn.cursor()
             cursor.execute(
                 f"""
@@ -598,7 +545,7 @@ class TestEnsureViewTablesIntegration:
             )
 
     def _drop_proc(self, backend: SqlServerSandbox, proc_name: str) -> None:
-        with backend._connect_source(database=backend.source_database) as conn:
+        with _connect_source_admin(backend) as conn:
             cursor = conn.cursor()
             cursor.execute(f"DROP PROCEDURE IF EXISTS [{SQL_SERVER_FIXTURE_SCHEMA}].[{proc_name}]")
 
@@ -611,7 +558,7 @@ class TestEnsureViewTablesIntegration:
         self._create_view(backend, view_name)
         self._create_proc(backend, proc_name, view_name)
 
-        up_result: dict = {}
+        up_result = None
         try:
             up_result = backend.sandbox_up(schemas=[SQL_SERVER_FIXTURE_SCHEMA])
             sandbox_db = up_result.sandbox_database
