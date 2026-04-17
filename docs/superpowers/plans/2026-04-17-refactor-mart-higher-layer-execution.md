@@ -454,7 +454,10 @@ cd tests/evals && npm run eval:cmd-refactor-mart
 
 Expected: pass. If model nondeterminism causes a case to fail while the contract and assertion are correct, capture the failure and revise the prompt or fixture to remove ambiguity.
 
-Evidence: `cmd-refactor-mart` promptfoo eval passed 5/5; markdownlint passed for the int prompt and implementation plan.
+Evidence: after the validation-failure unchanged-output assertion update,
+`cmd-refactor-mart` promptfoo eval passed 5/5 on retry after one unrelated
+nondeterministic stg partial-failure result; markdownlint passed for the int
+prompt and implementation plan.
 
 - [x] **Step 11: Commit eval slice**
 
