@@ -147,8 +147,9 @@ def test_sql_server_materializer_pyodbc_fallback_uses_shared_connection_builder(
     )
     script_text = script_path.read_text(encoding="utf-8")
 
-    assert "from shared.db_connect import build_sql_server_connection_string" in script_text
+    assert "from shared.db_connect import SQL_SERVER_ODBC_DRIVER, build_sql_server_connection_string" in script_text
     assert "build_sql_server_connection_string(" in script_text
+    assert "driver=SQL_SERVER_ODBC_DRIVER" in script_text
     assert "PWD={os.environ['SA_PASSWORD']}" not in script_text
     assert 'sys.path.insert(0, str(Path(sys.argv[3]) / "lib"))' in script_text
     assert 'Path.cwd() / "lib"' not in script_text
