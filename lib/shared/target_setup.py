@@ -137,7 +137,7 @@ class SeedTableSpec:
 
     @property
     def fqn(self) -> str:
-        return f"{self.logical_schema}.{self.table_name.lower()}"
+        return normalize(f"{self.logical_schema}.{self.table_name}")
 
     @property
     def seed_name(self) -> str:
@@ -324,7 +324,7 @@ def _load_source_table_specs(project_root: Path) -> list[TargetTableSpec]:
         payload = json.loads(table_file.read_text(encoding="utf-8"))
         if payload.get("excluded") or payload.get("is_source") is not True:
             continue
-        logical_schema = str(payload.get("schema", "")).lower()
+        logical_schema = str(payload.get("schema", ""))
         table_name = str(payload.get("name", ""))
         if not logical_schema or not table_name:
             continue
@@ -367,7 +367,7 @@ def _load_seed_table_specs(project_root: Path) -> list[SeedTableSpec]:
         payload = json.loads(table_file.read_text(encoding="utf-8"))
         if payload.get("excluded") or payload.get("is_seed") is not True:
             continue
-        logical_schema = str(payload.get("schema", "")).lower()
+        logical_schema = str(payload.get("schema", ""))
         table_name = str(payload.get("name", ""))
         if not logical_schema or not table_name:
             continue

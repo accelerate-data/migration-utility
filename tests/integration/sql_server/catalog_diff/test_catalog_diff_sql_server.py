@@ -45,7 +45,10 @@ def _connect() -> pyodbc.Connection:
 
 def _connect_admin() -> pyodbc.Connection:
     ensure_sql_server_migration_test_materialized()
-    return pyodbc.connect(build_sql_server_admin_connection_string(), autocommit=True)
+    return pyodbc.connect(
+        build_sql_server_admin_connection_string(database=SQL_SERVER_MIGRATION_DATABASE),
+        autocommit=True,
+    )
 
 
 def _query_rows(conn: pyodbc.Connection, sql: str) -> list[dict[str, Any]]:

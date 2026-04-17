@@ -322,6 +322,33 @@ def test_export_seed_tables_writes_seed_csv_from_source_table(tmp_path: Path) ->
     )
 
 
+def test_export_seed_tables_preserves_oracle_source_schema_case(tmp_path: Path) -> None:
+    project_root = _make_oracle_project(tmp_path)
+    _seed_catalog_table(
+        project_root,
+        "BRONZE_CURRENCY",
+        schema="MIGRATIONTEST",
+        is_source=False,
+        is_seed=True,
+    )
+    adapter = MagicMock()
+    adapter.read_table_rows.return_value = (
+        ["ID", "NAME"],
+        [(1, "USD")],
+    )
+
+    with patch("shared.target_setup.get_dbops") as mock_get_dbops:
+        mock_get_dbops.return_value.from_role.return_value = adapter
+        result = export_seed_tables(project_root)
+
+    adapter.read_table_rows.assert_called_once_with(
+        "MIGRATIONTEST",
+        "BRONZE_CURRENCY",
+        ["id", "name"],
+    )
+    assert result.row_counts == {"migrationtest.bronze_currency": 1}
+
+
 def test_export_seed_tables_reports_no_written_paths_when_content_unchanged(tmp_path: Path) -> None:
     project_root = _make_sql_server_project(tmp_path)
     _seed_catalog_table(project_root, "CustomerType", is_source=False, is_seed=True)
