@@ -44,6 +44,7 @@ uv run --project "${CLAUDE_PLUGIN_ROOT}/packages/ad-migration-internal" migrate-
 ```
 
 If `ready` is `false`, report the failing check's `code` and `reason` to the user and stop.
+Do not run discovery, context, or write commands after a failed readiness check.
 
 ## Object type detection
 

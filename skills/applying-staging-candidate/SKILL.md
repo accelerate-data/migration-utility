@@ -27,6 +27,11 @@ Read references only when needed:
 
 - Missing plan file: stop with `PLAN_NOT_FOUND`.
 - Missing candidate section: stop with `CANDIDATE_NOT_FOUND`.
+- Before editing files or plan status, extract the plan `Targets` plus the
+  candidate `Output:` and `Validation:` model names, then scan matching catalog
+  table and view entries for unresolved diagnostics with `severity: "error"`.
+  If any exist, stop with `CATALOG_ERRORS_UNRESOLVED`, report the catalog object
+  and error code, and do not apply, validate, or update the candidate.
 - Candidate not approved with `- [x] Approve: yes`: stop with
   `CANDIDATE_NOT_APPROVED`.
 - `Type:` is not `stg`: stop with `NON_STAGING_CANDIDATE`; do not change

@@ -8,8 +8,8 @@ Read the skill at `${CLAUDE_PLUGIN_ROOT}/skills/reviewing-model/SKILL.md`. Keep 
 create files, or ask permission to write review outputs.
 
 Do not infer catalog readiness from filenames or directory listings. Run the
-context assembly command from the skill and trust its result. Do not run
-`migrate-util ready` in this review step.
+generating-model readiness guard from the skill and trust its result before
+context assembly.
 
 Review the generated model files already present under `dbt/models/marts/`
 or `dbt/snapshots/`. Treat `dbt/models/staging/` as source-wrapper-only

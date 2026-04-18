@@ -38,7 +38,7 @@ Do not use this skill when:
 
 ## Implementation
 
-1. Run the readiness guard. If `ready` is `false`, stop and report the returned `code` and `reason`.
+1. Run the readiness guard. If `ready` is `false`, stop and report the returned `code` and `reason`. Do not assemble context, launch sub-agents, compare SQL, or write refactor artifacts after a failed readiness check.
 2. Run `refactor context --table <table_fqn>`. Use [references/context-fields.md](references/context-fields.md) for which fields to pass to each sub-agent. If context assembly fails, map the failure using [references/refactor-contracts.md](references/refactor-contracts.md) and do not expose raw internal labels.
 3. Create `.staging/`, then launch Sub-agent A and Sub-agent B in parallel using [references/sub-agent-prompts.md](references/sub-agent-prompts.md). They must not see each other’s output. Sub-agent B must follow [../_shared/references/sql-style.md](../_shared/references/sql-style.md) and [../_shared/references/cte-structure.md](../_shared/references/cte-structure.md), produce a literal `final AS (...)` CTE, and end with `SELECT * FROM final`.
 4. Write `.staging/<table_fqn>-extracted.sql` and `.staging/<table_fqn>-refactored.sql`.

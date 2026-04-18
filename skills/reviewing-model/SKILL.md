@@ -17,6 +17,7 @@ then return exactly one `ModelReviewResult`.
 ## Quick Reference
 
 - Input: `$ARGUMENTS` = target table FQN (`schema.table`)
+- Guard: generating-model readiness via `migrate-util ready generate --object <table_fqn> --project-root <project_root>`
 - Read: `migrate context`, generated SQL/YAML, `test-specs/<item_id>.json`
 - Check: artifact fundamentals, correctness, test integration, standards
 - Never: modify files, run dbt, override profile decisions
@@ -25,13 +26,26 @@ then return exactly one `ModelReviewResult`.
 
 ## Workflow
 
-1. Gather context and locate artifacts.
+1. Run the generating-model readiness guard.
+
+   ```bash
+   uv run --project "${CLAUDE_PLUGIN_ROOT}/packages/ad-migration-internal" migrate-util ready generate \
+     --object <table_fqn> \
+     --project-root <project_root>
+   ```
+
+   If `ready` is `false`, return a valid `ModelReviewResult` with
+   `status: "error"` and the surfaced `code` and `reason`. Do not gather
+   context, read generated artifacts, run review checks, or write feedback after
+   a failed readiness check.
+
+2. Gather context and locate artifacts.
 
    Read and apply [review-inputs.md](references/review-inputs.md). Use
    `selected_writer_ddl_slice` as the correctness ground truth when present.
    Otherwise use `proc_body`. If both are empty, return a context error.
 
-2. Verify artifact fundamentals.
+3. Verify artifact fundamentals.
 
    Read the written artifacts directly from disk and apply
    [model-artifact-invariants.md](../_shared/references/model-artifact-invariants.md)
@@ -44,21 +58,21 @@ then return exactly one `ModelReviewResult`.
    `_dbt_run_id` or `_loaded_at` must return `revision_requested`, not
    `approved`.
 
-3. Review correctness.
+4. Review correctness.
 
    Apply the correctness checklist in
    [review-checks.md](references/review-checks.md). Use
    `REVIEW_CORRECTNESS_GAP` in both `checks.correctness.issues[]` and the
    matching `feedback_for_model_generator[]` item for any correctness failure.
 
-4. Review test integration.
+5. Review test integration.
 
    Apply the test-integration checklist in
    [review-checks.md](references/review-checks.md). Use
    `REVIEW_TEST_INTEGRATION_GAP` in `checks.test_integration.issues[]` for any
    failure.
 
-5. Review standards.
+6. Review standards.
 
    Apply the standards checklist in
    [review-checks.md](references/review-checks.md) and all shared standards it
@@ -74,7 +88,7 @@ then return exactly one `ModelReviewResult`.
    every directly observable stable standards code in
    `feedback_for_model_generator[]`.
 
-Steps 2-5 always run unless a prerequisite/read/parse failure prevents review.
+Steps 3-6 always run unless a prerequisite/read/parse failure prevents review.
 
 ## Verdict
 

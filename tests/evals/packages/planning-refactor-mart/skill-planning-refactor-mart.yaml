@@ -28,6 +28,20 @@ tests:
       expected_terms: "depends on: stg-,execution status: planned"
       scenario_notes: "Generate a happy-path plan with at least one staging candidate and at least one higher-layer candidate that depends on staging."
 
+  - description: "[vu-1119] catalog-error -- planning guard stops"
+    vars:
+      fixture_path: "tests/evals/fixtures/cmd-generate-model/happy-path"
+      target_tables: "silver.DimProduct"
+      plan_name: "refactor-mart-catalog-error-plan"
+      catalog_error_object: "silver.DimProduct"
+      catalog_error_code: "TYPE_MAPPING_UNSUPPORTED"
+      catalog_error_message: "Unsupported type in eval fixture."
+      expect_no_plan: "true"
+      expected_final_output_terms: "CATALOG_ERRORS_UNRESOLVED,TYPE_MAPPING_UNSUPPORTED"
+    assert:
+      - type: javascript
+        value: file://../../assertions/check-output-terms.js
+
   - description: "review gate -- uncertain candidates stay unapproved"
     vars:
       fixture_path: "tests/evals/fixtures/refactoring-sql/dynamic-sql"

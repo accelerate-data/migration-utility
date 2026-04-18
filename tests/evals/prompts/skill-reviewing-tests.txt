@@ -10,7 +10,7 @@ Treat `reviewer_branch_manifest` as reviewer-owned evidence. Ensure `coverage` c
 create files, or ask permission to write review outputs.
 
 Do not infer catalog readiness from filenames or directory listings. Run the
-deterministic readiness command from the skill and trust its result.
+generating-test readiness guard from the skill and trust its result.
 
 Return only the final `TestReviewResult` JSON object. Do not return markdown,
 summaries, headings, or follow-up questions.

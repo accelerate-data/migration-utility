@@ -36,6 +36,20 @@ tests:
       expected_candidate_statuses: "STG-001:planned,INT-001:planned,MART-001:planned"
       expected_output_terms: "non-staging"
 
+  - description: "[vu-1119] catalog-error -- staging application guard stops"
+    vars:
+      fixture_path: "tests/evals/fixtures/cmd-refactor-mart/stg-happy-path"
+      plan_file: "docs/design/refactor-mart-stg-happy-path.md"
+      candidate_id: "STG-001"
+      catalog_error_object: "gold.fct_sales"
+      catalog_error_code: "TYPE_MAPPING_UNSUPPORTED"
+      catalog_error_message: "Unsupported type in eval fixture."
+      expected_candidate_statuses: "STG-001:planned,INT-001:planned,MART-001:planned"
+      expected_final_output_terms: "CATALOG_ERRORS_UNRESOLVED,TYPE_MAPPING_UNSUPPORTED"
+    assert:
+      - type: javascript
+        value: file://../../assertions/check-output-terms.js
+
   - description: "candidate isolation -- one staging candidate leaves unrelated staging candidates planned"
     vars:
       fixture_path: "tests/evals/fixtures/cmd-refactor-mart/stg-partial-failure"

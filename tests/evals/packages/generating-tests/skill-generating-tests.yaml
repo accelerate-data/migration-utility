@@ -35,6 +35,20 @@ tests:
       min_scenario_count: "2"
       expected_coverage: "complete"
 
+  - description: "[vu-1119] catalog-error — test-gen readiness guard stops"
+    prompts: ["generating-tests"]
+    vars:
+      fixture_path: "tests/evals/fixtures/reviewing-tests/review-approved"
+      target_table: "silver.DimProduct"
+      writer: "silver.usp_load_DimProduct"
+      catalog_error_object: "silver.DimProduct"
+      catalog_error_code: "TYPE_MAPPING_UNSUPPORTED"
+      catalog_error_message: "Unsupported type in eval fixture."
+      expected_final_output_terms: "CATALOG_ERRORS_UNRESOLVED"
+    assert:
+      - type: javascript
+        value: file://../../assertions/check-output-terms.js
+
   # ── insert-select — InsertSelectTarget INSERT INTO ... SELECT ────────────────
   - description: "insert-select — InsertSelectTarget insert-select"
     prompts: ["generating-tests"]

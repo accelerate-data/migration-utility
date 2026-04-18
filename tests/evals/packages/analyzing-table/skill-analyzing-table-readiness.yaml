@@ -36,3 +36,16 @@ tests:
     assert:
       - type: javascript
         value: file://../../assertions/check-output-terms.js
+
+  - description: "[vu-1119] catalog-error — scope readiness guard stops"
+    prompts: ["analyzing-table"]
+    vars:
+      fixture_path: "tests/evals/fixtures/analyzing-table/merge"
+      target_table: "silver.DimProduct"
+      catalog_error_object: "silver.DimProduct"
+      catalog_error_code: "TYPE_MAPPING_UNSUPPORTED"
+      catalog_error_message: "Unsupported type in eval fixture."
+      expected_final_output_terms: "CATALOG_ERRORS_UNRESOLVED"
+    assert:
+      - type: javascript
+        value: file://../../assertions/check-output-terms.js

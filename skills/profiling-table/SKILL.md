@@ -23,6 +23,7 @@ Persist a fresh profile for one table, view, or materialized view. Treat any exi
    ```
 
    If `ready` is `false`, report the failing `code` and `reason` and stop.
+   Do not run profile context, classify, or write commands after a failed readiness check.
 2. Detect object type:
    - `catalog/views/<fqn>.json` exists → use the **View Pipeline**
    - otherwise → use the **Table Pipeline**
