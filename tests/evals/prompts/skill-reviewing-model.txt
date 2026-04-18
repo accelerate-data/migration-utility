@@ -2,7 +2,7 @@ You are running in a DDL project with canonical fixture input at {{fixture_path}
 
 Run /reviewing-model for table {{target_table}} with writer {{writer}}.
 
-Read the skill at `${CLAUDE_PLUGIN_ROOT}/skills/reviewing-model/SKILL.md`. Keep `${CLAUDE_PLUGIN_ROOT}` references as written. Pass `--project-root {{run_path}}` to all CLI commands and `--writer {{writer}}` to `migrate context`.
+Read the skill at `{{repo_root}}/skills/reviewing-model/SKILL.md`. Use `{{repo_root}}` wherever the skill references `${CLAUDE_PLUGIN_ROOT}`. Pass `--project-root {{run_path}}` to all CLI commands. Pass `--writer {{writer}}` to `migrate context` only; do not pass `--writer` to `migrate-util ready`.
 
 `run_path` is authoritative. Do not question whether it exists, ask to
 create files, or ask permission to write review outputs.

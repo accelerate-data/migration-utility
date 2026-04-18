@@ -271,6 +271,7 @@ async function extensionHook(hookName, context, options = {}) {
   injectCatalogError(runRoot, context.test.vars);
 
   context.test.vars.run_path = runRoot;
+  context.test.vars.repo_root = REPO_ROOT;
   return context;
 }
 

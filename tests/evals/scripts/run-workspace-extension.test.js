@@ -251,6 +251,7 @@ test('extensionHook creates a fresh run_path after pruning stale runs', async ()
     assert.equal(fs.existsSync(runPath), true);
     assert.equal(typeof nextContext.test.vars.run_path, 'string');
     assert.notEqual(nextContext.test.vars.run_path.length, 0);
+    assert.equal(nextContext.test.vars.repo_root, REPO_ROOT);
   } finally {
     fs.rmSync(tempRunsRoot, { recursive: true, force: true });
   }

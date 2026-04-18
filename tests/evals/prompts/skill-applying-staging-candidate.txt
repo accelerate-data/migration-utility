@@ -2,15 +2,18 @@ You are running an eval harness for `/applying-staging-candidate` in the fixture
 
 Run `/applying-staging-candidate {{run_path}}/{{plan_file}} {{candidate_id}}`.
 
-Read `${CLAUDE_PLUGIN_ROOT}/skills/applying-staging-candidate/SKILL.md`.
-Read `${CLAUDE_PLUGIN_ROOT}/skills/applying-staging-candidate/references/staging-validation-contract.md`.
+Read `{{repo_root}}/skills/applying-staging-candidate/SKILL.md`.
+Read `{{repo_root}}/skills/applying-staging-candidate/references/staging-validation-contract.md`.
+Use `{{repo_root}}` wherever the skill references `${CLAUDE_PLUGIN_ROOT}`.
 
 Harness overrides:
 
 - Treat `{{fixture_path}}` as read-only input. Write all generated files and plan updates to `{{run_path}}`.
-- Skill guards remain authoritative and apply to the writable run workspace at `{{run_path}}`. If any guard fails, stop before applying or updating the candidate.
+- Skill guards remain authoritative and apply to the writable run workspace at `{{run_path}}`. If any guard fails, stop before applying or updating the candidate, and include the literal guard code plus surfaced diagnostic code in the final response.
 - You are already authorized to edit files under `{{run_path}}`; do not ask for permission before updating the plan.
-- Final-answer summaries are not sufficient. The authoritative markdown plan file is `{{run_path}}/{{plan_file}}` and it must be updated in place.
+- For successful application, final-answer summaries are not sufficient. Unless
+  a guard fails, the authoritative markdown plan file is
+  `{{run_path}}/{{plan_file}}` and it must be updated in place.
 - Do not create, copy, or update a duplicate plan file outside `{{run_path}}/{{plan_file}}`.
 - Do not create or use a worktree.
 - Do not run git commands, `/commit`, `/commit-push-pr`, or `git-checkpoints`.
