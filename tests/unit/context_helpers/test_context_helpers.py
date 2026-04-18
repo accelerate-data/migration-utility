@@ -171,7 +171,7 @@ class TestLoadObjectColumns:
             {"columns": [{"name": "id", "data_type": "INT"}]},
         )
         result = load_object_columns(project, "bronze.product")
-        assert result == [{"name": "id", "data_type": "INT"}]
+        assert result == [{"name": "id"}]
 
     def test_view_catalog(self, project: Path) -> None:
         _write_catalog(
@@ -179,7 +179,7 @@ class TestLoadObjectColumns:
             {"columns": [{"name": "customer_id", "data_type": "INT"}]},
         )
         result = load_object_columns(project, "silver.vw_customer")
-        assert result == [{"name": "customer_id", "data_type": "INT"}]
+        assert result == [{"name": "customer_id"}]
 
     def test_table_takes_precedence_over_view(self, project: Path) -> None:
         """If same FQN exists in both tables/ and views/, table wins."""

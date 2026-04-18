@@ -61,12 +61,18 @@ def format_sql_type(
     return tn
 
 
-def _source_type_spec(type_name: str, max_length: int, precision: int, scale: int) -> SqlTypeSpec:
+def _source_type_spec(
+    source_technology: str,
+    type_name: str,
+    max_length: int,
+    precision: int,
+    scale: int,
+) -> SqlTypeSpec:
     tn = type_name.upper()
     if tn in _TEXT_TYPES | _BINARY_TYPES:
         if max_length == -1:
             length: int | str | None = "MAX"
-        elif tn.startswith("N") and tn not in {"NVARCHAR2", "NCHAR"}:
+        elif source_technology == "sql_server" and tn in {"NVARCHAR", "NCHAR"}:
             length = max_length // 2
         elif max_length > 0:
             length = max_length
@@ -125,6 +131,19 @@ def _canonical_from_source(source_technology: str, source: SqlTypeSpec) -> SqlTy
     raise TypeMappingError(f"Unsupported source type for {source_technology}: {source.name}")
 
 
+def _render_source(source_technology: str, spec: SqlTypeSpec) -> str:
+    if source_technology == "sql_server":
+        return _render_tsql(spec)
+    if source_technology == "oracle":
+        name = spec.name.upper()
+        if name in {"VARCHAR2", "NVARCHAR2", "CHAR", "NCHAR", "RAW"}:
+            return f"{name}({spec.length})" if spec.length is not None else name
+        if name == "NUMBER" and spec.precision is not None:
+            return f"NUMBER({spec.precision},{spec.scale or 0})"
+        return name
+    raise TypeMappingError(f"Unsupported source technology: {source_technology}")
+
+
 def _render_tsql(spec: SqlTypeSpec) -> str:
     name = spec.name.upper()
     if name in {"VARCHAR", "NVARCHAR", "CHAR", "NCHAR", "BINARY", "VARBINARY"} and spec.length is not None:
@@ -181,10 +200,10 @@ def map_catalog_column_type(
     scale: int,
 ) -> dict[str, str]:
     """Map extracted source metadata into catalog column type fields."""
-    source = _source_type_spec(type_name, max_length, precision, scale)
+    source = _source_type_spec(source_technology, type_name, max_length, precision, scale)
     canonical = _canonical_from_source(source_technology, source)
     return {
-        "source_sql_type": format_sql_type(type_name, max_length, precision, scale),
+        "source_sql_type": _render_source(source_technology, source),
         "canonical_tsql_type": _render_tsql(canonical),
         "sql_type": _render_target(target_technology, canonical),
     }

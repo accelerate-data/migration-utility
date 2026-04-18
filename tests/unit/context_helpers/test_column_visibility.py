@@ -18,10 +18,13 @@ def _write_table(project_root: Path) -> None:
                 "columns": [
                     {
                         "name": "CUSTOMER_ID",
+                        "type": "NUMBER",
+                        "data_type": "NUMBER(10,0)",
                         "source_sql_type": "NUMBER(10,0)",
                         "canonical_tsql_type": "INT",
                         "sql_type": "INT",
                         "is_nullable": False,
+                        "extra_debug": "hidden",
                     }
                 ],
             }
@@ -50,5 +53,34 @@ def test_discover_table_show_exposes_only_target_sql_type(tmp_path: Path) -> Non
     _write_table(tmp_path)
 
     assert _show_table(tmp_path, "silver.customer")["columns"] == [
+        {"name": "CUSTOMER_ID", "sql_type": "INT", "is_nullable": False}
+    ]
+
+
+def test_object_column_context_filters_view_columns_to_target_shape(tmp_path: Path) -> None:
+    views_dir = tmp_path / "catalog" / "views"
+    views_dir.mkdir(parents=True)
+    (views_dir / "silver.customer_vw.json").write_text(
+        json.dumps(
+            {
+                "schema": "silver",
+                "name": "customer_vw",
+                "columns": [
+                    {
+                        "name": "CUSTOMER_ID",
+                        "type": "NUMBER",
+                        "data_type": "NUMBER(10,0)",
+                        "source_sql_type": "NUMBER(10,0)",
+                        "canonical_tsql_type": "INT",
+                        "sql_type": "INT",
+                        "is_nullable": False,
+                    }
+                ],
+            }
+        ),
+        encoding="utf-8",
+    )
+
+    assert load_object_columns(tmp_path, "silver.customer_vw") == [
         {"name": "CUSTOMER_ID", "sql_type": "INT", "is_nullable": False}
     ]

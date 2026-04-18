@@ -485,10 +485,33 @@ class TestWriteCatalogViewEnrichment:
         assert result.returncode == 0, result.stderr
         view_cat = json.loads((output / "catalog" / "views" / "dbo.vw_sales.json").read_text())
         assert "columns" in view_cat
-        assert len(view_cat["columns"]) == 2
-        assert view_cat["columns"][0]["name"] == "id"
-        assert view_cat["columns"][1]["name"] == "amount"
-        assert view_cat["columns"][1]["is_nullable"] is True
+        assert view_cat["columns"] == [
+            {
+                "name": "id",
+                "source_sql_type": "INT",
+                "canonical_tsql_type": "INT",
+                "sql_type": "INT",
+                "is_nullable": False,
+            },
+            {
+                "name": "amount",
+                "source_sql_type": "DECIMAL(18,2)",
+                "canonical_tsql_type": "DECIMAL(18,2)",
+                "sql_type": "DECIMAL(18,2)",
+                "is_nullable": True,
+            },
+        ]
+
+        result = _run_cli([
+            "write-catalog",
+            "--staging-dir", str(staging),
+            "--project-root", str(output),
+            "--database", "TestDB",
+        ])
+
+        assert result.returncode == 0, result.stderr
+        rerun_view_cat = json.loads((output / "catalog" / "views" / "dbo.vw_sales.json").read_text())
+        assert rerun_view_cat["columns"] == view_cat["columns"]
 
     def test_view_columns_absent_when_no_view_columns_file(self, tmp_path):
         staging = tmp_path / "staging"
