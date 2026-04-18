@@ -43,6 +43,10 @@
     "functions": {"in_scope": [], "out_of_scope": []},
     "procedures": {"in_scope": [], "out_of_scope": []}
   },
+  "refactor": {
+    "status": "ok",
+    "refactored_sql": "with source_salesorder as (\n    select * from [bronze].[SalesOrder]\n),\n\ndim_customer as (\n    select * from [silver].[DimCustomer]\n),\n\nfinal as (\n    select\n        dc.CustomerKey,\n        so.OrderDate,\n        so.TotalAmount as SalesAmount\n    from source_salesorder so\n    join dim_customer dc on so.CustomerID = dc.CustomerAlternateKey\n)\n\nselect * from final"
+  },
   "statements": [
     {
       "type": "Insert",
