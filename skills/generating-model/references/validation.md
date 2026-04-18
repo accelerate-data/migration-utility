@@ -19,7 +19,7 @@ Do not read flat fields such as `sandbox.database`. Do not derive `target` from
 cd "${DBT_PROJECT_PATH:-./dbt}" && <ENV_OVERRIDE> dbt compile --select <model_name>
 ```
 
-Record the compile result in `execution.dbt_compile_passed`. Do not run `dbt build` or `dbt test` — unit-test execution is owned by the `/generate-model` unit-test repair stage.
+Record the compile result in `execution.dbt_compile_passed`. Do not run `dbt build` or `dbt test`.
 
 ## Outcomes
 

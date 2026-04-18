@@ -23,10 +23,10 @@ Generate dbt models for a batch of tables. Coordinates four stages — generatio
 - `dbt/profiles.yml` must exist. If missing, fail all items with `DBT_PROFILE_MISSING` and tell the user to run `ad-migration setup-target`.
 - `dbt debug` must show "Connection test: OK". If it fails, fail all items with `DBT_CONNECTION_FAILED` and tell the user to check the resolved `runtime.target` credentials and endpoint in `manifest.json` and the matching `dbt/profiles.yml` configuration.
 - `runtime.target` must be present in `manifest.json`. If missing, fail all items with `TARGET_NOT_CONFIGURED` and tell the user to run `ad-migration setup-target`.
-- `runtime.sandbox` must be present in `manifest.json`. If missing, fail all items with `SANDBOX_NOT_CONFIGURED` and tell the user to run `ad-migration setup-sandbox`. The sandbox is the active execution endpoint when the workflow needs live source-backed validation; it is separate from `runtime.target`.
+- `runtime.sandbox` must be present in `manifest.json`. If missing, fail all items with `SANDBOX_NOT_CONFIGURED` and tell the user to run `ad-migration setup-sandbox`.
 - The sandbox must be reachable: run `uv run --project "${CLAUDE_PLUGIN_ROOT}/packages/ad-migration-internal" test-harness sandbox-status`. If the sandbox does not exist or is not accessible, fail all items with `SANDBOX_NOT_CONFIGURED`.
 
-Per-item readiness is checked by the skill via `migrate-util ready` (which enforces that refactor, test generation, and sandbox configuration are complete before model generation can proceed).
+Per-item readiness is checked by the skill via `migrate-util ready`.
 
 ## Progress Tracking
 
@@ -77,8 +77,6 @@ This skip means "reuse existing artifacts for review," not "bypass the quality g
 
 Launch one sub-agent per item in parallel for items that still need fresh generation. Items that passed the idempotency check above write the skip result immediately and carry forward to Stage 2. Each sub-agent follows the generation-agent-prompt and writes its item result JSON.
 
-The parent command owns review, unit-test setup, unit-test repair, and commit/revert.
-
 ### Step 3 — Stage 2: Review
 
 For each item, read `.migration-runs/<item_id>.<run_id>.json` from Stage 1. If
@@ -97,7 +95,7 @@ Read each item result from `.migration-runs/<item_id>.<run_id>.json`. Collect th
 
 **Prompt:** Read [references/unit-test-setup-agent-prompt.md](references/unit-test-setup-agent-prompt.md). Substitute `<model_names>` (space-separated `model_name` values for the collected items), `<working-directory>`, and `<run_id>` before dispatching.
 
-Dispatch one setup sub-agent for the entire collected list. The sub-agent resolves direct parents for all models and materialises them in a single `dbt run --empty` call.
+Dispatch one setup sub-agent for the entire collected list.
 
 ### Step 5 — Stage 4: Unit-test repair and commit
 
@@ -109,7 +107,7 @@ For each item where `output.generated.model_yaml.has_unit_tests` is `true` and `
 
 Launch one repair sub-agent per eligible item in parallel. Each sub-agent follows the unit-test-repair-agent-prompt and updates `execution.dbt_test_passed` in the item result JSON.
 
-**Commit/revert (all items):** Once all repair agents complete (stages 3 and 4 are no-ops for items without unit tests, so they complete immediately), commit all items together to avoid shared YAML races. Apply per item:
+**Commit/revert (all items):** Once all repair agents complete, commit all items together to avoid shared YAML races. Apply per item:
 
 Derive `<model_name>` from item_id.
 

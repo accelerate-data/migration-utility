@@ -41,7 +41,7 @@ Do not use this skill for batch orchestration. `/generate-model` owns batching, 
 - Missing confirmed staging wrapper: return `status: "error"` with `GENERATION_FAILED`.
 - Do not create or mutate test-spec scenarios. Report uncovered logic as warnings for `/generate-tests`.
 
-Return exactly one `ModelGenerationOutput`. Set `execution.dbt_compile_passed` from the compile result and `execution.dbt_test_passed: false` — unit-test execution is owned by the `/generate-model` repair stage. For snapshots, `artifact_paths` must use the CLI-returned `snapshots/...` paths.
+Return exactly one `ModelGenerationOutput`. Set `execution.dbt_compile_passed` from the compile result and `execution.dbt_test_passed: false`. For snapshots, `artifact_paths` must use the CLI-returned `snapshots/...` paths.
 
 ## Happy Path
 
@@ -53,7 +53,7 @@ Return exactly one `ModelGenerationOutput`. Set `execution.dbt_compile_passed` f
      --project-root <project_root>
    ```
 
-   If `ready` is `false`, stop and report the returned `code` and `reason`. Do not assemble context, generate dbt SQL, run dbt, or write catalog/model artifacts after a failed readiness check.
+   If `ready` is `false`, stop and report the returned `code` and `reason`.
 
 2. Assemble deterministic context and choose the generation source.
 
@@ -113,7 +113,7 @@ Return exactly one `ModelGenerationOutput`. Set `execution.dbt_compile_passed` f
 
 8. Compile-validate with dbt using the manifest runtime roles.
 
-   Follow [validation.md](references/validation.md). Use `dbt compile` only — do not run `dbt build` or `dbt test`. Record the compile result in `execution.dbt_compile_passed`. Set `execution.dbt_test_passed: false`; unit-test execution is owned by the `/generate-model` unit-test repair stage.
+   Follow [validation.md](references/validation.md). Record the compile result in `execution.dbt_compile_passed`. Set `execution.dbt_test_passed: false`.
 
 9. Record test gaps without mutating approved specs.
 

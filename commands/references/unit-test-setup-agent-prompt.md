@@ -15,8 +15,6 @@ the union of all unique direct parents across all models.
 Run:
   cd <working-directory>/dbt && dbt run --select "<direct_parents_space_separated>" --empty
 
-Build only the parent relations, not the models under test.
-
 Write the setup result to
 .migration-runs/unit-test-setup.<run_id>.json:
   { "parents_materialised": [...], "status": "ok" }
