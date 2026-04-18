@@ -170,6 +170,11 @@ def reset_migration_cmd(
     project_root: Optional[Path] = typer.Option(
         None, "--project-root", help="Project root directory",
     ),
+    preserve_catalog: bool = typer.Option(
+        False,
+        "--preserve-catalog",
+        help="For stage 'all', preserve catalog/DDL and clear generated target state only.",
+    ),
 ) -> None:
     """Reset pre-model migration state for one or more selected tables."""
     try:
@@ -180,7 +185,7 @@ def reset_migration_cmd(
         raise typer.Exit(code=2) from exc
 
     try:
-        result = run_reset_migration(root, stage, list(fqns or []))
+        result = run_reset_migration(root, stage, list(fqns or []), preserve_catalog=preserve_catalog)
     except ValueError as exc:
         logger.error("event=reset_migration_failed stage=%s error=%s", stage, exc)
         emit({"error": str(exc)})

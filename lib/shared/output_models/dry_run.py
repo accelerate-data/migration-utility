@@ -291,6 +291,13 @@ class ResetTargetResult(BaseModel):
     reason: str | None = None
 
 
+class ResetCatalogSection(BaseModel):
+    model_config = OUTPUT_CONFIG
+
+    path: str
+    section: str
+
+
 class ResetMigrationOutput(BaseModel):
     model_config = OUTPUT_CONFIG
 
@@ -303,6 +310,8 @@ class ResetMigrationOutput(BaseModel):
     deleted_paths: list[str] = Field(default_factory=list)
     missing_paths: list[str] = Field(default_factory=list)
     cleared_manifest_sections: list[str] = Field(default_factory=list)
+    cleared_catalog_sections: list[ResetCatalogSection] = Field(default_factory=list)
+    cleared_catalog_paths: list[str] = Field(default_factory=list)
 
 
 class SyncExcludedWarningsOutput(BaseModel):
