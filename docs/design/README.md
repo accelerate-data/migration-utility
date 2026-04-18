@@ -32,5 +32,9 @@ If information is mainly operational or contributor-facing, put it in `docs/refe
 - [Integration Test Contract](integration-test-contract/README.md) — source fixture schema rules for live integration tests and the target setup exception
 - [Sandbox PDB Alignment](sandbox-pdb-alignment/README.md) — Oracle sandbox uses a PDB (not a user/schema) to match SQL Server's database-level isolation and enable multi-schema support
 - [Selected Writer DDL Slice](selected-writer-ddl-slice/README.md) — LLM-facing contexts expose only target-specific SQL for sliced multi-table writers
+- [Readiness Error Guard](readiness-error-guard/README.md) — object-scoped readiness fails on unresolved catalog errors while allowing warnings
+- [Preserve-Catalog Reset](preserve-catalog-reset/README.md) — reset mode that clears generated target/dbt state while preserving extraction, scope, and profile work
+- [Target-Normalized Catalog Types](target-normalized-catalog-types/README.md) — target-aware catalog type field used by target DDL, source/staging YAML, and dbt contracts
+- [Setup-Target Staging Contracts](setup-target-staging-contracts/README.md) — setup-target creates contracted staging wrappers, full-shape passthrough unit tests, and validates the staging layer
 
 When adding one, use `docs/design/<topic>/README.md` and record only the durable decision and the reason it matters to agents.
