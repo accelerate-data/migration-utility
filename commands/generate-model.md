@@ -75,11 +75,9 @@ This skip means "reuse existing artifacts for review," not "bypass the quality g
 
 **Prompt:** Read [references/generation-agent-prompt.md](references/generation-agent-prompt.md). Substitute `<schema.table>`, `<working-directory>`, and `<run_id>` before dispatching.
 
-**Single-table path (1 table):** Run `/generating-model` directly in the current conversation following the generation-agent-prompt instructions. Write the item result JSON (see Item Result Schema) to `.migration-runs/<schema.table>.<run_id>.json`. Then continue to Stage 2.
+Launch one sub-agent per item in parallel for items that still need fresh generation. Items that passed the idempotency check above write the skip result immediately and carry forward to Stage 2. Each sub-agent follows the generation-agent-prompt and writes its item result JSON.
 
-**Multi-table path (2+ tables):** Launch one sub-agent per table in parallel for items that still need fresh generation. Items that passed the idempotency check above write the skip result immediately and skip to Stage 2. Each sub-agent follows the generation-agent-prompt.
-
-Generation sub-agents run `/generating-model` and write their item result JSON only. The parent command owns review, unit-test setup, unit-test repair, and commit/revert.
+The parent command owns review, unit-test setup, unit-test repair, and commit/revert.
 
 ### Step 3 — Stage 2: Review
 
@@ -91,9 +89,7 @@ If a Stage 1 idempotency-skip item's review returns `error` because persisted ar
 
 **Prompt:** Read [references/review-agent-prompt.md](references/review-agent-prompt.md). Substitute `<schema.table>`, `<working-directory>`, and `<run_id>` before dispatching.
 
-**Single-table path (1 table):** Run the review flow directly in the current conversation following the review-agent-prompt instructions. Update the item result JSON with the final review verdict. Then continue to Stage 3.
-
-**Multi-table path (2+ tables):** Launch one review sub-agent per eligible item in parallel. Each sub-agent follows the review-agent-prompt and updates the item result JSON.
+Launch one review sub-agent per eligible item in parallel. Each sub-agent follows the review-agent-prompt and updates the item result JSON.
 
 ### Step 4 — Stage 3: Unit-test setup
 
@@ -101,9 +97,7 @@ Read each item result from `.migration-runs/<item_id>.<run_id>.json`. Collect th
 
 **Prompt:** Read [references/unit-test-setup-agent-prompt.md](references/unit-test-setup-agent-prompt.md). Substitute `<model_names>` (space-separated `model_name` values for the collected items), `<working-directory>`, and `<run_id>` before dispatching.
 
-**Single-table path (1 table):** Run the setup inline following the unit-test-setup-agent-prompt instructions if the item has unit tests; otherwise skip.
-
-**Multi-table path (2+ tables):** Dispatch one setup sub-agent for the entire collected list. The sub-agent resolves direct parents for all models and materialises them in a single `dbt run --empty` call.
+Dispatch one setup sub-agent for the entire collected list. The sub-agent resolves direct parents for all models and materialises them in a single `dbt run --empty` call.
 
 ### Step 5 — Stage 4: Unit-test repair and commit
 
@@ -111,9 +105,7 @@ For each item where `output.generated.model_yaml.has_unit_tests` is `true` and `
 
 **Prompt:** Read [references/unit-test-repair-agent-prompt.md](references/unit-test-repair-agent-prompt.md). Substitute `<schema.table>`, `<model_name>`, `<working-directory>`, and `<run_id>` before dispatching.
 
-**Single-table path (1 table):** Run the repair flow directly in the current conversation following the unit-test-repair-agent-prompt instructions if the item has unit tests; otherwise skip.
-
-**Multi-table path (2+ tables):** Launch one repair sub-agent per eligible item in parallel. Each sub-agent follows the unit-test-repair-agent-prompt and updates `execution.dbt_test_passed` in the item result JSON.
+Launch one repair sub-agent per eligible item in parallel. Each sub-agent follows the unit-test-repair-agent-prompt and updates `execution.dbt_test_passed` in the item result JSON.
 
 **Commit/revert (all items):** Once all repair agents complete (and immediately for items that had no unit tests and completed Stage 2), apply per item:
 

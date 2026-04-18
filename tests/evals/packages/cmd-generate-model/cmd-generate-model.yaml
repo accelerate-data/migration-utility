@@ -233,6 +233,23 @@ tests:
       - type: javascript
         value: file://../../assertions/check-dbt-model.js
 
+  # ── unit-test orchestration ──────────────────────────────────
+  # VU-1121: Stage 3 must construct a dbt run --empty selector for direct
+  # parents; Stage 4 must scope dbt test to test_type:unit only.
+  - description: "unit-test-orchestration — parent materialisation and scoped unit-test selector"
+    vars:
+      fixture_path: "tests/evals/fixtures/cmd-generate-model/happy-path"
+      target_tables: "silver.InsertSelectTarget"
+      target_table: "silver.InsertSelectTarget"
+      expected_item_statuses: '{"silver.InsertSelectTarget": "ok,partial"}'
+      expected_output_terms: "--empty,test_type:unit"
+      expected_model_path: "models/marts/insertselecttarget.sql"
+    assert:
+      - type: javascript
+        value: file://../../assertions/check-command-summary.js
+      - type: javascript
+        value: file://../../assertions/check-dbt-model.js
+
   # ── oracle regression ────────────────────────────────────────
   # Verifies that the generate-model command produces a valid dbt model from the
   # refactored CTE SQL in the pre-committed catalog. Pre-committed scoping, profile,
