@@ -276,16 +276,23 @@ def test_run_reset_migration_all_preserve_catalog_clears_generated_state_only(tm
     assert result.deleted_paths == ["dbt", "test-specs", ".staging", ".migration-runs"]
     assert result.missing_paths == []
     assert result.cleared_manifest_sections == []
-    assert result.cleared_catalog_sections == [
-        "catalog/tables/silver.dimcustomer.json:table.test_gen",
-        "catalog/tables/silver.dimcustomer.json:table.generate",
-        "catalog/tables/silver.dimcustomer.json:table.refactor",
-        "catalog/tables/silver.dimproduct.json:table.test_gen",
-        "catalog/views/silver.vw_customer.json:view.test_gen",
-        "catalog/views/silver.vw_customer.json:view.generate",
-        "catalog/views/silver.vw_customer.json:view.refactor",
-        "catalog/procedures/dbo.usp_load_dimcustomer.json:procedure.refactor",
-        "catalog/procedures/dbo.usp_load_dimproduct.json:procedure.refactor",
+    assert [(item.path, item.section) for item in result.cleared_catalog_sections] == [
+        ("catalog/tables/silver.dimcustomer.json", "table.test_gen"),
+        ("catalog/tables/silver.dimcustomer.json", "table.generate"),
+        ("catalog/tables/silver.dimcustomer.json", "table.refactor"),
+        ("catalog/tables/silver.dimproduct.json", "table.test_gen"),
+        ("catalog/views/silver.vw_customer.json", "view.test_gen"),
+        ("catalog/views/silver.vw_customer.json", "view.generate"),
+        ("catalog/views/silver.vw_customer.json", "view.refactor"),
+        ("catalog/procedures/dbo.usp_load_dimcustomer.json", "procedure.refactor"),
+        ("catalog/procedures/dbo.usp_load_dimproduct.json", "procedure.refactor"),
+    ]
+    assert result.cleared_catalog_paths == [
+        "catalog/tables/silver.dimcustomer.json",
+        "catalog/tables/silver.dimproduct.json",
+        "catalog/views/silver.vw_customer.json",
+        "catalog/procedures/dbo.usp_load_dimcustomer.json",
+        "catalog/procedures/dbo.usp_load_dimproduct.json",
     ]
     assert (dst / "catalog").exists()
     assert (dst / "ddl").exists()
@@ -319,17 +326,59 @@ def test_run_reset_migration_all_preserve_catalog_clears_generated_state_only(tm
 
     assert json.loads(function_path.read_text(encoding="utf-8")) == function_cat
 
-def test_run_reset_migration_all_preserve_catalog_invalid_catalog_preserves_paths(tmp_path: Path) -> None:
+@pytest.mark.parametrize(
+    ("bucket", "filename"),
+    [
+        ("tables", "silver.dimcustomer.json"),
+        ("views", "silver.vw_customer.json"),
+        ("procedures", "dbo.usp_load_dimcustomer.json"),
+        ("functions", "dbo.fn_customer.json"),
+    ],
+)
+def test_run_reset_migration_all_preserve_catalog_invalid_catalog_preserves_paths(
+    tmp_path: Path,
+    bucket: str,
+    filename: str,
+) -> None:
     dst = _make_reset_project(tmp_path)
     (dst / "ddl").mkdir()
     (dst / "dbt" / "models").mkdir(parents=True)
     (dst / ".staging").mkdir()
-    bad_catalog = dst / "catalog" / "tables" / "silver.dimcustomer.json"
+    bad_catalog = dst / "catalog" / bucket / filename
+    bad_catalog.parent.mkdir(parents=True, exist_ok=True)
     bad_catalog.write_text("{not valid json", encoding="utf-8")
 
     with pytest.raises(CatalogLoadError):
         dry_run.run_reset_migration(dst, "all", [], preserve_catalog=True)
 
+    assert (dst / "catalog").exists()
+    assert (dst / "ddl").exists()
+    assert (dst / "dbt").exists()
+    assert (dst / ".staging").exists()
+
+def test_run_reset_migration_all_preserve_catalog_write_failure_preserves_paths(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    dst = _make_reset_project(tmp_path)
+    (dst / "ddl").mkdir()
+    (dst / "dbt" / "models").mkdir(parents=True)
+    (dst / ".staging").mkdir()
+    original_table = json.loads(
+        (dst / "catalog" / "tables" / "silver.dimcustomer.json").read_text(encoding="utf-8")
+    )
+
+    def fail_write_json(path: Path, data: dict[str, object]) -> None:
+        raise OSError(f"cannot write {path}")
+
+    monkeypatch.setattr("shared.dry_run_support.reset.write_json", fail_write_json)
+
+    with pytest.raises(OSError):
+        dry_run.run_reset_migration(dst, "all", [], preserve_catalog=True)
+
+    assert json.loads(
+        (dst / "catalog" / "tables" / "silver.dimcustomer.json").read_text(encoding="utf-8")
+    ) == original_table
     assert (dst / "catalog").exists()
     assert (dst / "ddl").exists()
     assert (dst / "dbt").exists()

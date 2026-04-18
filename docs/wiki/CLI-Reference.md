@@ -241,12 +241,16 @@ ad-migration reset profile silver.DimCustomer silver.DimProduct --yes
 
 # Global reset — returns project to post-setup-source state
 ad-migration reset all --yes
+
+# Target/dbt reset — preserves catalog and DDL extraction state
+ad-migration reset all --preserve-catalog --yes
 ```
 
 | Option | Required | Description |
 |---|---|---|
 | `stage` | yes | `scope`, `profile`, `generate-tests`, `refactor`, or `all` |
 | `fqns` | yes* | Fully-qualified table names (`schema.Table`) |
+| `--preserve-catalog` | no | With `all`, preserve catalog and DDL while clearing generated target/dbt state |
 | `--yes` | no | Skip confirmation prompt |
 | `--project-root` | no | Defaults to current directory |
 

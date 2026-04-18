@@ -189,8 +189,18 @@ def test_reset_all_preserve_catalog_delegates_to_core_and_reports_scope(tmp_path
         missing_paths=[],
         cleared_manifest_sections=[],
         cleared_catalog_sections=[
-            "catalog/tables/silver.dimcustomer.json:table.test_gen",
-            "catalog/procedures/dbo.usp_load_dimcustomer.json:procedure.refactor",
+            {
+                "path": "catalog/tables/silver.dimcustomer.json",
+                "section": "table.test_gen",
+            },
+            {
+                "path": "catalog/procedures/dbo.usp_load_dimcustomer.json",
+                "section": "procedure.refactor",
+            },
+        ],
+        cleared_catalog_paths=[
+            "catalog/tables/silver.dimcustomer.json",
+            "catalog/procedures/dbo.usp_load_dimcustomer.json",
         ],
     )
     with (
@@ -210,6 +220,35 @@ def test_reset_all_preserve_catalog_delegates_to_core_and_reports_scope(tmp_path
     assert "catalog/tables/silver.dimcustomer.json:table.test_gen" in result.output
     assert "ddl/" not in result.output
     assert "Run setup-target" in result.output
+
+
+def test_reset_all_preserve_catalog_does_not_teardown_sandbox_or_touch_manifest(tmp_path):
+    _write_manifest(tmp_path)
+    preserve_out = ResetMigrationOutput(
+        stage="all",
+        targets=[],
+        reset=[],
+        noop=[],
+        blocked=[],
+        not_found=[],
+        deleted_paths=["dbt"],
+    )
+    with (
+        patch("shared.cli.reset_cmd._load_manifest") as mock_load,
+        patch("shared.cli.reset_cmd._create_backend") as mock_backend,
+        patch("shared.cli.reset_cmd.clear_manifest_sandbox") as mock_clear,
+        patch("shared.cli.reset_cmd.run_reset_migration", return_value=preserve_out),
+    ):
+        result = runner.invoke(
+            app,
+            ["reset", "all", "--preserve-catalog", "--yes", "--project-root", str(tmp_path)],
+        )
+
+    assert result.exit_code == 0, result.output
+    mock_load.assert_not_called()
+    mock_backend.assert_not_called()
+    mock_clear.assert_not_called()
+    assert "manifest.json" not in result.output
 
 
 def test_reset_all_with_sandbox_tears_down_before_reset(tmp_path):

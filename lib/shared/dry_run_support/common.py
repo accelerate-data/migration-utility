@@ -17,6 +17,12 @@ VALID_STAGES = frozenset(
 RESETTABLE_STAGES = frozenset({"scope", "profile", "generate-tests", "refactor"})
 RESET_GLOBAL_PATHS = ("catalog", "ddl", ".staging", "test-specs", "dbt")
 RESET_PRESERVE_CATALOG_PATHS = ("dbt", "test-specs", ".staging", ".migration-runs")
+RESET_PRESERVE_CATALOG_SECTIONS_BY_BUCKET: dict[str, tuple[str, tuple[str, ...]]] = {
+    "tables": ("table", ("test_gen", "generate", "refactor")),
+    "views": ("view", ("test_gen", "generate", "refactor")),
+    "procedures": ("procedure", ("refactor",)),
+    "functions": ("function", ()),
+}
 RESET_GLOBAL_MANIFEST_SECTIONS = (
     "runtime.source",
     "runtime.target",

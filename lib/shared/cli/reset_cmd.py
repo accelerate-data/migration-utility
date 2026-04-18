@@ -8,7 +8,7 @@ from typing import Any
 import typer
 
 from shared.dry_run_core import RESET_GLOBAL_MANIFEST_SECTIONS, RESET_GLOBAL_PATHS, RESETTABLE_STAGES, run_reset_migration
-from shared.dry_run_support.common import RESET_PRESERVE_CATALOG_PATHS
+from shared.dry_run_support.common import RESET_PRESERVE_CATALOG_PATHS, RESET_PRESERVE_CATALOG_SECTIONS_BY_BUCKET
 from shared.cli.error_handler import cli_error_handler
 from shared.cli.output import console, error, print_table, remind_review_and_commit, success, warn
 from shared.loader_io import clear_manifest_sandbox
@@ -22,10 +22,14 @@ _GLOBAL_BLAST_RADIUS = (
     "Directories:  " + ", ".join(RESET_GLOBAL_PATHS) + "\n"
     "Manifest:     " + ", ".join(RESET_GLOBAL_MANIFEST_SECTIONS)
 )
+_PRESERVE_CATALOG_SECTION_NAMES = tuple(
+    f"{label}.{section}"
+    for label, sections in RESET_PRESERVE_CATALOG_SECTIONS_BY_BUCKET.values()
+    for section in sections
+)
 _PRESERVE_CATALOG_BLAST_RADIUS = (
     "Directories:      " + ", ".join(RESET_PRESERVE_CATALOG_PATHS) + "\n"
-    "Catalog sections: table.test_gen, table.generate, table.refactor, "
-    "view.test_gen, view.generate, view.refactor, procedure.refactor"
+    "Catalog sections: " + ", ".join(_PRESERVE_CATALOG_SECTION_NAMES)
 )
 
 
@@ -135,7 +139,8 @@ def reset(
             preserve_catalog,
         )
 
-        _teardown_sandbox_if_configured(root)
+        if not preserve_catalog:
+            _teardown_sandbox_if_configured(root)
 
         if preserve_catalog:
             result = run_reset_migration(root, "all", [], preserve_catalog=True)
@@ -158,7 +163,14 @@ def reset(
                 ("Deleted", ", ".join(result.deleted_paths) if result.deleted_paths else "—"),
                 ("Missing", ", ".join(result.missing_paths) if result.missing_paths else "—"),
                 ("Manifest cleared", ", ".join(result.cleared_manifest_sections) if result.cleared_manifest_sections else "—"),
-                ("Catalog cleared", ", ".join(result.cleared_catalog_sections) if result.cleared_catalog_sections else "—"),
+                (
+                    "Catalog cleared",
+                    ", ".join(
+                        f"{item.path}:{item.section}" for item in result.cleared_catalog_sections
+                    )
+                    if result.cleared_catalog_sections
+                    else "—",
+                ),
             ],
             columns=("", ""),
         )
@@ -166,7 +178,7 @@ def reset(
             success("Generated target state cleared. Run setup-target to recreate the dbt project.")
             review_paths = [
                 *[f"{path}/" for path in result.deleted_paths],
-                *[entry.split(":", 1)[0] for entry in result.cleared_catalog_sections],
+                *result.cleared_catalog_paths,
             ]
             remind_review_and_commit(review_paths)
         else:

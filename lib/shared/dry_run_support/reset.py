@@ -10,13 +10,14 @@ from shared.catalog import detect_catalog_bucket, write_json
 from shared.dry_run_support.common import (
     RESET_GLOBAL_MANIFEST_SECTIONS,
     RESET_GLOBAL_PATHS,
+    RESET_PRESERVE_CATALOG_SECTIONS_BY_BUCKET,
     RESET_PRESERVE_CATALOG_PATHS,
     RESETTABLE_STAGES,
     _RESET_STAGE_SECTIONS,
     read_catalog_json,
 )
 from shared.name_resolver import normalize
-from shared.output_models.dry_run import ResetMigrationOutput, ResetTargetResult
+from shared.output_models.dry_run import ResetCatalogSection, ResetMigrationOutput, ResetTargetResult
 
 logger = logging.getLogger(__name__)
 
@@ -174,40 +175,27 @@ def _run_reset_migration_all(project_root: Path) -> ResetMigrationOutput:
     )
 
 
-_PRESERVE_CATALOG_SECTIONS_BY_BUCKET: dict[str, tuple[str, ...]] = {
-    "tables": ("test_gen", "generate", "refactor"),
-    "views": ("test_gen", "generate", "refactor"),
-    "procedures": ("refactor",),
-}
-
-_PRESERVE_CATALOG_SECTION_LABELS: dict[str, str] = {
-    "tables": "table",
-    "views": "view",
-    "procedures": "procedure",
-}
-
-
-def _load_preserve_catalog_mutations(project_root: Path) -> list[tuple[Path, dict[str, Any], list[str]]]:
+def _load_preserve_catalog_mutations(project_root: Path) -> list[tuple[Path, dict[str, Any], list[ResetCatalogSection]]]:
     catalog_dir = project_root / "catalog"
-    mutations: list[tuple[Path, dict[str, Any], list[str]]] = []
+    mutations: list[tuple[Path, dict[str, Any], list[ResetCatalogSection]]] = []
 
-    for bucket, section_keys in _PRESERVE_CATALOG_SECTIONS_BY_BUCKET.items():
+    for bucket, (label, section_keys) in RESET_PRESERVE_CATALOG_SECTIONS_BY_BUCKET.items():
         bucket_dir = catalog_dir / bucket
         if not bucket_dir.is_dir():
             continue
-        label = _PRESERVE_CATALOG_SECTION_LABELS[bucket]
         for path in sorted(bucket_dir.glob("*.json")):
             data = read_catalog_json(path)
-            cleared = [f"{path.relative_to(project_root)}:{label}.{key}" for key in section_keys if key in data]
+            relative_path = str(path.relative_to(project_root))
+            cleared = [
+                ResetCatalogSection(path=relative_path, section=f"{label}.{key}")
+                for key in section_keys
+                if key in data
+            ]
             if not cleared:
                 continue
             for key in section_keys:
                 data.pop(key, None)
             mutations.append((path, data, cleared))
-
-    if (catalog_dir / "functions").is_dir():
-        for path in sorted((catalog_dir / "functions").glob("*.json")):
-            read_catalog_json(path)
 
     return mutations
 
@@ -216,16 +204,20 @@ def _run_reset_migration_all_preserve_catalog(project_root: Path) -> ResetMigrat
     mutations = _load_preserve_catalog_mutations(project_root)
     deleted_paths: list[str] = []
     missing_paths: list[str] = []
-    cleared_catalog_sections: list[str] = []
+    cleared_catalog_sections: list[ResetCatalogSection] = []
+    cleared_catalog_paths: list[str] = []
 
     for path, data, cleared in mutations:
         write_json(path, data)
         cleared_catalog_sections.extend(cleared)
+        relative_path = str(path.relative_to(project_root))
+        if relative_path not in cleared_catalog_paths:
+            cleared_catalog_paths.append(relative_path)
         logger.info(
             "event=reset_migration_preserve_catalog_sections_cleared "
             "component=reset_migration operation=run_reset_migration path=%s sections=%s",
-            path.relative_to(project_root),
-            cleared,
+            relative_path,
+            [item.section for item in cleared],
         )
 
     for relative_path in RESET_PRESERVE_CATALOG_PATHS:
@@ -264,6 +256,7 @@ def _run_reset_migration_all_preserve_catalog(project_root: Path) -> ResetMigrat
         deleted_paths=deleted_paths,
         missing_paths=missing_paths,
         cleared_catalog_sections=cleared_catalog_sections,
+        cleared_catalog_paths=cleared_catalog_paths,
     )
 
 
