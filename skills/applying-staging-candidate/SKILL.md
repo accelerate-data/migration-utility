@@ -19,38 +19,27 @@ Parse exactly two positional arguments:
 
 Read references only when needed:
 
-- `references/staging-validation-contract.md` before deciding scope, rewrites,
-  validation, or status writeback.
+- `references/staging-validation-contract.md` before deciding scope, rewrites, validation, or status writeback.
 - `references/status-writeback.md` before updating plan status.
 
 ## Checks
 
 - Missing plan file: stop with `PLAN_NOT_FOUND`.
 - Missing candidate section: stop with `CANDIDATE_NOT_FOUND`.
-- Before editing files or plan status, extract the plan `Targets` plus the
-  candidate `Output:` and `Validation:` model names, then scan matching catalog
-  table and view entries for unresolved diagnostics with `severity: "error"`.
-  If any exist, stop with `CATALOG_ERRORS_UNRESOLVED`, report the catalog object
-  and error code, and do not apply, validate, or update the candidate.
-- Candidate not approved with `- [x] Approve: yes`: stop with
-  `CANDIDATE_NOT_APPROVED`.
-- `Type:` is not `stg`: stop with `NON_STAGING_CANDIDATE`; do not change
-  execution status.
-- Missing or invalid `Output:` for a `stg_*` model: mark this candidate
-  `blocked`.
+- Before editing files or plan status, extract the plan `Targets` plus the candidate `Output:` and `Validation:` model names, then scan matching catalog table and view entries for unresolved diagnostics with `severity: "error"`. If any exist, stop with `CATALOG_ERRORS_UNRESOLVED`, report the catalog object and error code, and do not apply, validate, or update the candidate.
+- Candidate not approved with `- [x] Approve: yes`: stop with `CANDIDATE_NOT_APPROVED`.
+- `Type:` is not `stg`: stop with `NON_STAGING_CANDIDATE`; do not change execution status.
+- Missing or invalid `Output:` for a `stg_*` model: mark this candidate `blocked`.
 - Missing or ambiguous downstream scope: mark this candidate `blocked`.
 
 ## Workflow
 
 1. Read the plan and isolate `## Candidate: <candidate-id>`.
 2. Extract `Output:` and `Validation:`.
-3. Resolve staging output and downstream consumers using
-   `references/staging-validation-contract.md`.
+3. Resolve staging output and downstream consumers using `references/staging-validation-contract.md`.
 4. Create or update the declared `stg_*` model.
-5. Rewire every resolved downstream consumer file so it references the declared
-   `stg_*` model with `ref()`.
-6. Run the smallest validation command covering the staging model and resolved
-   consumers. Prefer the command listed in `Validation:`.
+5. Rewire every resolved downstream consumer file so it references the declared `stg_*` model with `ref()`.
+6. Run the smallest validation command covering the staging model and resolved consumers. Prefer the command listed in `Validation:`.
 7. Update only this candidate section using `references/status-writeback.md`.
 
 ## Completion

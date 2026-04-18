@@ -45,9 +45,7 @@ Do not use this skill to review coverage, run sandbox execution, or generate dbt
      --project-root <project_root>
    ```
 
-   If readiness fails, report the surfaced `code` and `reason` values verbatim
-   and stop. Do not inspect SQL, generate fixtures, or write test specs after a
-   failed readiness check.
+   If readiness fails, report the surfaced `code` and `reason` values verbatim and stop. Do not inspect SQL, generate fixtures, or write test specs after a failed readiness check.
 2. Detect object type from catalog before generating: absent view catalog means `table`; `is_materialized_view: true` means `mv`; otherwise `view`.
 3. If `test-specs/<fqn>.json` exists, enter merge mode and load existing scenario names, `branch_manifest`, and `expect` blocks. Also load deterministic object and source-table context from catalog metadata.
 4. Re-extract branches from current SQL. For tables, current SQL is `selected_writer_ddl_slice` when present, otherwise `proc_body`; if both are empty, stop with a context error. Build a fresh `branch_manifest`; if a prior branch disappeared, add a `STALE_BRANCH` warning.

@@ -5,8 +5,7 @@ Run before any dbt edit.
 Satisfied declarations:
 
 - `Depends on: none`
-- `Depends on:` followed by upstream candidate IDs whose sections all have
-  `Execution status: applied`
+- `Depends on:` followed by upstream candidate IDs whose sections all have `Execution status: applied`
 
 Gate failure cases:
 
@@ -14,6 +13,4 @@ Gate failure cases:
 - A referenced dependency section is missing.
 - A dependency exists but is not `Execution status: applied`.
 
-On failure, stop with `DEPENDENCY_GATE_NOT_SATISFIED` and leave the candidate
-section unchanged. `/refactor-mart` owns dependency-blocked status writeback and
-records missing/unsatisfied dependency IDs plus their actual statuses.
+On failure, stop with `DEPENDENCY_GATE_NOT_SATISFIED` and leave the candidate section unchanged. `/refactor-mart` owns dependency-blocked status writeback and records missing/unsatisfied dependency IDs plus their actual statuses.

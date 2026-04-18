@@ -54,8 +54,7 @@ Fix catalog state when diagnostics show wrong or stale catalog facts, for exampl
 Ask the user when multiple plausible catalog fixes exist and the catalog does not identify one clear correction.
 
 When one clear catalog correction exists, apply it. Do not ask permission to edit catalog files that the workflow owns.
-This workflow is non-interactive for clear catalog fixes: proceed, then report the
-catalog paths changed.
+This workflow is non-interactive for clear catalog fixes: proceed, then report the catalog paths changed.
 
 Write a reviewed-warning artifact only when:
 

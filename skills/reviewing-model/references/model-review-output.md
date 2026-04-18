@@ -89,5 +89,4 @@ Statuses:
 - `revision_requested`
 - `error`
 
-`ModelReviewResult` schema permits `approved_with_warnings` for caller-owned
-aggregation, but `/reviewing-model` must not emit it.
+`ModelReviewResult` schema permits `approved_with_warnings` for caller-owned aggregation, but `/reviewing-model` must not emit it.

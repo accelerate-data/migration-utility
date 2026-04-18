@@ -8,8 +8,7 @@ These are the shared artifact standards for one generated dbt target.
 - Required control columns follow [model-naming.md](model-naming.md):
   - `_dbt_run_id = '{{ invocation_id }}'` for all materializations
   - `_loaded_at = {{ current_timestamp() }}` for table mart and snapshot materializations
-- Required control columns are generation metadata. Add them even when they are
-  absent from the legacy target table schema.
+- Required control columns are generation metadata. Add them even when they are absent from the legacy target table schema.
 - Paired schema YAML exists (`models/.../_*_models.yml` or `snapshots/_snapshots__models.yml`).
 - Schema YAML contains `version: 2`.
 - Schema YAML contains the required model or snapshot description.
