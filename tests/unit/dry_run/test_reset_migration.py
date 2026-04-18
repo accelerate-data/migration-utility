@@ -450,10 +450,10 @@ def test_run_reset_migration_all_preserve_catalog_delete_failure_rolls_back_cata
 
     import shared.dry_run_support.reset as reset_module
 
-    def fail_delete(path: Path) -> bool:
-        raise OSError(f"cannot delete {path}")
+    def fail_move(src: str, dst: str) -> str:
+        raise OSError(f"cannot stage {src} to {dst}")
 
-    monkeypatch.setattr(reset_module, "_delete_tree_if_present", fail_delete)
+    monkeypatch.setattr(reset_module.shutil, "move", fail_move)
 
     with pytest.raises(OSError):
         dry_run.run_reset_migration(dst, "all", [], preserve_catalog=True)
@@ -462,6 +462,39 @@ def test_run_reset_migration_all_preserve_catalog_delete_failure_rolls_back_cata
     assert (dst / "catalog").exists()
     assert (dst / "ddl").exists()
     assert (dst / "dbt").exists()
+    assert (dst / ".staging").exists()
+
+def test_run_reset_migration_all_preserve_catalog_second_delete_failure_restores_staged_path(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    dst = _make_reset_project(tmp_path)
+    (dst / "ddl").mkdir()
+    (dst / "dbt" / "models").mkdir(parents=True)
+    (dst / "dbt" / "models" / "stg_customer.sql").write_text("select 1;", encoding="utf-8")
+    (dst / ".staging").mkdir()
+    first_path = dst / "catalog" / "tables" / "silver.dimcustomer.json"
+    original_first = json.loads(first_path.read_text(encoding="utf-8"))
+
+    import shared.dry_run_support.reset as reset_module
+
+    original_move = reset_module.shutil.move
+    calls = 0
+
+    def fail_second_move(src: str, dst: str) -> str:
+        nonlocal calls
+        calls += 1
+        if calls == 2:
+            raise OSError(f"cannot stage {src} to {dst}")
+        return str(original_move(src, dst))
+
+    monkeypatch.setattr(reset_module.shutil, "move", fail_second_move)
+
+    with pytest.raises(OSError):
+        dry_run.run_reset_migration(dst, "all", [], preserve_catalog=True)
+
+    assert json.loads(first_path.read_text(encoding="utf-8")) == original_first
+    assert (dst / "dbt" / "models" / "stg_customer.sql").exists()
     assert (dst / ".staging").exists()
 
 def test_run_reset_migration_all_invalid_manifest_preserves_directories(tmp_path: Path) -> None:

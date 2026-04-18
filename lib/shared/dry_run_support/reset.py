@@ -3,6 +3,7 @@ from __future__ import annotations
 import json
 import logging
 import shutil
+import tempfile
 from pathlib import Path
 from typing import Any
 
@@ -216,6 +217,43 @@ def _rollback_preserve_catalog_writes(
         )
 
 
+def _delete_preserve_catalog_paths(project_root: Path) -> tuple[list[str], list[str]]:
+    deleted_paths: list[str] = []
+    missing_paths: list[str] = []
+    staged_paths: list[tuple[Path, Path]] = []
+
+    with tempfile.TemporaryDirectory(prefix=".preserve-catalog-reset-", dir=project_root) as temp_dir:
+        temp_path = Path(temp_dir)
+        try:
+            for index, relative_path in enumerate(RESET_PRESERVE_CATALOG_PATHS):
+                path = project_root / relative_path
+                if not path.exists():
+                    missing_paths.append(relative_path)
+                    logger.warning(
+                        "event=reset_migration_preserve_catalog_path_missing component=reset_migration "
+                        "operation=run_reset_migration path=%s",
+                        relative_path,
+                    )
+                    continue
+
+                staged_path = temp_path / str(index)
+                shutil.move(str(path), str(staged_path))
+                staged_paths.append((path, staged_path))
+                deleted_paths.append(relative_path)
+                logger.info(
+                    "event=reset_migration_preserve_catalog_path_deleted component=reset_migration "
+                    "operation=run_reset_migration path=%s",
+                    relative_path,
+                )
+        except OSError:
+            for original_path, staged_path in reversed(staged_paths):
+                if staged_path.exists() and not original_path.exists():
+                    shutil.move(str(staged_path), str(original_path))
+            raise
+
+    return deleted_paths, missing_paths
+
+
 def _run_reset_migration_all_preserve_catalog(project_root: Path) -> ResetMigrationOutput:
     mutations = _load_preserve_catalog_mutations(project_root)
     deleted_paths: list[str] = []
@@ -243,22 +281,7 @@ def _run_reset_migration_all_preserve_catalog(project_root: Path) -> ResetMigrat
         raise
 
     try:
-        for relative_path in RESET_PRESERVE_CATALOG_PATHS:
-            path = project_root / relative_path
-            if _delete_tree_if_present(path):
-                deleted_paths.append(relative_path)
-                logger.info(
-                    "event=reset_migration_preserve_catalog_path_deleted component=reset_migration "
-                    "operation=run_reset_migration path=%s",
-                    relative_path,
-                )
-            else:
-                missing_paths.append(relative_path)
-                logger.warning(
-                    "event=reset_migration_preserve_catalog_path_missing component=reset_migration "
-                    "operation=run_reset_migration path=%s",
-                    relative_path,
-                )
+        deleted_paths, missing_paths = _delete_preserve_catalog_paths(project_root)
     except OSError:
         _rollback_preserve_catalog_writes(project_root, written_catalogs)
         raise
