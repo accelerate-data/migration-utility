@@ -46,7 +46,7 @@ jobs:
           /tmp/ad-migration-release/bin/ad-migration --version
 
       - name: Publish GitHub release artifacts
-        uses: softprops/action-gh-release@v2
+        uses: softprops/action-gh-release@v3
         with:
           files: |
             lib/dist/*
