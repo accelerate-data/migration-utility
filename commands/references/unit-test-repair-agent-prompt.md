@@ -17,16 +17,16 @@ Step 1 — run unit tests:
 Step 2 — if tests pass: update the item result JSON with
   execution.dbt_test_passed: true and return.
 
-Step 3 — if tests fail: assemble correction context.
-  Run migrate context --table <schema.table> --project-root <working-directory>
-  to retrieve selected_writer_ddl_slice (or refactored_sql if not present).
-  Use the failing test output and the source SQL to identify and patch the
-  generated model SQL at <working-directory>/dbt/<artifact_path.model_sql>
-  directly. Do not invoke /generating-model.
+Step 3 — if tests fail: read the source SQL context via
+  migrate context --table <schema.table> --project-root <working-directory>
+and use the failing test output and source SQL to patch the model SQL at
+the path in the item result JSON's artifact_paths.model_sql.
+Do not invoke /generating-model.
 
-Step 4 — re-run unit tests. Repeat Steps 2-4 up to 3 total attempts.
+Retry the test-patch cycle up to 3 total attempts.
 
 On max attempts without passing: update the item result JSON with
-  execution.dbt_test_passed: false and add a DBT_TEST_FAILED warning.
+  status: "partial", execution.dbt_test_passed: false
+and add a DBT_TEST_FAILED warning.
 Return the final item result JSON.
 ```

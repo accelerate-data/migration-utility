@@ -9,15 +9,13 @@ Materialise the direct source and ref() parents needed by the dbt unit tests
 for these models: <model_names>.
 The working directory is <working-directory>.
 
-For each model, resolve its direct parents from the dbt manifest at
-<working-directory>/dbt/target/manifest.json (nodes[<model_id>].depends_on).
-Collect the union of all unique direct parents across all models.
+Resolve the direct parents of each model from the dbt manifest. Collect
+the union of all unique direct parents across all models.
 
 Run:
   cd <working-directory>/dbt && dbt run --select "<direct_parents_space_separated>" --empty
 
-This creates empty relations so dbt unit tests can compile and execute. Do not
-build the generated models themselves.
+Build only the parent relations, not the models under test.
 
 Write the setup result to
 .migration-runs/unit-test-setup.<run_id>.json:

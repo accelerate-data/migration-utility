@@ -101,13 +101,15 @@ Dispatch one setup sub-agent for the entire collected list. The sub-agent resolv
 
 ### Step 5 — Stage 4: Unit-test repair and commit
 
+Before dispatching repair agents, read `.migration-runs/unit-test-setup.<run_id>.json`. If `status` is `error`, skip repair for all unit-test items: update each item result with `status: "partial"` and a `DBT_TEST_FAILED` warning (reason: parent materialisation failed), then proceed to commit/revert.
+
 For each item where `output.generated.model_yaml.has_unit_tests` is `true` and `status` is not `error`:
 
 **Prompt:** Read [references/unit-test-repair-agent-prompt.md](references/unit-test-repair-agent-prompt.md). Substitute `<schema.table>`, `<model_name>`, `<working-directory>`, and `<run_id>` before dispatching.
 
 Launch one repair sub-agent per eligible item in parallel. Each sub-agent follows the unit-test-repair-agent-prompt and updates `execution.dbt_test_passed` in the item result JSON.
 
-**Commit/revert (all items):** Once all repair agents complete (and immediately for items that had no unit tests and completed Stage 2), apply per item:
+**Commit/revert (all items):** Once all repair agents complete (stages 3 and 4 are no-ops for items without unit tests, so they complete immediately), commit all items together to avoid shared YAML races. Apply per item:
 
 Derive `<model_name>` from item_id.
 
