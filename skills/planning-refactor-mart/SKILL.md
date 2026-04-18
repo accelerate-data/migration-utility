@@ -33,6 +33,13 @@ Read these before drafting candidates:
 - `../_shared/references/sql-style.md`
 - `../_shared/references/yaml-style.md`
 
+## Guards
+
+Before analysis, scan catalog table and view entries for unresolved diagnostics
+with `severity: "error"`. If any selected target has catalog errors, stop with
+`CATALOG_ERRORS_UNRESOLVED`, report the target and error code, and do not draft
+or write a plan.
+
 ## Analysis Flow
 
 1. Identify the selected mart-domain unit:

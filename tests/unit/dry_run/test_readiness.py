@@ -122,6 +122,106 @@ def test_ready_test_gen_passes() -> None:
         assert result.object is not None
         assert result.object.reason == "ok"
 
+def test_ready_blocks_table_with_catalog_error() -> None:
+    """Top-level catalog errors block object-scoped readiness."""
+    tmp, root = _make_project()
+    with tmp:
+        cat_path = root / "catalog" / "tables" / "silver.dimcustomer.json"
+        cat = json.loads(cat_path.read_text(encoding="utf-8"))
+        cat["errors"] = [{
+            "code": "DDL_PARSE_ERROR",
+            "message": "Unable to parse table DDL.",
+            "severity": "error",
+        }]
+        cat_path.write_text(json.dumps(cat), encoding="utf-8")
+
+        result = dry_run.run_ready(root, "test-gen", object_fqn="silver.DimCustomer")
+
+        assert result.ready is False
+        assert result.object is not None
+        assert result.object.ready is False
+        assert result.object.reason == "catalog_errors_unresolved"
+        assert result.object.code == "CATALOG_ERRORS_UNRESOLVED"
+
+def test_ready_blocks_table_with_catalog_error_without_severity() -> None:
+    """Top-level catalog errors default to error severity when unspecified."""
+    tmp, root = _make_project()
+    with tmp:
+        cat_path = root / "catalog" / "tables" / "silver.dimcustomer.json"
+        cat = json.loads(cat_path.read_text(encoding="utf-8"))
+        cat["errors"] = [{
+            "code": "TYPE_MAPPING_UNSUPPORTED",
+            "message": "Unsupported source type.",
+        }]
+        cat_path.write_text(json.dumps(cat), encoding="utf-8")
+
+        result = dry_run.run_ready(root, "test-gen", object_fqn="silver.DimCustomer")
+
+        assert result.ready is False
+        assert result.object is not None
+        assert result.object.reason == "catalog_errors_unresolved"
+        assert result.object.code == "CATALOG_ERRORS_UNRESOLVED"
+
+def test_ready_allows_table_with_catalog_warning() -> None:
+    """Top-level catalog warnings do not block object-scoped readiness."""
+    tmp, root = _make_project()
+    with tmp:
+        cat_path = root / "catalog" / "tables" / "silver.dimcustomer.json"
+        cat = json.loads(cat_path.read_text(encoding="utf-8"))
+        cat["warnings"] = [{
+            "code": "DDL_PARSE_LIMITATION",
+            "message": "DDL parsed with limitations.",
+            "severity": "warning",
+        }]
+        cat_path.write_text(json.dumps(cat), encoding="utf-8")
+
+        result = dry_run.run_ready(root, "test-gen", object_fqn="silver.DimCustomer")
+
+        assert result.ready is True
+        assert result.object is not None
+        assert result.object.reason == "ok"
+
+def test_ready_catalog_error_blocks_later_stage_before_stage_policy() -> None:
+    """Catalog errors use one shared guard before later-stage prerequisite checks."""
+    tmp, root = _make_project()
+    with tmp:
+        cat_path = root / "catalog" / "tables" / "silver.dimcustomer.json"
+        cat = json.loads(cat_path.read_text(encoding="utf-8"))
+        del cat["test_gen"]
+        cat["errors"] = [{
+            "code": "TYPE_MAPPING_UNSUPPORTED",
+            "message": "Unsupported source type.",
+            "severity": "error",
+        }]
+        cat_path.write_text(json.dumps(cat), encoding="utf-8")
+
+        result = dry_run.run_ready(root, "generate", object_fqn="silver.DimCustomer")
+
+        assert result.ready is False
+        assert result.object is not None
+        assert result.object.reason == "catalog_errors_unresolved"
+        assert result.object.code == "CATALOG_ERRORS_UNRESOLVED"
+
+def test_ready_blocks_view_with_catalog_error() -> None:
+    """Top-level view catalog errors block object-scoped readiness."""
+    tmp, root = _make_project()
+    with tmp:
+        view_path = root / "catalog" / "views" / "silver.vdimsalesterritory.json"
+        cat = json.loads(view_path.read_text(encoding="utf-8"))
+        cat["errors"] = [{
+            "code": "VIEW_PARSE_ERROR",
+            "message": "Unable to parse view.",
+            "severity": "error",
+        }]
+        view_path.write_text(json.dumps(cat), encoding="utf-8")
+
+        result = dry_run.run_ready(root, "scope", object_fqn="silver.vDimSalesTerritory")
+
+        assert result.ready is False
+        assert result.object is not None
+        assert result.object.reason == "catalog_errors_unresolved"
+        assert result.object.code == "CATALOG_ERRORS_UNRESOLVED"
+
 def test_ready_test_gen_no_profile() -> None:
     """test-gen not ready when no profile section."""
     tmp, root = _make_project()
@@ -498,6 +598,36 @@ def test_ready_excluded_table_short_circuits_before_stage_policy() -> None:
         assert result.object.reason == "not_applicable"
         assert result.object.code == "EXCLUDED"
         assert result.object.not_applicable is True
+
+def test_ready_source_seed_and_excluded_tables_ignore_catalog_errors() -> None:
+    """Workflow-exempt tables keep their not-applicable responses despite catalog errors."""
+    cases = [
+        ("is_source", "SOURCE_TABLE", "scope"),
+        ("is_seed", "SEED_TABLE", "profile"),
+        ("excluded", "EXCLUDED", "generate"),
+    ]
+    for flag, expected_code, stage in cases:
+        tmp, root = _make_project()
+        with tmp:
+            cat_path = root / "catalog" / "tables" / "silver.dimcustomer.json"
+            cat = json.loads(cat_path.read_text(encoding="utf-8"))
+            cat["is_source"] = flag == "is_source"
+            cat["is_seed"] = flag == "is_seed"
+            cat["excluded"] = flag == "excluded"
+            cat["errors"] = [{
+                "code": "DDL_PARSE_ERROR",
+                "message": "Still not applicable.",
+                "severity": "error",
+            }]
+            cat_path.write_text(json.dumps(cat), encoding="utf-8")
+
+            result = dry_run.run_ready(root, stage, object_fqn="silver.DimCustomer")
+
+            assert result.ready is False
+            assert result.object is not None
+            assert result.object.reason == "not_applicable"
+            assert result.object.code == expected_code
+            assert result.object.not_applicable is True
 
 def test_ready_invalid_stage() -> None:
     """Invalid stage returns ready=False with reason=invalid_stage."""

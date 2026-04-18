@@ -110,6 +110,37 @@ function pinFixtureDatabase(projectRoot, manifest) {
   }
 }
 
+function normalizeFqn(value) {
+  return String(value || '').trim().toLowerCase();
+}
+
+function injectCatalogError(projectRoot, vars) {
+  const objectFqn = normalizeFqn(vars?.catalog_error_object);
+  if (!objectFqn) {
+    return;
+  }
+
+  const catalogRoot = path.join(projectRoot, 'catalog');
+  const catalogFile = ['tables', 'views']
+    .map((bucket) => path.join(catalogRoot, bucket, `${objectFqn}.json`))
+    .find((candidate) => fs.existsSync(candidate));
+
+  if (!catalogFile) {
+    throw new Error(`catalog_error_object not found in run workspace: ${objectFqn}`);
+  }
+
+  const catalog = JSON.parse(fs.readFileSync(catalogFile, 'utf8'));
+  catalog.errors = [
+    ...(Array.isArray(catalog.errors) ? catalog.errors : []),
+    {
+    code: vars.catalog_error_code || 'CATALOG_ERROR',
+    message: vars.catalog_error_message || 'Injected catalog error for readiness guard eval.',
+    severity: 'error',
+    },
+  ];
+  fs.writeFileSync(catalogFile, JSON.stringify(catalog, null, 2) + '\n', 'utf8');
+}
+
 function isMissingPathError(error) {
   return error && typeof error === 'object' && error.code === 'ENOENT';
 }
@@ -237,8 +268,10 @@ async function extensionHook(hookName, context, options = {}) {
   const manifest = loadManifest(runRoot);
   validateManifest(manifest, runRoot);
   pinFixtureDatabase(runRoot, manifest);
+  injectCatalogError(runRoot, context.test.vars);
 
   context.test.vars.run_path = runRoot;
+  context.test.vars.repo_root = REPO_ROOT;
   return context;
 }
 

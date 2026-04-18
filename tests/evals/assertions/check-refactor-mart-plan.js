@@ -7,7 +7,8 @@
 //   expected_candidate_types,
 //   expected_higher_layer_candidate?,
 //   expected_terms?,
-//   expected_unapproved_terms?
+//   expected_unapproved_terms?,
+//   expect_no_plan?
 // }
 const fs = require('fs');
 const crypto = require('crypto');
@@ -137,6 +138,21 @@ module.exports = (output, context) => {
   const fixtureRoot = resolveUnderRepo(repoRoot, fixturePath);
   const planRelativePath = path.join('docs', 'design', `${planName}.md`);
   const planPath = path.join(runRoot, planRelativePath);
+  if (String(context.vars.expect_no_plan || '').toLowerCase() === 'true') {
+    if (fs.existsSync(planPath)) {
+      return fail(`Plan file should not have been created: ${planPath}`);
+    }
+    const expectedModels = snapshotDirectory(path.join(fixtureRoot, 'dbt', 'models'));
+    const actualModels = snapshotDirectory(path.join(runRoot, 'dbt', 'models'));
+    if (!sameSnapshot(expectedModels, actualModels)) {
+      return fail('Planning guard mutated files under dbt/models');
+    }
+    return {
+      pass: true,
+      score: 1,
+      reason: 'Planning guard stopped before plan creation',
+    };
+  }
   if (!fs.existsSync(planPath)) {
     return fail(`Plan file not found: ${planPath}`);
   }

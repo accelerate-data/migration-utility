@@ -53,6 +53,8 @@ Return exactly one `ModelGenerationOutput`. Use `execution.dbt_test_passed` for 
      --project-root <project_root>
    ```
 
+   If `ready` is `false`, stop and report the returned `code` and `reason`. Do not assemble context, generate dbt SQL, run dbt, or write catalog/model artifacts after a failed readiness check.
+
 2. Assemble deterministic context and choose the generation source.
 
    ```bash

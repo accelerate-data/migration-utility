@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import json
+import logging
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Any, Callable
@@ -16,6 +17,8 @@ from shared.dry_run_support.common import (
 from shared.loader_data import CatalogLoadError
 from shared.name_resolver import normalize
 from shared.output_models.dry_run import DryRunOutput, ReadinessDetail
+
+logger = logging.getLogger(__name__)
 
 
 @dataclass(frozen=True)
@@ -165,6 +168,38 @@ def _object_applicability(
             stage=stage, project=project, ctx=ctx, code="EXCLUDED",
         )
     return None
+
+
+def _catalog_error_output(
+    *,
+    stage: str,
+    project: ReadinessDetail,
+    ctx: _ObjectReadinessContext,
+) -> DryRunOutput | None:
+    cat = ctx.catalog
+    errors = getattr(cat, "errors", None) if cat is not None else None
+    if not isinstance(errors, list):
+        return None
+    if not any(_is_blocking_catalog_error(entry) for entry in errors):
+        return None
+    logger.info(
+        "event=readiness_blocked_catalog_errors stage=%s fqn=%s object_type=%s",
+        stage, ctx.fqn, ctx.obj_type,
+    )
+    return _object_out(
+        stage=stage,
+        project=project,
+        ctx=ctx,
+        ready=False,
+        reason="catalog_errors_unresolved",
+        code="CATALOG_ERRORS_UNRESOLVED",
+    )
+
+
+def _is_blocking_catalog_error(entry: object) -> bool:
+    if isinstance(entry, dict):
+        return entry.get("severity", "error") == "error"
+    return getattr(entry, "severity", "error") == "error"
 
 
 def _scope_ready(
@@ -352,6 +387,10 @@ def run_ready(project_root: Path, stage: str, object_fqn: str | None = None) -> 
     not_applicable = _object_applicability(stage=stage, project=project, ctx=ctx)
     if not_applicable is not None:
         return not_applicable
+
+    catalog_error = _catalog_error_output(stage=stage, project=project, ctx=ctx)
+    if catalog_error is not None:
+        return catalog_error
 
     checker = _STAGE_OBJECT_CHECKS.get(stage)
     if checker is None:

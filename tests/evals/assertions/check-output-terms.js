@@ -2,12 +2,15 @@
 // Usage: type: javascript, value: file://../../assertions/check-output-terms.js
 // Expects context.vars:
 // {
-//   expected_output_terms
+//   expected_final_output_terms? preferred for final-response-only checks
+//   expected_output_terms? legacy fallback
 // }
 const { normalizeTerms } = require('./schema-helpers');
 
 module.exports = (output, context) => {
-  const expectedOutputTerms = normalizeTerms(context.vars.expected_output_terms);
+  const expectedOutputTerms = normalizeTerms(
+    context.vars.expected_final_output_terms ?? context.vars.expected_output_terms,
+  );
   const outputStr = String(output || '').toLowerCase();
 
   for (const term of expectedOutputTerms) {

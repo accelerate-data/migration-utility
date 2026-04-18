@@ -31,6 +31,22 @@ tests:
       expected_extracted_terms: "select"
       expected_refactored_terms: "with,final"
 
+  - description: "[vu-1119] catalog-error — refactor readiness guard stops"
+    prompts: ["refactoring-sql"]
+    vars:
+      fixture_path: "tests/evals/fixtures/refactoring-sql/insert-select"
+      target_table: "silver.InsertSelectTarget"
+      writer: "silver.usp_load_InsertSelectTarget"
+      catalog_error_object: "silver.InsertSelectTarget"
+      catalog_error_code: "TYPE_MAPPING_UNSUPPORTED"
+      catalog_error_message: "Unsupported type in eval fixture."
+      expected_final_output_terms: "CATALOG_ERRORS_UNRESOLVED"
+      unchanged_catalog_object: "silver.InsertSelectTarget"
+      unchanged_paths: "test-specs"
+    assert:
+      - type: javascript
+        value: file://../../assertions/check-guard-stop.js
+
   # ── multi-table selected slice — ignore unrelated writer logic ──────────────
   - description: "multi-table-selected-slice — InsertSelectTarget refactors selected slice only"
     prompts: ["refactoring-sql"]
