@@ -98,26 +98,23 @@ def ensure_catalog_subdirectories(project_root: Path) -> None:
 
 
 def _catalog_type_technologies(project_root: Path) -> tuple[str, str]:
-    """Return source and target technologies for catalog type rendering.
-
-    VU-1119 owns hard blocking when target technology is missing. Until that guard
-    runs, missing manifests and missing target roles default to the source technology
-    to preserve legacy unit paths; malformed manifests fail at the read boundary.
-    """
+    """Return source and target technologies for catalog type rendering."""
     manifest_path = project_root / "manifest.json"
     if not manifest_path.exists():
-        return "sql_server", "sql_server"
+        raise ValueError("manifest.json not found. Run /init-ad-migration to initialise the project.")
     try:
         manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
     except json.JSONDecodeError as exc:
         raise CorruptJSONError(manifest_path, exc) from exc
     source_role = get_runtime_role(manifest, "source")
     target_role = get_runtime_role(manifest, "target")
-    source_technology = (
-        source_role.technology if source_role is not None else str(manifest.get("technology") or "sql_server")
-    )
-    target_technology = target_role.technology if target_role is not None else source_technology
-    return source_technology, target_technology
+    if source_role is None:
+        raise ValueError("manifest.json has no source technology configured. Run /init-ad-migration.")
+    if target_role is None:
+        raise ValueError(
+            "manifest.json has no target technology configured. Run setup-target before setup-ddl write-catalog."
+        )
+    return source_role.technology, target_role.technology
 
 
 def run_write_catalog(staging_dir: Path, project_root: Path, database: str) -> dict[str, object]:

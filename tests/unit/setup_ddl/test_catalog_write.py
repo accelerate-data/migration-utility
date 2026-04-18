@@ -15,6 +15,31 @@ from tests.helpers import run_setup_ddl_cli as _run_cli
 from .conftest import _write_json
 
 
+def _write_runtime_manifest(
+    project_root: Path,
+    *,
+    source_technology: str = "sql_server",
+    target_technology: str = "sql_server",
+) -> None:
+    project_root.mkdir(parents=True, exist_ok=True)
+    source_dialect = "oracle" if source_technology == "oracle" else "tsql"
+    target_dialect = "oracle" if target_technology == "oracle" else "tsql"
+    (project_root / "manifest.json").write_text(
+        json.dumps(
+            {
+                "schema_version": "1.0",
+                "technology": source_technology,
+                "dialect": source_dialect,
+                "runtime": {
+                    "source": {"technology": source_technology, "dialect": source_dialect},
+                    "target": {"technology": target_technology, "dialect": target_dialect},
+                },
+            }
+        ),
+        encoding="utf-8",
+    )
+
+
 # ── Unit: write-manifest ─────────────────────────────────────────────────────
 
 
@@ -161,8 +186,9 @@ class TestWriteCatalog:
             },
         ]
 
-    def test_catalog_type_technologies_falls_back_only_for_missing_target(self, tmp_path):
-        assert _catalog_type_technologies(tmp_path) == ("sql_server", "sql_server")
+    def test_catalog_type_technologies_requires_manifest_and_target_role(self, tmp_path):
+        with pytest.raises(ValueError, match="manifest.json not found"):
+            _catalog_type_technologies(tmp_path)
 
         (tmp_path / "manifest.json").write_text(
             json.dumps(
@@ -176,7 +202,11 @@ class TestWriteCatalog:
             encoding="utf-8",
         )
 
-        assert _catalog_type_technologies(tmp_path) == ("oracle", "oracle")
+        with pytest.raises(ValueError, match="target technology"):
+            _catalog_type_technologies(tmp_path)
+
+        _write_runtime_manifest(tmp_path, source_technology="oracle", target_technology="sql_server")
+        assert _catalog_type_technologies(tmp_path) == ("oracle", "sql_server")
 
     def test_catalog_type_technologies_rejects_malformed_manifest(self, tmp_path):
         (tmp_path / "manifest.json").write_text("{not json", encoding="utf-8")
@@ -215,6 +245,7 @@ class TestWriteCatalog:
     def test_writes_catalog_from_staging(self, tmp_path):
         staging = tmp_path / "staging"
         output = tmp_path / "output"
+        _write_runtime_manifest(output)
 
         # Minimal staging data
         _write_json(staging / "table_columns.json", [
@@ -280,6 +311,7 @@ class TestWriteCatalog:
     def test_identity_columns_in_signals(self, tmp_path):
         staging = tmp_path / "staging"
         output = tmp_path / "output"
+        _write_runtime_manifest(output)
 
         _write_json(staging / "table_columns.json", [
             {"schema_name": "dbo", "table_name": "T1", "column_name": "id", "column_id": 1,
@@ -319,6 +351,7 @@ class TestWriteCatalog:
     def test_routing_flags_from_definitions(self, tmp_path):
         staging = tmp_path / "staging"
         output = tmp_path / "output"
+        _write_runtime_manifest(output)
 
         _write_json(staging / "table_columns.json", [])
         _write_json(staging / "pk_unique.json", [])
@@ -505,6 +538,7 @@ class TestWriteCatalogViewEnrichment:
     def test_view_catalog_gets_sql_from_definitions(self, tmp_path):
         staging = tmp_path / "staging"
         output = tmp_path / "output"
+        _write_runtime_manifest(output)
         self._minimal_staging(staging)
         result = _run_cli([
             "write-catalog",
@@ -520,6 +554,7 @@ class TestWriteCatalogViewEnrichment:
     def test_view_catalog_gets_columns_from_view_columns_json(self, tmp_path):
         staging = tmp_path / "staging"
         output = tmp_path / "output"
+        _write_runtime_manifest(output)
         self._minimal_staging(staging)
         _write_json(staging / "view_columns.json", [
             {"schema_name": "dbo", "view_name": "vw_sales", "column_name": "id",
@@ -620,6 +655,7 @@ class TestWriteCatalogViewEnrichment:
     def test_view_columns_absent_when_no_view_columns_file(self, tmp_path):
         staging = tmp_path / "staging"
         output = tmp_path / "output"
+        _write_runtime_manifest(output)
         self._minimal_staging(staging)
         # No view_columns.json written — the field should be absent from catalog
         result = _run_cli([
@@ -638,6 +674,7 @@ class TestWriteCatalogViewEnrichment:
 
 def _make_staging(staging: Path, *, definition: str = "CREATE PROC dbo.usp_a AS INSERT INTO dbo.T1 (id) VALUES (1)") -> None:
     """Write a minimal set of staging files for write-catalog tests."""
+    _write_runtime_manifest(staging.parent / "output")
     _write_json(staging / "table_columns.json", [
         {"schema_name": "dbo", "table_name": "T1", "column_name": "id", "column_id": 1,
          "type_name": "int", "max_length": 4, "precision": 10, "scale": 0,
