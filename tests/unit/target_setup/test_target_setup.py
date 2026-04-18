@@ -633,7 +633,7 @@ def test_setup_target_rerun_guard_rejects_existing_generated_models(tmp_path: Pa
         encoding="utf-8",
     )
 
-    with pytest.raises(ValueError, match="preserve-catalog reset"):
+    with pytest.raises(ValueError, match="ad-migration reset all --preserve-catalog"):
         ensure_setup_target_can_rerun(project_root)
 
 

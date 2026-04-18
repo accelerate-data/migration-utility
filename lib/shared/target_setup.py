@@ -203,8 +203,8 @@ def ensure_setup_target_can_rerun(project_root: Path) -> None:
     )
     raise ValueError(
         "setup-target cannot rerun after downstream dbt models have been generated. "
-        "Use the preserve-catalog reset flow to clear generated target/dbt state before "
-        f"rerunning setup-target. Existing generated objects: {preview}{suffix}"
+        "Run `ad-migration reset all --preserve-catalog`, then run "
+        f"`ad-migration setup-target` again. Existing generated objects: {preview}{suffix}"
     )
 
 
