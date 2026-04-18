@@ -522,6 +522,17 @@ def test_run_reset_migration_all_rejects_extra_table_arguments(tmp_path: Path) -
     with pytest.raises(ValueError, match="global reset stage 'all' does not accept table arguments"):
         dry_run.run_reset_migration(dst, "all", ["silver.DimCustomer"])
 
+def test_run_reset_migration_preserve_catalog_requires_global_reset(tmp_path: Path) -> None:
+    dst = _make_reset_project(tmp_path)
+
+    with pytest.raises(ValueError, match="--preserve-catalog is only supported with global reset stage 'all'"):
+        dry_run.run_reset_migration(
+            dst,
+            "scope",
+            ["silver.DimCustomer"],
+            preserve_catalog=True,
+        )
+
 def test_reset_migration_requires_at_least_one_fqn(tmp_path: Path) -> None:
     dst = _make_reset_project(tmp_path)
 

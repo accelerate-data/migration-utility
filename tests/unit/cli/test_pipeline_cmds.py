@@ -269,6 +269,27 @@ def test_reset_all_preserve_catalog_catalog_error_exits_cleanly(tmp_path):
     assert "Corrupt catalog JSON" in result.output
 
 
+def test_reset_preserve_catalog_rejects_non_global_stage(tmp_path):
+    _write_manifest(tmp_path)
+    with patch("shared.cli.reset_cmd.run_reset_migration") as mock_reset:
+        result = runner.invoke(
+            app,
+            [
+                "reset",
+                "scope",
+                "silver.DimCustomer",
+                "--preserve-catalog",
+                "--yes",
+                "--project-root",
+                str(tmp_path),
+            ],
+        )
+
+    assert result.exit_code == 1
+    assert "--preserve-catalog is only supported with reset all" in result.output
+    mock_reset.assert_not_called()
+
+
 def test_reset_all_with_sandbox_tears_down_before_reset(tmp_path):
     _write_manifest(tmp_path)
     mock_backend = MagicMock()
