@@ -45,6 +45,36 @@ function parseExpectedPairs(value) {
   });
 }
 
+function parseExpectedDetailPairs(value) {
+  if (!value) {
+    return [];
+  }
+
+  return String(value)
+    .split(/,\s*(?=(?:stg|int|mart)-\d+=)/i)
+    .map((entry) => entry.trim().toLowerCase())
+    .filter(Boolean)
+    .map((entry) => {
+      const separatorIndex = entry.indexOf('=');
+      if (separatorIndex <= 0 || separatorIndex === entry.length - 1) {
+        throw new Error(`Invalid expected candidate detail '${entry}'`);
+      }
+
+      const detailSpec = entry.slice(separatorIndex + 1).trim();
+      return {
+        candidateId: entry.slice(0, separatorIndex).toUpperCase(),
+        detail: detailSpec,
+        detailGroups: detailSpec.includes('|')
+          ? detailSpec
+              .split('||')
+              .map((group) => group.trim())
+              .filter(Boolean)
+              .map((group) => group.split('|').map((term) => term.trim()).filter(Boolean))
+          : null,
+      };
+    });
+}
+
 function listSqlFiles(root) {
   if (!fs.existsSync(root)) {
     return [];
@@ -119,6 +149,9 @@ module.exports = (output, context) => {
     return fail('No candidate sections found');
   }
 
+  const expectedValidationDetails = parseExpectedDetailPairs(context.vars.expected_validation_result_details);
+  const expectedBlockedReasonDetails = parseExpectedDetailPairs(context.vars.expected_blocked_reason_details);
+
   for (const expected of parseExpectedStatuses(context.vars.expected_candidate_statuses)) {
     const section = sections.find((candidate) => candidate.id === expected.candidateId);
     if (!section) {
@@ -139,23 +172,41 @@ module.exports = (output, context) => {
     }
   }
 
-  for (const candidateId of normalizeTerms(context.vars.expected_validation_results)) {
-    const section = sections.find((candidate) => candidate.id === candidateId.toUpperCase());
+  for (const expected of expectedValidationDetails) {
+    const section = sections.find((candidate) => candidate.id === expected.candidateId);
     if (!section) {
-      return fail(`Candidate ${candidateId.toUpperCase()} not found`);
+      return fail(`Candidate ${expected.candidateId} not found`);
     }
     if (!/^- Validation result:\s+\S.+$/m.test(section.body)) {
-      return fail(`Candidate ${candidateId.toUpperCase()} missing Validation result`);
+      return fail(`Candidate ${expected.candidateId} missing Validation result`);
+    }
+    const actualDetail = fieldValue(section, 'Validation result');
+    const detailMatches = expected.detailGroups
+      ? expected.detailGroups.some((group) => group.every((term) => actualDetail.includes(term)))
+      : actualDetail === expected.detail;
+    if (!detailMatches) {
+      return fail(
+        `Candidate ${expected.candidateId} expected Validation result '${expected.detail}', found '${actualDetail}'`,
+      );
     }
   }
 
-  for (const candidateId of normalizeTerms(context.vars.expected_blocked_reasons)) {
-    const section = sections.find((candidate) => candidate.id === candidateId.toUpperCase());
+  for (const expected of expectedBlockedReasonDetails) {
+    const section = sections.find((candidate) => candidate.id === expected.candidateId);
     if (!section) {
-      return fail(`Candidate ${candidateId.toUpperCase()} not found`);
+      return fail(`Candidate ${expected.candidateId} not found`);
     }
     if (!/^- Blocked reason:\s+\S.+$/m.test(section.body)) {
-      return fail(`Candidate ${candidateId.toUpperCase()} missing Blocked reason`);
+      return fail(`Candidate ${expected.candidateId} missing Blocked reason`);
+    }
+    const actualDetail = fieldValue(section, 'Blocked reason');
+    const detailMatches = expected.detailGroups
+      ? expected.detailGroups.some((group) => group.every((term) => actualDetail.includes(term)))
+      : actualDetail === expected.detail;
+    if (!detailMatches) {
+      return fail(
+        `Candidate ${expected.candidateId} expected Blocked reason '${expected.detail}', found '${actualDetail}'`,
+      );
     }
   }
 

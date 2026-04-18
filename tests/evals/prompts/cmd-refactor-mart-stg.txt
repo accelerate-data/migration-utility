@@ -9,6 +9,7 @@ Harness overrides:
 
 - Treat `{{fixture_path}}` as read-only input. Write all generated files and plan updates to `{{run_path}}`.
 - You are already authorized to edit files under `{{run_path}}`; do not ask for permission before updating the plan.
+- Asking for approval or permission is an eval failure; perform the edits directly under `{{run_path}}`.
 - Final-answer summaries are not sufficient. The authoritative markdown plan file is `{{run_path}}/{{plan_file}}` and it must be updated in place.
 - Do not create, copy, or update a duplicate plan file outside `{{run_path}}/{{plan_file}}`.
 - Do not create or use a worktree.

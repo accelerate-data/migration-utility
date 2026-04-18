@@ -57,7 +57,7 @@ test('passes when statuses, validation details, and consumer refs match', () => 
         expected_candidate_statuses: 'STG-001:applied,INT-001:planned',
         expected_output_terms: 'applied,stg_bronze__orders',
         expected_consumer_refs: 'int_sales_orders:stg_bronze__orders,fct_sales:stg_bronze__orders',
-        expected_validation_results: 'STG-001',
+        expected_validation_result_details: 'STG-001=dbt build --select stg_bronze__orders int_sales_orders fct_sales',
       },
     });
 
@@ -86,7 +86,7 @@ test('fails when an applied staging candidate output model is missing', () => {
         plan_file: 'docs/design/plan.md',
         expected_candidate_statuses: 'STG-001:applied',
         expected_output_terms: 'applied,stg_bronze__orders',
-        expected_validation_results: 'STG-001',
+        expected_validation_result_details: 'STG-001=dbt build --select stg_bronze__orders int_sales_orders',
       },
     });
 
@@ -116,7 +116,7 @@ test('fails when an applied candidate omits validation result detail', () => {
         plan_file: 'docs/design/plan.md',
         expected_candidate_statuses: 'STG-001:applied',
         expected_output_terms: 'applied,stg_bronze__orders',
-        expected_validation_results: 'STG-001',
+        expected_validation_result_details: 'STG-001=dbt build --select stg_bronze__orders int_sales_orders',
       },
     });
 
@@ -149,7 +149,7 @@ test('fails when a declared consumer is not rewired to the staging model', () =>
         expected_candidate_statuses: 'STG-001:applied',
         expected_output_terms: 'applied,stg_bronze__orders',
         expected_consumer_refs: 'int_sales_orders:stg_bronze__orders',
-        expected_validation_results: 'STG-001',
+        expected_validation_result_details: 'STG-001=dbt build --select stg_bronze__orders int_sales_orders',
       },
     });
 
@@ -179,7 +179,7 @@ test('passes when blocked candidates record a blocked reason', () => {
         plan_file: 'docs/design/plan.md',
         expected_candidate_statuses: 'STG-003:blocked',
         expected_output_terms: 'blocked',
-        expected_blocked_reasons: 'STG-003',
+        expected_blocked_reason_details: 'STG-003=missing staging output path',
       },
     });
 
