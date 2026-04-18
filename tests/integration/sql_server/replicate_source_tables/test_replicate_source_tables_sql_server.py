@@ -183,14 +183,15 @@ def _prepare_source_table(schema_name: str, table_name: str) -> None:
         )
 
 
-def _prepare_target_table(schema_name: str, table_name: str) -> None:
+def _prepare_target_table(schema_name: str, table_name: str, *, reject_positive_ids: bool = False) -> None:
     with _target_connection() as conn:
         cursor = conn.cursor()
         _drop_table_and_schema(conn, schema_name, table_name)
         _ensure_schema_or_skip(cursor, schema_name)
+        check_constraint = " CHECK ([id] < 0)" if reject_positive_ids else ""
         cursor.execute(
             f"CREATE TABLE [{schema_name}].[{table_name}] "
-            "([id] INT NOT NULL, [name] NVARCHAR(64) NULL)"
+            f"([id] INT NOT NULL{check_constraint}, [name] NVARCHAR(64) NULL)"
         )
         cursor.execute(
             f"INSERT INTO [{schema_name}].[{table_name}] ([id], [name]) VALUES (?, ?)",
@@ -240,6 +241,35 @@ def test_replicate_source_tables_copies_10k_rows_with_truncate_load(tmp_path: Pa
             MAX_REPLICATE_LIMIT,
             0,
         )
+    finally:
+        with _source_admin_connection() as conn:
+            _drop_table_and_schema(conn, source_schema, table_name)
+        with _target_connection() as conn:
+            _drop_table_and_schema(conn, target_schema, table_name)
+
+
+def test_replicate_source_tables_rolls_back_target_replace_failure(tmp_path: Path) -> None:
+    _require_sql_server_target_env()
+    suffix = uuid.uuid4().hex[:8]
+    source_schema = f"rst_src_{suffix}"
+    target_schema = f"rst_tgt_{suffix}"
+    table_name = "ReplicateFail"
+    _write_project(tmp_path, source_schema, target_schema, table_name)
+
+    try:
+        _prepare_source_table(source_schema, table_name)
+        _prepare_target_table(target_schema, table_name, reject_positive_ids=True)
+
+        result = run_replicate_source_tables(
+            tmp_path,
+            limit=10,
+            select=[f"{source_schema}.{table_name}"],
+        )
+
+        assert result.status == "error"
+        assert result.tables[0].status == "error"
+        assert result.tables[0].error
+        assert _read_target_summary(target_schema, table_name) == (1, -1, -1, 1)
     finally:
         with _source_admin_connection() as conn:
             _drop_table_and_schema(conn, source_schema, table_name)

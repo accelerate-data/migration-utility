@@ -203,6 +203,36 @@ class SqlServerOperations(DatabaseOperations):
         finally:
             conn.close()
 
+    def replace_table_rows(
+        self,
+        schema_name: str,
+        table_name: str,
+        columns: list[str],
+        rows: list[tuple[object, ...]],
+    ) -> int:
+        self._validate_identifier(schema_name)
+        self._validate_identifier(table_name)
+        for column in columns:
+            self._validate_identifier(column)
+        column_list = ", ".join(f"[{column}]" for column in columns)
+        placeholders = ", ".join("?" for _ in columns)
+        insert_sql = f"INSERT INTO [{schema_name}].[{table_name}] ({column_list}) VALUES ({placeholders})"
+        conn = self._connect()
+        conn.autocommit = False
+        try:
+            cursor = conn.cursor()
+            cursor.execute(f"DELETE FROM [{schema_name}].[{table_name}]")
+            if rows:
+                cursor.fast_executemany = True
+                cursor.executemany(insert_sql, rows)
+            conn.commit()
+            return len(rows)
+        except Exception:
+            conn.rollback()
+            raise
+        finally:
+            conn.close()
+
     def _map_type(self, source_type: str) -> str:
         normalized = source_type.upper().strip()
         if normalized:

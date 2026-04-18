@@ -102,6 +102,16 @@ class DatabaseOperations(ABC):
     ) -> int:
         """Insert rows into one physical table and return the inserted row count."""
 
+    @abstractmethod
+    def replace_table_rows(
+        self,
+        schema_name: str,
+        table_name: str,
+        columns: list[str],
+        rows: list[tuple[object, ...]],
+    ) -> int:
+        """Atomically replace rows in one physical table and return the inserted row count."""
+
     def _read_secret(self, env_var_name: str | None) -> str | None:
         if not env_var_name:
             return None

@@ -48,6 +48,15 @@ class ReplicationAdapter(Protocol):
     ) -> int:
         """Insert rows and return the inserted row count."""
 
+    def replace_table_rows(
+        self,
+        schema_name: str,
+        table_name: str,
+        columns: list[str],
+        rows: list[tuple[object, ...]],
+    ) -> int:
+        """Atomically replace rows and return the inserted row count."""
+
 
 @dataclass(frozen=True)
 class SourceTablePlan:
@@ -226,8 +235,7 @@ def run_replicate_source_tables(
                 columns=plan.columns,
                 order_by_columns=plan.order_by_columns,
             )
-            target.truncate_table(plan.target_schema, plan.target_table)
-            copied = target.insert_rows(plan.target_schema, plan.target_table, columns, rows)
+            copied = target.replace_table_rows(plan.target_schema, plan.target_table, columns, rows)
         except Exception as exc:
             logger.warning(
                 "event=replicate_source_table status=failure table=%s error_type=%s",

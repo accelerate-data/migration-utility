@@ -312,6 +312,53 @@ def test_sql_server_truncate_and_insert_rows_use_parameterized_statements() -> N
     assert conn.close.call_count == 2
 
 
+def test_sql_server_replace_table_rows_commits_delete_and_insert_in_one_transaction() -> None:
+    role = RuntimeRole(
+        technology="sql_server",
+        dialect="tsql",
+        connection=RuntimeConnection(database="WarehouseOne"),
+    )
+    adapter = get_dbops("sql_server").from_role(role)
+    cursor = MagicMock()
+    conn = MagicMock()
+    conn.cursor.return_value = cursor
+    adapter._connect = MagicMock(return_value=conn)  # type: ignore[attr-defined]
+
+    inserted = adapter.replace_table_rows("bronze", "Customer", ["id", "name"], [(1, "Alice")])
+
+    assert inserted == 1
+    assert conn.autocommit is False
+    assert cursor.execute.call_args_list[0].args == ("DELETE FROM [bronze].[Customer]",)
+    cursor.executemany.assert_called_once_with(
+        "INSERT INTO [bronze].[Customer] ([id], [name]) VALUES (?, ?)",
+        [(1, "Alice")],
+    )
+    conn.commit.assert_called_once()
+    conn.rollback.assert_not_called()
+    conn.close.assert_called_once()
+
+
+def test_sql_server_replace_table_rows_rolls_back_on_insert_failure() -> None:
+    role = RuntimeRole(
+        technology="sql_server",
+        dialect="tsql",
+        connection=RuntimeConnection(database="WarehouseOne"),
+    )
+    adapter = get_dbops("sql_server").from_role(role)
+    cursor = MagicMock()
+    cursor.executemany.side_effect = RuntimeError("insert failed")
+    conn = MagicMock()
+    conn.cursor.return_value = cursor
+    adapter._connect = MagicMock(return_value=conn)  # type: ignore[attr-defined]
+
+    with pytest.raises(RuntimeError, match="insert failed"):
+        adapter.replace_table_rows("bronze", "Customer", ["id"], [(1,)])
+
+    conn.commit.assert_not_called()
+    conn.rollback.assert_called_once()
+    conn.close.assert_called_once()
+
+
 def test_sql_server_fetch_source_rows_uses_explicit_order_columns() -> None:
     role = RuntimeRole(
         technology="sql_server",
@@ -404,6 +451,66 @@ def test_oracle_truncate_and_insert_rows_use_parameterized_statements(monkeypatc
     )
     assert conn.commit.call_count == 2
     assert conn.close.call_count == 2
+
+
+def test_oracle_replace_table_rows_commits_delete_and_insert_in_one_transaction(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setenv("ORACLE_PWD", "secret")
+    role = RuntimeRole(
+        technology="oracle",
+        dialect="oracle",
+        connection=RuntimeConnection(
+            service="TARGETPDB",
+            user="system",
+            password_env="ORACLE_PWD",
+        ),
+    )
+    adapter = get_dbops("oracle").from_role(role)
+    cursor = MagicMock()
+    conn = MagicMock()
+    conn.cursor.return_value = cursor
+    adapter._connect = MagicMock(return_value=conn)  # type: ignore[attr-defined]
+
+    inserted = adapter.replace_table_rows("BRONZE", "CUSTOMER", ["ID", "NAME"], [(1, "Alice")])
+
+    assert inserted == 1
+    assert cursor.execute.call_args_list[0].args == ('DELETE FROM "BRONZE"."CUSTOMER"',)
+    cursor.executemany.assert_called_once_with(
+        'INSERT INTO "BRONZE"."CUSTOMER" ("ID", "NAME") VALUES (:1, :2)',
+        [(1, "Alice")],
+    )
+    conn.commit.assert_called_once()
+    conn.rollback.assert_not_called()
+    conn.close.assert_called_once()
+
+
+def test_oracle_replace_table_rows_rolls_back_on_insert_failure(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setenv("ORACLE_PWD", "secret")
+    role = RuntimeRole(
+        technology="oracle",
+        dialect="oracle",
+        connection=RuntimeConnection(
+            service="TARGETPDB",
+            user="system",
+            password_env="ORACLE_PWD",
+        ),
+    )
+    adapter = get_dbops("oracle").from_role(role)
+    cursor = MagicMock()
+    cursor.executemany.side_effect = RuntimeError("insert failed")
+    conn = MagicMock()
+    conn.cursor.return_value = cursor
+    adapter._connect = MagicMock(return_value=conn)  # type: ignore[attr-defined]
+
+    with pytest.raises(RuntimeError, match="insert failed"):
+        adapter.replace_table_rows("BRONZE", "CUSTOMER", ["ID"], [(1,)])
+
+    conn.commit.assert_not_called()
+    conn.rollback.assert_called_once()
+    conn.close.assert_called_once()
 
 
 def test_oracle_fetch_source_rows_uses_explicit_order_columns(monkeypatch: pytest.MonkeyPatch) -> None:

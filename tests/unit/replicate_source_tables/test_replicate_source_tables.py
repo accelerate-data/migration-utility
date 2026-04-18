@@ -79,6 +79,7 @@ class RecordingAdapter:
         self.failures: set[str] = set()
         self.truncate_failures: set[str] = set()
         self.insert_failures: set[str] = set()
+        self.replace_failures: set[str] = set()
         self.calls: list[tuple[object, ...]] = []
 
     @classmethod
@@ -118,6 +119,19 @@ class RecordingAdapter:
         self.calls.append(("insert", schema_name, table_name, columns, rows))
         if key in self.insert_failures:
             raise ValueError(f"insert failed for {key}")
+        return len(rows)
+
+    def replace_table_rows(
+        self,
+        schema_name: str,
+        table_name: str,
+        columns: list[str],
+        rows: list[tuple[object, ...]],
+    ) -> int:
+        key = f"{schema_name.lower()}.{table_name.lower()}"
+        self.calls.append(("replace", schema_name, table_name, columns, rows))
+        if key in self.replace_failures:
+            raise ValueError(f"replace failed for {key}")
         return len(rows)
 
 
@@ -178,8 +192,7 @@ def test_select_exclude_and_filters_shape_execution_plan(tmp_path: Path):
     assert [table.fqn for table in result.tables] == ["silver.dimcustomer"]
     assert result.tables[0].predicate == "id >= 10"
     assert source.calls == [("fetch", "silver", "DimCustomer", 25, "id >= 10", ["id", "name"], ["id", "name"])]
-    assert target.calls[0] == ("truncate", "bronze", "DimCustomer")
-    assert target.calls[1][0:4] == ("insert", "bronze", "DimCustomer", ["id", "name"])
+    assert target.calls[0][0:4] == ("replace", "bronze", "DimCustomer", ["id", "name"])
 
 
 def test_multi_table_run_continues_after_per_table_failure(tmp_path: Path):
@@ -210,7 +223,7 @@ def test_multi_table_run_continues_after_per_table_failure(tmp_path: Path):
     assert ("fetch", "silver", "FactSales", 10, None, ["id", "name"], ["id", "name"]) in source.calls
 
 
-def test_multi_table_run_continues_after_target_truncate_failure(tmp_path: Path):
+def test_multi_table_run_continues_after_target_replace_failure(tmp_path: Path):
     from shared.replicate_source_tables import run_replicate_source_tables
 
     _write_project(tmp_path)
@@ -220,7 +233,7 @@ def test_multi_table_run_continues_after_target_truncate_failure(tmp_path: Path)
     target = RecordingAdapter(
         RuntimeRole(technology="sql_server", dialect="tsql", connection=RuntimeConnection(database="TargetDB"))
     )
-    target.truncate_failures.add("bronze.dimcustomer")
+    target.replace_failures.add("bronze.dimcustomer")
 
     result = run_replicate_source_tables(
         tmp_path,
@@ -234,37 +247,8 @@ def test_multi_table_run_continues_after_target_truncate_failure(tmp_path: Path)
         ("silver.dimcustomer", "error"),
         ("silver.factsales", "ok"),
     ]
-    assert "truncate failed" in (result.tables[0].error or "")
-    assert ("truncate", "bronze", "FactSales") in target.calls
-
-
-def test_multi_table_run_continues_after_target_insert_failure(tmp_path: Path):
-    from shared.replicate_source_tables import run_replicate_source_tables
-
-    _write_project(tmp_path)
-    source = RecordingAdapter(
-        RuntimeRole(technology="sql_server", dialect="tsql", connection=RuntimeConnection(database="SourceDB"))
-    )
-    target = RecordingAdapter(
-        RuntimeRole(technology="sql_server", dialect="tsql", connection=RuntimeConnection(database="TargetDB"))
-    )
-    target.insert_failures.add("bronze.dimcustomer")
-
-    result = run_replicate_source_tables(
-        tmp_path,
-        limit=10,
-        source_adapter=source,
-        target_adapter=target,
-    )
-
-    assert result.status == "error"
-    assert [(table.fqn, table.status) for table in result.tables] == [
-        ("silver.dimcustomer", "error"),
-        ("silver.factsales", "ok"),
-    ]
-    assert "insert failed" in (result.tables[0].error or "")
-    assert ("truncate", "bronze", "DimCustomer") in target.calls
-    assert ("truncate", "bronze", "FactSales") in target.calls
+    assert "replace failed" in (result.tables[0].error or "")
+    assert ("replace", "bronze", "FactSales", ["id", "name"], [(1, "Alice")]) in target.calls
 
 
 def test_runtime_roles_construct_source_and_target_adapters(tmp_path: Path, monkeypatch: pytest.MonkeyPatch):
@@ -288,7 +272,7 @@ def test_runtime_roles_construct_source_and_target_adapters(tmp_path: Path, monk
     assert [role.connection.database for role, _root, _adapter in created] == ["SourceDB", "TargetDB"]
     assert [root for _role, root, _adapter in created] == [tmp_path, tmp_path]
     target_adapter = created[1][2]
-    assert ("truncate", "bronze", "DimCustomer") in target_adapter.calls
+    assert ("replace", "bronze", "DimCustomer", ["id", "name"], [(1, "Alice")]) in target_adapter.calls
 
 
 def test_unorderable_source_columns_are_not_used_for_capped_read_ordering(tmp_path: Path):

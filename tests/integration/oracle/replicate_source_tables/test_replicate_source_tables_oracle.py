@@ -170,15 +170,16 @@ def _prepare_source_table(schema_name: str, table_name: str) -> None:
         conn.commit()
 
 
-def _prepare_target_table(schema_name: str, table_name: str) -> None:
+def _prepare_target_table(schema_name: str, table_name: str, *, reject_positive_ids: bool = False) -> None:
     _ensure_target_schema(schema_name)
     with _target_connection() as conn:
         _drop_table(conn, schema_name, table_name)
         cursor = conn.cursor()
+        check_constraint = ' CHECK ("ID" < 0)' if reject_positive_ids else ""
         try:
             cursor.execute(
                 f'CREATE TABLE "{schema_name}"."{table_name}" '
-                '("ID" NUMBER(10) NOT NULL, "NAME" VARCHAR2(64) NULL)'
+                f'("ID" NUMBER(10) NOT NULL{check_constraint}, "NAME" VARCHAR2(64) NULL)'
             )
         except oracledb.DatabaseError as exc:
             pytest.skip(f"Oracle target user cannot create replication test table: {exc}")
@@ -229,6 +230,34 @@ def test_replicate_source_tables_copies_10k_rows_with_truncate_load(tmp_path: Pa
             MAX_REPLICATE_LIMIT,
             0,
         )
+    finally:
+        with _source_connection() as conn:
+            _drop_table(conn, source_schema, table_name)
+        with _target_connection() as conn:
+            _drop_table(conn, target_schema, table_name)
+
+
+def test_replicate_source_tables_rolls_back_target_replace_failure(tmp_path: Path) -> None:
+    _require_oracle_target_env()
+    source_schema = os.environ["SOURCE_ORACLE_USER"].upper()
+    target_schema = TARGET_SCHEMA
+    table_name = f"RSTFAIL{uuid.uuid4().hex[:8].upper()}"
+    _write_project(tmp_path, source_schema, target_schema, table_name)
+
+    try:
+        _prepare_source_table(source_schema, table_name)
+        _prepare_target_table(target_schema, table_name, reject_positive_ids=True)
+
+        result = run_replicate_source_tables(
+            tmp_path,
+            limit=10,
+            select=[f"{source_schema}.{table_name}"],
+        )
+
+        assert result.status == "error"
+        assert result.tables[0].status == "error"
+        assert result.tables[0].error
+        assert _read_target_summary(target_schema, table_name) == (1, -1, -1, 1)
     finally:
         with _source_connection() as conn:
             _drop_table(conn, source_schema, table_name)
