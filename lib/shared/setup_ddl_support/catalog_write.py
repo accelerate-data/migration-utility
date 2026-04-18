@@ -8,6 +8,7 @@ from pathlib import Path
 
 from shared.catalog import write_json as write_catalog_json
 from shared.env_config import resolve_catalog_dir
+from shared.loader_data import CorruptJSONError
 from shared.runtime_config import get_runtime_role
 from shared.setup_ddl_support.staging_io import load_staging_catalog_inputs
 from shared.setup_ddl_support.staging_signals import build_catalog_write_inputs
@@ -102,7 +103,10 @@ def _catalog_type_technologies(project_root: Path) -> tuple[str, str]:
     manifest_path = project_root / "manifest.json"
     if not manifest_path.exists():
         return "sql_server", "sql_server"
-    manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
+    try:
+        manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
+    except json.JSONDecodeError as exc:
+        raise CorruptJSONError(manifest_path, exc) from exc
     source_role = get_runtime_role(manifest, "source")
     target_role = get_runtime_role(manifest, "target")
     source_technology = (

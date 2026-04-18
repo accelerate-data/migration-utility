@@ -8,6 +8,7 @@ from pathlib import Path
 import pytest
 oracledb = pytest.importorskip("oracledb", reason="oracledb not installed")
 
+from shared.loader_data import CorruptJSONError
 from shared.setup_ddl_support.catalog_write import _catalog_type_technologies
 from tests.helpers import run_setup_ddl_cli as _run_cli
 
@@ -180,8 +181,36 @@ class TestWriteCatalog:
     def test_catalog_type_technologies_rejects_malformed_manifest(self, tmp_path):
         (tmp_path / "manifest.json").write_text("{not json", encoding="utf-8")
 
-        with pytest.raises(json.JSONDecodeError):
+        with pytest.raises(CorruptJSONError):
             _catalog_type_technologies(tmp_path)
+
+    def test_write_catalog_malformed_manifest_exits_without_traceback(self, tmp_path):
+        staging = tmp_path / "staging"
+        output = tmp_path / "output"
+        output.mkdir()
+        (output / "manifest.json").write_text("{not json", encoding="utf-8")
+        _write_json(staging / "table_columns.json", [])
+        _write_json(staging / "pk_unique.json", [])
+        _write_json(staging / "foreign_keys.json", [])
+        _write_json(staging / "identity_columns.json", [])
+        _write_json(staging / "cdc.json", [])
+        _write_json(staging / "object_types.json", [])
+        _write_json(staging / "definitions.json", [])
+        _write_json(staging / "proc_dmf.json", [])
+        _write_json(staging / "view_dmf.json", [])
+        _write_json(staging / "func_dmf.json", [])
+        _write_json(staging / "proc_params.json", [])
+
+        result = _run_cli([
+            "write-catalog",
+            "--staging-dir", str(staging),
+            "--project-root", str(output),
+            "--database", "TestDB",
+        ])
+
+        assert result.returncode == 2
+        assert "Corrupt JSON in" in result.stderr
+        assert "Traceback" not in result.stderr
 
     def test_writes_catalog_from_staging(self, tmp_path):
         staging = tmp_path / "staging"
