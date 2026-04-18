@@ -6,8 +6,14 @@ import json
 import logging
 from pathlib import Path
 
-from shared.catalog import write_json as write_catalog_json
+from shared.catalog import (
+    restore_enriched_fields,
+    snapshot_enriched_fields,
+    write_json as write_catalog_json,
+)
 from shared.env_config import resolve_catalog_dir
+from shared.loader_data import CorruptJSONError
+from shared.runtime_config import get_runtime_role
 from shared.setup_ddl_support.staging_io import load_staging_catalog_inputs
 from shared.setup_ddl_support.staging_signals import build_catalog_write_inputs
 
@@ -91,13 +97,38 @@ def ensure_catalog_subdirectories(project_root: Path) -> None:
         (catalog_dir / subdir).mkdir(parents=True, exist_ok=True)
 
 
+def _catalog_type_technologies(project_root: Path) -> tuple[str, str]:
+    """Return source and target technologies for catalog type rendering."""
+    manifest_path = project_root / "manifest.json"
+    if not manifest_path.exists():
+        raise ValueError("manifest.json not found. Run /init-ad-migration to initialise the project.")
+    try:
+        manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
+    except json.JSONDecodeError as exc:
+        raise CorruptJSONError(manifest_path, exc) from exc
+    source_role = get_runtime_role(manifest, "source")
+    target_role = get_runtime_role(manifest, "target")
+    if source_role is None:
+        raise ValueError("manifest.json has no source technology configured. Run /init-ad-migration.")
+    if target_role is None:
+        raise ValueError(
+            "manifest.json has no target technology configured. Run setup-target before setup-ddl write-catalog."
+        )
+    return source_role.technology, target_role.technology
+
+
 def run_write_catalog(staging_dir: Path, project_root: Path, database: str) -> dict[str, object]:
     from shared.catalog import detect_catalog_bucket
     from shared.catalog_diff import classify_objects, compute_object_hashes, load_existing_hashes
     from shared.catalog_dmf import write_catalog_files
 
     staging_inputs = load_staging_catalog_inputs(staging_dir)
-    derived_inputs = build_catalog_write_inputs(staging_inputs)
+    source_technology, target_technology = _catalog_type_technologies(project_root)
+    derived_inputs = build_catalog_write_inputs(
+        staging_inputs,
+        source_technology=source_technology,
+        target_technology=target_technology,
+    )
     fresh_hashes = compute_object_hashes(
         staging_inputs["definitions_rows"],
         derived_inputs["table_signals"],
@@ -115,6 +146,7 @@ def run_write_catalog(staging_dir: Path, project_root: Path, database: str) -> d
     early_written_paths.extend(reclassify_materialized_views(project_root, derived_inputs["mv_fqns"]))
     ensure_catalog_subdirectories(project_root)
     write_filter = diff.changed | diff.new
+    enriched_snapshot = snapshot_enriched_fields(project_root)
     counts = write_catalog_files(
         project_root,
         table_signals=derived_inputs["table_signals"],
@@ -133,6 +165,7 @@ def run_write_catalog(staging_dir: Path, project_root: Path, database: str) -> d
         subtypes=derived_inputs["function_subtypes"],
         long_truncation_fqns=derived_inputs["long_truncation_fqns"],
     )
+    restore_enriched_fields(project_root, enriched_snapshot)
     counts["unchanged"] = len(diff.unchanged)
     counts["changed"] = len(diff.changed)
     counts["new"] = len(diff.new)

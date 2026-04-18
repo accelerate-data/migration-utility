@@ -601,8 +601,20 @@ END
         """When a source is a view, source_columns falls back to catalog/views/<fqn>.json."""
         view_fqn = "silver.vw_currency"
         view_columns = [
-            {"name": "CurrencyCode", "data_type": "NCHAR(3)"},
-            {"name": "CurrencyName", "data_type": "NVARCHAR(50)"},
+            {
+                "name": "CurrencyCode",
+                "source_sql_type": "NCHAR(6)",
+                "canonical_tsql_type": "NCHAR(3)",
+                "sql_type": "NCHAR(3)",
+                "data_type": "NCHAR(6)",
+            },
+            {
+                "name": "CurrencyName",
+                "source_sql_type": "NVARCHAR(100)",
+                "canonical_tsql_type": "NVARCHAR(50)",
+                "sql_type": "NVARCHAR(50)",
+                "type": "NVARCHAR(100)",
+            },
         ]
 
         # Write view catalog (no table catalog for this FQN)
@@ -642,7 +654,15 @@ END
             {
                 "schema": "silver",
                 "name": "factcurrencyrate",
-                "columns": [{"name": "CurrencyCode", "data_type": "NCHAR(3)"}],
+                "columns": [
+                    {
+                        "name": "CurrencyCode",
+                        "source_sql_type": "NCHAR(6)",
+                        "canonical_tsql_type": "NCHAR(3)",
+                        "sql_type": "NCHAR(3)",
+                        "data_type": "NCHAR(6)",
+                    }
+                ],
                 "profile": {
                     "status": "ok",
                     "classification": {"resolved_kind": "fact_transaction", "source": "catalog"},
@@ -660,7 +680,11 @@ END
 
         assert result.source_columns is not None
         assert "silver.vw_currency" in result.source_columns
-        assert result.source_columns["silver.vw_currency"] == view_columns
+        assert result.source_columns["silver.vw_currency"] == [
+            {"name": "CurrencyCode", "sql_type": "NCHAR(3)"},
+            {"name": "CurrencyName", "sql_type": "NVARCHAR(50)"},
+        ]
+        assert result.columns == [{"name": "CurrencyCode", "sql_type": "NCHAR(3)"}]
 
 
 class TestRunContextViewSources:

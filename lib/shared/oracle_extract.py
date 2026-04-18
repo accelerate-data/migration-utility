@@ -139,7 +139,7 @@ def _extract_table_columns(conn: Any, schemas: list[str]) -> list[dict[str, Any]
     cur.execute(
         f"""
         SELECT OWNER, TABLE_NAME, COLUMN_NAME, COLUMN_ID, DATA_TYPE,
-               DATA_LENGTH, DATA_PRECISION, DATA_SCALE, NULLABLE, IDENTITY_COLUMN
+               DATA_LENGTH, CHAR_LENGTH, DATA_PRECISION, DATA_SCALE, NULLABLE, IDENTITY_COLUMN
         FROM ALL_TAB_COLUMNS
         WHERE OWNER IN ({owners})
         ORDER BY OWNER, TABLE_NAME, COLUMN_ID
@@ -153,7 +153,7 @@ def _extract_table_columns(conn: Any, schemas: list[str]) -> list[dict[str, Any]
             "column_name": row["COLUMN_NAME"],
             "column_id": row["COLUMN_ID"],
             "type_name": row["DATA_TYPE"],
-            "max_length": row["DATA_LENGTH"] if row["DATA_LENGTH"] is not None else 0,
+            "max_length": _oracle_column_length(row),
             "precision": row["DATA_PRECISION"] if row["DATA_PRECISION"] is not None else 0,
             "scale": row["DATA_SCALE"] if row["DATA_SCALE"] is not None else 0,
             "is_nullable": 1 if row["NULLABLE"] == "Y" else 0,
@@ -162,6 +162,15 @@ def _extract_table_columns(conn: Any, schemas: list[str]) -> list[dict[str, Any]
             "increment_value": None,
         })
     return rows
+
+
+def _oracle_column_length(row: dict[str, Any]) -> int:
+    type_name = str(row.get("DATA_TYPE") or "").upper()
+    if type_name in {"VARCHAR2", "NVARCHAR2", "CHAR", "NCHAR"}:
+        value = row.get("CHAR_LENGTH")
+    else:
+        value = row.get("DATA_LENGTH")
+    return int(value) if value is not None else 0
 
 
 def _extract_pk_unique(conn: Any, schemas: list[str]) -> list[dict[str, Any]]:

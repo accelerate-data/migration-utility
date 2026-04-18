@@ -154,6 +154,56 @@ def test_context_happy_path() -> None:
     assert result.sandbox["database"] == "SBX_ABC123000000"
 
 
+def test_context_columns_expose_only_target_sql_type() -> None:
+    """Refactor context hides source/debug/legacy type fields for target and source columns."""
+    tmp, root = _make_writable_copy()
+    with tmp:
+        target_path = root / "catalog" / "tables" / "silver.dimcustomer.json"
+        target_cat = json.loads(target_path.read_text(encoding="utf-8"))
+        target_cat["columns"][0].update(
+            {
+                "type": "NUMBER",
+                "data_type": "NUMBER(10,0)",
+                "source_sql_type": "NUMBER(10,0)",
+                "canonical_tsql_type": "INT",
+                "sql_type": "INT",
+            }
+        )
+        target_path.write_text(json.dumps(target_cat), encoding="utf-8")
+
+        source_path = root / "catalog" / "tables" / "bronze.customerraw.json"
+        source_path.write_text(
+            json.dumps(
+                {
+                    "schema": "bronze",
+                    "name": "customerraw",
+                    "columns": [
+                        {
+                            "name": "CustomerID",
+                            "type": "NUMBER",
+                            "data_type": "NUMBER(10,0)",
+                            "source_sql_type": "NUMBER(10,0)",
+                            "canonical_tsql_type": "INT",
+                            "sql_type": "INT",
+                        }
+                    ],
+                }
+            ),
+            encoding="utf-8",
+        )
+
+        result = refactor.run_context(root, "silver.DimCustomer")
+
+    assert result.columns[0]["sql_type"] == "INT"
+    assert set(result.columns[0]) <= {"name", "sql_type", "is_nullable", "is_identity", "max_length", "precision", "scale"}
+    source_column = result.source_columns["bronze.customerraw"][0]
+    assert source_column["sql_type"] == "INT"
+    assert "source_sql_type" not in source_column
+    assert "canonical_tsql_type" not in source_column
+    assert "data_type" not in source_column
+    assert "type" not in source_column
+
+
 def test_context_missing_writer() -> None:
     """Context raises ValueError when no writer in catalog and none provided."""
     tmp = tempfile.TemporaryDirectory()

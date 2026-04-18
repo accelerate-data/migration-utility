@@ -72,6 +72,33 @@ def test_context_rich_catalog_columns() -> None:
     assert "load_date" in col_names
 
 
+def test_context_columns_expose_only_target_sql_type() -> None:
+    """Context columns hide source/debug/legacy type fields from prompt inputs."""
+    tmp, root = _make_writable_copy()
+    with tmp:
+        table_path = root / "catalog" / "tables" / "silver.factsales.json"
+        cat = json.loads(table_path.read_text(encoding="utf-8"))
+        cat["columns"][0].update(
+            {
+                "type": "NUMBER",
+                "data_type": "NUMBER(10,0)",
+                "source_sql_type": "NUMBER(10,0)",
+                "canonical_tsql_type": "INT",
+                "sql_type": "INT",
+            }
+        )
+        table_path.write_text(json.dumps(cat), encoding="utf-8")
+
+        result = profile.run_context(root, "silver.FactSales", "dbo.usp_load_fact_sales")
+
+    column = result.columns[0].model_dump(exclude_none=True)
+    assert column["sql_type"] == "INT"
+    assert "source_sql_type" not in column
+    assert "canonical_tsql_type" not in column
+    assert "data_type" not in column
+    assert "type" not in column
+
+
 def test_context_rich_catalog_writer_references() -> None:
     """Context includes writer procedure references."""
     result = profile.run_context(
@@ -661,6 +688,33 @@ def test_view_context_mv_includes_columns() -> None:
     col_names = [c.name for c in result.columns]
     assert "month_key" in col_names
     assert "total_amount" in col_names
+
+
+def test_view_context_mv_columns_expose_only_target_sql_type() -> None:
+    """Materialized view context hides source/debug/legacy type fields."""
+    tmp, root = _make_writable_copy()
+    with tmp:
+        view_path = root / "catalog" / "views" / "silver.mv_monthly.json"
+        cat = json.loads(view_path.read_text(encoding="utf-8"))
+        cat["columns"][0].update(
+            {
+                "type": "NUMBER",
+                "data_type": "NUMBER(10,0)",
+                "source_sql_type": "NUMBER(10,0)",
+                "canonical_tsql_type": "INT",
+                "sql_type": "INT",
+            }
+        )
+        view_path.write_text(json.dumps(cat), encoding="utf-8")
+
+        result = profile.run_view_context(root, "silver.mv_Monthly")
+
+    column = result.columns[0].model_dump(exclude_none=True)
+    assert column["sql_type"] == "INT"
+    assert "source_sql_type" not in column
+    assert "canonical_tsql_type" not in column
+    assert "data_type" not in column
+    assert "type" not in column
 
 
 def test_view_context_non_mv_no_columns() -> None:

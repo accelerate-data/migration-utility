@@ -241,6 +241,40 @@ def test_apply_target_source_tables_creates_missing_tables_via_adapter(tmp_path:
     assert result.existing_tables == []
 
 
+def test_apply_target_source_tables_uses_target_sql_type(tmp_path: Path) -> None:
+    project_root = _make_sql_server_project(tmp_path)
+    (project_root / "catalog" / "tables").mkdir(parents=True)
+    (project_root / "catalog" / "tables" / "silver.customer.json").write_text(
+        json.dumps(
+            {
+                "schema": "silver",
+                "name": "Customer",
+                "is_source": True,
+                "columns": [
+                    {
+                        "name": "id",
+                        "source_sql_type": "NUMBER(10,0)",
+                        "canonical_tsql_type": "INT",
+                        "sql_type": "INT",
+                        "data_type": "NUMBER(10,0)",
+                        "is_nullable": False,
+                    }
+                ],
+            }
+        ),
+        encoding="utf-8",
+    )
+    adapter = MagicMock()
+    adapter.list_source_tables.return_value = set()
+
+    with patch("shared.target_setup.get_dbops") as mock_get_dbops:
+        mock_get_dbops.return_value.from_role.return_value = adapter
+        apply_target_source_tables(project_root)
+
+    created_columns = adapter.create_source_table.call_args.args[2]
+    assert created_columns[0].source_type == "INT"
+
+
 def test_apply_target_source_tables_is_idempotent(tmp_path: Path) -> None:
     project_root = _make_sql_server_project(tmp_path)
     _seed_catalog_table(project_root, "Customer")
@@ -310,6 +344,40 @@ def test_export_seed_tables_writes_seed_csv_from_source_table(tmp_path: Path) ->
         "  - name: name\n"
         "    data_type: NVARCHAR(50)\n"
     )
+
+
+def test_export_seed_tables_uses_target_sql_type_in_seed_yml(tmp_path: Path) -> None:
+    project_root = _make_sql_server_project(tmp_path)
+    (project_root / "catalog" / "tables").mkdir(parents=True)
+    (project_root / "catalog" / "tables" / "silver.customertype.json").write_text(
+        json.dumps(
+            {
+                "schema": "silver",
+                "name": "CustomerType",
+                "is_seed": True,
+                "columns": [
+                    {
+                        "name": "id",
+                        "source_sql_type": "NUMBER(10,0)",
+                        "canonical_tsql_type": "INT",
+                        "sql_type": "INT",
+                        "data_type": "NUMBER(10,0)",
+                    }
+                ],
+            }
+        ),
+        encoding="utf-8",
+    )
+    adapter = MagicMock()
+    adapter.read_table_rows.return_value = (["id"], [(1,)])
+
+    with patch("shared.target_setup.get_dbops") as mock_get_dbops:
+        mock_get_dbops.return_value.from_role.return_value = adapter
+        export_seed_tables(project_root)
+
+    seed_yml_path = project_root / "dbt" / "seeds" / "_seeds.yml"
+    assert "data_type: INT" in seed_yml_path.read_text(encoding="utf-8")
+    assert "NUMBER(10,0)" not in seed_yml_path.read_text(encoding="utf-8")
 
 
 def test_export_seed_tables_preserves_oracle_source_schema_case(tmp_path: Path) -> None:
