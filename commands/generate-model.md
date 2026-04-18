@@ -2,15 +2,15 @@
 name: generate-model
 description: >
   Batch model generation command — generates dbt models from stored procedures.
-  Delegates per-item generation to the /generating-model skill with
-  /reviewing-model review loop.
+  Coordinates generation, review, unit-test setup, and unit-test repair stages
+  via focused sub-agents.
 user-invocable: true
 argument-hint: "<schema.table> [schema.table ...]"
 ---
 
 # Generate Model
 
-Generate dbt models for a batch of tables. Launches one sub-agent per table in parallel, each running `/generating-model`. Review runs via `/reviewing-model` with a maximum of 2 iterations per item.
+Generate dbt models for a batch of tables. Coordinates four stages — generation, review, unit-test setup, and unit-test repair — each delegated to focused sub-agents whose prompts live in `references/`.
 
 ## Guards
 
@@ -30,7 +30,7 @@ Per-item readiness is checked by the skill via `migrate-util ready` (which enfor
 
 ## Progress Tracking
 
-Use `TaskCreate` and `TaskUpdate` to show live progress. At the start of Step 2, create one task per table or view with status `pending`. Update each task to `in_progress` before it starts processing, and to `completed` (ok/partial result) or `cancelled` (error — include the error code) after its final step completes (Step 3 commit, or the last step at which the item is abandoned).
+Use `TaskCreate` and `TaskUpdate` to show live progress. At the start of Step 2, create one task per table or view with status `pending`. Update each task to `in_progress` before it starts processing, and to `completed` (ok/partial result) or `cancelled` (error — include the error code) after its final step completes (Step 5 commit/revert, or the last step at which the item is abandoned).
 
 ## Pipeline
 
@@ -44,16 +44,15 @@ Use `TaskCreate` and `TaskUpdate` to show live progress. At the start of Step 2,
    - Otherwise: use the returned path as the working directory for all file writes and git operations in this run. Set `<working-directory>` to the returned path.
 3. Generate a run ID in the form `<epoch_ms>-<random_8hex>` (for example `1743868200123-a1b2c3d4`). All run artifacts use this as the filename suffix.
 
-### Step 2 — Execute generation
+### Step 2 — Stage 1: Generate
 
 Create `.migration-runs/` first if it does not already exist.
 
 **Workflow-exempt source and seed check:** For each item, read
 `catalog/tables/<fqn>.json` before any idempotency check or model generation.
 If the catalog marks the table as a source or seed, do not invoke
-`/generating-model` or `/reviewing-model` for that item. Write one of these
-skip results to `.migration-runs/<schema.table>.<run_id>.json` and continue to
-the next item:
+`/generating-model` for that item. Write one of these skip results to
+`.migration-runs/<schema.table>.<run_id>.json` and continue to the next item:
 
 ```json
 {"item_id": "<fqn>", "status": "skipped", "output": {"skipped": true, "reason": "is_source", "message": "<fqn> is marked as a dbt source -- no migration needed. Use `ad-migration add-source-table` to manage source tables."}}
@@ -66,7 +65,7 @@ the next item:
 **Idempotency check:** For each non-source, non-seed item, read
 `catalog/tables/<fqn>.json`. If `generate.status == "ok"` and the user did not
 explicitly request a rerun, skip fresh generation but still carry the item into
-Step 3 review using the existing written artifacts. Write a skip result:
+Stage 2 review using the existing written artifacts. Write a skip result:
 
 ```json
 {"item_id": "<fqn>", "status": "ok", "output": {"skipped": true, "reason": "model_already_generated"}}
@@ -74,33 +73,51 @@ Step 3 review using the existing written artifacts. Write a skip result:
 
 This skip means "reuse existing artifacts for review," not "bypass the quality gate."
 
-**Single-table path (1 table):** Run `/generating-model` directly in the current conversation — do not launch a sub-agent. After the skill completes, write the item result JSON (see Item Result Schema) to `.migration-runs/<schema.table>.<run_id>.json`. Then continue to Step 3.
+**Prompt:** Read [references/generation-agent-prompt.md](references/generation-agent-prompt.md). Substitute `<schema.table>`, `<working-directory>`, and `<run_id>` before dispatching.
 
-**Multi-table path (2+ tables):** Launch one sub-agent per table in parallel for items that still need fresh generation. Items that passed the idempotency check above write the skip result immediately, then continue to Step 3 review. Each sub-agent receives this prompt:
+**Single-table path (1 table):** Run `/generating-model` directly in the current conversation following the generation-agent-prompt instructions. Write the item result JSON (see Item Result Schema) to `.migration-runs/<schema.table>.<run_id>.json`. Then continue to Stage 2.
 
-```text
-Run /generating-model for <schema.table>.
-The working directory is <working-directory>.
-Equivalence warnings: proceed and write the model. Record each gap as EQUIVALENCE_GAP warning.
-dbt compile/build failure: attempt up to 3 self-corrections. If still failing, write as-is with DBT_TEST_FAILED warning.
-Write the item result JSON to .migration-runs/<schema.table>.<run_id>.json.
-On failure, write result with status: "error" and error details.
-Return the item result JSON.
-```
+**Multi-table path (2+ tables):** Launch one sub-agent per table in parallel for items that still need fresh generation. Items that passed the idempotency check above write the skip result immediately and skip to Stage 2. Each sub-agent follows the generation-agent-prompt.
 
-### Step 3 — Review model
+Generation sub-agents run `/generating-model` and write their item result JSON only. The parent command owns review, unit-test setup, unit-test repair, and commit/revert.
 
-For each item, read `.migration-runs/<item_id>.<run_id>.json` from Step 2. If
-`status` is `error` or `skipped`, skip review for that item. For each remaining
-item, invoke `/reviewing-model <item_id>`, including items whose Step 2 result
-was an idempotency skip.
+### Step 3 — Stage 2: Review
 
-- If verdict is `approved`: proceed to commit/revert below.
-- If Step 2 was a skip and review returns `error` because the persisted artifacts are missing or stale, invoke `/generating-model <item_id>` once to rebuild the artifacts, then invoke `/reviewing-model <item_id>` again.
-- `revision_requested`: invoke `/generating-model <item_id>` with the reviewer's `feedback_for_model_generator` as additional context (pass it via `ModelGenerationHandoff.revision_feedback`). The model-generator must re-run dbt validation with `dbt build` after revisions. Then invoke `/reviewing-model <item_id>` again. Maximum 2 review iterations per item.
-- On review failure or max iterations reached: approve with warnings and proceed to commit/revert below.
+For each item, read `.migration-runs/<item_id>.<run_id>.json` from Stage 1. If
+`status` is `error` or `skipped`, skip review for that item and carry it forward to Stage 3.
+For each remaining item, run the review flow for that item, including items whose Stage 1 result was an idempotency skip.
 
-Once the review outcome is final for an item, derive `<model_name>` from item_id.
+If a Stage 1 idempotency-skip item's review returns `error` because persisted artifacts are missing or stale, invoke `/generating-model <item_id>` once to rebuild them, then retry review.
+
+**Prompt:** Read [references/review-agent-prompt.md](references/review-agent-prompt.md). Substitute `<schema.table>`, `<working-directory>`, and `<run_id>` before dispatching.
+
+**Single-table path (1 table):** Run the review flow directly in the current conversation following the review-agent-prompt instructions. Update the item result JSON with the final review verdict. Then continue to Stage 3.
+
+**Multi-table path (2+ tables):** Launch one review sub-agent per eligible item in parallel. Each sub-agent follows the review-agent-prompt and updates the item result JSON.
+
+### Step 4 — Stage 3: Unit-test setup
+
+Read each item result from `.migration-runs/<item_id>.<run_id>.json`. Collect the subset of items where `output.generated.model_yaml.has_unit_tests` is `true` and `status` is not `error`. If none, skip this stage and proceed to Step 5.
+
+**Prompt:** Read [references/unit-test-setup-agent-prompt.md](references/unit-test-setup-agent-prompt.md). Substitute `<model_names>` (space-separated `model_name` values for the collected items), `<working-directory>`, and `<run_id>` before dispatching.
+
+**Single-table path (1 table):** Run the setup inline following the unit-test-setup-agent-prompt instructions if the item has unit tests; otherwise skip.
+
+**Multi-table path (2+ tables):** Dispatch one setup sub-agent for the entire collected list. The sub-agent resolves direct parents for all models and materialises them in a single `dbt run --empty` call.
+
+### Step 5 — Stage 4: Unit-test repair and commit
+
+For each item where `output.generated.model_yaml.has_unit_tests` is `true` and `status` is not `error`:
+
+**Prompt:** Read [references/unit-test-repair-agent-prompt.md](references/unit-test-repair-agent-prompt.md). Substitute `<schema.table>`, `<model_name>`, `<working-directory>`, and `<run_id>` before dispatching.
+
+**Single-table path (1 table):** Run the repair flow directly in the current conversation following the unit-test-repair-agent-prompt instructions if the item has unit tests; otherwise skip.
+
+**Multi-table path (2+ tables):** Launch one repair sub-agent per eligible item in parallel. Each sub-agent follows the unit-test-repair-agent-prompt and updates `execution.dbt_test_passed` in the item result JSON.
+
+**Commit/revert (all items):** Once all repair agents complete (and immediately for items that had no unit tests and completed Stage 2), apply per item:
+
+Derive `<model_name>` from item_id.
 
 If the item final status is `error`, revert any files the skill may have partially written:
 
@@ -128,9 +145,7 @@ Use `rm -f` instead of `git checkout` for newly created files with no prior vers
 
 If the item final status is not `error`, stage the generated dbt files, create a checkpoint commit, and push the current branch.
 
-In multi-table runs, the parent command owns review and commit/revert after each generation result is written. Generation sub-agents only run `/generating-model` and write their item result JSON.
-
-### Step 4 — Summarize
+### Step 6 — Summarize
 
 1. Read each `.migration-runs/<schema.table>.<run_id>.json`.
 2. Write `.migration-runs/summary.<run_id>.json` with `{total, ok, partial, error, skipped}` counts and per-item status.
