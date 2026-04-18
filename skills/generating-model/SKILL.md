@@ -41,7 +41,7 @@ Do not use this skill for batch orchestration. `/generate-model` owns batching, 
 - Missing confirmed staging wrapper: return `status: "error"` with `GENERATION_FAILED`.
 - Do not create or mutate test-spec scenarios. Report uncovered logic as warnings for `/generate-tests`.
 
-Return exactly one `ModelGenerationOutput`. Use `execution.dbt_test_passed` for the `dbt build` result. For snapshots, `artifact_paths` must use the CLI-returned `snapshots/...` paths.
+Return exactly one `ModelGenerationOutput`. Set `execution.dbt_compile_passed` from the compile result and `execution.dbt_test_passed: false` — unit-test execution is owned by the `/generate-model` repair stage. For snapshots, `artifact_paths` must use the CLI-returned `snapshots/...` paths.
 
 ## Happy Path
 
@@ -111,9 +111,9 @@ Return exactly one `ModelGenerationOutput`. Use `execution.dbt_test_passed` for 
    success; rewrite through the correct mart path or return `status: "error"`
    with `GENERATION_FAILED`.
 
-8. Validate with dbt using the manifest runtime roles.
+8. Compile-validate with dbt using the manifest runtime roles.
 
-   Follow [validation.md](references/validation.md). Use `dbt build`, not `dbt test` alone. Record it in `execution.dbt_test_passed`.
+   Follow [validation.md](references/validation.md). Use `dbt compile` only — do not run `dbt build` or `dbt test`. Record the compile result in `execution.dbt_compile_passed`. Set `execution.dbt_test_passed: false`; unit-test execution is owned by the `/generate-model` unit-test repair stage.
 
 9. Record test gaps without mutating approved specs.
 
@@ -151,5 +151,5 @@ The generator owns generation facts, not reviewer judgment.
 - [../../lib/shared/generate_model_error_codes.md](../../lib/shared/generate_model_error_codes.md) — canonical statuses and surfaced codes
 - [references/context-selection.md](references/context-selection.md) — source SQL selection and equivalence checks
 - [references/artifact-writing.md](references/artifact-writing.md) — unit tests, CLI writes, and catalog status
-- [references/validation.md](references/validation.md) — dbt compile/build/parse handling
+- [references/validation.md](references/validation.md) — dbt compile and parse handling
 - [references/snapshot-generation.md](references/snapshot-generation.md) — snapshot-specific generation rules
