@@ -18,6 +18,7 @@ class GenerateSourcesOutput(BaseModel):
     excluded: list[str]
     unconfirmed: list[str]
     incomplete: list[str]
+    generated_model_names: list[str] = Field(default_factory=list)
     path: str | None = None
     written_paths: list[str] = Field(default_factory=list)
     error: str | None = None

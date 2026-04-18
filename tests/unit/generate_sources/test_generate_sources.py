@@ -438,6 +438,106 @@ def test_write_sources_yml_writes_enriched_yaml_idempotently(tmp_path: Path) -> 
     assert "name: stg_bronze__order" in staging_models_content
 
 
+def test_write_sources_yml_adds_staging_contracts_and_baseline_unit_tests(tmp_path: Path) -> None:
+    """Generated staging YAML enforces contracts and full-shape passthrough unit tests."""
+    tables_dir = tmp_path / "catalog" / "tables"
+    tables_dir.mkdir(parents=True)
+    (tables_dir / "bronze.customer.json").write_text(
+        json.dumps({
+            "schema": "bronze",
+            "name": "Customer",
+            "scoping": {"status": "no_writer_found"},
+            "is_source": True,
+            "columns": [
+                {"name": "customer_id", "sql_type": "INT", "is_nullable": False},
+                {"name": "email", "sql_type": "NVARCHAR(255)", "is_nullable": True},
+                {"name": "loaded_at", "sql_type": "DATETIME2", "is_nullable": False},
+            ],
+            "primary_keys": [{"constraint_name": "PK_Customer", "columns": ["customer_id"]}],
+        }),
+        encoding="utf-8",
+    )
+
+    result = write_sources_yml(tmp_path)
+
+    staging_models_path = tmp_path / "dbt" / "models" / "staging" / "_staging__models.yml"
+    staging_models = yaml.safe_load(staging_models_path.read_text(encoding="utf-8"))
+    assert result.error is None
+    assert result.generated_model_names == ["stg_bronze__customer"]
+    assert staging_models["models"] == [
+        {
+            "name": "stg_bronze__customer",
+            "description": "Pass-through staging wrapper for bronze.Customer",
+            "config": {"contract": {"enforced": True}},
+            "columns": [
+                {"name": "customer_id", "data_type": "INT"},
+                {"name": "email", "data_type": "NVARCHAR(255)"},
+                {"name": "loaded_at", "data_type": "DATETIME2"},
+            ],
+        }
+    ]
+    assert staging_models["unit_tests"] == [
+        {
+            "name": "test_stg_bronze__customer_passthrough",
+            "model": "stg_bronze__customer",
+            "given": [
+                {
+                    "input": "source('bronze', 'Customer')",
+                    "rows": [
+                        {
+                            "customer_id": 1,
+                            "email": "sample_email",
+                            "loaded_at": "2020-01-01 00:00:00",
+                        }
+                    ],
+                }
+            ],
+            "expect": {
+                "rows": [
+                    {
+                        "customer_id": 1,
+                        "email": "sample_email",
+                        "loaded_at": "2020-01-01 00:00:00",
+                    }
+                ]
+            },
+        }
+    ]
+
+
+def test_write_sources_yml_fails_when_staging_contract_type_is_missing(tmp_path: Path) -> None:
+    """Generated staging contracts require target-normalized catalog sql_type."""
+    tables_dir = tmp_path / "catalog" / "tables"
+    tables_dir.mkdir(parents=True)
+    (tables_dir / "bronze.customer.json").write_text(
+        json.dumps({
+            "schema": "bronze",
+            "name": "Customer",
+            "scoping": {"status": "no_writer_found"},
+            "is_source": True,
+            "columns": [
+                {
+                    "name": "customer_id",
+                    "data_type": "NUMBER(10,0)",
+                    "is_nullable": False,
+                }
+            ],
+        }),
+        encoding="utf-8",
+    )
+
+    result = write_sources_yml(tmp_path)
+
+    assert result.sources is None
+    assert result.error == "STAGING_CONTRACT_TYPE_MISSING"
+    assert result.message == (
+        "Cannot generate staging contract for bronze.Customer.customer_id: "
+        "catalog column is missing target-normalized sql_type"
+    )
+    assert result.written_paths == []
+    assert not (tmp_path / "dbt" / "models" / "staging" / "_staging__models.yml").exists()
+
+
 def test_write_sources_yml_does_not_copy_source_tests_to_staging_models(
     tmp_path: Path,
 ) -> None:
@@ -521,9 +621,10 @@ def test_write_sources_yml_removes_stale_staging_wrappers(tmp_path: Path) -> Non
     write_sources_yml(tmp_path)
     assert customer_wrapper_path.exists()
     assert not order_wrapper_path.exists()
-    assert "name: Order" not in (
-        staging_dir / "_staging__sources.yml"
-    ).read_text(encoding="utf-8")
+    assert "name: Order" not in (staging_dir / "_staging__sources.yml").read_text(encoding="utf-8")
+    staging_models = yaml.safe_load((staging_dir / "_staging__models.yml").read_text(encoding="utf-8"))
+    assert [model["name"] for model in staging_models["models"]] == ["stg_bronze__customer"]
+    assert [test["model"] for test in staging_models["unit_tests"]] == ["stg_bronze__customer"]
 
 
 def test_write_sources_yml_removes_source_artifacts_when_no_sources_remain(tmp_path: Path) -> None:

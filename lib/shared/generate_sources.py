@@ -22,9 +22,9 @@ from pathlib import Path
 from typing import Any
 
 import typer
-import yaml
-
 from shared.cli_utils import emit
+from shared.dbt_artifacts import dump_schema_yaml
+from shared.dbt_artifacts import replace_model_unit_tests
 from shared.env_config import (
     resolve_catalog_dir,
     resolve_dbt_project_path,
@@ -108,6 +108,14 @@ def list_confirmed_source_tables(project_root: Path) -> list[str]:
 
 def _column_data_type(column: dict[str, Any]) -> str | None:
     value = column.get("sql_type") or column.get("data_type") or column.get("type")
+    if value is None:
+        return None
+    text = str(value).strip()
+    return text or None
+
+
+def _column_sql_type(column: dict[str, Any]) -> str | None:
+    value = column.get("sql_type")
     if value is None:
         return None
     text = str(value).strip()
@@ -296,6 +304,39 @@ def _validate_source_namespace(candidates: _SourceCandidates) -> GenerateSources
     return None
 
 
+def _validate_staging_contract_types(candidates: _SourceCandidates) -> GenerateSourcesOutput | None:
+    """Ensure generated staging contracts use target-normalized catalog types."""
+    for cat in candidates.source_tables:
+        schema_name = str(cat.get("schema", "")).lower()
+        table_name = str(cat.get("name", ""))
+        for column in cat.get("columns", []):
+            if not isinstance(column, dict) or not column.get("name"):
+                continue
+            if _column_sql_type(column):
+                continue
+            column_name = str(column["name"])
+            fqn = f"{schema_name}.{table_name}.{column_name}"
+            message = (
+                f"Cannot generate staging contract for {fqn}: catalog column is "
+                "missing target-normalized sql_type"
+            )
+            logger.error(
+                "event=generate_sources_staging_contract_type_missing table=%s column=%s",
+                f"{schema_name}.{table_name}",
+                column_name,
+            )
+            return GenerateSourcesOutput(
+                sources=None,
+                included=candidates.included,
+                excluded=candidates.excluded,
+                unconfirmed=candidates.unconfirmed,
+                incomplete=candidates.incomplete,
+                error="STAGING_CONTRACT_TYPE_MISSING",
+                message=message,
+            )
+    return None
+
+
 def _build_sources_yaml(
     source_tables: list[dict[str, Any]],
     *,
@@ -345,6 +386,7 @@ def generate_sources(
     project_root: Path,
     *,
     source_schema_override: str | None = None,
+    require_staging_contract_types: bool = False,
 ) -> GenerateSourcesOutput:
     """Build sources.yml content from catalog tables.
 
@@ -384,6 +426,11 @@ def generate_sources(
     if namespace_error is not None:
         return namespace_error
 
+    if require_staging_contract_types:
+        contract_type_error = _validate_staging_contract_types(candidates)
+        if contract_type_error is not None:
+            return contract_type_error
+
     physical_source_schema = _resolve_physical_source_schema(
         project_root,
         source_schema_override,
@@ -419,6 +466,40 @@ def _staging_model_columns(columns: list[Any]) -> list[dict[str, Any]]:
     return staging_columns
 
 
+def _sample_unit_test_value(column: dict[str, Any]) -> Any:
+    column_name = str(column.get("name", "value")).strip().lower() or "value"
+    data_type = str(column.get("data_type", "")).upper()
+    if any(token in data_type for token in ("CHAR", "TEXT", "STRING", "CLOB")):
+        return f"sample_{column_name}"
+    if any(token in data_type for token in ("DATE", "TIME")):
+        return "2020-01-01 00:00:00"
+    if any(token in data_type for token in ("DECIMAL", "NUMERIC", "NUMBER", "FLOAT", "DOUBLE", "REAL")):
+        return 1.0
+    if any(token in data_type for token in ("INT", "BIGINT", "SMALLINT", "TINYINT", "BYTEINT")):
+        return 1
+    if "BOOL" in data_type or data_type == "BIT":
+        return True
+    return f"sample_{column_name}"
+
+
+def _staging_unit_test_for_table(table_name: str, columns: list[dict[str, Any]]) -> dict[str, Any]:
+    model_name = _staging_model_name(table_name)
+    row = {str(column["name"]): _sample_unit_test_value(column) for column in columns}
+    return {
+        "name": f"test_{model_name}_passthrough",
+        "model": model_name,
+        "given": [
+            {
+                "input": f"source('bronze', '{table_name}')",
+                "rows": [row],
+            }
+        ],
+        "expect": {
+            "rows": [row],
+        },
+    }
+
+
 def _render_staging_wrapper(table_name: str) -> str:
     return (
         "with\n"
@@ -444,7 +525,8 @@ def _staging_models_from_sources(sources: dict[str, Any]) -> dict[str, Any]:
     if not isinstance(source_entries, list):
         return {"version": 2, "models": []}
 
-    models: list[dict[str, Any]] = []
+    schema: dict[str, Any] = {"version": 2, "models": []}
+    models: list[dict[str, Any]] = schema["models"]
     for source in source_entries:
         if not isinstance(source, dict):
             continue
@@ -455,14 +537,21 @@ def _staging_models_from_sources(sources: dict[str, Any]) -> dict[str, Any]:
             model_entry: dict[str, Any] = {
                 "name": _staging_model_name(table_name),
                 "description": f"Pass-through staging wrapper for bronze.{table_name}",
+                "config": {"contract": {"enforced": True}},
             }
             columns = table.get("columns")
+            model_columns: list[dict[str, Any]] = []
             if isinstance(columns, list) and columns:
                 model_columns = _staging_model_columns(columns)
                 if model_columns:
                     model_entry["columns"] = model_columns
             models.append(model_entry)
-    return {"version": 2, "models": models}
+            replace_model_unit_tests(
+                schema,
+                model_name=model_entry["name"],
+                unit_tests=[_staging_unit_test_for_table(table_name, model_columns)],
+            )
+    return schema
 
 
 def _cleanup_stale_staging_wrappers(staging_dir: Path, expected_wrapper_names: set[str]) -> list[Path]:
@@ -483,14 +572,7 @@ def _cleanup_stale_staging_wrappers(staging_dir: Path, expected_wrapper_names: s
 
 
 def _dump_yaml(path: Path, data: dict[str, Any]) -> None:
-    with path.open("w", encoding="utf-8") as f:
-        yaml.dump(
-            data,
-            f,
-            default_flow_style=False,
-            sort_keys=False,
-            allow_unicode=True,
-        )
+    path.write_text(dump_schema_yaml(data), encoding="utf-8")
 
 
 def _remove_source_artifacts(staging_dir: Path, yaml_paths: tuple[Path, ...]) -> list[Path]:
@@ -538,6 +620,7 @@ def write_sources_yml(
     result = generate_sources(
         project_root,
         source_schema_override=source_schema_override,
+        require_staging_contract_types=True,
     )
     dbt_root = resolve_dbt_project_path(project_root)
     staging_dir = dbt_root / "models" / "staging"
@@ -545,6 +628,8 @@ def write_sources_yml(
     models_path = staging_dir / "_staging__models.yml"
 
     if result.sources is None:
+        if result.error:
+            return result.model_copy(update={"path": None, "written_paths": []})
         removed_paths = _remove_source_artifacts(staging_dir, (sources_path, models_path))
         return result.model_copy(
             update={
@@ -555,9 +640,15 @@ def write_sources_yml(
 
     staging_dir.mkdir(parents=True, exist_ok=True)
     _dump_yaml(sources_path, result.sources)
-    _dump_yaml(models_path, _staging_models_from_sources(result.sources))
+    staging_models = _staging_models_from_sources(result.sources)
+    _dump_yaml(models_path, staging_models)
     expected_wrapper_names = _write_staging_wrapper_files(staging_dir, result.sources)
     removed_paths = _cleanup_stale_staging_wrappers(staging_dir, expected_wrapper_names)
+    generated_model_names = [
+        str(model["name"])
+        for model in staging_models.get("models", [])
+        if isinstance(model, dict) and model.get("name")
+    ]
     written_paths = [
         str(sources_path.relative_to(project_root)),
         str(models_path.relative_to(project_root)),
@@ -568,7 +659,13 @@ def write_sources_yml(
         *(str(path.relative_to(project_root)) for path in removed_paths),
     ]
 
-    return result.model_copy(update={"path": str(sources_path), "written_paths": written_paths})
+    return result.model_copy(
+        update={
+            "path": str(sources_path),
+            "written_paths": written_paths,
+            "generated_model_names": generated_model_names,
+        }
+    )
 
 
 @app.command()
