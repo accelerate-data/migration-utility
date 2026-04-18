@@ -113,6 +113,19 @@ def test_sql_server_datetime_maps_to_target_oracle() -> None:
         ),
         (
             "oracle",
+            "oracle",
+            "NUMBER",
+            0,
+            9,
+            0,
+            {
+                "source_sql_type": "NUMBER(9,0)",
+                "canonical_tsql_type": "INT",
+                "sql_type": "NUMBER(9,0)",
+            },
+        ),
+        (
+            "oracle",
             "sql_server",
             "NUMBER",
             0,
@@ -268,5 +281,18 @@ def test_unsupported_target_technology_raises_mapping_error() -> None:
             type_name="int",
             max_length=4,
             precision=10,
+            scale=0,
+        )
+
+
+@pytest.mark.parametrize("type_name", ["nvarchar", "varbinary"])
+def test_sql_server_max_type_to_oracle_raises_mapping_error(type_name: str) -> None:
+    with pytest.raises(sql_types.TypeMappingError, match="Unsupported Oracle target length"):
+        sql_types.map_catalog_column_type(
+            source_technology="sql_server",
+            target_technology="oracle",
+            type_name=type_name,
+            max_length=-1,
+            precision=0,
             scale=0,
         )

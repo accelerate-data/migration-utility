@@ -104,6 +104,8 @@ class TestExtractOracleUnit:
         mock_cur.fetchall.return_value = [
             ("SH", "CUSTOMERS", "NAME", 1, "NVARCHAR2", 80, 20, None, None, "Y", "NO"),
             ("SH", "CUSTOMERS", "TOKEN", 2, "RAW", 16, 16, None, None, "N", "NO"),
+            ("SH", "CUSTOMERS", "CODE", 3, "CHAR", 12, 3, None, None, "N", "NO"),
+            ("SH", "CUSTOMERS", "NOTE", 4, "VARCHAR2", 40, 10, None, None, "Y", "NO"),
         ]
         mock_conn = MagicMock()
         mock_conn.cursor.return_value = mock_cur
@@ -112,6 +114,8 @@ class TestExtractOracleUnit:
 
         assert result[0]["max_length"] == 20
         assert result[1]["max_length"] == 16
+        assert result[2]["max_length"] == 3
+        assert result[3]["max_length"] == 10
 
     def test_object_types_fixture_maps_to_sql_server_codes(self):
         rows = json.loads((ORACLE_FIXTURE_DIR / "object_types.json").read_text())

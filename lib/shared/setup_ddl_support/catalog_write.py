@@ -6,7 +6,11 @@ import json
 import logging
 from pathlib import Path
 
-from shared.catalog import write_json as write_catalog_json
+from shared.catalog import (
+    restore_enriched_fields,
+    snapshot_enriched_fields,
+    write_json as write_catalog_json,
+)
 from shared.env_config import resolve_catalog_dir
 from shared.loader_data import CorruptJSONError
 from shared.runtime_config import get_runtime_role
@@ -145,6 +149,7 @@ def run_write_catalog(staging_dir: Path, project_root: Path, database: str) -> d
     early_written_paths.extend(reclassify_materialized_views(project_root, derived_inputs["mv_fqns"]))
     ensure_catalog_subdirectories(project_root)
     write_filter = diff.changed | diff.new
+    enriched_snapshot = snapshot_enriched_fields(project_root)
     counts = write_catalog_files(
         project_root,
         table_signals=derived_inputs["table_signals"],
@@ -163,6 +168,7 @@ def run_write_catalog(staging_dir: Path, project_root: Path, database: str) -> d
         subtypes=derived_inputs["function_subtypes"],
         long_truncation_fqns=derived_inputs["long_truncation_fqns"],
     )
+    restore_enriched_fields(project_root, enriched_snapshot)
     counts["unchanged"] = len(diff.unchanged)
     counts["changed"] = len(diff.changed)
     counts["new"] = len(diff.new)

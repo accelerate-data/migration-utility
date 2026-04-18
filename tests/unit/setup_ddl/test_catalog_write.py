@@ -789,6 +789,16 @@ class TestWriteCatalogDiffAware:
         ])
         assert result.returncode == 0, result.stderr
 
+        table_path = output / "catalog" / "tables" / "dbo.t1.json"
+        table_cat = json.loads(table_path.read_text(encoding="utf-8"))
+        table_cat["scoping"] = {"status": "resolved", "selected_writer": "dbo.usp_a"}
+        table_cat["profile"] = {
+            "status": "ok",
+            "classification": {"resolved_kind": "dim_non_scd", "source": "catalog"},
+            "primary_key": {"columns": ["id"], "primary_key_type": "natural"},
+        }
+        table_path.write_text(json.dumps(table_cat, indent=2) + "\n", encoding="utf-8")
+
         _write_json(staging / "table_columns.json", [
             {"schema_name": "dbo", "table_name": "T1", "column_name": "id", "column_id": 1,
              "type_name": "bigint", "max_length": 8, "precision": 19, "scale": 0,
@@ -805,7 +815,7 @@ class TestWriteCatalogDiffAware:
         assert result.returncode == 0, result.stderr
         counts = json.loads(result.stdout)
         assert counts["changed"] >= 1
-        table_cat = json.loads((output / "catalog" / "tables" / "dbo.t1.json").read_text())
+        table_cat = json.loads(table_path.read_text(encoding="utf-8"))
         assert table_cat["columns"] == [
             {
                 "name": "id",
@@ -816,6 +826,8 @@ class TestWriteCatalogDiffAware:
                 "is_identity": False,
             }
         ]
+        assert table_cat["scoping"]["status"] == "resolved"
+        assert table_cat["profile"]["status"] == "ok"
 
     def test_removed_object_flagged_stale(self, tmp_path):
         staging = tmp_path / "staging"

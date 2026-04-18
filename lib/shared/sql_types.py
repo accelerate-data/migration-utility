@@ -163,11 +163,15 @@ def _render_oracle(spec: SqlTypeSpec) -> str:
             return "NUMBER"
         return f"NUMBER({spec.precision},{spec.scale or 0})"
     if name in {"VARCHAR", "NVARCHAR", "CHAR", "NCHAR"}:
+        if spec.length == "MAX":
+            raise TypeMappingError(f"Unsupported Oracle target length for {spec.name}: MAX")
         oracle_name = {"VARCHAR": "VARCHAR2", "NVARCHAR": "NVARCHAR2"}.get(name, name)
         return f"{oracle_name}({spec.length})" if spec.length is not None else oracle_name
     if name in {"BINARY", "VARBINARY", "UNIQUEIDENTIFIER"}:
         if name == "UNIQUEIDENTIFIER":
             return "RAW(16)"
+        if spec.length == "MAX":
+            raise TypeMappingError(f"Unsupported Oracle target length for {spec.name}: MAX")
         return f"RAW({spec.length})" if spec.length is not None else "RAW"
     if name == "BIT":
         return "NUMBER(1,0)"
@@ -202,8 +206,14 @@ def map_catalog_column_type(
     """Map extracted source metadata into catalog column type fields."""
     source = _source_type_spec(source_technology, type_name, max_length, precision, scale)
     canonical = _canonical_from_source(source_technology, source)
+    source_sql_type = _render_source(source_technology, source)
+    sql_type = (
+        source_sql_type
+        if source_technology == "oracle" and target_technology == "oracle"
+        else _render_target(target_technology, canonical)
+    )
     return {
-        "source_sql_type": _render_source(source_technology, source),
+        "source_sql_type": source_sql_type,
         "canonical_tsql_type": _render_tsql(canonical),
-        "sql_type": _render_target(target_technology, canonical),
+        "sql_type": sql_type,
     }
