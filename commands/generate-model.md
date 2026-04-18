@@ -48,11 +48,7 @@ Use `TaskCreate` and `TaskUpdate` to show live progress. At the start of Step 2,
 
 Create `.migration-runs/` first if it does not already exist.
 
-**Workflow-exempt source and seed check:** For each item, read
-`catalog/tables/<fqn>.json` before any idempotency check or model generation.
-If the catalog marks the table as a source or seed, do not invoke
-`/generating-model` for that item. Write one of these skip results to
-`.migration-runs/<schema.table>.<run_id>.json` and continue to the next item:
+**Workflow-exempt source and seed check:** For each item, read `catalog/tables/<fqn>.json` before any idempotency check or model generation. If the catalog marks the table as a source or seed, do not invoke `/generating-model` for that item. Write one of these skip results to `.migration-runs/<schema.table>.<run_id>.json` and continue to the next item:
 
 ```json
 {"item_id": "<fqn>", "status": "skipped", "output": {"skipped": true, "reason": "is_source", "message": "<fqn> is marked as a dbt source -- no migration needed. Use `ad-migration add-source-table` to manage source tables."}}
@@ -62,10 +58,7 @@ If the catalog marks the table as a source or seed, do not invoke
 {"item_id": "<fqn>", "status": "skipped", "output": {"skipped": true, "reason": "is_seed", "message": "<fqn> is marked as a dbt seed -- no migration needed. Use `ad-migration add-seed-table` to manage seed tables."}}
 ```
 
-**Idempotency check:** For each non-source, non-seed item, read
-`catalog/tables/<fqn>.json`. If `generate.status == "ok"` and the user did not
-explicitly request a rerun, skip fresh generation but still carry the item into
-Stage 2 review using the existing written artifacts. Write a skip result:
+**Idempotency check:** For each non-source, non-seed item, read `catalog/tables/<fqn>.json`. If `generate.status == "ok"` and the user did not explicitly request a rerun, skip fresh generation but still carry the item into Stage 2 review using the existing written artifacts. Write a skip result:
 
 ```json
 {"item_id": "<fqn>", "status": "ok", "output": {"skipped": true, "reason": "model_already_generated"}}
@@ -79,9 +72,7 @@ Launch one sub-agent per item in parallel for items that still need fresh genera
 
 ### Step 3 — Stage 2: Review
 
-For each item, read `.migration-runs/<item_id>.<run_id>.json` from Stage 1. If
-`status` is `error` or `skipped`, skip review for that item and carry it forward to Stage 3.
-For each remaining item, run the review flow for that item, including items whose Stage 1 result was an idempotency skip.
+For each item, read `.migration-runs/<item_id>.<run_id>.json` from Stage 1. If `status` is `error` or `skipped`, skip review for that item and carry it forward to Stage 3. For each remaining item, run the review flow for that item, including items whose Stage 1 result was an idempotency skip.
 
 If a Stage 1 idempotency-skip item's review returns `error` because persisted artifacts are missing or stale, invoke `/generating-model <item_id>` once to rebuild them, then retry review.
 
@@ -117,17 +108,9 @@ If the item final status is `error`, revert any files the skill may have partial
 git checkout -- dbt/models/marts/<model_name>.sql
 ```
 
-Do not run `git checkout` on shared aggregate YAML files such as
-`dbt/models/marts/_marts__models.yml` or
-`dbt/snapshots/_snapshots__models.yml`. Those files can contain sibling model
-entries from other successful items in the same run. If a failed item added an
-entry to shared YAML, remove only that model or snapshot entry by `name` and
-preserve every other entry. If entry-level cleanup cannot be performed safely,
-leave the shared YAML file unchanged and report the stale failed-item entry in
-the summary.
+Do not run `git checkout` on shared aggregate YAML files such as `dbt/models/marts/_marts__models.yml` or `dbt/snapshots/_snapshots__models.yml`. Those files can contain sibling model entries from other successful items in the same run. If a failed item added an entry to shared YAML, remove only that model or snapshot entry by `name` and preserve every other entry. If entry-level cleanup cannot be performed safely, leave the shared YAML file unchanged and report the stale failed-item entry in the summary.
 
-For snapshot artifacts, revert only the per-item snapshot SQL path returned by
-the item result:
+For snapshot artifacts, revert only the per-item snapshot SQL path returned by the item result:
 
 ```bash
 git checkout -- dbt/snapshots/<snapshot_name>.sql
@@ -174,9 +157,7 @@ If the item final status is not `error`, stage the generated dbt files, create a
 
 ## Item Result Schema
 
-For snapshots, `artifact_paths.model_sql` uses
-`snapshots/<snapshot_name>.sql` and `artifact_paths.model_yaml` uses
-`snapshots/_snapshots__models.yml`.
+For snapshots, `artifact_paths.model_sql` uses `snapshots/<snapshot_name>.sql` and `artifact_paths.model_yaml` uses `snapshots/_snapshots__models.yml`.
 
 ```json
 {

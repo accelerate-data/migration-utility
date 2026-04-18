@@ -5,8 +5,7 @@ Prompt template for the unit-test repair sub-agents launched in Stage 4 of `/gen
 ## Prompt Template
 
 ```text
-Run scoped dbt unit tests for <schema.table> and repair the generated model if they fail.
-Do not invoke /generating-model. Patch the model SQL directly.
+Run scoped dbt unit tests for <schema.table> and repair the generated model if they fail. Do not invoke /generating-model — patch the model SQL directly.
 The working directory is <working-directory>.
 The generated model name is <model_name>.
 The item result JSON is at .migration-runs/<schema.table>.<run_id>.json.
@@ -14,18 +13,11 @@ The item result JSON is at .migration-runs/<schema.table>.<run_id>.json.
 Step 1 — run unit tests:
   cd <working-directory>/dbt && dbt test --select <model_name>,test_type:unit
 
-Step 2 — if tests pass: update the item result JSON with
-  execution.dbt_test_passed: true and return.
+Step 2 — if tests pass: set execution.dbt_test_passed: true in the item result JSON and return.
 
-Step 3 — if tests fail: read the source SQL context via
-  migrate context --table <schema.table> --project-root <working-directory>
-and use the failing test output and source SQL to patch the model SQL at
-the path in the item result JSON's artifact_paths.model_sql.
+Step 3 — if tests fail: run migrate context --table <schema.table> --project-root <working-directory> and use the failing test output and source SQL to patch the model SQL at artifact_paths.model_sql.
 
 Retry the test-patch cycle up to 3 total attempts.
 
-On max attempts without passing: update the item result JSON with
-  status: "partial", execution.dbt_test_passed: false
-and add a DBT_TEST_FAILED warning.
-Return the final item result JSON.
+On max attempts without passing: set status: "partial" and execution.dbt_test_passed: false in the item result JSON, add a DBT_TEST_FAILED warning, and return.
 ```
