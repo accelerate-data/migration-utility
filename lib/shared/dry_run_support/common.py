@@ -16,6 +16,7 @@ VALID_STAGES = frozenset(
 )
 RESETTABLE_STAGES = frozenset({"scope", "profile", "generate-tests", "refactor"})
 RESET_GLOBAL_PATHS = ("catalog", "ddl", ".staging", "test-specs", "dbt")
+RESET_PRESERVE_CATALOG_PATHS = ("dbt", "test-specs", ".staging", ".migration-runs")
 RESET_GLOBAL_MANIFEST_SECTIONS = (
     "runtime.source",
     "runtime.target",

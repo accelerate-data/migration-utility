@@ -176,6 +176,42 @@ def test_reset_all_no_sandbox_delegates_to_core(tmp_path):
     assert "Review and commit the repo changes before continuing" in result.output
 
 
+def test_reset_all_preserve_catalog_delegates_to_core_and_reports_scope(tmp_path):
+    _write_manifest(tmp_path)
+    preserve_out = ResetMigrationOutput(
+        stage="all",
+        targets=[],
+        reset=[],
+        noop=[],
+        blocked=[],
+        not_found=[],
+        deleted_paths=["dbt", "test-specs", ".staging", ".migration-runs"],
+        missing_paths=[],
+        cleared_manifest_sections=[],
+        cleared_catalog_sections=[
+            "catalog/tables/silver.dimcustomer.json:table.test_gen",
+            "catalog/procedures/dbo.usp_load_dimcustomer.json:procedure.refactor",
+        ],
+    )
+    with (
+        patch("shared.cli.reset_cmd._load_manifest", return_value={}),
+        patch("shared.cli.reset_cmd._get_sandbox_name", return_value=None),
+        patch("shared.cli.reset_cmd.run_reset_migration", return_value=preserve_out) as mock_reset,
+    ):
+        result = runner.invoke(
+            app,
+            ["reset", "all", "--preserve-catalog", "--yes", "--project-root", str(tmp_path)],
+        )
+
+    assert result.exit_code == 0, result.output
+    mock_reset.assert_called_once_with(tmp_path, "all", [], preserve_catalog=True)
+    assert "Preserve-catalog Reset Summary" in result.output
+    assert "dbt" in result.output
+    assert "catalog/tables/silver.dimcustomer.json:table.test_gen" in result.output
+    assert "ddl/" not in result.output
+    assert "Run setup-target" in result.output
+
+
 def test_reset_all_with_sandbox_tears_down_before_reset(tmp_path):
     _write_manifest(tmp_path)
     mock_backend = MagicMock()

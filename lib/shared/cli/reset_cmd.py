@@ -8,6 +8,7 @@ from typing import Any
 import typer
 
 from shared.dry_run_core import RESET_GLOBAL_MANIFEST_SECTIONS, RESET_GLOBAL_PATHS, RESETTABLE_STAGES, run_reset_migration
+from shared.dry_run_support.common import RESET_PRESERVE_CATALOG_PATHS
 from shared.cli.error_handler import cli_error_handler
 from shared.cli.output import console, error, print_table, remind_review_and_commit, success, warn
 from shared.loader_io import clear_manifest_sandbox
@@ -20,6 +21,11 @@ logger = logging.getLogger(__name__)
 _GLOBAL_BLAST_RADIUS = (
     "Directories:  " + ", ".join(RESET_GLOBAL_PATHS) + "\n"
     "Manifest:     " + ", ".join(RESET_GLOBAL_MANIFEST_SECTIONS)
+)
+_PRESERVE_CATALOG_BLAST_RADIUS = (
+    "Directories:      " + ", ".join(RESET_PRESERVE_CATALOG_PATHS) + "\n"
+    "Catalog sections: table.test_gen, table.generate, table.refactor, "
+    "view.test_gen, view.generate, view.refactor, procedure.refactor"
 )
 
 
@@ -91,6 +97,11 @@ def reset(
     stage: str = typer.Argument(..., help="Pipeline stage to reset (scope|profile|generate-tests|refactor|all)"),
     fqns: list[str] = typer.Argument(default=None, help="Fully-qualified table names (not used for 'all')"),
     yes: bool = typer.Option(False, "--yes", "-y", help="Skip confirmation prompt"),
+    preserve_catalog: bool = typer.Option(
+        False,
+        "--preserve-catalog",
+        help="For reset all, preserve catalog/DDL and clear generated target state only.",
+    ),
     project_root: Path | None = typer.Option(None, "--project-root", help="Project root directory"),
 ) -> None:
     """Reset pipeline state for the given stage and objects.
@@ -107,36 +118,66 @@ def reset(
             raise typer.Exit(code=1)
 
         if not yes:
-            console.print(f"[bold red]Global reset[/bold red] will permanently delete:\n{_GLOBAL_BLAST_RADIUS}")
+            if preserve_catalog:
+                console.print(
+                    "[bold red]Preserve-catalog reset[/bold red] will permanently clear:\n"
+                    f"{_PRESERVE_CATALOG_BLAST_RADIUS}"
+                )
+            else:
+                console.print(f"[bold red]Global reset[/bold red] will permanently delete:\n{_GLOBAL_BLAST_RADIUS}")
             confirmed = typer.confirm("This cannot be undone. Continue?", default=False)
             if not confirmed:
                 console.print("Aborted.")
                 return
 
-        logger.info("event=global_reset_start component=reset_cmd stage=all")
+        logger.info(
+            "event=global_reset_start component=reset_cmd stage=all preserve_catalog=%s",
+            preserve_catalog,
+        )
 
         _teardown_sandbox_if_configured(root)
 
-        result = run_reset_migration(root, "all", [])
+        if preserve_catalog:
+            result = run_reset_migration(root, "all", [], preserve_catalog=True)
+        else:
+            result = run_reset_migration(root, "all", [])
 
         logger.info(
-            "event=global_reset_complete component=reset_cmd deleted_paths=%s missing_paths=%s cleared=%s",
-            result.deleted_paths, result.missing_paths, result.cleared_manifest_sections,
+            "event=global_reset_complete component=reset_cmd deleted_paths=%s missing_paths=%s "
+            "cleared_manifest=%s cleared_catalog=%s preserve_catalog=%s",
+            result.deleted_paths,
+            result.missing_paths,
+            result.cleared_manifest_sections,
+            result.cleared_catalog_sections,
+            preserve_catalog,
         )
 
         print_table(
-            "Global Reset Summary",
+            "Preserve-catalog Reset Summary" if preserve_catalog else "Global Reset Summary",
             [
                 ("Deleted", ", ".join(result.deleted_paths) if result.deleted_paths else "—"),
                 ("Missing", ", ".join(result.missing_paths) if result.missing_paths else "—"),
                 ("Manifest cleared", ", ".join(result.cleared_manifest_sections) if result.cleared_manifest_sections else "—"),
+                ("Catalog cleared", ", ".join(result.cleared_catalog_sections) if result.cleared_catalog_sections else "—"),
             ],
             columns=("", ""),
         )
-        success("Project reset to post-init state. Run setup-source to restart the pipeline.")
-        deleted_paths = [f"{path}/" for path in result.deleted_paths]
-        remind_review_and_commit([*deleted_paths, "manifest.json"])
+        if preserve_catalog:
+            success("Generated target state cleared. Run setup-target to recreate the dbt project.")
+            review_paths = [
+                *[f"{path}/" for path in result.deleted_paths],
+                *[entry.split(":", 1)[0] for entry in result.cleared_catalog_sections],
+            ]
+            remind_review_and_commit(review_paths)
+        else:
+            success("Project reset to post-init state. Run setup-source to restart the pipeline.")
+            deleted_paths = [f"{path}/" for path in result.deleted_paths]
+            remind_review_and_commit([*deleted_paths, "manifest.json"])
         return
+
+    if preserve_catalog:
+        error("--preserve-catalog is only supported with reset all.")
+        raise typer.Exit(code=1)
 
     if stage not in RESETTABLE_STAGES:
         error(f"Invalid stage {stage!r}. Must be one of: {', '.join(sorted(RESETTABLE_STAGES))} or 'all'")

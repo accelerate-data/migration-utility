@@ -303,6 +303,7 @@ class ResetMigrationOutput(BaseModel):
     deleted_paths: list[str] = Field(default_factory=list)
     missing_paths: list[str] = Field(default_factory=list)
     cleared_manifest_sections: list[str] = Field(default_factory=list)
+    cleared_catalog_sections: list[str] = Field(default_factory=list)
 
 
 class SyncExcludedWarningsOutput(BaseModel):

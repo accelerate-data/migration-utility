@@ -10,6 +10,7 @@ from shared.catalog import detect_catalog_bucket, write_json
 from shared.dry_run_support.common import (
     RESET_GLOBAL_MANIFEST_SECTIONS,
     RESET_GLOBAL_PATHS,
+    RESET_PRESERVE_CATALOG_PATHS,
     RESETTABLE_STAGES,
     _RESET_STAGE_SECTIONS,
     read_catalog_json,
@@ -173,7 +174,106 @@ def _run_reset_migration_all(project_root: Path) -> ResetMigrationOutput:
     )
 
 
-def run_reset_migration(project_root: Path, stage: str, fqns: list[str]) -> ResetMigrationOutput:
+_PRESERVE_CATALOG_SECTIONS_BY_BUCKET: dict[str, tuple[str, ...]] = {
+    "tables": ("test_gen", "generate", "refactor"),
+    "views": ("test_gen", "generate", "refactor"),
+    "procedures": ("refactor",),
+}
+
+_PRESERVE_CATALOG_SECTION_LABELS: dict[str, str] = {
+    "tables": "table",
+    "views": "view",
+    "procedures": "procedure",
+}
+
+
+def _load_preserve_catalog_mutations(project_root: Path) -> list[tuple[Path, dict[str, Any], list[str]]]:
+    catalog_dir = project_root / "catalog"
+    mutations: list[tuple[Path, dict[str, Any], list[str]]] = []
+
+    for bucket, section_keys in _PRESERVE_CATALOG_SECTIONS_BY_BUCKET.items():
+        bucket_dir = catalog_dir / bucket
+        if not bucket_dir.is_dir():
+            continue
+        label = _PRESERVE_CATALOG_SECTION_LABELS[bucket]
+        for path in sorted(bucket_dir.glob("*.json")):
+            data = read_catalog_json(path)
+            cleared = [f"{path.relative_to(project_root)}:{label}.{key}" for key in section_keys if key in data]
+            if not cleared:
+                continue
+            for key in section_keys:
+                data.pop(key, None)
+            mutations.append((path, data, cleared))
+
+    if (catalog_dir / "functions").is_dir():
+        for path in sorted((catalog_dir / "functions").glob("*.json")):
+            read_catalog_json(path)
+
+    return mutations
+
+
+def _run_reset_migration_all_preserve_catalog(project_root: Path) -> ResetMigrationOutput:
+    mutations = _load_preserve_catalog_mutations(project_root)
+    deleted_paths: list[str] = []
+    missing_paths: list[str] = []
+    cleared_catalog_sections: list[str] = []
+
+    for path, data, cleared in mutations:
+        write_json(path, data)
+        cleared_catalog_sections.extend(cleared)
+        logger.info(
+            "event=reset_migration_preserve_catalog_sections_cleared "
+            "component=reset_migration operation=run_reset_migration path=%s sections=%s",
+            path.relative_to(project_root),
+            cleared,
+        )
+
+    for relative_path in RESET_PRESERVE_CATALOG_PATHS:
+        path = project_root / relative_path
+        if _delete_tree_if_present(path):
+            deleted_paths.append(relative_path)
+            logger.info(
+                "event=reset_migration_preserve_catalog_path_deleted component=reset_migration "
+                "operation=run_reset_migration path=%s",
+                relative_path,
+            )
+        else:
+            missing_paths.append(relative_path)
+            logger.warning(
+                "event=reset_migration_preserve_catalog_path_missing component=reset_migration "
+                "operation=run_reset_migration path=%s",
+                relative_path,
+            )
+
+    logger.info(
+        "event=reset_migration_preserve_catalog_complete component=reset_migration "
+        "operation=run_reset_migration deleted_paths=%s missing_paths=%s "
+        "cleared_catalog_sections=%s",
+        deleted_paths,
+        missing_paths,
+        cleared_catalog_sections,
+    )
+
+    return ResetMigrationOutput(
+        stage="all",
+        targets=[],
+        reset=[],
+        noop=[],
+        blocked=[],
+        not_found=[],
+        deleted_paths=deleted_paths,
+        missing_paths=missing_paths,
+        cleared_catalog_sections=cleared_catalog_sections,
+    )
+
+
+def run_reset_migration(
+    project_root: Path,
+    stage: str,
+    fqns: list[str],
+    *,
+    preserve_catalog: bool = False,
+) -> ResetMigrationOutput:
     """Reset pre-model migration state for one or more selected tables.
 
     The command is intentionally limited to pre-model stages. If any selected
@@ -183,7 +283,11 @@ def run_reset_migration(project_root: Path, stage: str, fqns: list[str]) -> Rese
     if stage == "all":
         if fqns:
             raise ValueError("global reset stage 'all' does not accept table arguments")
+        if preserve_catalog:
+            return _run_reset_migration_all_preserve_catalog(project_root)
         return _run_reset_migration_all(project_root)
+    if preserve_catalog:
+        raise ValueError("--preserve-catalog is only supported with global reset stage 'all'")
 
     if stage not in RESETTABLE_STAGES:
         raise ValueError(f"Unsupported reset stage: {stage}")

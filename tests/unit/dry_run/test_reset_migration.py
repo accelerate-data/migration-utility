@@ -6,6 +6,7 @@ from pathlib import Path
 import pytest
 
 from shared import dry_run
+from shared.loader_data import CatalogLoadError
 from tests.unit.dry_run.dry_run_test_helpers import (
     _cli_runner,
     _make_reset_project,
@@ -213,6 +214,126 @@ def test_run_reset_migration_all_reports_missing_paths_as_noop(tmp_path: Path) -
     assert (dst / "ddl").exists() is False
     assert (dst / ".staging").exists() is False
     assert (dst / "dbt").exists() is False
+
+def test_run_reset_migration_all_preserve_catalog_clears_generated_state_only(tmp_path: Path) -> None:
+    dst = _make_reset_project(tmp_path)
+    manifest = json.loads((dst / "manifest.json").read_text(encoding="utf-8"))
+    manifest["runtime"] = {
+        "source": {"technology": "sql_server", "dialect": "tsql"},
+        "target": {
+            "technology": "sql_server",
+            "dialect": "tsql",
+            "connection": {"host": "target.example", "password_env": "TARGET_PASSWORD"},
+        },
+        "sandbox": {"technology": "sql_server", "dialect": "tsql"},
+    }
+    manifest["extraction"] = {"schemas": ["silver"], "extracted_at": "2026-04-01T00:00:00Z"}
+    manifest["init_handoff"] = {"timestamp": "2026-04-01T00:00:00Z"}
+    (dst / "manifest.json").write_text(json.dumps(manifest), encoding="utf-8")
+    (dst / "ddl").mkdir()
+    (dst / "ddl" / "procedures.sql").write_text("create procedure dbo.p as select 1;", encoding="utf-8")
+    (dst / ".staging").mkdir()
+    (dst / ".staging" / "state.json").write_text("{}", encoding="utf-8")
+    (dst / ".migration-runs").mkdir()
+    (dst / ".migration-runs" / "run.json").write_text("{}", encoding="utf-8")
+    (dst / "dbt" / "models" / "staging").mkdir(parents=True)
+    (dst / "dbt" / "models" / "staging" / "stg_customer.sql").write_text("select 1;", encoding="utf-8")
+
+    table_path = dst / "catalog" / "tables" / "silver.dimcustomer.json"
+    table_cat = json.loads(table_path.read_text(encoding="utf-8"))
+    table_cat["generate"] = {"status": "ok", "path": "dbt/models/marts/dim_customer.sql"}
+    table_cat["refactor"] = {"status": "ok"}
+    table_cat["columns"] = [{"name": "CustomerKey", "data_type": "int"}]
+    table_path.write_text(json.dumps(table_cat), encoding="utf-8")
+
+    (dst / "catalog" / "views").mkdir()
+    view_path = dst / "catalog" / "views" / "silver.vw_customer.json"
+    view_cat = {
+        "schema": "silver",
+        "name": "vw_customer",
+        "columns": [{"name": "CustomerKey", "data_type": "int"}],
+        "references": {"tables": {"in_scope": ["silver.dimcustomer"], "out_of_scope": []}},
+        "scoping": {"status": "resolved"},
+        "profile": {"status": "ok"},
+        "test_gen": {"status": "ok"},
+        "generate": {"status": "ok"},
+        "refactor": {"status": "ok"},
+    }
+    view_path.write_text(json.dumps(view_cat), encoding="utf-8")
+
+    (dst / "catalog" / "functions").mkdir()
+    function_path = dst / "catalog" / "functions" / "dbo.fn_customer.json"
+    function_cat = {
+        "schema": "dbo",
+        "name": "fn_customer",
+        "references": {"tables": {"in_scope": ["silver.dimcustomer"], "out_of_scope": []}},
+        "refactor": {"status": "must remain"},
+    }
+    function_path.write_text(json.dumps(function_cat), encoding="utf-8")
+
+    result = dry_run.run_reset_migration(dst, "all", [], preserve_catalog=True)
+
+    assert result.deleted_paths == ["dbt", "test-specs", ".staging", ".migration-runs"]
+    assert result.missing_paths == []
+    assert result.cleared_manifest_sections == []
+    assert result.cleared_catalog_sections == [
+        "catalog/tables/silver.dimcustomer.json:table.test_gen",
+        "catalog/tables/silver.dimcustomer.json:table.generate",
+        "catalog/tables/silver.dimcustomer.json:table.refactor",
+        "catalog/tables/silver.dimproduct.json:table.test_gen",
+        "catalog/views/silver.vw_customer.json:view.test_gen",
+        "catalog/views/silver.vw_customer.json:view.generate",
+        "catalog/views/silver.vw_customer.json:view.refactor",
+        "catalog/procedures/dbo.usp_load_dimcustomer.json:procedure.refactor",
+        "catalog/procedures/dbo.usp_load_dimproduct.json:procedure.refactor",
+    ]
+    assert (dst / "catalog").exists()
+    assert (dst / "ddl").exists()
+    assert not (dst / "dbt").exists()
+    assert not (dst / "test-specs").exists()
+    assert not (dst / ".staging").exists()
+    assert not (dst / ".migration-runs").exists()
+
+    updated_manifest = json.loads((dst / "manifest.json").read_text(encoding="utf-8"))
+    assert updated_manifest["runtime"]["source"] == manifest["runtime"]["source"]
+    assert updated_manifest["runtime"]["target"] == manifest["runtime"]["target"]
+    assert updated_manifest["extraction"] == manifest["extraction"]
+    assert updated_manifest["init_handoff"] == manifest["init_handoff"]
+
+    updated_table = json.loads(table_path.read_text(encoding="utf-8"))
+    assert "test_gen" not in updated_table
+    assert "generate" not in updated_table
+    assert "refactor" not in updated_table
+    assert updated_table["scoping"] == table_cat["scoping"]
+    assert updated_table["profile"] == table_cat["profile"]
+    assert updated_table["columns"] == table_cat["columns"]
+
+    updated_view = json.loads(view_path.read_text(encoding="utf-8"))
+    assert "test_gen" not in updated_view
+    assert "generate" not in updated_view
+    assert "refactor" not in updated_view
+    assert updated_view["scoping"] == view_cat["scoping"]
+    assert updated_view["profile"] == view_cat["profile"]
+    assert updated_view["columns"] == view_cat["columns"]
+    assert updated_view["references"] == view_cat["references"]
+
+    assert json.loads(function_path.read_text(encoding="utf-8")) == function_cat
+
+def test_run_reset_migration_all_preserve_catalog_invalid_catalog_preserves_paths(tmp_path: Path) -> None:
+    dst = _make_reset_project(tmp_path)
+    (dst / "ddl").mkdir()
+    (dst / "dbt" / "models").mkdir(parents=True)
+    (dst / ".staging").mkdir()
+    bad_catalog = dst / "catalog" / "tables" / "silver.dimcustomer.json"
+    bad_catalog.write_text("{not valid json", encoding="utf-8")
+
+    with pytest.raises(CatalogLoadError):
+        dry_run.run_reset_migration(dst, "all", [], preserve_catalog=True)
+
+    assert (dst / "catalog").exists()
+    assert (dst / "ddl").exists()
+    assert (dst / "dbt").exists()
+    assert (dst / ".staging").exists()
 
 def test_run_reset_migration_all_invalid_manifest_preserves_directories(tmp_path: Path) -> None:
     dst = _make_reset_project(tmp_path)
