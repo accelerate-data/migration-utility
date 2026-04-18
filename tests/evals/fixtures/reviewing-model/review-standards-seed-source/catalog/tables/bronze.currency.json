@@ -1,0 +1,23 @@
+{
+  "schema": "bronze",
+  "name": "currency",
+  "columns": [
+    {
+      "name": "CurrencyCode",
+      "sql_type": "NVARCHAR(3)",
+      "is_nullable": false,
+      "is_identity": false
+    }
+  ],
+  "primary_keys": [],
+  "unique_indexes": [],
+  "foreign_keys": [],
+  "auto_increment_columns": [],
+  "change_capture": null,
+  "sensitivity_classifications": [],
+  "is_seed": true,
+  "is_source": false,
+  "scoping": {
+    "status": "no_writer_found"
+  }
+}

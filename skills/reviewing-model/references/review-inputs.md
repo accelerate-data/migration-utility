@@ -26,12 +26,13 @@ Derive `model_name` from the SQL filename and verify it matches [model-naming.md
 
 - Read `dbt/dbt_project.yml` and verify layer defaults declare staging as `view`, intermediate as `ephemeral`, and marts as `table`.
 - Read `test-specs/<item_id>.json` before the test-integration review.
-- For every relation in `source_tables`, inspect the matching catalog table JSON when available and note whether it is marked `is_source: true` or `is_seed: true`.
-- If a relation is present in SQL but absent from `source_tables`, still inspect its matching catalog table JSON when available before assigning dependency standards codes.
+- For every relation in `source_tables`, inspect the matching catalog table JSON first when available and note whether it is marked `is_source: true` or `is_seed: true`.
+- If a relation is present in SQL but absent from `source_tables`, still inspect its matching catalog table JSON first when available before assigning dependency standards codes.
+- If catalog metadata is missing or does not classify a possible seed, inspect generated dbt seed artifacts on disk before assigning dependency standards codes. A matching `dbt/seeds/<seed_name>.csv` plus `dbt/seeds/_seeds.yml` entry is sufficient to classify the relation as a seed dependency.
 
 ## Seed Inputs
 
-If reviewed SQL references a seed with `ref('<seed_name>')`, verify:
+To classify seed dependencies, prefer catalog metadata first. If catalog metadata is missing, inspect generated dbt seed artifacts on disk. If reviewed SQL references a seed with `ref('<seed_name>')`, verify:
 
 - `dbt/seeds/<seed_name>.csv` exists
 - `dbt/seeds/_seeds.yml` exists
@@ -40,7 +41,7 @@ If reviewed SQL references a seed with `ref('<seed_name>')`, verify:
 
 Seed dependencies referenced through direct `source()` or raw warehouse names are standards violations even when the SQL would compile.
 
-Seed classification has precedence over generic source-wrapper classification: if catalog metadata marks the relation `is_seed: true`, use `MDL_017` rather than `MDL_016`.
+Seed classification has precedence over generic source-wrapper classification: if catalog metadata marks the relation `is_seed: true`, or generated seed artifacts prove the relation is a seed, use `MDL_017` rather than `MDL_016`.
 
 ## Error Mapping
 

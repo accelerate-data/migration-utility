@@ -11,7 +11,7 @@ docker/sqlserver/data/
 
 # Local data
 .local/
-catalog/
+/catalog/
 
 # Working directories (user-generated output)
 context/
