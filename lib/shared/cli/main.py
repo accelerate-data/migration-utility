@@ -16,6 +16,7 @@ from shared.cli.add_source_table_cmd import add_source_table
 from shared.cli.doctor_drivers_cmd import drivers as doctor_drivers
 from shared.cli.exclude_table_cmd import exclude_table
 from shared.cli.reset_cmd import reset
+from shared.cli.replicate_source_tables_cmd import replicate_source_tables
 from shared.cli.setup_sandbox_cmd import setup_sandbox
 from shared.cli.setup_source_cmd import setup_source
 from shared.cli.setup_target_cmd import setup_target
@@ -97,6 +98,7 @@ app.command("setup-target")(setup_target)
 app.command("setup-sandbox")(setup_sandbox)
 app.command("teardown-sandbox")(teardown_sandbox)
 app.command("reset")(reset)
+app.command("replicate-source-tables")(replicate_source_tables)
 app.command("exclude-table")(exclude_table)
 app.command("add-source-table")(add_source_table)
 app.command("add-seed-table")(add_seed_table)

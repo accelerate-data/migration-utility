@@ -133,6 +133,106 @@ class SqlServerOperations(DatabaseOperations):
         finally:
             conn.close()
 
+    def fetch_source_rows(
+        self,
+        schema_name: str,
+        table_name: str,
+        *,
+        limit: int,
+        predicate: str | None = None,
+        columns: list[str] | None = None,
+        order_by_columns: list[str] | None = None,
+    ) -> tuple[list[str], list[tuple[object, ...]]]:
+        self._validate_identifier(schema_name)
+        self._validate_identifier(table_name)
+        selected_columns = list(columns or [])
+        for column in selected_columns:
+            self._validate_identifier(column)
+        order_columns = list(order_by_columns if order_by_columns is not None else selected_columns)
+        for column in order_columns:
+            self._validate_identifier(column)
+        select_list = ", ".join(f"[{column}]" for column in selected_columns) if selected_columns else "*"
+        where_clause = f" WHERE ({predicate})" if predicate else ""
+        order_clause = (
+            " ORDER BY " + ", ".join(f"[{column}]" for column in order_columns)
+            if order_columns else ""
+        )
+        sql = f"SELECT TOP (?) {select_list} FROM [{schema_name}].[{table_name}]{where_clause}{order_clause}"
+        conn = self._connect()
+        try:
+            cursor = conn.cursor()
+            cursor.execute(sql, limit)
+            result_columns = [column[0] for column in cursor.description]
+            rows = [tuple(row) for row in cursor.fetchall()]
+            return result_columns, rows
+        finally:
+            conn.close()
+
+    def truncate_table(self, schema_name: str, table_name: str) -> None:
+        self._validate_identifier(schema_name)
+        self._validate_identifier(table_name)
+        conn = self._connect()
+        try:
+            cursor = conn.cursor()
+            cursor.execute(f"TRUNCATE TABLE [{schema_name}].[{table_name}]")
+        finally:
+            conn.close()
+
+    def insert_rows(
+        self,
+        schema_name: str,
+        table_name: str,
+        columns: list[str],
+        rows: list[tuple[object, ...]],
+    ) -> int:
+        self._validate_identifier(schema_name)
+        self._validate_identifier(table_name)
+        for column in columns:
+            self._validate_identifier(column)
+        if not rows:
+            return 0
+        column_list = ", ".join(f"[{column}]" for column in columns)
+        placeholders = ", ".join("?" for _ in columns)
+        sql = f"INSERT INTO [{schema_name}].[{table_name}] ({column_list}) VALUES ({placeholders})"
+        conn = self._connect()
+        try:
+            cursor = conn.cursor()
+            cursor.fast_executemany = True
+            cursor.executemany(sql, rows)
+            return len(rows)
+        finally:
+            conn.close()
+
+    def replace_table_rows(
+        self,
+        schema_name: str,
+        table_name: str,
+        columns: list[str],
+        rows: list[tuple[object, ...]],
+    ) -> int:
+        self._validate_identifier(schema_name)
+        self._validate_identifier(table_name)
+        for column in columns:
+            self._validate_identifier(column)
+        column_list = ", ".join(f"[{column}]" for column in columns)
+        placeholders = ", ".join("?" for _ in columns)
+        insert_sql = f"INSERT INTO [{schema_name}].[{table_name}] ({column_list}) VALUES ({placeholders})"
+        conn = self._connect()
+        conn.autocommit = False
+        try:
+            cursor = conn.cursor()
+            cursor.execute(f"DELETE FROM [{schema_name}].[{table_name}]")
+            if rows:
+                cursor.fast_executemany = True
+                cursor.executemany(insert_sql, rows)
+            conn.commit()
+            return len(rows)
+        except Exception:
+            conn.rollback()
+            raise
+        finally:
+            conn.close()
+
     def _map_type(self, source_type: str) -> str:
         normalized = source_type.upper().strip()
         if normalized:
