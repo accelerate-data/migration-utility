@@ -627,6 +627,7 @@ def write_target_sources_yml(project_root: Path) -> GenerateSourcesOutput:
     return write_sources_yml(
         project_root,
         source_schema_override=get_target_source_schema(project_root),
+        require_staging_contract_types=True,
     )
 
 
@@ -665,6 +666,10 @@ def run_setup_target(project_root: Path) -> SetupTargetOutput:
     ensure_setup_target_can_rerun(project_root)
     files = scaffold_target_project(project_root)
     sources = write_target_sources_yml(project_root)
+    source_error = getattr(sources, "error", None)
+    if isinstance(source_error, str) and source_error:
+        message = getattr(sources, "message", None) or source_error
+        raise ValueError(message)
     seeds = export_seed_tables(project_root)
     seed_materialization = materialize_seed_tables(project_root, seeds.csv_files)
     applied = apply_target_source_tables(project_root)

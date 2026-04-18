@@ -591,6 +591,36 @@ def test_run_setup_target_skips_dbt_validation_when_no_generated_models(tmp_path
     assert result.dbt_build_ran is False
 
 
+def test_run_setup_target_stops_when_staging_sources_generation_fails(tmp_path: Path) -> None:
+    """setup-target must not mutate target tables after staging artifact generation fails."""
+    project_root = _make_sql_server_project(tmp_path)
+
+    with (
+        patch("shared.target_setup.scaffold_target_project", return_value=["dbt/dbt_project.yml"]),
+        patch(
+            "shared.target_setup.write_target_sources_yml",
+            return_value=MagicMock(
+                sources=None,
+                path=None,
+                written_paths=[],
+                error="STAGING_CONTRACT_TYPE_MISSING",
+                message="Cannot generate staging contract",
+            ),
+        ),
+        patch("shared.target_setup.export_seed_tables") as mock_export_seeds,
+        patch("shared.target_setup.materialize_seed_tables") as mock_materialize_seeds,
+        patch("shared.target_setup.apply_target_source_tables") as mock_apply,
+        patch("shared.target_setup.subprocess.run") as mock_run,
+    ):
+        with pytest.raises(ValueError, match="Cannot generate staging contract"):
+            run_setup_target(project_root)
+
+    mock_export_seeds.assert_not_called()
+    mock_materialize_seeds.assert_not_called()
+    mock_apply.assert_not_called()
+    mock_run.assert_not_called()
+
+
 def test_setup_target_rerun_guard_rejects_existing_generated_models(tmp_path: Path) -> None:
     project_root = _make_sql_server_project(tmp_path)
     (project_root / "catalog" / "tables").mkdir(parents=True)

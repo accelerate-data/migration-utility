@@ -625,6 +625,7 @@ def write_sources_yml(
     project_root: Path,
     *,
     source_schema_override: str | None = None,
+    require_staging_contract_types: bool = False,
 ) -> GenerateSourcesOutput:
     """Generate sources.yml and write it to the dbt project.
 
@@ -633,7 +634,7 @@ def write_sources_yml(
     result = generate_sources(
         project_root,
         source_schema_override=source_schema_override,
-        require_staging_contract_types=True,
+        require_staging_contract_types=require_staging_contract_types,
     )
     dbt_root = resolve_dbt_project_path(project_root)
     staging_dir = dbt_root / "models" / "staging"
@@ -641,8 +642,6 @@ def write_sources_yml(
     models_path = staging_dir / "_staging__models.yml"
 
     if result.sources is None:
-        if result.error:
-            return result.model_copy(update={"path": None, "written_paths": []})
         removed_paths = _remove_source_artifacts(staging_dir, (sources_path, models_path))
         return result.model_copy(
             update={

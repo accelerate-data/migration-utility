@@ -526,8 +526,14 @@ def test_write_sources_yml_fails_when_staging_contract_type_is_missing(tmp_path:
         }),
         encoding="utf-8",
     )
+    staging_dir = tmp_path / "dbt" / "models" / "staging"
+    staging_dir.mkdir(parents=True)
+    stale_models = staging_dir / "_staging__models.yml"
+    stale_wrapper = staging_dir / "stg_bronze__customer.sql"
+    stale_models.write_text("version: 2\nmodels: []\n", encoding="utf-8")
+    stale_wrapper.write_text("select 1\n", encoding="utf-8")
 
-    result = write_sources_yml(tmp_path)
+    result = write_sources_yml(tmp_path, require_staging_contract_types=True)
 
     assert result.sources is None
     assert result.error == "STAGING_CONTRACT_TYPE_MISSING"
@@ -535,8 +541,38 @@ def test_write_sources_yml_fails_when_staging_contract_type_is_missing(tmp_path:
         "Cannot generate staging contract for bronze.Customer.customer_id: "
         "catalog column is missing target-normalized sql_type"
     )
-    assert result.written_paths == []
-    assert not (tmp_path / "dbt" / "models" / "staging" / "_staging__models.yml").exists()
+    assert "dbt/models/staging/_staging__models.yml" in result.written_paths
+    assert "dbt/models/staging/stg_bronze__customer.sql" in result.written_paths
+    assert not stale_models.exists()
+    assert not stale_wrapper.exists()
+
+
+def test_write_sources_yml_default_write_allows_legacy_type_fallback(tmp_path: Path) -> None:
+    """Plain generate-sources writes source YAML without setup-target contract validation."""
+    tables_dir = tmp_path / "catalog" / "tables"
+    tables_dir.mkdir(parents=True)
+    (tables_dir / "bronze.customer.json").write_text(
+        json.dumps({
+            "schema": "bronze",
+            "name": "Customer",
+            "scoping": {"status": "no_writer_found"},
+            "is_source": True,
+            "columns": [
+                {
+                    "name": "customer_id",
+                    "data_type": "NUMBER(10,0)",
+                    "is_nullable": False,
+                }
+            ],
+        }),
+        encoding="utf-8",
+    )
+
+    result = write_sources_yml(tmp_path)
+
+    assert result.error is None
+    assert result.sources is not None
+    assert Path(result.path or "").exists()
 
 
 def test_write_sources_yml_does_not_copy_source_tests_to_staging_models(
