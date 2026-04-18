@@ -15,6 +15,7 @@ import yaml
 
 from shared.catalog import load_and_merge_catalog
 from shared.catalog_models import DiagnosticsEntry, GenerateSection
+from shared.dbt_artifacts import dump_schema_yaml, schema_with_model_unit_tests
 from shared.env_config import resolve_catalog_dir, resolve_dbt_project_path
 from shared.name_resolver import model_name_from_table, normalize
 from shared.output_models import (
@@ -258,8 +259,6 @@ def run_render_unit_tests(
     schema_yml_path: Path,
 ) -> RenderUnitTestsOutput:
     """Translate test-spec scenarios into dbt unit tests and write schema YAML."""
-    import yaml
-
     norm = normalize(table_fqn)
     warnings: list[DiagnosticsEntry] = []
 
@@ -294,29 +293,15 @@ def run_render_unit_tests(
             )],
         )
 
-    schema: dict[str, Any] = {"version": 2, "models": []}
-    if schema_yml_path.is_file():
-        existing = yaml.safe_load(schema_yml_path.read_text(encoding="utf-8"))
-        if isinstance(existing, dict):
-            schema = existing
-
-    models = schema.setdefault("models", [])
-    model_entry = None
-    for model in models:
-        if isinstance(model, dict) and model.get("name") == model_name:
-            model_entry = model
-            break
-    if model_entry is None:
-        model_entry = {"name": model_name}
-        models.append(model_entry)
-
-    model_entry["unit_tests"] = dbt_unit_tests
+    existing_text = schema_yml_path.read_text(encoding="utf-8") if schema_yml_path.is_file() else None
+    schema = schema_with_model_unit_tests(
+        existing_text,
+        model_name=model_name,
+        unit_tests=dbt_unit_tests,
+    )
 
     schema_yml_path.parent.mkdir(parents=True, exist_ok=True)
-    schema_yml_path.write_text(
-        yaml.dump(schema, default_flow_style=False, sort_keys=False, allow_unicode=True),
-        encoding="utf-8",
-    )
+    schema_yml_path.write_text(dump_schema_yaml(schema), encoding="utf-8")
 
     logger.info(
         "event=render_unit_tests table=%s model=%s tests_rendered=%d",
