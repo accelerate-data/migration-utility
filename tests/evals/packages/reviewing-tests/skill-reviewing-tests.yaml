@@ -45,9 +45,12 @@ tests:
       catalog_error_code: "TYPE_MAPPING_UNSUPPORTED"
       catalog_error_message: "Unsupported type in eval fixture."
       expected_final_output_terms: "CATALOG_ERRORS_UNRESOLVED"
+      unchanged_catalog_object: "silver.DimProduct"
+      unchanged_paths: "test-specs"
+      expect_only_gitkeep_dirs: "test-review-results"
     assert:
       - type: javascript
-        value: file://../../assertions/check-output-terms.js
+        value: file://../../assertions/check-guard-stop.js
 
   - description: "review-revision — DimCustomer incomplete coverage"
     prompts: ["reviewing-tests"]

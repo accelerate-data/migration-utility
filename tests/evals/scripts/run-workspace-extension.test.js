@@ -477,6 +477,49 @@ test('extensionHook can inject a top-level catalog error into the run copy', asy
   }
 });
 
+test('extensionHook appends injected catalog errors to existing run errors', async () => {
+  const { extensionHook } = loadExtensionModule();
+  const tempRunsRoot = fs.mkdtempSync(path.join(os.tmpdir(), 'eval-runs-'));
+  const tempFixture = fs.mkdtempSync(path.join(os.tmpdir(), 'eval-fixture-'));
+
+  try {
+    fs.cpSync(
+      path.join(REPO_ROOT, 'tests/evals/fixtures/cmd-scope/happy-path'),
+      tempFixture,
+      { recursive: true },
+    );
+    const catalogPath = path.join(tempFixture, 'catalog', 'tables', 'silver.dimproduct.json');
+    const catalog = readJson(catalogPath);
+    catalog.errors = [{
+      code: 'EXISTING_ERROR',
+      message: 'Existing fixture error.',
+      severity: 'error',
+    }];
+    fs.writeFileSync(catalogPath, JSON.stringify(catalog, null, 2) + '\n', 'utf8');
+
+    const context = buildContext('Appends catalog error');
+    context.test.vars.fixture_path = path.relative(REPO_ROOT, tempFixture);
+    context.test.vars.catalog_error_object = 'silver.DimProduct';
+    context.test.vars.catalog_error_code = 'TYPE_MAPPING_UNSUPPORTED';
+
+    const nextContext = await extensionHook('beforeEach', context, {
+      nowMs: Date.now(),
+      runsRoot: tempRunsRoot,
+      pruneState: makePruneState(),
+    });
+    const runPath = path.resolve(REPO_ROOT, nextContext.test.vars.run_path);
+    const runCatalog = readJson(path.join(runPath, 'catalog', 'tables', 'silver.dimproduct.json'));
+
+    assert.deepEqual(runCatalog.errors.map((error) => error.code), [
+      'EXISTING_ERROR',
+      'TYPE_MAPPING_UNSUPPORTED',
+    ]);
+  } finally {
+    fs.rmSync(tempRunsRoot, { recursive: true, force: true });
+    fs.rmSync(tempFixture, { recursive: true, force: true });
+  }
+});
+
 test('extensionHook allows oracle dbt fixtures without rewriting profiles.yml', async () => {
   const { extensionHook } = loadExtensionModule();
   const tempRunsRoot = fs.mkdtempSync(path.join(os.tmpdir(), 'eval-runs-'));

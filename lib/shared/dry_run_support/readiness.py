@@ -180,7 +180,7 @@ def _catalog_error_output(
     errors = getattr(cat, "errors", None) if cat is not None else None
     if not isinstance(errors, list):
         return None
-    if not any(isinstance(entry, dict) and entry.get("severity") == "error" for entry in errors):
+    if not any(_is_blocking_catalog_error(entry) for entry in errors):
         return None
     logger.info(
         "event=readiness_blocked_catalog_errors stage=%s fqn=%s object_type=%s",
@@ -194,6 +194,12 @@ def _catalog_error_output(
         reason="catalog_errors_unresolved",
         code="CATALOG_ERRORS_UNRESOLVED",
     )
+
+
+def _is_blocking_catalog_error(entry: object) -> bool:
+    if isinstance(entry, dict):
+        return entry.get("severity", "error") == "error"
+    return getattr(entry, "severity", "error") == "error"
 
 
 def _scope_ready(

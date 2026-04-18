@@ -143,6 +143,25 @@ def test_ready_blocks_table_with_catalog_error() -> None:
         assert result.object.reason == "catalog_errors_unresolved"
         assert result.object.code == "CATALOG_ERRORS_UNRESOLVED"
 
+def test_ready_blocks_table_with_catalog_error_without_severity() -> None:
+    """Top-level catalog errors default to error severity when unspecified."""
+    tmp, root = _make_project()
+    with tmp:
+        cat_path = root / "catalog" / "tables" / "silver.dimcustomer.json"
+        cat = json.loads(cat_path.read_text(encoding="utf-8"))
+        cat["errors"] = [{
+            "code": "TYPE_MAPPING_UNSUPPORTED",
+            "message": "Unsupported source type.",
+        }]
+        cat_path.write_text(json.dumps(cat), encoding="utf-8")
+
+        result = dry_run.run_ready(root, "test-gen", object_fqn="silver.DimCustomer")
+
+        assert result.ready is False
+        assert result.object is not None
+        assert result.object.reason == "catalog_errors_unresolved"
+        assert result.object.code == "CATALOG_ERRORS_UNRESOLVED"
+
 def test_ready_allows_table_with_catalog_warning() -> None:
     """Top-level catalog warnings do not block object-scoped readiness."""
     tmp, root = _make_project()

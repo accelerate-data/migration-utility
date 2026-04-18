@@ -41,6 +41,8 @@ tests:
     assert:
       - type: javascript
         value: file://../../assertions/check-output-terms.js
+      - type: javascript
+        value: file://../../assertions/check-refactor-mart-plan.js
 
   - description: "review gate -- uncertain candidates stay unapproved"
     vars:

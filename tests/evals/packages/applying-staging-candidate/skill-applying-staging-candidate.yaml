@@ -46,9 +46,15 @@ tests:
       catalog_error_message: "Unsupported type in eval fixture."
       expected_candidate_statuses: "STG-001:planned,INT-001:planned,MART-001:planned"
       expected_final_output_terms: "CATALOG_ERRORS_UNRESOLVED,TYPE_MAPPING_UNSUPPORTED"
+      unchanged_catalog_object: "gold.fct_sales"
+      unchanged_paths: "docs/design/refactor-mart-stg-happy-path.md,dbt/models"
     assert:
       - type: javascript
         value: file://../../assertions/check-output-terms.js
+      - type: javascript
+        value: file://../../assertions/check-refactor-mart-stg-execution.js
+      - type: javascript
+        value: file://../../assertions/check-guard-stop.js
 
   - description: "candidate isolation -- one staging candidate leaves unrelated staging candidates planned"
     vars:

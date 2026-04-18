@@ -9,7 +9,7 @@ const { normalizeTerms } = require('./schema-helpers');
 
 module.exports = (output, context) => {
   const expectedOutputTerms = normalizeTerms(
-    context.vars.expected_final_output_terms || context.vars.expected_output_terms,
+    context.vars.expected_final_output_terms ?? context.vars.expected_output_terms,
   );
   const outputStr = String(output || '').toLowerCase();
 

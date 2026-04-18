@@ -130,11 +130,14 @@ function injectCatalogError(projectRoot, vars) {
   }
 
   const catalog = JSON.parse(fs.readFileSync(catalogFile, 'utf8'));
-  catalog.errors = [{
+  catalog.errors = [
+    ...(Array.isArray(catalog.errors) ? catalog.errors : []),
+    {
     code: vars.catalog_error_code || 'CATALOG_ERROR',
     message: vars.catalog_error_message || 'Injected catalog error for readiness guard eval.',
     severity: 'error',
-  }];
+    },
+  ];
   fs.writeFileSync(catalogFile, JSON.stringify(catalog, null, 2) + '\n', 'utf8');
 }
 
