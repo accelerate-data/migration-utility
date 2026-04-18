@@ -282,7 +282,7 @@ def test_sql_server_fetch_source_rows_applies_limit_filter_and_columns() -> None
     assert columns == ["id", "name"]
     assert rows == [(1, "Alice")]
     cursor.execute.assert_called_once_with(
-        "SELECT TOP (?) [id], [name] FROM [silver].[Customer] WHERE (id > 10)",
+        "SELECT TOP (?) [id], [name] FROM [silver].[Customer] WHERE (id > 10) ORDER BY [id], [name]",
         25,
     )
     conn.close.assert_called_once()
@@ -310,6 +310,34 @@ def test_sql_server_truncate_and_insert_rows_use_parameterized_statements() -> N
         [(1, "Alice")],
     )
     assert conn.close.call_count == 2
+
+
+def test_sql_server_fetch_source_rows_uses_explicit_order_columns() -> None:
+    role = RuntimeRole(
+        technology="sql_server",
+        dialect="tsql",
+        connection=RuntimeConnection(database="WarehouseOne"),
+    )
+    adapter = get_dbops("sql_server").from_role(role)
+    cursor = MagicMock()
+    cursor.description = [("id",), ("doc",)]
+    cursor.fetchall.return_value = [(1, "value")]
+    conn = MagicMock()
+    conn.cursor.return_value = cursor
+    adapter._connect = MagicMock(return_value=conn)  # type: ignore[attr-defined]
+
+    adapter.fetch_source_rows(
+        "silver",
+        "Document",
+        limit=25,
+        columns=["id", "doc"],
+        order_by_columns=["id"],
+    )
+
+    cursor.execute.assert_called_once_with(
+        "SELECT TOP (?) [id], [doc] FROM [silver].[Document] ORDER BY [id]",
+        25,
+    )
 
 
 def test_oracle_fetch_source_rows_applies_limit_filter_and_columns(monkeypatch: pytest.MonkeyPatch) -> None:
@@ -342,7 +370,7 @@ def test_oracle_fetch_source_rows_applies_limit_filter_and_columns(monkeypatch: 
     assert columns == ["ID", "NAME"]
     assert rows == [(1, "Alice")]
     cursor.execute.assert_called_once_with(
-        'SELECT "ID", "NAME" FROM "SH"."CUSTOMER" WHERE (ID > 10) FETCH FIRST :limit ROWS ONLY',
+        'SELECT "ID", "NAME" FROM "SH"."CUSTOMER" WHERE (ID > 10) ORDER BY "ID", "NAME" FETCH FIRST :limit ROWS ONLY',
         {"limit": 25},
     )
     conn.close.assert_called_once()
@@ -376,3 +404,36 @@ def test_oracle_truncate_and_insert_rows_use_parameterized_statements(monkeypatc
     )
     assert conn.commit.call_count == 2
     assert conn.close.call_count == 2
+
+
+def test_oracle_fetch_source_rows_uses_explicit_order_columns(monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.setenv("ORACLE_PWD", "secret")
+    role = RuntimeRole(
+        technology="oracle",
+        dialect="oracle",
+        connection=RuntimeConnection(
+            service="TARGETPDB",
+            user="system",
+            password_env="ORACLE_PWD",
+        ),
+    )
+    adapter = get_dbops("oracle").from_role(role)
+    cursor = MagicMock()
+    cursor.description = [("ID",), ("DOC",)]
+    cursor.fetchall.return_value = [(1, "value")]
+    conn = MagicMock()
+    conn.cursor.return_value = cursor
+    adapter._connect = MagicMock(return_value=conn)  # type: ignore[attr-defined]
+
+    adapter.fetch_source_rows(
+        "SH",
+        "DOCUMENT",
+        limit=25,
+        columns=["ID", "DOC"],
+        order_by_columns=["ID"],
+    )
+
+    cursor.execute.assert_called_once_with(
+        'SELECT "ID", "DOC" FROM "SH"."DOCUMENT" ORDER BY "ID" FETCH FIRST :limit ROWS ONLY',
+        {"limit": 25},
+    )

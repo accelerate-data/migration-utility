@@ -141,15 +141,23 @@ class OracleOperations(DatabaseOperations):
         limit: int,
         predicate: str | None = None,
         columns: list[str] | None = None,
+        order_by_columns: list[str] | None = None,
     ) -> tuple[list[str], list[tuple[object, ...]]]:
         self._validate_identifier(schema_name)
         self._validate_identifier(table_name)
         selected_columns = list(columns or [])
         for column in selected_columns:
             self._validate_identifier(column)
+        order_columns = list(order_by_columns if order_by_columns is not None else selected_columns)
+        for column in order_columns:
+            self._validate_identifier(column)
         select_list = ", ".join(f'"{column}"' for column in selected_columns) if selected_columns else "*"
         where_clause = f" WHERE ({predicate})" if predicate else ""
-        sql = f'SELECT {select_list} FROM "{schema_name}"."{table_name}"{where_clause} FETCH FIRST :limit ROWS ONLY'
+        order_clause = (
+            " ORDER BY " + ", ".join(f'"{column}"' for column in order_columns)
+            if order_columns else ""
+        )
+        sql = f'SELECT {select_list} FROM "{schema_name}"."{table_name}"{where_clause}{order_clause} FETCH FIRST :limit ROWS ONLY'
         conn = self._connect()
         try:
             cursor = conn.cursor()

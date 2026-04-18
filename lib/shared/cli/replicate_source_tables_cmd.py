@@ -7,7 +7,7 @@ from pathlib import Path
 import typer
 
 from shared.cli.output import console, error, print_table, success
-from shared.replicate_source_tables import run_replicate_source_tables
+from shared.replicate_source_tables import MAX_REPLICATE_LIMIT, run_replicate_source_tables
 
 logger = logging.getLogger(__name__)
 
@@ -24,6 +24,17 @@ def replicate_source_tables(
 ) -> None:
     """Copy capped source rows into configured target-side source tables."""
     root = project_root if project_root is not None else Path.cwd()
+
+    if limit is None or limit < 1:
+        message = "LIMIT_REQUIRED: --limit is required and must be between 1 and 10000."
+        error(message)
+        logger.error("event=replicate_source_tables_validation status=failure error=LIMIT_REQUIRED")
+        raise typer.Exit(code=1)
+    if limit > MAX_REPLICATE_LIMIT:
+        message = f"LIMIT_TOO_HIGH: --limit must be <= {MAX_REPLICATE_LIMIT}."
+        error(message)
+        logger.error("event=replicate_source_tables_validation status=failure error=LIMIT_TOO_HIGH")
+        raise typer.Exit(code=1)
 
     if not dry_run and not yes:
         confirmed = typer.confirm("Truncate and reload selected target source tables?")

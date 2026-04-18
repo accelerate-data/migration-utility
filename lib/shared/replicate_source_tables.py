@@ -2,7 +2,6 @@
 
 from __future__ import annotations
 
-import json
 import logging
 from dataclasses import dataclass
 from pathlib import Path
@@ -17,7 +16,7 @@ from shared.output_models.replicate_source_tables import (
 from shared.runtime_config import get_runtime_role
 from shared.runtime_config_models import RuntimeRole
 from shared.setup_ddl_support.manifest import read_manifest_strict
-from shared.target_setup import get_target_source_schema
+from shared.target_setup import load_target_source_table_specs
 
 logger = logging.getLogger(__name__)
 
@@ -33,6 +32,7 @@ class ReplicationAdapter(Protocol):
         limit: int,
         predicate: str | None = None,
         columns: list[str] | None = None,
+        order_by_columns: list[str] | None = None,
     ) -> tuple[list[str], list[tuple[object, ...]]]:
         """Fetch capped source rows."""
 
@@ -57,7 +57,16 @@ class SourceTablePlan:
     target_schema: str
     target_table: str
     columns: list[str]
+    order_by_columns: list[str]
     predicate: str | None = None
+
+
+_UNORDERABLE_TYPE_TOKENS = frozenset({"BLOB", "CLOB", "IMAGE", "LONG", "NCLOB", "NTEXT", "TEXT", "XML"})
+
+
+def _is_orderable_source_type(source_type: str) -> bool:
+    token = source_type.upper().strip().split("(", 1)[0].strip()
+    return token not in _UNORDERABLE_TYPE_TOKENS
 
 
 def _validate_limit(limit: int | None) -> int:
@@ -79,33 +88,25 @@ def _require_runtime_role(project_root: Path, role_name: str) -> RuntimeRole:
 
 
 def _load_confirmed_source_tables(project_root: Path) -> list[SourceTablePlan]:
-    target_schema = get_target_source_schema(project_root)
-    tables_dir = project_root / "catalog" / "tables"
-    if not tables_dir.is_dir():
-        return []
-
     plans: list[SourceTablePlan] = []
-    for table_file in sorted(tables_dir.glob("*.json")):
-        payload = json.loads(table_file.read_text(encoding="utf-8"))
-        if payload.get("excluded") or payload.get("is_source") is not True:
-            continue
-        source_schema = str(payload.get("schema", "")).strip()
-        source_table = str(payload.get("name", "")).strip()
-        if not source_schema or not source_table:
-            continue
-        columns = [
-            str(column["name"])
-            for column in payload.get("columns", [])
-            if isinstance(column, dict) and column.get("name")
-        ]
+    for spec in load_target_source_table_specs(project_root, include_fallback_columns=False):
+        if not spec.columns:
+            fqn = normalize(f"{spec.logical_schema}.{spec.table_name}")
+            raise ValueError(
+                f"COLUMNS_REQUIRED: confirmed source table {fqn} has no catalog columns."
+            )
         plans.append(
             SourceTablePlan(
-                fqn=normalize(f"{source_schema}.{source_table}"),
-                source_schema=source_schema,
-                source_table=source_table,
-                target_schema=target_schema,
-                target_table=source_table,
-                columns=columns,
+                fqn=normalize(f"{spec.logical_schema}.{spec.table_name}"),
+                source_schema=spec.logical_schema,
+                source_table=spec.table_name,
+                target_schema=spec.physical_schema,
+                target_table=spec.table_name,
+                columns=[column.name for column in spec.columns],
+                order_by_columns=[
+                    column.name for column in spec.columns
+                    if _is_orderable_source_type(column.source_type)
+                ],
             )
         )
     return plans
@@ -160,6 +161,7 @@ def _select_tables(
                 target_schema=plan.target_schema,
                 target_table=plan.target_table,
                 columns=plan.columns,
+                order_by_columns=plan.order_by_columns,
                 predicate=predicates.get(fqn),
             )
         )
@@ -222,6 +224,7 @@ def run_replicate_source_tables(
                 limit=row_limit,
                 predicate=plan.predicate,
                 columns=plan.columns,
+                order_by_columns=plan.order_by_columns,
             )
             target.truncate_table(plan.target_schema, plan.target_table)
             copied = target.insert_rows(plan.target_schema, plan.target_table, columns, rows)

@@ -29,6 +29,17 @@ def test_replicate_source_tables_rejects_over_cap_limit(tmp_path):
     assert "LIMIT_TOO_HIGH" in result.output
 
 
+def test_replicate_source_tables_validates_limit_before_confirmation(tmp_path):
+    result = runner.invoke(
+        app,
+        ["replicate-source-tables", "--project-root", str(tmp_path), "--limit", "10001"],
+    )
+
+    assert result.exit_code == 1
+    assert "LIMIT_TOO_HIGH" in result.output
+    assert "Truncate and reload" not in result.output
+
+
 def test_replicate_source_tables_dry_run_json_delegates_options(tmp_path):
     output = ReplicateSourceTablesOutput(
         status="ok",

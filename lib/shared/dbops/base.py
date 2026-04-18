@@ -84,6 +84,7 @@ class DatabaseOperations(ABC):
         limit: int,
         predicate: str | None = None,
         columns: list[str] | None = None,
+        order_by_columns: list[str] | None = None,
     ) -> tuple[list[str], list[tuple[object, ...]]]:
         """Read capped source rows for target-side source replication."""
 

@@ -359,7 +359,7 @@ def scaffold_target_project(project_root: Path) -> list[str]:
     return created_or_updated
 
 
-def _load_source_table_specs(project_root: Path) -> list[TargetTableSpec]:
+def _load_source_table_specs(project_root: Path, *, include_fallback_columns: bool = True) -> list[TargetTableSpec]:
     target_schema = get_target_source_schema(project_root)
     tables_dir = project_root / "catalog" / "tables"
     if not tables_dir.is_dir():
@@ -389,7 +389,7 @@ def _load_source_table_specs(project_root: Path) -> list[TargetTableSpec]:
                     nullable=bool(column.get("is_nullable", True)),
                 )
             )
-        if not columns:
+        if include_fallback_columns and not columns:
             columns.append(ColumnSpec(name="id", source_type="BIGINT", nullable=False))
         specs.append(
             TargetTableSpec(
@@ -400,6 +400,18 @@ def _load_source_table_specs(project_root: Path) -> list[TargetTableSpec]:
             )
         )
     return specs
+
+
+def load_target_source_table_specs(
+    project_root: Path,
+    *,
+    include_fallback_columns: bool = True,
+) -> list[TargetTableSpec]:
+    """Return confirmed source tables mapped to the configured target source schema."""
+    return _load_source_table_specs(
+        project_root,
+        include_fallback_columns=include_fallback_columns,
+    )
 
 
 def _load_seed_table_specs(project_root: Path) -> list[SeedTableSpec]:
