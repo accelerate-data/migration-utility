@@ -260,6 +260,13 @@ def test_run_reset_migration_all_preserve_catalog_clears_generated_state_only(tm
         "refactor": {"status": "ok"},
     }
     view_path.write_text(json.dumps(view_cat), encoding="utf-8")
+    mv_path = dst / "catalog" / "views" / "silver.mv_customer.json"
+    mv_cat = {
+        **view_cat,
+        "name": "mv_customer",
+        "is_materialized_view": True,
+    }
+    mv_path.write_text(json.dumps(mv_cat), encoding="utf-8")
 
     (dst / "catalog" / "functions").mkdir()
     function_path = dst / "catalog" / "functions" / "dbo.fn_customer.json"
@@ -281,6 +288,9 @@ def test_run_reset_migration_all_preserve_catalog_clears_generated_state_only(tm
         ("catalog/tables/silver.dimcustomer.json", "table.generate"),
         ("catalog/tables/silver.dimcustomer.json", "table.refactor"),
         ("catalog/tables/silver.dimproduct.json", "table.test_gen"),
+        ("catalog/views/silver.mv_customer.json", "view.test_gen"),
+        ("catalog/views/silver.mv_customer.json", "view.generate"),
+        ("catalog/views/silver.mv_customer.json", "view.refactor"),
         ("catalog/views/silver.vw_customer.json", "view.test_gen"),
         ("catalog/views/silver.vw_customer.json", "view.generate"),
         ("catalog/views/silver.vw_customer.json", "view.refactor"),
@@ -290,6 +300,7 @@ def test_run_reset_migration_all_preserve_catalog_clears_generated_state_only(tm
     assert result.cleared_catalog_paths == [
         "catalog/tables/silver.dimcustomer.json",
         "catalog/tables/silver.dimproduct.json",
+        "catalog/views/silver.mv_customer.json",
         "catalog/views/silver.vw_customer.json",
         "catalog/procedures/dbo.usp_load_dimcustomer.json",
         "catalog/procedures/dbo.usp_load_dimproduct.json",
@@ -323,6 +334,14 @@ def test_run_reset_migration_all_preserve_catalog_clears_generated_state_only(tm
     assert updated_view["profile"] == view_cat["profile"]
     assert updated_view["columns"] == view_cat["columns"]
     assert updated_view["references"] == view_cat["references"]
+
+    updated_mv = json.loads(mv_path.read_text(encoding="utf-8"))
+    assert "test_gen" not in updated_mv
+    assert "generate" not in updated_mv
+    assert "refactor" not in updated_mv
+    assert updated_mv["is_materialized_view"] is True
+    assert updated_mv["scoping"] == mv_cat["scoping"]
+    assert updated_mv["profile"] == mv_cat["profile"]
 
     assert json.loads(function_path.read_text(encoding="utf-8")) == function_cat
 
@@ -379,6 +398,40 @@ def test_run_reset_migration_all_preserve_catalog_write_failure_preserves_paths(
     assert json.loads(
         (dst / "catalog" / "tables" / "silver.dimcustomer.json").read_text(encoding="utf-8")
     ) == original_table
+    assert (dst / "catalog").exists()
+    assert (dst / "ddl").exists()
+    assert (dst / "dbt").exists()
+    assert (dst / ".staging").exists()
+
+def test_run_reset_migration_all_preserve_catalog_second_write_failure_rolls_back(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    dst = _make_reset_project(tmp_path)
+    (dst / "ddl").mkdir()
+    (dst / "dbt" / "models").mkdir(parents=True)
+    (dst / ".staging").mkdir()
+    first_path = dst / "catalog" / "tables" / "silver.dimcustomer.json"
+    original_first = json.loads(first_path.read_text(encoding="utf-8"))
+
+    import shared.dry_run_support.reset as reset_module
+
+    original_write_json = reset_module.write_json
+    calls = 0
+
+    def fail_second_write_json(path: Path, data: dict[str, object]) -> None:
+        nonlocal calls
+        calls += 1
+        if calls == 2:
+            raise OSError(f"cannot write {path}")
+        original_write_json(path, data)
+
+    monkeypatch.setattr(reset_module, "write_json", fail_second_write_json)
+
+    with pytest.raises(OSError):
+        dry_run.run_reset_migration(dst, "all", [], preserve_catalog=True)
+
+    assert json.loads(first_path.read_text(encoding="utf-8")) == original_first
     assert (dst / "catalog").exists()
     assert (dst / "ddl").exists()
     assert (dst / "dbt").exists()
