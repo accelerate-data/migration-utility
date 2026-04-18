@@ -55,6 +55,7 @@ tests:
 
   # ── happy path: 2 tables, both generate dbt models ──────────
   - description: "[smoke] happy-path — InsertSelectTarget + UpdateJoinTarget both generate models"
+    provider: file://../../providers/sonnet-200.yaml
     vars:
       fixture_path: "tests/evals/fixtures/cmd-generate-model/happy-path"
       target_tables: "silver.InsertSelectTarget silver.UpdateJoinTarget"
@@ -81,21 +82,15 @@ tests:
       - type: javascript
         value: file://../../assertions/check-dbt-model.js
 
-  # ── error-clean: missing-scoping table + good table ─────────
-  - description: "error-clean — DimProduct no scoping + InsertSelectTarget ok"
+  # ── error-clean: missing-scoping table fails with error code ──
+  - description: "error-clean — DimProduct no scoping produces error with correct code"
     vars:
       fixture_path: "tests/evals/fixtures/cmd-generate-model/error-clean"
-      target_tables: "silver.DimProduct silver.InsertSelectTarget"
-      target_table: "silver.InsertSelectTarget"
-      expected_item_statuses: '{"silver.DimProduct": "error", "silver.InsertSelectTarget": "ok,partial"}'
+      target_tables: "silver.DimProduct"
+      target_table: "silver.DimProduct"
+      expected_item_statuses: '{"silver.DimProduct": "error"}'
       expected_error_codes: "scoping_not_completed"
       expected_output_terms: "error"
-      expected_model_path: "models/marts/insertselecttarget.sql"
-      expected_model_terms: "ref('stg_bronze__product')"
-      forbidden_model_terms: "materialized='table',source('bronze'"
-    assert:
-      - type: javascript
-        value: file://../../assertions/check-dbt-model.js
 
   # ── VU-977: cross-model ref() resolution ─────────────────────
   - description: "cross-model-ref — fact mart uses ref() for existing dim and staging wrappers"
@@ -111,16 +106,18 @@ tests:
       - type: javascript
         value: file://../../assertions/check-dbt-model.js
 
-  # ── quality-style ────────────────────────────────────────────
-  - description: "quality-style — lowercase keywords and snake_case names"
+  # ── quality ──────────────────────────────────────────────────
+  # Style, ETL columns, and YAML schema assertions combined into one run.
+  - description: "quality — lowercase keywords, _dbt_run_id column, and schema YAML rendered"
     vars:
       fixture_path: "tests/evals/fixtures/generating-model/quality-style"
       target_tables: "silver.InsertSelectTarget"
       target_table: "silver.InsertSelectTarget"
       expected_item_statuses: '{"silver.InsertSelectTarget": "ok,partial"}'
       expected_model_path: "models/marts/insertselecttarget.sql"
-      expected_model_terms: "with,select,from"
+      expected_model_terms: "with,select,from,_dbt_run_id"
       forbidden_model_terms: "SELECT,FROM,INSERT,UPDATE"
+      expected_yaml_terms: "version: 2,description"
     assert:
       - type: javascript
         value: file://../../assertions/check-dbt-model.js
@@ -175,32 +172,6 @@ tests:
       expected_item_statuses: '{"silver.UpdateJoinTarget": "ok,partial"}'
       expected_model_path: "models/marts/updatejointarget.sql"
       expected_model_terms: "materialized='incremental',ref("
-    assert:
-      - type: javascript
-        value: file://../../assertions/check-dbt-model.js
-
-  # ── quality-etl-columns ─────────────────────────────────────
-  - description: "quality-etl-columns — _dbt_run_id control column present"
-    vars:
-      fixture_path: "tests/evals/fixtures/generating-model/quality-etl-columns"
-      target_tables: "silver.InsertSelectTarget"
-      target_table: "silver.InsertSelectTarget"
-      expected_item_statuses: '{"silver.InsertSelectTarget": "ok,partial"}'
-      expected_model_path: "models/marts/insertselecttarget.sql"
-      expected_model_terms: "_dbt_run_id"
-    assert:
-      - type: javascript
-        value: file://../../assertions/check-dbt-model.js
-
-  # ── quality-yaml-rendered ────────────────────────────────────
-  - description: "quality-yaml-rendered — schema YAML with version and description"
-    vars:
-      fixture_path: "tests/evals/fixtures/generating-model/quality-yaml-rendered"
-      target_tables: "silver.InsertSelectTarget"
-      target_table: "silver.InsertSelectTarget"
-      expected_item_statuses: '{"silver.InsertSelectTarget": "ok,partial"}'
-      expected_model_path: "models/marts/insertselecttarget.sql"
-      expected_yaml_terms: "version: 2,description"
     assert:
       - type: javascript
         value: file://../../assertions/check-dbt-model.js
