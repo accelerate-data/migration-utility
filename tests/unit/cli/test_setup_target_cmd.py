@@ -47,9 +47,18 @@ def _write_manifest(tmp_path: Path, target_technology: str | None = "sql_server"
 
 def test_setup_target_sql_server_uses_manifest_runtime_target(tmp_path):
     _write_manifest(tmp_path, "sql_server")
+    calls: list[str] = []
+
+    def record_guard(_root: Path) -> None:
+        calls.append("guard")
+
+    def record_write(_root: Path, _technology: str, _source_schema: str) -> None:
+        calls.append("write")
+
     with (
         patch("shared.cli.setup_target_cmd.require_target_vars"),
-        patch("shared.cli.setup_target_cmd.write_target_runtime_from_env") as mock_write,
+        patch("shared.cli.setup_target_cmd.ensure_setup_target_can_rerun", side_effect=record_guard),
+        patch("shared.cli.setup_target_cmd.write_target_runtime_from_env", side_effect=record_write) as mock_write,
         patch("shared.cli.setup_target_cmd.run_setup_target", return_value=_SETUP_TARGET_OUT),
     ):
         result = runner.invoke(
@@ -58,6 +67,7 @@ def test_setup_target_sql_server_uses_manifest_runtime_target(tmp_path):
         )
     assert result.exit_code == 0, result.output
     mock_write.assert_called_once_with(tmp_path, "sql_server", "bronze")
+    assert calls == ["guard", "write"]
     assert "Updated repo state" in result.output
     assert "manifest.json" in result.output
     assert "dbt/dbt_project.yml" in result.output
@@ -74,6 +84,7 @@ def test_setup_target_oracle_uses_manifest_runtime_target(tmp_path):
     _write_manifest(tmp_path, "oracle")
     with (
         patch("shared.cli.setup_target_cmd.require_target_vars"),
+        patch("shared.cli.setup_target_cmd.ensure_setup_target_can_rerun"),
         patch("shared.cli.setup_target_cmd.write_target_runtime_from_env") as mock_write,
         patch("shared.cli.setup_target_cmd.run_setup_target", return_value=_SETUP_TARGET_OUT),
     ):
@@ -83,6 +94,29 @@ def test_setup_target_oracle_uses_manifest_runtime_target(tmp_path):
         )
     assert result.exit_code == 0, result.output
     mock_write.assert_called_once_with(tmp_path, "oracle", "bronze")
+
+
+def test_setup_target_exits_before_manifest_write_when_rerun_guard_fails(tmp_path):
+    _write_manifest(tmp_path, "sql_server")
+
+    with (
+        patch("shared.cli.setup_target_cmd.require_target_vars"),
+        patch(
+            "shared.cli.setup_target_cmd.ensure_setup_target_can_rerun",
+            side_effect=ValueError("preserve-catalog reset required"),
+        ),
+        patch("shared.cli.setup_target_cmd.write_target_runtime_from_env") as mock_write,
+        patch("shared.cli.setup_target_cmd.run_setup_target") as mock_run_setup,
+    ):
+        result = runner.invoke(
+            app,
+            ["setup-target", "--project-root", str(tmp_path)],
+        )
+
+    assert result.exit_code == 1
+    assert "preserve-catalog reset required" in result.output
+    mock_write.assert_not_called()
+    mock_run_setup.assert_not_called()
 
 
 def test_setup_target_exits_1_on_missing_manifest(tmp_path):

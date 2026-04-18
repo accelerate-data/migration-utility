@@ -10,6 +10,7 @@ import pytest
 
 from shared.target_setup import (
     apply_target_source_tables,
+    ensure_setup_target_can_rerun,
     export_seed_tables,
     get_target_source_schema,
     materialize_seed_tables,
@@ -470,6 +471,140 @@ def test_materialize_seed_tables_skips_when_only_seed_properties_file(tmp_path: 
     mock_run.assert_not_called()
     assert result.ran is False
     assert result.command == []
+
+
+def test_run_setup_target_validates_generated_staging_scope_after_source_tables(
+    tmp_path: Path,
+) -> None:
+    """setup-target validates only generated staging/source artifacts after creating target tables."""
+    project_root = _make_sql_server_project(tmp_path)
+    command_order: list[str] = []
+    compile_result = MagicMock(returncode=0, stdout="compiled", stderr="")
+    build_result = MagicMock(returncode=0, stdout="built", stderr="")
+    applied = MagicMock(
+        physical_schema="bronze",
+        desired_tables=["bronze.Customer"],
+        created_tables=["bronze.Customer"],
+        existing_tables=[],
+    )
+    sources = MagicMock(
+        path=str(project_root / "dbt" / "models" / "staging" / "_staging__sources.yml"),
+        written_paths=[
+            "dbt/models/staging/_staging__sources.yml",
+            "dbt/models/staging/_staging__models.yml",
+            "dbt/models/staging/stg_bronze__customer.sql",
+        ],
+        generated_model_names=["stg_bronze__customer"],
+        generated_source_selectors=["source:bronze.Customer"],
+    )
+
+    def record_apply(_project_root: Path) -> MagicMock:
+        command_order.append("apply")
+        return applied
+
+    def record_run(command: list[str], **_: object) -> MagicMock:
+        command_order.append(command[1])
+        if command[1] == "compile":
+            return compile_result
+        return build_result
+
+    with (
+        patch("shared.target_setup.scaffold_target_project", return_value=["dbt/dbt_project.yml"]),
+        patch("shared.target_setup.write_target_sources_yml", return_value=sources),
+        patch("shared.target_setup.apply_target_source_tables", side_effect=record_apply),
+        patch(
+            "shared.target_setup.export_seed_tables",
+            return_value=MagicMock(files=[], csv_files=[], row_counts={}, written_paths=[]),
+        ),
+        patch("shared.target_setup.materialize_seed_tables", return_value=MagicMock(ran=False, command=[])),
+        patch("shared.target_setup.subprocess.run", side_effect=record_run) as mock_run,
+    ):
+        result = run_setup_target(project_root)
+
+    dbt_root = project_root / "dbt"
+    expected_compile = [
+        "dbt",
+        "compile",
+        "--project-dir",
+        str(dbt_root),
+        "--profiles-dir",
+        str(dbt_root),
+        "--target",
+        "dev",
+        "--select",
+        "stg_bronze__customer",
+    ]
+    expected_build = [
+        "dbt",
+        "build",
+        "--project-dir",
+        str(dbt_root),
+        "--profiles-dir",
+        str(dbt_root),
+        "--target",
+        "dev",
+        "--select",
+        "stg_bronze__customer",
+        "source:bronze.Customer",
+    ]
+    assert command_order == ["apply", "compile", "build"]
+    assert mock_run.call_args_list[0].args[0] == expected_compile
+    assert mock_run.call_args_list[1].args[0] == expected_build
+    assert result.dbt_compile_ran is True
+    assert result.dbt_compile_command == expected_compile
+    assert result.dbt_build_ran is True
+    assert result.dbt_build_command == expected_build
+
+
+def test_run_setup_target_skips_dbt_validation_when_no_generated_models(tmp_path: Path) -> None:
+    project_root = _make_sql_server_project(tmp_path)
+    applied = MagicMock(
+        physical_schema="bronze",
+        desired_tables=[],
+        created_tables=[],
+        existing_tables=[],
+    )
+
+    with (
+        patch("shared.target_setup.scaffold_target_project", return_value=["dbt/dbt_project.yml"]),
+        patch(
+            "shared.target_setup.write_target_sources_yml",
+            return_value=MagicMock(
+                path=None,
+                written_paths=[],
+                generated_model_names=[],
+                generated_source_selectors=[],
+            ),
+        ),
+        patch("shared.target_setup.apply_target_source_tables", return_value=applied),
+        patch(
+            "shared.target_setup.export_seed_tables",
+            return_value=MagicMock(files=[], csv_files=[], row_counts={}, written_paths=[]),
+        ),
+        patch("shared.target_setup.materialize_seed_tables", return_value=MagicMock(ran=False, command=[])),
+        patch("shared.target_setup.subprocess.run") as mock_run,
+    ):
+        result = run_setup_target(project_root)
+
+    mock_run.assert_not_called()
+    assert result.dbt_compile_ran is False
+    assert result.dbt_build_ran is False
+
+
+def test_setup_target_rerun_guard_rejects_existing_generated_models(tmp_path: Path) -> None:
+    project_root = _make_sql_server_project(tmp_path)
+    (project_root / "catalog" / "tables").mkdir(parents=True)
+    (project_root / "catalog" / "tables" / "silver.customer.json").write_text(
+        json.dumps({
+            "schema": "silver",
+            "name": "Customer",
+            "generate": {"status": "ok", "path": "dbt/models/marts/dim_customer.sql"},
+        }),
+        encoding="utf-8",
+    )
+
+    with pytest.raises(ValueError, match="preserve-catalog reset"):
+        ensure_setup_target_can_rerun(project_root)
 
 
 def test_run_setup_target_applies_delta_after_new_source_added(tmp_path: Path) -> None:

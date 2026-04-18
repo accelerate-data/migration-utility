@@ -464,6 +464,7 @@ def test_write_sources_yml_adds_staging_contracts_and_baseline_unit_tests(tmp_pa
     staging_models = yaml.safe_load(staging_models_path.read_text(encoding="utf-8"))
     assert result.error is None
     assert result.generated_model_names == ["stg_bronze__customer"]
+    assert result.generated_source_selectors == ["source:bronze.Customer"]
     assert staging_models["models"] == [
         {
             "name": "stg_bronze__customer",

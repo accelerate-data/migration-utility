@@ -598,6 +598,19 @@ def _iter_source_table_names(sources: dict[str, Any]):
             yield str(table["name"])
 
 
+def _source_selectors_from_sources(sources: dict[str, Any]) -> list[str]:
+    selectors: list[str] = []
+    for source in sources.get("sources", []):
+        if not isinstance(source, dict) or not source.get("name"):
+            continue
+        source_name = str(source["name"])
+        for table in source.get("tables", []):
+            if not isinstance(table, dict) or not table.get("name"):
+                continue
+            selectors.append(f"source:{source_name}.{table['name']}")
+    return selectors
+
+
 def _write_staging_wrapper_files(staging_dir: Path, sources: dict[str, Any]) -> set[str]:
     expected_wrapper_names: set[str] = set()
     for table_name in _iter_source_table_names(sources):
@@ -664,6 +677,7 @@ def write_sources_yml(
             "path": str(sources_path),
             "written_paths": written_paths,
             "generated_model_names": generated_model_names,
+            "generated_source_selectors": _source_selectors_from_sources(result.sources),
         }
     )
 
