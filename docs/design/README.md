@@ -37,5 +37,6 @@ If information is mainly operational or contributor-facing, put it in `docs/refe
 - [Target-Normalized Catalog Types](target-normalized-catalog-types/README.md) — target-aware catalog type field used by target DDL, source/staging YAML, and dbt contracts
 - [Setup-Target Staging Contracts](setup-target-staging-contracts/README.md) — setup-target creates contracted staging wrappers, full-shape passthrough unit tests, and validates the staging layer
 - [Replicate Source Tables](replicate-source-tables/README.md) — deterministic CLI boundary for copying capped source data into target-side source tables before user-run dbt execution
+- [dbt Generation Execution Policy](dbt-generation-execution-policy/README.md) — generate-model sub-agent orchestration, direct-parent empty materialization, and scoped dbt unit-test execution
 
 When adding one, use `docs/design/<topic>/README.md` and record only the durable decision and the reason it matters to agents.
