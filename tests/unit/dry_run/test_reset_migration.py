@@ -437,6 +437,33 @@ def test_run_reset_migration_all_preserve_catalog_second_write_failure_rolls_bac
     assert (dst / "dbt").exists()
     assert (dst / ".staging").exists()
 
+def test_run_reset_migration_all_preserve_catalog_delete_failure_rolls_back_catalog(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    dst = _make_reset_project(tmp_path)
+    (dst / "ddl").mkdir()
+    (dst / "dbt" / "models").mkdir(parents=True)
+    (dst / ".staging").mkdir()
+    first_path = dst / "catalog" / "tables" / "silver.dimcustomer.json"
+    original_first = json.loads(first_path.read_text(encoding="utf-8"))
+
+    import shared.dry_run_support.reset as reset_module
+
+    def fail_delete(path: Path) -> bool:
+        raise OSError(f"cannot delete {path}")
+
+    monkeypatch.setattr(reset_module, "_delete_tree_if_present", fail_delete)
+
+    with pytest.raises(OSError):
+        dry_run.run_reset_migration(dst, "all", [], preserve_catalog=True)
+
+    assert json.loads(first_path.read_text(encoding="utf-8")) == original_first
+    assert (dst / "catalog").exists()
+    assert (dst / "ddl").exists()
+    assert (dst / "dbt").exists()
+    assert (dst / ".staging").exists()
+
 def test_run_reset_migration_all_invalid_manifest_preserves_directories(tmp_path: Path) -> None:
     dst = _make_reset_project(tmp_path)
     (dst / "ddl").mkdir()

@@ -1,6 +1,7 @@
 """reset command — reset pipeline state for a given stage and objects."""
 from __future__ import annotations
 
+import json
 import logging
 from pathlib import Path
 from typing import Any
@@ -11,6 +12,7 @@ from shared.dry_run_core import RESET_GLOBAL_MANIFEST_SECTIONS, RESET_GLOBAL_PAT
 from shared.dry_run_support.common import RESET_PRESERVE_CATALOG_PATHS, RESET_PRESERVE_CATALOG_SECTIONS_BY_BUCKET
 from shared.cli.error_handler import cli_error_handler
 from shared.cli.output import console, error, print_table, remind_review_and_commit, success, warn
+from shared.loader_data import CatalogLoadError
 from shared.loader_io import clear_manifest_sandbox
 from shared.runtime_config import get_sandbox_name
 from shared.test_harness_support.manifest import _create_backend as _th_create_backend
@@ -143,7 +145,12 @@ def reset(
             _teardown_sandbox_if_configured(root)
 
         if preserve_catalog:
-            result = run_reset_migration(root, "all", [], preserve_catalog=True)
+            try:
+                result = run_reset_migration(root, "all", [], preserve_catalog=True)
+            except (OSError, json.JSONDecodeError, CatalogLoadError) as exc:
+                logger.error("event=global_reset_failed component=reset_cmd preserve_catalog=true error=%s", exc)
+                error(str(exc))
+                raise typer.Exit(code=2) from exc
         else:
             result = run_reset_migration(root, "all", [])
 

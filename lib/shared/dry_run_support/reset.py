@@ -203,6 +203,19 @@ def _load_preserve_catalog_mutations(
     return mutations
 
 
+def _rollback_preserve_catalog_writes(
+    project_root: Path,
+    written_catalogs: list[tuple[Path, dict[str, Any]]],
+) -> None:
+    for rollback_path, original in reversed(written_catalogs):
+        write_json(rollback_path, original)
+        logger.warning(
+            "event=reset_migration_preserve_catalog_rollback "
+            "component=reset_migration operation=run_reset_migration path=%s",
+            rollback_path.relative_to(project_root),
+        )
+
+
 def _run_reset_migration_all_preserve_catalog(project_root: Path) -> ResetMigrationOutput:
     mutations = _load_preserve_catalog_mutations(project_root)
     deleted_paths: list[str] = []
@@ -226,31 +239,29 @@ def _run_reset_migration_all_preserve_catalog(project_root: Path) -> ResetMigrat
                 [item.section for item in cleared],
             )
     except OSError:
-        for rollback_path, original in reversed(written_catalogs):
-            write_json(rollback_path, original)
-            logger.warning(
-                "event=reset_migration_preserve_catalog_rollback "
-                "component=reset_migration operation=run_reset_migration path=%s",
-                rollback_path.relative_to(project_root),
-            )
+        _rollback_preserve_catalog_writes(project_root, written_catalogs)
         raise
 
-    for relative_path in RESET_PRESERVE_CATALOG_PATHS:
-        path = project_root / relative_path
-        if _delete_tree_if_present(path):
-            deleted_paths.append(relative_path)
-            logger.info(
-                "event=reset_migration_preserve_catalog_path_deleted component=reset_migration "
-                "operation=run_reset_migration path=%s",
-                relative_path,
-            )
-        else:
-            missing_paths.append(relative_path)
-            logger.warning(
-                "event=reset_migration_preserve_catalog_path_missing component=reset_migration "
-                "operation=run_reset_migration path=%s",
-                relative_path,
-            )
+    try:
+        for relative_path in RESET_PRESERVE_CATALOG_PATHS:
+            path = project_root / relative_path
+            if _delete_tree_if_present(path):
+                deleted_paths.append(relative_path)
+                logger.info(
+                    "event=reset_migration_preserve_catalog_path_deleted component=reset_migration "
+                    "operation=run_reset_migration path=%s",
+                    relative_path,
+                )
+            else:
+                missing_paths.append(relative_path)
+                logger.warning(
+                    "event=reset_migration_preserve_catalog_path_missing component=reset_migration "
+                    "operation=run_reset_migration path=%s",
+                    relative_path,
+                )
+    except OSError:
+        _rollback_preserve_catalog_writes(project_root, written_catalogs)
+        raise
 
     logger.info(
         "event=reset_migration_preserve_catalog_complete component=reset_migration "

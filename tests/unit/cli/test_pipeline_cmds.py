@@ -251,6 +251,24 @@ def test_reset_all_preserve_catalog_does_not_teardown_sandbox_or_touch_manifest(
     assert "manifest.json" not in result.output
 
 
+def test_reset_all_preserve_catalog_catalog_error_exits_cleanly(tmp_path):
+    _write_manifest(tmp_path)
+    (tmp_path / "catalog" / "tables").mkdir(parents=True)
+    (tmp_path / "catalog" / "tables" / "silver.dimcustomer.json").write_text(
+        "{not valid json",
+        encoding="utf-8",
+    )
+
+    result = runner.invoke(
+        app,
+        ["reset", "all", "--preserve-catalog", "--yes", "--project-root", str(tmp_path)],
+    )
+
+    assert result.exit_code == 2
+    assert isinstance(result.exception, SystemExit)
+    assert "Corrupt catalog JSON" in result.output
+
+
 def test_reset_all_with_sandbox_tears_down_before_reset(tmp_path):
     _write_manifest(tmp_path)
     mock_backend = MagicMock()
