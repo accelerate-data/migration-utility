@@ -21,3 +21,7 @@ class SetupTargetOutput(BaseModel):
     seed_row_counts: dict[str, int] = Field(default_factory=dict)
     dbt_seed_ran: bool = False
     dbt_seed_command: list[str] = Field(default_factory=list)
+    dbt_compile_ran: bool = False
+    dbt_compile_command: list[str] = Field(default_factory=list)
+    dbt_build_ran: bool = False
+    dbt_build_command: list[str] = Field(default_factory=list)

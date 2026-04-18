@@ -162,6 +162,52 @@ class DbtSeedResult:
     command: list[str]
 
 
+@dataclass(frozen=True)
+class DbtCommandResult:
+    """Outcome of invoking a dbt validation command."""
+
+    ran: bool
+    command: list[str]
+
+
+def _catalog_has_completed_generate(path: Path) -> bool:
+    try:
+        payload = json.loads(path.read_text(encoding="utf-8"))
+    except (json.JSONDecodeError, OSError, UnicodeDecodeError):
+        return False
+    generate = payload.get("generate")
+    return isinstance(generate, dict) and generate.get("status") == "ok"
+
+
+def ensure_setup_target_can_rerun(project_root: Path) -> None:
+    """Fail fast when downstream generated models already exist."""
+    completed: list[str] = []
+    catalog_dir = project_root / "catalog"
+    for bucket in ("tables", "views"):
+        bucket_dir = catalog_dir / bucket
+        if not bucket_dir.is_dir():
+            continue
+        for catalog_path in sorted(bucket_dir.glob("*.json")):
+            if _catalog_has_completed_generate(catalog_path):
+                completed.append(catalog_path.stem)
+
+    if not completed:
+        logger.info("event=setup_target_rerun_guard status=ok generated_models=0")
+        return
+
+    preview = ", ".join(completed[:5])
+    suffix = "" if len(completed) <= 5 else f", and {len(completed) - 5} more"
+    logger.error(
+        "event=setup_target_rerun_guard status=blocked generated_models=%d",
+        len(completed),
+    )
+    raise ValueError(
+        "setup-target cannot rerun after downstream dbt models have been generated. "
+        "Run `ad-migration reset all --preserve-catalog`, then run "
+        f"`ad-migration setup-target` again. Existing generated objects: {preview}{suffix}"
+    )
+
+
 def _require_target_role(project_root: Path) -> RuntimeRole:
     manifest = read_manifest_strict(project_root)
     target_role = get_runtime_role(manifest, "target")
@@ -527,11 +573,61 @@ def materialize_seed_tables(project_root: Path, seed_files: list[str]) -> DbtSee
     return DbtSeedResult(ran=True, command=command)
 
 
+def _dbt_base_command(project_root: Path, subcommand: str) -> list[str]:
+    dbt_root = project_root / "dbt"
+    return [
+        "dbt",
+        subcommand,
+        "--project-dir",
+        str(dbt_root),
+        "--profiles-dir",
+        str(dbt_root),
+        "--target",
+        "dev",
+    ]
+
+
+def _run_dbt_validation_command(
+    project_root: Path,
+    subcommand: str,
+    selectors: list[str],
+) -> DbtCommandResult:
+    if not selectors:
+        return DbtCommandResult(ran=False, command=[])
+
+    dbt_root = project_root / "dbt"
+    command = [*_dbt_base_command(project_root, subcommand), "--select", *selectors]
+    try:
+        completed = subprocess.run(
+            command,
+            cwd=dbt_root,
+            capture_output=True,
+            text=True,
+            check=False,
+        )
+    except FileNotFoundError as exc:
+        raise ValueError("dbt executable not found on PATH; install dbt before running setup-target validation.") from exc
+    if completed.returncode != 0:
+        details = (completed.stderr or completed.stdout or "").strip()
+        message = f"dbt {subcommand} failed while validating generated staging models"
+        if details:
+            message = f"{message}: {details}"
+        raise ValueError(message)
+
+    logger.info(
+        "event=dbt_validation_complete component=target_setup command=%s selectors=%d status=success",
+        subcommand,
+        len(selectors),
+    )
+    return DbtCommandResult(ran=True, command=command)
+
+
 def write_target_sources_yml(project_root: Path) -> GenerateSourcesOutput:
     """Write sources.yml using the configured target source schema mapping."""
     return write_sources_yml(
         project_root,
         source_schema_override=get_target_source_schema(project_root),
+        require_staging_contract_types=True,
     )
 
 
@@ -567,11 +663,24 @@ def apply_target_source_tables(project_root: Path) -> TargetApplyResult:
 
 def run_setup_target(project_root: Path) -> SetupTargetOutput:
     """Execute the reusable target-setup orchestration for tests and callers."""
+    ensure_setup_target_can_rerun(project_root)
     files = scaffold_target_project(project_root)
     sources = write_target_sources_yml(project_root)
+    source_error = getattr(sources, "error", None)
+    if isinstance(source_error, str) and source_error:
+        message = getattr(sources, "message", None) or source_error
+        raise ValueError(message)
     seeds = export_seed_tables(project_root)
     seed_materialization = materialize_seed_tables(project_root, seeds.csv_files)
     applied = apply_target_source_tables(project_root)
+    generated_models = list(getattr(sources, "generated_model_names", []) or [])
+    generated_source_selectors = list(getattr(sources, "generated_source_selectors", []) or [])
+    dbt_compile = _run_dbt_validation_command(project_root, "compile", generated_models)
+    dbt_build = _run_dbt_validation_command(
+        project_root,
+        "build",
+        [*generated_models, *generated_source_selectors],
+    )
     source_files = sources.written_paths if isinstance(sources.written_paths, list) else []
     if not source_files and sources.path:
         source_path = Path(sources.path)
@@ -595,4 +704,8 @@ def run_setup_target(project_root: Path) -> SetupTargetOutput:
         seed_row_counts=seeds.row_counts,
         dbt_seed_ran=seed_materialization.ran,
         dbt_seed_command=seed_materialization.command,
+        dbt_compile_ran=dbt_compile.ran,
+        dbt_compile_command=dbt_compile.command,
+        dbt_build_ran=dbt_build.ran,
+        dbt_build_command=dbt_build.command,
     )

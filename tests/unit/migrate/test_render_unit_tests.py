@@ -101,7 +101,7 @@ class TestRunRenderUnitTests:
 
         assert result.errors == []
         schema = yaml.safe_load(yml_path.read_text(encoding="utf-8"))
-        unit_tests = schema["models"][0]["unit_tests"]
+        unit_tests = schema["unit_tests"]
         assert unit_tests[0]["given"][0]["input"] == "ref('stg_bronze__customerraw')"
         assert unit_tests[1]["given"][0]["input"] == "ref('stg_bronze__customerraw')"
         assert unit_tests[1]["given"][1]["input"] == "source('silver', 'DimCustomer')"
@@ -129,7 +129,7 @@ class TestRunRenderUnitTests:
 
         assert result.errors == []
         schema = yaml.safe_load(yml_path.read_text(encoding="utf-8"))
-        unit_tests = schema["models"][0]["unit_tests"]
+        unit_tests = schema["unit_tests"]
         assert unit_tests[0]["given"][0]["input"] == "ref('stg_bronze__customerraw')"
         assert unit_tests[1]["given"][0]["input"] == "ref('stg_bronze__customerraw')"
 
@@ -151,7 +151,8 @@ class TestRunRenderUnitTests:
         assert schema["version"] == 2
         model = schema["models"][0]
         assert model["name"] == "dimcustomer"
-        unit_tests = model["unit_tests"]
+        assert "unit_tests" not in model
+        unit_tests = schema["unit_tests"]
         assert len(unit_tests) == 2
         assert unit_tests[0]["name"] == "merge_insert_new_row"
         assert unit_tests[0]["model"] == "dimcustomer"
@@ -169,7 +170,7 @@ class TestRunRenderUnitTests:
 
         assert result.tests_rendered == 1
         schema = yaml.safe_load(yml_path.read_text(encoding="utf-8"))
-        ut = schema["models"][0]["unit_tests"][0]
+        ut = schema["unit_tests"][0]
         assert ut["given"][0]["input"] == "source('silver', 'DimCustomer')"
 
     def test_preserves_existing_schema_tests(self, tmp_path: Path) -> None:
@@ -200,7 +201,55 @@ class TestRunRenderUnitTests:
         model = schema["models"][0]
         assert model["description"] == "Customer dimension"
         assert model["columns"][0]["tests"] == ["unique", "not_null"]
-        assert len(model["unit_tests"]) == 2
+        assert "unit_tests" not in model
+        assert len(schema["unit_tests"]) == 2
+
+    def test_replaces_only_target_model_unit_tests(self, tmp_path: Path) -> None:
+        """Rendering a model refreshes its top-level tests without deleting other models' tests."""
+        spec_path = tmp_path / "test-specs" / "silver.dimcustomer.json"
+        spec_path.parent.mkdir(parents=True)
+        spec_path.write_text(json.dumps(_minimal_spec()), encoding="utf-8")
+        yml_path = tmp_path / "schema.yml"
+        yml_path.write_text(
+            yaml.dump(
+                {
+                    "version": 2,
+                    "models": [
+                        {"name": "dimcustomer", "description": "Customer dimension"},
+                        {"name": "factorders", "description": "Fact orders"},
+                    ],
+                    "unit_tests": [
+                        {
+                            "name": "old_customer_test",
+                            "model": "dimcustomer",
+                            "given": [],
+                            "expect": {"rows": []},
+                        },
+                        {
+                            "name": "orders_test",
+                            "model": "factorders",
+                            "given": [],
+                            "expect": {"rows": []},
+                        },
+                    ],
+                },
+                default_flow_style=False,
+                sort_keys=False,
+            ),
+            encoding="utf-8",
+        )
+
+        result = run_render_unit_tests(tmp_path, "silver.DimCustomer", "dimcustomer", spec_path, yml_path)
+
+        assert result.tests_rendered == 2
+        schema = yaml.safe_load(yml_path.read_text(encoding="utf-8"))
+        assert [model["name"] for model in schema["models"]] == ["dimcustomer", "factorders"]
+        assert schema["models"][0]["description"] == "Customer dimension"
+        assert [test["name"] for test in schema["unit_tests"]] == [
+            "orders_test",
+            "merge_insert_new_row",
+            "merge_update_existing",
+        ]
 
     def test_empty_spec_returns_zero(self, tmp_path: Path) -> None:
         """Spec with no unit tests returns tests_rendered=0 with warning."""
@@ -233,7 +282,7 @@ class TestRunRenderUnitTests:
 
         assert result.tests_rendered == 1
         schema = yaml.safe_load(yml_path.read_text(encoding="utf-8"))
-        ut = schema["models"][0]["unit_tests"][0]
+        ut = schema["unit_tests"][0]
         assert "expect" not in ut
 
     def test_spec_not_found(self, tmp_path: Path) -> None:

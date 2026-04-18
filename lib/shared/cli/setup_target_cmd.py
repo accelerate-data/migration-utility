@@ -11,6 +11,7 @@ from shared.cli.env_check import require_target_vars
 from shared.cli.error_handler import cli_error_handler
 from shared.cli.output import console, error, remind_review_and_commit, success
 from shared.runtime_config import get_runtime_role
+from shared.target_setup import ensure_setup_target_can_rerun
 from shared.target_setup import run_setup_target, write_target_runtime_from_env
 
 logger = logging.getLogger(__name__)
@@ -43,6 +44,12 @@ def setup_target(
     technology = _get_target_technology(root)
 
     require_target_vars(technology)
+
+    try:
+        ensure_setup_target_can_rerun(root)
+    except ValueError as exc:
+        error(str(exc))
+        raise typer.Exit(code=1) from exc
 
     console.print(f"\nWriting runtime.target for [bold]{technology}[/bold]...")
     try:
