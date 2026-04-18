@@ -255,3 +255,124 @@ def test_sql_server_dbops_connect_escapes_password(monkeypatch: pytest.MonkeyPat
     conn_str = mock_pyodbc.connect.call_args.args[0]
     assert "DRIVER={FreeTDS};" in conn_str
     assert "PWD={pa;ss}}word};" in conn_str
+
+
+def test_sql_server_fetch_source_rows_applies_limit_filter_and_columns() -> None:
+    role = RuntimeRole(
+        technology="sql_server",
+        dialect="tsql",
+        connection=RuntimeConnection(database="WarehouseOne"),
+    )
+    adapter = get_dbops("sql_server").from_role(role)
+    cursor = MagicMock()
+    cursor.description = [("id",), ("name",)]
+    cursor.fetchall.return_value = [(1, "Alice")]
+    conn = MagicMock()
+    conn.cursor.return_value = cursor
+    adapter._connect = MagicMock(return_value=conn)  # type: ignore[attr-defined]
+
+    columns, rows = adapter.fetch_source_rows(
+        "silver",
+        "Customer",
+        limit=25,
+        predicate="id > 10",
+        columns=["id", "name"],
+    )
+
+    assert columns == ["id", "name"]
+    assert rows == [(1, "Alice")]
+    cursor.execute.assert_called_once_with(
+        "SELECT TOP (?) [id], [name] FROM [silver].[Customer] WHERE (id > 10)",
+        25,
+    )
+    conn.close.assert_called_once()
+
+
+def test_sql_server_truncate_and_insert_rows_use_parameterized_statements() -> None:
+    role = RuntimeRole(
+        technology="sql_server",
+        dialect="tsql",
+        connection=RuntimeConnection(database="WarehouseOne"),
+    )
+    adapter = get_dbops("sql_server").from_role(role)
+    cursor = MagicMock()
+    conn = MagicMock()
+    conn.cursor.return_value = cursor
+    adapter._connect = MagicMock(return_value=conn)  # type: ignore[attr-defined]
+
+    adapter.truncate_table("bronze", "Customer")
+    inserted = adapter.insert_rows("bronze", "Customer", ["id", "name"], [(1, "Alice")])
+
+    assert inserted == 1
+    assert cursor.execute.call_args_list[0].args == ("TRUNCATE TABLE [bronze].[Customer]",)
+    cursor.executemany.assert_called_once_with(
+        "INSERT INTO [bronze].[Customer] ([id], [name]) VALUES (?, ?)",
+        [(1, "Alice")],
+    )
+    assert conn.close.call_count == 2
+
+
+def test_oracle_fetch_source_rows_applies_limit_filter_and_columns(monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.setenv("ORACLE_PWD", "secret")
+    role = RuntimeRole(
+        technology="oracle",
+        dialect="oracle",
+        connection=RuntimeConnection(
+            service="TARGETPDB",
+            user="system",
+            password_env="ORACLE_PWD",
+        ),
+    )
+    adapter = get_dbops("oracle").from_role(role)
+    cursor = MagicMock()
+    cursor.description = [("ID",), ("NAME",)]
+    cursor.fetchall.return_value = [(1, "Alice")]
+    conn = MagicMock()
+    conn.cursor.return_value = cursor
+    adapter._connect = MagicMock(return_value=conn)  # type: ignore[attr-defined]
+
+    columns, rows = adapter.fetch_source_rows(
+        "SH",
+        "CUSTOMER",
+        limit=25,
+        predicate="ID > 10",
+        columns=["ID", "NAME"],
+    )
+
+    assert columns == ["ID", "NAME"]
+    assert rows == [(1, "Alice")]
+    cursor.execute.assert_called_once_with(
+        'SELECT "ID", "NAME" FROM "SH"."CUSTOMER" WHERE (ID > 10) FETCH FIRST :limit ROWS ONLY',
+        {"limit": 25},
+    )
+    conn.close.assert_called_once()
+
+
+def test_oracle_truncate_and_insert_rows_use_parameterized_statements(monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.setenv("ORACLE_PWD", "secret")
+    role = RuntimeRole(
+        technology="oracle",
+        dialect="oracle",
+        connection=RuntimeConnection(
+            service="TARGETPDB",
+            user="system",
+            password_env="ORACLE_PWD",
+        ),
+    )
+    adapter = get_dbops("oracle").from_role(role)
+    cursor = MagicMock()
+    conn = MagicMock()
+    conn.cursor.return_value = cursor
+    adapter._connect = MagicMock(return_value=conn)  # type: ignore[attr-defined]
+
+    adapter.truncate_table("BRONZE", "CUSTOMER")
+    inserted = adapter.insert_rows("BRONZE", "CUSTOMER", ["ID", "NAME"], [(1, "Alice")])
+
+    assert inserted == 1
+    assert cursor.execute.call_args_list[0].args == ('TRUNCATE TABLE "BRONZE"."CUSTOMER"',)
+    cursor.executemany.assert_called_once_with(
+        'INSERT INTO "BRONZE"."CUSTOMER" ("ID", "NAME") VALUES (:1, :2)',
+        [(1, "Alice")],
+    )
+    assert conn.commit.call_count == 2
+    assert conn.close.call_count == 2

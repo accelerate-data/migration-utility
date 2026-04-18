@@ -87,6 +87,8 @@ _MODEL_MODULES = {
     "ViewReferences": "profile",
     "RefactorContextOutput": "refactor",
     "RefactorWriteOutput": "refactor",
+    "ReplicateSourceTablesOutput": "replicate_source_tables",
+    "ReplicateTableResult": "replicate_source_tables",
     "CompareSqlOutput": "sandbox",
     "CompareSqlScenario": "sandbox",
     "ErrorEntry": "sandbox",

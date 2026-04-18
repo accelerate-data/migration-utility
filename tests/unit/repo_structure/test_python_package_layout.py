@@ -62,6 +62,7 @@ def test_repo_map_points_commands_at_the_split_projects() -> None:
         "ad_migration_teardown_sandbox": f"cd {PUBLIC_PROJECT_PATH} && uv run ad-migration teardown-sandbox",
         "ad_migration_doctor_drivers": f"cd {PUBLIC_PROJECT_PATH} && uv run ad-migration doctor drivers",
         "ad_migration_reset": f"cd {PUBLIC_PROJECT_PATH} && uv run ad-migration reset",
+        "ad_migration_replicate_source_tables": f"cd {PUBLIC_PROJECT_PATH} && uv run ad-migration replicate-source-tables",
         "ad_migration_exclude_table": f"cd {PUBLIC_PROJECT_PATH} && uv run ad-migration exclude-table",
         "ad_migration_add_source_table": f"cd {PUBLIC_PROJECT_PATH} && uv run ad-migration add-source-table",
     }

@@ -75,6 +75,32 @@ class DatabaseOperations(ABC):
     ) -> tuple[list[str], list[tuple[object, ...]]]:
         """Read table rows for dbt seed CSV export."""
 
+    @abstractmethod
+    def fetch_source_rows(
+        self,
+        schema_name: str,
+        table_name: str,
+        *,
+        limit: int,
+        predicate: str | None = None,
+        columns: list[str] | None = None,
+    ) -> tuple[list[str], list[tuple[object, ...]]]:
+        """Read capped source rows for target-side source replication."""
+
+    @abstractmethod
+    def truncate_table(self, schema_name: str, table_name: str) -> None:
+        """Delete all rows from one physical table."""
+
+    @abstractmethod
+    def insert_rows(
+        self,
+        schema_name: str,
+        table_name: str,
+        columns: list[str],
+        rows: list[tuple[object, ...]],
+    ) -> int:
+        """Insert rows into one physical table and return the inserted row count."""
+
     def _read_secret(self, env_var_name: str | None) -> str | None:
         if not env_var_name:
             return None
