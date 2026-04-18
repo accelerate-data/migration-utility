@@ -15,6 +15,7 @@ from shared.catalog import (
     load_table_catalog,
     load_view_catalog,
 )
+from shared.context_helpers import target_visible_columns
 from shared.loader import (
     CatalogFileMissingError,
     CatalogNotFoundError,
@@ -115,7 +116,7 @@ def _show_table(project_root: Path, norm: str) -> dict[str, Any]:
     table_cat = load_table_catalog(project_root, norm)
     if table_cat is None:
         _catalog_error("table", norm)
-    result: dict[str, Any] = {"columns": table_cat.columns}
+    result: dict[str, Any] = {"columns": target_visible_columns(table_cat.columns)}
     if table_cat.is_source:
         result["is_source"] = True
     if table_cat.is_seed:

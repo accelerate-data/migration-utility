@@ -19,6 +19,7 @@ from shared.context_helpers import (
     project_sql_dialect,
     resolve_selected_writer_ddl_slice,
     sandbox_metadata,
+    target_visible_columns,
 )
 from shared.loader import CatalogFileMissingError
 from shared.name_resolver import normalize
@@ -39,7 +40,7 @@ def _run_context_view(project_root: Path, fqn_norm: str, cat: Any) -> RefactorCo
         object_type="mv" if cat.is_materialized_view else "view",
         view_sql=view_sql,
         profile=profile.model_dump(by_alias=True, exclude_none=True) if hasattr(profile, "model_dump") else profile,
-        columns=cat.columns,
+        columns=target_visible_columns(cat.columns),
         source_tables=collect_view_source_tables(project_root, fqn_norm),
         test_spec=load_test_spec(project_root, fqn_norm),
         sandbox=sandbox_metadata(project_root),

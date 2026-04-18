@@ -8,6 +8,7 @@ from pathlib import Path
 
 from shared.catalog import write_json as write_catalog_json
 from shared.env_config import resolve_catalog_dir
+from shared.runtime_config import get_runtime_role
 from shared.setup_ddl_support.staging_io import load_staging_catalog_inputs
 from shared.setup_ddl_support.staging_signals import build_catalog_write_inputs
 
@@ -91,13 +92,40 @@ def ensure_catalog_subdirectories(project_root: Path) -> None:
         (catalog_dir / subdir).mkdir(parents=True, exist_ok=True)
 
 
+def _catalog_type_technologies(project_root: Path) -> tuple[str, str]:
+    """Return source and target technologies for catalog type rendering.
+
+    VU-1119 owns hard blocking when target technology is missing. Until that
+    guard runs, default the target to source to preserve legacy unit paths.
+    """
+    manifest_path = project_root / "manifest.json"
+    if not manifest_path.exists():
+        return "sql_server", "sql_server"
+    try:
+        manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
+    except (json.JSONDecodeError, OSError):
+        return "sql_server", "sql_server"
+    source_role = get_runtime_role(manifest, "source")
+    target_role = get_runtime_role(manifest, "target")
+    source_technology = (
+        source_role.technology if source_role is not None else str(manifest.get("technology") or "sql_server")
+    )
+    target_technology = target_role.technology if target_role is not None else source_technology
+    return source_technology, target_technology
+
+
 def run_write_catalog(staging_dir: Path, project_root: Path, database: str) -> dict[str, object]:
     from shared.catalog import detect_catalog_bucket
     from shared.catalog_diff import classify_objects, compute_object_hashes, load_existing_hashes
     from shared.catalog_dmf import write_catalog_files
 
     staging_inputs = load_staging_catalog_inputs(staging_dir)
-    derived_inputs = build_catalog_write_inputs(staging_inputs)
+    source_technology, target_technology = _catalog_type_technologies(project_root)
+    derived_inputs = build_catalog_write_inputs(
+        staging_inputs,
+        source_technology=source_technology,
+        target_technology=target_technology,
+    )
     fresh_hashes = compute_object_hashes(
         staging_inputs["definitions_rows"],
         derived_inputs["table_signals"],

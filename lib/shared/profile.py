@@ -36,6 +36,7 @@ from shared.context_helpers import (
     project_sql_dialect,
     references_from_selected_sql,
     resolve_selected_writer_ddl_slice,
+    target_visible_columns,
 )
 from shared.loader import (
     CatalogFileMissingError,
@@ -164,7 +165,7 @@ def run_context(project_root: Path, table: str, writer: str | None = None) -> Pr
             logger.warning("event=context_warning operation=load_proc_body table=%s writer=%s reason=no_ddl_body", table_norm, writer_norm)
         related_procedures = _build_related_procedures(project_root, ddl_catalog, writer_references)
 
-    columns = [ProfileColumnDef.model_validate(c) for c in table_cat.columns]
+    columns = [ProfileColumnDef.model_validate(c) for c in target_visible_columns(table_cat.columns)]
 
     logger.info("event=context_assembled table=%s writer=%s related_count=%d", table_norm, writer_norm, len(related_procedures))
     return ProfileContext(
@@ -239,7 +240,9 @@ def run_view_context(project_root: Path, view_fqn: str) -> ViewProfileContext:
         for e in raw_elements
     ] if raw_elements else None
 
-    columns = [ViewColumnDef.model_validate(c) for c in view_cat.columns] if view_cat.is_materialized_view else []
+    columns = [
+        ViewColumnDef.model_validate(c) for c in target_visible_columns(view_cat.columns)
+    ] if view_cat.is_materialized_view else []
 
     logger.info("event=view_context_assembled view=%s", view_norm)
     return ViewProfileContext(

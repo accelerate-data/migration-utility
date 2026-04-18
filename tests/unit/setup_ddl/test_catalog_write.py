@@ -91,6 +91,74 @@ class TestWriteManifest:
 
 
 class TestWriteCatalog:
+    def test_table_columns_persist_source_canonical_and_target_types(self, tmp_path):
+        staging = tmp_path / "staging"
+        output = tmp_path / "output"
+        output.mkdir()
+        (output / "manifest.json").write_text(
+            json.dumps(
+                {
+                    "schema_version": "1.0",
+                    "technology": "oracle",
+                    "dialect": "oracle",
+                    "runtime": {
+                        "source": {"technology": "oracle", "dialect": "oracle"},
+                        "target": {"technology": "sql_server", "dialect": "tsql"},
+                    },
+                }
+            ),
+            encoding="utf-8",
+        )
+
+        _write_json(staging / "table_columns.json", [
+            {"schema_name": "SH", "table_name": "SALES", "column_name": "AMOUNT", "column_id": 1,
+             "type_name": "NUMBER", "max_length": 0, "precision": 10, "scale": 2,
+             "is_nullable": True, "is_identity": False},
+            {"schema_name": "SH", "table_name": "SALES", "column_name": "CHANNEL", "column_id": 2,
+             "type_name": "VARCHAR2", "max_length": 20, "precision": 0, "scale": 0,
+             "is_nullable": False, "is_identity": False},
+        ])
+        _write_json(staging / "pk_unique.json", [])
+        _write_json(staging / "foreign_keys.json", [])
+        _write_json(staging / "identity_columns.json", [])
+        _write_json(staging / "cdc.json", [])
+        _write_json(staging / "object_types.json", [
+            {"schema_name": "SH", "name": "SALES", "type": "U"},
+        ])
+        _write_json(staging / "definitions.json", [])
+        _write_json(staging / "proc_dmf.json", [])
+        _write_json(staging / "view_dmf.json", [])
+        _write_json(staging / "func_dmf.json", [])
+        _write_json(staging / "proc_params.json", [])
+
+        result = _run_cli([
+            "write-catalog",
+            "--staging-dir", str(staging),
+            "--project-root", str(output),
+            "--database", "",
+        ])
+
+        assert result.returncode == 0, result.stderr
+        table_cat = json.loads((output / "catalog" / "tables" / "sh.sales.json").read_text())
+        assert table_cat["columns"] == [
+            {
+                "name": "AMOUNT",
+                "source_sql_type": "NUMBER(10,2)",
+                "canonical_tsql_type": "DECIMAL(10,2)",
+                "sql_type": "DECIMAL(10,2)",
+                "is_nullable": True,
+                "is_identity": False,
+            },
+            {
+                "name": "CHANNEL",
+                "source_sql_type": "VARCHAR2(20)",
+                "canonical_tsql_type": "VARCHAR(20)",
+                "sql_type": "VARCHAR(20)",
+                "is_nullable": False,
+                "is_identity": False,
+            },
+        ]
+
     def test_writes_catalog_from_staging(self, tmp_path):
         staging = tmp_path / "staging"
         output = tmp_path / "output"

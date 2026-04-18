@@ -5,7 +5,7 @@ from __future__ import annotations
 from typing import Any
 
 from shared.name_resolver import normalize
-from shared.sql_types import format_sql_type
+from shared.sql_types import format_sql_type, map_catalog_column_type
 
 TYPE_MAPPING = {
     "U": "tables",
@@ -56,16 +56,28 @@ def build_function_subtypes(object_types_raw: list | dict) -> dict[str, str]:
     return result
 
 
-def apply_column_rows(signals: dict[str, dict[str, Any]], rows: list) -> None:
+def apply_column_rows(
+    signals: dict[str, dict[str, Any]],
+    rows: list,
+    *,
+    source_technology: str,
+    target_technology: str,
+) -> None:
     for row in rows:
         fqn = normalize(f"{row['schema_name']}.{row['table_name']}")
         sig = ensure_table_skeleton(signals, fqn)
+        type_fields = map_catalog_column_type(
+            source_technology=source_technology,
+            target_technology=target_technology,
+            type_name=row["type_name"],
+            max_length=row["max_length"],
+            precision=row["precision"],
+            scale=row["scale"],
+        )
         sig["columns"].append(
             {
                 "name": row["column_name"],
-                "sql_type": format_sql_type(
-                    row["type_name"], row["max_length"], row["precision"], row["scale"]
-                ),
+                **type_fields,
                 "is_nullable": bool(row.get("is_nullable")),
                 "is_identity": bool(row.get("is_identity")),
             }
@@ -217,17 +229,28 @@ def build_long_truncation_map(
     return result
 
 
-def build_view_columns_map(view_columns_rows: list) -> dict[str, list[dict[str, Any]]]:
+def build_view_columns_map(
+    view_columns_rows: list,
+    *,
+    source_technology: str = "sql_server",
+    target_technology: str = "sql_server",
+) -> dict[str, list[dict[str, Any]]]:
     grouped: dict[str, list[dict[str, Any]]] = {}
     for row in view_columns_rows:
         fqn = normalize(f"{row['schema_name']}.{row['view_name']}")
+        type_fields = map_catalog_column_type(
+            source_technology=source_technology,
+            target_technology=target_technology,
+            type_name=row["type_name"],
+            max_length=row["max_length"],
+            precision=row["precision"],
+            scale=row["scale"],
+        )
         grouped.setdefault(fqn, []).append(
             {
                 "_column_id": row.get("column_id", 0),
                 "name": row["column_name"],
-                "sql_type": format_sql_type(
-                    row["type_name"], row["max_length"], row["precision"], row["scale"]
-                ),
+                **type_fields,
                 "is_nullable": bool(row.get("is_nullable")),
             }
         )
@@ -238,12 +261,22 @@ def build_view_columns_map(view_columns_rows: list) -> dict[str, list[dict[str, 
     return result
 
 
-def build_catalog_write_inputs(staging_inputs: dict[str, Any]) -> dict[str, Any]:
+def build_catalog_write_inputs(
+    staging_inputs: dict[str, Any],
+    *,
+    source_technology: str = "sql_server",
+    target_technology: str = "sql_server",
+) -> dict[str, Any]:
     from shared.routing import scan_routing_flags
 
     object_types = build_object_types_map(staging_inputs["object_types_raw"])
     table_signals: dict[str, dict[str, Any]] = {}
-    apply_column_rows(table_signals, staging_inputs["table_columns_rows"])
+    apply_column_rows(
+        table_signals,
+        staging_inputs["table_columns_rows"],
+        source_technology=source_technology,
+        target_technology=target_technology,
+    )
     apply_pk_unique_rows(table_signals, staging_inputs["pk_unique_rows"])
     apply_fk_rows(table_signals, staging_inputs["fk_rows"])
     apply_identity_rows(table_signals, staging_inputs["identity_rows"])
@@ -256,7 +289,11 @@ def build_catalog_write_inputs(staging_inputs: dict[str, Any]) -> dict[str, Any]
         "routing_flags": build_routing_flags(staging_inputs["definitions_rows"], scan_routing_flags),
         "proc_params": build_proc_params(staging_inputs["proc_params_rows"]),
         "view_definitions": build_view_definitions_map(staging_inputs["definitions_rows"], object_types),
-        "view_columns": build_view_columns_map(staging_inputs["view_columns_rows"]),
+        "view_columns": build_view_columns_map(
+            staging_inputs["view_columns_rows"],
+            source_technology=source_technology,
+            target_technology=target_technology,
+        ),
         "function_subtypes": build_function_subtypes(staging_inputs["object_types_raw"]),
         "long_truncation_fqns": build_long_truncation_map(staging_inputs["definitions_rows"], object_types),
         "mv_fqns": {

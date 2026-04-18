@@ -58,7 +58,7 @@ def load_table_columns(project_root: Path, table_fqn: str) -> list[dict[str, Any
     """Load column list from the table catalog file."""
     cat = load_table_catalog(project_root, table_fqn)
     if cat and cat.columns:
-        return cat.columns
+        return target_visible_columns(cat.columns)
     return []
 
 
@@ -151,11 +151,23 @@ def load_object_columns(project_root: Path, fqn: str) -> list[dict[str, Any]]:
     """
     cat = load_table_catalog(project_root, fqn)
     if cat and cat.columns:
-        return cat.columns
+        return target_visible_columns(cat.columns)
     vcat = load_view_catalog(project_root, fqn)
     if vcat and vcat.columns:
-        return vcat.columns
+        return target_visible_columns(vcat.columns)
     return []
+
+
+def target_visible_columns(columns: list[dict[str, Any]]) -> list[dict[str, Any]]:
+    """Return column metadata suitable for target-facing contexts and prompts."""
+    visible: list[dict[str, Any]] = []
+    hidden = {"source_sql_type", "canonical_tsql_type"}
+    for column in columns:
+        if not isinstance(column, dict):
+            visible.append(column)
+            continue
+        visible.append({key: value for key, value in column.items() if key not in hidden})
+    return visible
 
 
 def sandbox_metadata(project_root: Path) -> dict[str, Any] | None:

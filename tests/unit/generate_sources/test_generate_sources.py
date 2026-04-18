@@ -305,6 +305,41 @@ def test_sources_yml_includes_catalog_columns_types_and_not_null_tests() -> None
         tmp.cleanup()
 
 
+def test_sources_yml_uses_target_sql_type_and_hides_source_debug_types() -> None:
+    """Generated source and staging YAML use sql_type without leaking source/debug fields."""
+    tmp, root = _make_project([
+        {
+            "schema": "silver",
+            "name": "Customer",
+            "scoping": {"status": "no_writer_found"},
+            "is_source": True,
+            "columns": [
+                {
+                    "name": "customer_id",
+                    "source_sql_type": "NUMBER(10,0)",
+                    "canonical_tsql_type": "INT",
+                    "sql_type": "INT",
+                    "is_nullable": False,
+                },
+            ],
+        },
+    ])
+    try:
+        result = write_sources_yml(root)
+        assert result.path is not None
+        sources_content = Path(result.path).read_text(encoding="utf-8")
+        staging_content = (
+            root / "dbt" / "models" / "staging" / "_staging__models.yml"
+        ).read_text(encoding="utf-8")
+        assert "data_type: INT" in sources_content
+        assert "data_type: INT" in staging_content
+        assert "NUMBER" not in sources_content
+        assert "canonical_tsql_type" not in sources_content
+        assert "source_sql_type" not in staging_content
+    finally:
+        tmp.cleanup()
+
+
 def test_write_sources_yml_writes_enriched_yaml_idempotently(tmp_path: Path) -> None:
     """write_sources_yml writes enriched YAML, staging wrappers, and stable repeated output."""
     tables_dir = tmp_path / "catalog" / "tables"
