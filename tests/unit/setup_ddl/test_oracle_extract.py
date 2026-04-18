@@ -81,6 +81,38 @@ class TestExtractOracleUnit:
         for row in rows[:5]:
             assert required.issubset(set(row.keys())), f"Missing fields in row: {row.keys()}"
 
+    def test_extract_table_columns_uses_char_length_for_oracle_text(self):
+        import sys
+        sys.path.insert(0, str(Path(__file__).resolve().parents[3] / "lib"))
+        from shared.oracle_extract import _extract_table_columns
+        from unittest.mock import MagicMock
+
+        mock_cur = MagicMock()
+        mock_cur.description = [
+            ("OWNER",),
+            ("TABLE_NAME",),
+            ("COLUMN_NAME",),
+            ("COLUMN_ID",),
+            ("DATA_TYPE",),
+            ("DATA_LENGTH",),
+            ("CHAR_LENGTH",),
+            ("DATA_PRECISION",),
+            ("DATA_SCALE",),
+            ("NULLABLE",),
+            ("IDENTITY_COLUMN",),
+        ]
+        mock_cur.fetchall.return_value = [
+            ("SH", "CUSTOMERS", "NAME", 1, "NVARCHAR2", 80, 20, None, None, "Y", "NO"),
+            ("SH", "CUSTOMERS", "TOKEN", 2, "RAW", 16, 16, None, None, "N", "NO"),
+        ]
+        mock_conn = MagicMock()
+        mock_conn.cursor.return_value = mock_cur
+
+        result = _extract_table_columns(mock_conn, ["SH"])
+
+        assert result[0]["max_length"] == 20
+        assert result[1]["max_length"] == 16
+
     def test_object_types_fixture_maps_to_sql_server_codes(self):
         rows = json.loads((ORACLE_FIXTURE_DIR / "object_types.json").read_text())
         valid_types = {"U", "V", "P", "FN"}

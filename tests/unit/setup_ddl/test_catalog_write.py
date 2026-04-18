@@ -8,6 +8,7 @@ from pathlib import Path
 import pytest
 oracledb = pytest.importorskip("oracledb", reason="oracledb not installed")
 
+from shared.setup_ddl_support.catalog_write import _catalog_type_technologies
 from tests.helpers import run_setup_ddl_cli as _run_cli
 
 from .conftest import _write_json
@@ -158,6 +159,29 @@ class TestWriteCatalog:
                 "is_identity": False,
             },
         ]
+
+    def test_catalog_type_technologies_falls_back_only_for_missing_target(self, tmp_path):
+        assert _catalog_type_technologies(tmp_path) == ("sql_server", "sql_server")
+
+        (tmp_path / "manifest.json").write_text(
+            json.dumps(
+                {
+                    "technology": "oracle",
+                    "runtime": {
+                        "source": {"technology": "oracle", "dialect": "oracle"},
+                    },
+                }
+            ),
+            encoding="utf-8",
+        )
+
+        assert _catalog_type_technologies(tmp_path) == ("oracle", "oracle")
+
+    def test_catalog_type_technologies_rejects_malformed_manifest(self, tmp_path):
+        (tmp_path / "manifest.json").write_text("{not json", encoding="utf-8")
+
+        with pytest.raises(json.JSONDecodeError):
+            _catalog_type_technologies(tmp_path)
 
     def test_writes_catalog_from_staging(self, tmp_path):
         staging = tmp_path / "staging"
@@ -513,6 +537,57 @@ class TestWriteCatalogViewEnrichment:
         rerun_view_cat = json.loads((output / "catalog" / "views" / "dbo.vw_sales.json").read_text())
         assert rerun_view_cat["columns"] == view_cat["columns"]
 
+    def test_oracle_view_columns_map_to_sql_server_target_types(self, tmp_path):
+        staging = tmp_path / "staging"
+        output = tmp_path / "output"
+        output.mkdir()
+        (output / "manifest.json").write_text(
+            json.dumps(
+                {
+                    "schema_version": "1.0",
+                    "technology": "oracle",
+                    "dialect": "oracle",
+                    "runtime": {
+                        "source": {"technology": "oracle", "dialect": "oracle"},
+                        "target": {"technology": "sql_server", "dialect": "tsql"},
+                    },
+                }
+            ),
+            encoding="utf-8",
+        )
+        self._minimal_staging(staging)
+        _write_json(staging / "view_columns.json", [
+            {"schema_name": "SH", "view_name": "VW_SALES", "column_name": "NAME",
+             "column_id": 1, "type_name": "NVARCHAR2", "max_length": 20,
+             "precision": 0, "scale": 0, "is_nullable": True},
+        ])
+        _write_json(staging / "object_types.json", [
+            {"schema_name": "SH", "name": "VW_SALES", "type": "V"},
+        ])
+        _write_json(staging / "definitions.json", [
+            {"schema_name": "SH", "object_name": "VW_SALES",
+             "definition": "CREATE VIEW SH.VW_SALES AS SELECT NAME FROM SH.SALES"},
+        ])
+
+        result = _run_cli([
+            "write-catalog",
+            "--staging-dir", str(staging),
+            "--project-root", str(output),
+            "--database", "",
+        ])
+
+        assert result.returncode == 0, result.stderr
+        view_cat = json.loads((output / "catalog" / "views" / "sh.vw_sales.json").read_text())
+        assert view_cat["columns"] == [
+            {
+                "name": "NAME",
+                "source_sql_type": "NVARCHAR2(20)",
+                "canonical_tsql_type": "NVARCHAR(20)",
+                "sql_type": "NVARCHAR(20)",
+                "is_nullable": True,
+            }
+        ]
+
     def test_view_columns_absent_when_no_view_columns_file(self, tmp_path):
         staging = tmp_path / "staging"
         output = tmp_path / "output"
@@ -671,6 +746,47 @@ class TestWriteCatalogDiffAware:
 
         new_hash = json.loads(proc_path.read_text())["ddl_hash"]
         assert new_hash != original_hash
+
+    def test_changed_table_rewrite_preserves_catalog_type_fields(self, tmp_path):
+        staging = tmp_path / "staging"
+        output = tmp_path / "output"
+        _make_staging(staging)
+
+        result = _run_cli([
+            "write-catalog",
+            "--staging-dir", str(staging),
+            "--project-root", str(output),
+            "--database", "TestDB",
+        ])
+        assert result.returncode == 0, result.stderr
+
+        _write_json(staging / "table_columns.json", [
+            {"schema_name": "dbo", "table_name": "T1", "column_name": "id", "column_id": 1,
+             "type_name": "bigint", "max_length": 8, "precision": 19, "scale": 0,
+             "is_nullable": False, "is_identity": False},
+        ])
+
+        result = _run_cli([
+            "write-catalog",
+            "--staging-dir", str(staging),
+            "--project-root", str(output),
+            "--database", "TestDB",
+        ])
+
+        assert result.returncode == 0, result.stderr
+        counts = json.loads(result.stdout)
+        assert counts["changed"] >= 1
+        table_cat = json.loads((output / "catalog" / "tables" / "dbo.t1.json").read_text())
+        assert table_cat["columns"] == [
+            {
+                "name": "id",
+                "source_sql_type": "BIGINT",
+                "canonical_tsql_type": "BIGINT",
+                "sql_type": "BIGINT",
+                "is_nullable": False,
+                "is_identity": False,
+            }
+        ]
 
     def test_removed_object_flagged_stale(self, tmp_path):
         staging = tmp_path / "staging"

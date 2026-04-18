@@ -140,6 +140,32 @@ def test_sql_server_datetime_maps_to_target_oracle() -> None:
         (
             "oracle",
             "sql_server",
+            "NUMBER",
+            0,
+            0,
+            0,
+            {
+                "source_sql_type": "NUMBER",
+                "canonical_tsql_type": "DECIMAL",
+                "sql_type": "DECIMAL",
+            },
+        ),
+        (
+            "oracle",
+            "oracle",
+            "NUMBER",
+            0,
+            0,
+            0,
+            {
+                "source_sql_type": "NUMBER",
+                "canonical_tsql_type": "DECIMAL",
+                "sql_type": "NUMBER",
+            },
+        ),
+        (
+            "oracle",
+            "sql_server",
             "RAW",
             16,
             0,
@@ -161,6 +187,32 @@ def test_sql_server_datetime_maps_to_target_oracle() -> None:
                 "source_sql_type": "NVARCHAR2(20)",
                 "canonical_tsql_type": "NVARCHAR(20)",
                 "sql_type": "NVARCHAR(20)",
+            },
+        ),
+        (
+            "sql_server",
+            "sql_server",
+            "nvarchar",
+            -1,
+            0,
+            0,
+            {
+                "source_sql_type": "NVARCHAR(MAX)",
+                "canonical_tsql_type": "NVARCHAR(MAX)",
+                "sql_type": "NVARCHAR(MAX)",
+            },
+        ),
+        (
+            "sql_server",
+            "oracle",
+            "varbinary",
+            32,
+            0,
+            0,
+            {
+                "source_sql_type": "VARBINARY(32)",
+                "canonical_tsql_type": "VARBINARY(32)",
+                "sql_type": "RAW(32)",
             },
         ),
     ],
@@ -192,5 +244,29 @@ def test_unsupported_source_type_raises_mapping_error() -> None:
             type_name="XMLTYPE",
             max_length=0,
             precision=0,
+            scale=0,
+        )
+
+
+def test_unsupported_source_technology_raises_mapping_error() -> None:
+    with pytest.raises(sql_types.TypeMappingError, match="Unsupported source technology"):
+        sql_types.map_catalog_column_type(
+            source_technology="postgres",
+            target_technology="sql_server",
+            type_name="integer",
+            max_length=0,
+            precision=0,
+            scale=0,
+        )
+
+
+def test_unsupported_target_technology_raises_mapping_error() -> None:
+    with pytest.raises(sql_types.TypeMappingError, match="Unsupported target technology"):
+        sql_types.map_catalog_column_type(
+            source_technology="sql_server",
+            target_technology="postgres",
+            type_name="int",
+            max_length=4,
+            precision=10,
             scale=0,
         )

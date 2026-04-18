@@ -161,7 +161,7 @@ def load_object_columns(project_root: Path, fqn: str) -> list[dict[str, Any]]:
 def target_visible_columns(columns: list[dict[str, Any]]) -> list[dict[str, Any]]:
     """Return column metadata suitable for target-facing contexts and prompts."""
     visible: list[dict[str, Any]] = []
-    allowed = {"name", "sql_type", "is_nullable", "is_identity", "max_length", "precision", "scale"}
+    allowed = {"name", "sql_type", "is_nullable", "is_identity"}
     for column in columns:
         if not isinstance(column, dict):
             visible.append(column)

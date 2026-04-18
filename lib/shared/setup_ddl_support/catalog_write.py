@@ -95,16 +95,14 @@ def ensure_catalog_subdirectories(project_root: Path) -> None:
 def _catalog_type_technologies(project_root: Path) -> tuple[str, str]:
     """Return source and target technologies for catalog type rendering.
 
-    VU-1119 owns hard blocking when target technology is missing. Until that
-    guard runs, default the target to source to preserve legacy unit paths.
+    VU-1119 owns hard blocking when target technology is missing. Until that guard
+    runs, missing manifests and missing target roles default to the source technology
+    to preserve legacy unit paths; malformed manifests fail at the read boundary.
     """
     manifest_path = project_root / "manifest.json"
     if not manifest_path.exists():
         return "sql_server", "sql_server"
-    try:
-        manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
-    except (json.JSONDecodeError, OSError):
-        return "sql_server", "sql_server"
+    manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
     source_role = get_runtime_role(manifest, "source")
     target_role = get_runtime_role(manifest, "target")
     source_technology = (

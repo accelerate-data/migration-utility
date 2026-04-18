@@ -104,7 +104,7 @@ def _canonical_from_source(source_technology: str, source: SqlTypeSpec) -> SqlTy
     elif source_technology == "oracle":
         if source_name == "NUMBER":
             if source.precision is None:
-                return SqlTypeSpec("DECIMAL", precision=38, scale=10)
+                return SqlTypeSpec("DECIMAL")
             if source.scale == 0:
                 if source.precision <= 4:
                     return SqlTypeSpec("SMALLINT")
