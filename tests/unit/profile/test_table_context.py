@@ -40,6 +40,34 @@ def test_profile_facade_reexports_context_model_types() -> None:
     assert ViewReferences.__name__ == "ViewReferences"
 
 
+def test_profile_facade_reexports_context_helpers() -> None:
+    from shared.profile import (
+        load_and_merge_catalog,
+        load_ddl,
+        load_proc_catalog,
+        load_table_catalog,
+        load_view_catalog,
+        project_sql_dialect,
+        read_selected_writer,
+        references_from_selected_sql,
+        resolve_catalog_dir,
+        resolve_selected_writer_ddl_slice,
+        target_visible_columns,
+    )
+
+    assert load_and_merge_catalog.__name__ == "load_and_merge_catalog"
+    assert load_ddl.__name__ == "load_ddl"
+    assert load_proc_catalog.__name__ == "load_proc_catalog"
+    assert load_table_catalog.__name__ == "load_table_catalog"
+    assert load_view_catalog.__name__ == "load_view_catalog"
+    assert project_sql_dialect.__name__ == "project_sql_dialect"
+    assert read_selected_writer.__name__ == "read_selected_writer"
+    assert references_from_selected_sql.__name__ == "references_from_selected_sql"
+    assert resolve_catalog_dir.__name__ == "resolve_catalog_dir"
+    assert resolve_selected_writer_ddl_slice.__name__ == "resolve_selected_writer_ddl_slice"
+    assert target_visible_columns.__name__ == "target_visible_columns"
+
+
 def test_context_rich_catalog_all_signals_present() -> None:
     """Context with rich catalog returns all catalog signals."""
     result = profile.run_context(

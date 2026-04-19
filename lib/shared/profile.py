@@ -23,14 +23,28 @@ from typing import Optional
 import typer
 from pydantic import ValidationError
 
+from shared.catalog import (
+    load_and_merge_catalog,
+    load_proc_catalog,
+    load_table_catalog,
+    load_view_catalog,
+    read_selected_writer,
+)
 from shared.catalog_models import ReferencesBucket, TableCatalog, TableProfileSection, ViewProfileSection
 from shared.cli_utils import emit
-from shared.env_config import resolve_project_root
+from shared.context_helpers import (
+    project_sql_dialect,
+    references_from_selected_sql,
+    resolve_selected_writer_ddl_slice,
+    target_visible_columns,
+)
+from shared.env_config import resolve_catalog_dir, resolve_project_root
 from shared.loader import (
     CatalogFileMissingError,
     CatalogLoadError,
     CatalogNotFoundError,
     DdlParseError,
+    load_ddl,
 )
 from shared.name_resolver import normalize
 from shared.output_models.discover import SqlElement
@@ -82,9 +96,20 @@ __all__ = [
     "context",
     "derive_table_profile_status",
     "derive_view_profile_status",
+    "load_and_merge_catalog",
+    "load_ddl",
+    "load_proc_catalog",
+    "load_table_catalog",
+    "load_view_catalog",
+    "project_sql_dialect",
+    "read_selected_writer",
+    "references_from_selected_sql",
+    "resolve_catalog_dir",
+    "resolve_selected_writer_ddl_slice",
     "run_context",
     "run_view_context",
     "run_write",
+    "target_visible_columns",
     "view_context",
     "write",
 ]
