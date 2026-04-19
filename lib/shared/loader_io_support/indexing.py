@@ -10,6 +10,14 @@ from shared.loader_data import CatalogLoadError, DdlCatalog, DdlEntry, DdlParseE
 from shared.loader_io_support.manifest import read_manifest
 from shared.loader_parse import extract_refs
 
+try:
+    from shared.loader_io_support.directory import load_directory
+except ImportError:
+    def load_directory(project_root: Path | str, dialect: str = "tsql") -> DdlCatalog:
+        from shared.loader_io_support.directory import load_directory as _load_directory
+
+        return _load_directory(project_root, dialect=dialect)
+
 _CATALOG_SCHEMA_VERSION = "1.0"
 
 
@@ -73,8 +81,6 @@ def index_directory(
     Raises:
         FileNotFoundError: if project_root does not exist.
     """
-    from shared.loader_io_support.directory import load_directory
-
     _manifest = read_manifest(Path(project_root))
     dialect = _manifest["dialect"]
     catalog = load_directory(project_root, dialect=dialect)
