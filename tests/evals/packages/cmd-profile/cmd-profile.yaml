@@ -26,6 +26,7 @@ tests:
       target_table: "silver.InsertSelectTarget"
       expected_item_statuses: '{"silver.InsertSelectTarget": "ok", "silver.UpdateJoinTarget": "ok"}'
       expected_output_terms: "ok"
+      expected_pr_terms: "PR,Branch,Worktree"
       expected_status: "ok"
     assert:
       - type: javascript

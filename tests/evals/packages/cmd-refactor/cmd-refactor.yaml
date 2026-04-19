@@ -24,6 +24,7 @@ tests:
       fixture_path: "tests/evals/fixtures/cmd-refactor/happy-path"
       target_tables: "silver.InsertSelectTarget silver.UpdateJoinTarget"
       expected_item_statuses: '{"silver.InsertSelectTarget": "ok,partial", "silver.UpdateJoinTarget": "ok,partial"}'
+      expected_pr_terms: "PR,Branch,Worktree"
 
   # ── error-clean: missing prerequisite ──────────────────────────
   - description: "error-clean — DimGeography no profile + InsertSelectTarget ok"

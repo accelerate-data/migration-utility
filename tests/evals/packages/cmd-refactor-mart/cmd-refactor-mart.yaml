@@ -23,6 +23,7 @@ tests:
       plan_file: "docs/design/refactor-mart-stg-happy-path.md"
       expected_candidate_statuses: "STG-001:applied,INT-001:planned,MART-001:planned"
       expected_output_terms: "applied,stg_bronze__orders,int_sales_orders,int_sales_order_summary"
+      expected_pr_terms: "PR,Branch,Worktree"
       expected_consumer_refs: "int_sales_orders:stg_bronze__orders,int_sales_order_summary:stg_bronze__orders"
       expected_validation_result_details: "STG-001=stg_bronze__orders||declared|models|reference||declared|models|validated"
     assert:
@@ -43,13 +44,14 @@ tests:
       - type: javascript
         value: file://../../assertions/check-refactor-mart-stg-execution.js
 
-  - description: "[smoke] int happy path -- approved higher-layer candidates apply after satisfied dependencies"
+  - description: "int happy path -- approved higher-layer candidates apply after satisfied dependencies"
     prompts: ["cmd-refactor-mart-int"]
     vars:
       fixture_path: "tests/evals/fixtures/cmd-refactor-mart/int-happy-path"
       plan_file: "docs/design/refactor-mart-int-happy-path.md"
       expected_candidate_statuses: "STG-001:applied,INT-001:applied,MART-001:applied"
       expected_output_terms: "applied,int_sales_orders,fct_sales"
+      expected_pr_terms: "PR,Branch,Worktree"
       expected_model_refs: "int_sales_orders:stg_bronze__orders,fct_sales:int_sales_orders"
       expected_validation_result_details: "INT-001=dbt build --select int_sales_orders||int_sales_orders|validation|passed,MART-001=dbt build --select fct_sales||fct_sales|validation|passed"
     assert:

@@ -11,6 +11,7 @@
 //   expected_item_statuses?,  — JSON string: {"silver.DimProduct": "ok", "silver.DimDate": "error"}
 //                               Multi-status: {"silver.DimCurrency": "ok,partial,error"} (any is acceptable)
 //   expected_output_terms?,   — comma-separated terms that must appear in output text
+//   expected_pr_terms?,       — comma-separated PR handoff terms that must appear in output text
 //   expected_error_codes?     — comma-separated error codes that must appear in per-item artifacts or output text
 //   expected_item_review_iterations?, — JSON string: {"silver.Table": 2}
 //   expected_item_review_verdicts?    — JSON string: {"silver.Table": "approved"}
@@ -18,7 +19,11 @@
 // }
 const fs = require('fs');
 const path = require('path');
-const { normalizeTerms, resolveProjectPath } = require('./schema-helpers');
+const {
+  containsDelimitedTerm,
+  normalizeTerms,
+  resolveProjectPath,
+} = require('./schema-helpers');
 
 /**
  * Find all per-item result JSON files in .migration-runs/ matching a table FQN.
@@ -105,6 +110,7 @@ module.exports = (output, context) => {
       ? Number(context.vars.expected_error_count)
       : null;
   const expectedOutputTerms = normalizeTerms(context.vars.expected_output_terms);
+  const expectedPrTerms = normalizeTerms(context.vars.expected_pr_terms);
   const expectedErrorCodes = normalizeTerms(context.vars.expected_error_codes);
   const expectedPresentPaths = normalizeTerms(context.vars.expected_present_paths);
   let expectedItemReviewIterations = {};
@@ -277,6 +283,18 @@ module.exports = (output, context) => {
         pass: false,
         score: 0,
         reason: `Expected output term '${term}' not found in summary`,
+      };
+    }
+  }
+
+  // Check PR handoff terms in text so the command summary records the
+  // automatic PR/branch/worktree transition expected in real projects.
+  for (const term of expectedPrTerms) {
+    if (!containsDelimitedTerm(outputStr, term)) {
+      return {
+        pass: false,
+        score: 0,
+        reason: `Expected PR handoff term '${term}' not found in summary`,
       };
     }
   }

@@ -26,6 +26,7 @@ tests:
       target_table: "silver.DimProduct"
       expected_item_statuses: '{"silver.DimProduct": "resolved", "silver.DimCustomer": "resolved"}'
       expected_output_terms: "resolved"
+      expected_pr_terms: "PR,Branch,Worktree"
       expected_status: "resolved"
       expected_writer: "dimproduct"
     assert:

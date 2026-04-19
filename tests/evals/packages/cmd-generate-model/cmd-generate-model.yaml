@@ -62,6 +62,7 @@ tests:
       target_table: "silver.InsertSelectTarget"
       expected_item_statuses: '{"silver.InsertSelectTarget": "ok,partial", "silver.UpdateJoinTarget": "ok,partial"}'
       expected_output_terms: "ok"
+      expected_pr_terms: "PR,Branch,Worktree"
       expected_model_path: "models/marts/insertselecttarget.sql"
       expected_model_terms: "ref('stg_bronze__product')"
       forbidden_model_terms: "materialized='table',source('bronze'"

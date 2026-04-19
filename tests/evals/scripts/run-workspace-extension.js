@@ -270,6 +270,8 @@ async function extensionHook(hookName, context, options = {}) {
   pinFixtureDatabase(runRoot, manifest);
   injectCatalogError(runRoot, context.test.vars);
 
+  context.test.vars.canonical_fixture_path = fixturePath;
+  context.test.vars.fixture_path = runRoot;
   context.test.vars.run_path = runRoot;
   context.test.vars.repo_root = REPO_ROOT;
   return context;

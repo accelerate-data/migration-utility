@@ -93,7 +93,10 @@ function catalogWithoutInjectedErrors(root, objectFqn) {
 module.exports = (output, context) => {
   const repoRoot = path.resolve(__dirname, '..', '..', '..');
   const runRoot = path.resolve(repoRoot, resolveProjectPath(context));
-  const fixtureRoot = path.resolve(repoRoot, context.vars.fixture_path || '');
+  const fixtureRoot = path.resolve(
+    repoRoot,
+    context.vars.canonical_fixture_path || context.vars.fixture_path || '',
+  );
   const outputStr = String(output || '').toLowerCase();
 
   for (const term of normalizeTerms(context.vars.expected_final_output_terms)) {
