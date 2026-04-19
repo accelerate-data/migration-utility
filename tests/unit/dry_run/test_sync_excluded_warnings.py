@@ -19,6 +19,9 @@ _GIT_ENV = {
     "GIT_AUTHOR_NAME": "test", "GIT_AUTHOR_EMAIL": "t@t",
     "GIT_COMMITTER_NAME": "test", "GIT_COMMITTER_EMAIL": "t@t",
     "HOME": str(Path.home()),
+    "GIT_CONFIG_COUNT": "1",
+    "GIT_CONFIG_KEY_0": "commit.gpgsign",
+    "GIT_CONFIG_VALUE_0": "false",
 }
 
 

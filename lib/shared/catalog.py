@@ -33,6 +33,7 @@ from shared.catalog_models import (
     TableCatalog,
     ViewCatalog,
 )
+from shared.catalog_preservation import restore_enriched_fields, snapshot_enriched_fields
 from shared.dmf_processing import empty_scoped
 from shared.env_config import resolve_catalog_dir
 from shared.loader_data import CatalogFileMissingError, CatalogLoadError
@@ -440,73 +441,3 @@ def write_function_catalog(
     if segmenter_error is not None:
         data["segmenter_error"] = segmenter_error
     return _write_catalog_json(project_root, "functions", norm, data)
-
-
-# ── Enrichment field preservation (re-extraction merge) ─────────────────────
-
-# Keys preserved per bucket during re-extraction. ``refactor`` belongs only on
-# procedure catalogs; never copy it from tables/views/functions.
-_ENRICHED_KEYS_BY_BUCKET: dict[str, tuple[str, ...]] = {
-    "tables": ("scoping", "profile", "excluded", "is_source", "is_seed"),
-    "procedures": ("scoping", "profile", "refactor"),
-    "views": ("scoping", "profile", "excluded"),
-    "functions": ("scoping", "profile"),
-}
-
-
-def snapshot_enriched_fields(project_root: Path) -> dict[str, dict[str, Any]]:
-    """Snapshot LLM-enriched fields from all existing catalog files.
-
-    Returns a mapping of normalised FQN → dict containing only the
-    non-None enriched keys for that bucket.
-    ``refactor`` is only captured from procedure catalogs.
-    Used before re-extraction so these fields survive a catalog rewrite.
-    """
-    catalog_dir = _catalog_dir(project_root)
-    snapshot: dict[str, dict[str, Any]] = {}
-    if not catalog_dir.is_dir():
-        return snapshot
-    for bucket, keys in _ENRICHED_KEYS_BY_BUCKET.items():
-        bucket_dir = catalog_dir / bucket
-        if not bucket_dir.is_dir():
-            continue
-        for json_file in bucket_dir.glob("*.json"):
-            try:
-                data = json.loads(json_file.read_text(encoding="utf-8"))
-            except (json.JSONDecodeError, OSError):
-                continue
-            enriched = {k: data[k] for k in keys if data.get(k) is not None}
-            if enriched:
-                snapshot[json_file.stem] = enriched
-    return snapshot
-
-
-def restore_enriched_fields(
-    project_root: Path, snapshot: dict[str, dict[str, Any]]
-) -> None:
-    """Restore LLM-enriched fields into catalog files after re-extraction.
-
-    For each FQN in *snapshot*, reads the catalog file (if present), merges
-    the snapshotted enriched fields back in, and writes the file.  Files not
-    touched by re-extraction are not written again.
-    """
-    catalog_dir = _catalog_dir(project_root)
-    for fqn, enriched in snapshot.items():
-        for bucket in ("tables", "procedures", "views", "functions"):
-            p = catalog_dir / bucket / f"{fqn}.json"
-            if not p.exists():
-                continue
-            try:
-                data = json.loads(p.read_text(encoding="utf-8"))
-            except (json.JSONDecodeError, OSError):
-                continue
-            changed = False
-            for key, value in enriched.items():
-                if data.get(key) != value:
-                    data[key] = value
-                    changed = True
-            if changed:
-                write_json(p, data)
-            break  # found the bucket — no need to check others
-        else:
-            logger.debug("event=catalog_restore_skip fqn=%s reason=not_found_after_reextract", fqn)
