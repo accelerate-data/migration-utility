@@ -16,7 +16,10 @@ _CATALOG_SCHEMA_VERSION = "1.0"
 def _write_per_object_files(
     catalog: DdlCatalog, out: Path,
 ) -> dict[str, dict]:
-    """Write per-object .sql files and extract refs for catalog.json."""
+    """Write per-object .sql files and extract refs for catalog.json.
+
+    Returns ``{name: {type, file, writes_to, reads_from, calls, parse_error}}``.
+    """
     bucket_map = {
         "tables": catalog.tables,
         "procedures": catalog.procedures,
@@ -62,7 +65,14 @@ def index_directory(
     output_dir: Path | str,
     dialect: str = "tsql",
 ) -> None:
-    """Split a DDL directory into per-object files and write a catalog.json."""
+    """Split a DDL directory into per-object files and write a catalog.json.
+
+    Creates per-type subdirectories with individual .sql files and a
+    ``catalog.json`` reference graph index.
+
+    Raises:
+        FileNotFoundError: if project_root does not exist.
+    """
     from shared.loader_io_support.directory import load_directory
 
     _manifest = read_manifest(Path(project_root))
@@ -86,7 +96,17 @@ def index_directory(
 
 
 def load_catalog(output_dir: Path | str) -> DdlCatalog:
-    """Load a DdlCatalog from a pre-built index directory."""
+    """Load a DdlCatalog from a pre-built index directory.
+
+    Reads catalog.json and the individual .sql files. Does not re-parse with
+    sqlglot — DdlEntry.ast is None for all entries.
+
+    Args:
+        output_dir: Directory previously written by index_directory().
+
+    Raises:
+        FileNotFoundError: if output_dir or catalog.json does not exist.
+    """
     out = Path(output_dir)
     catalog_path = out / "catalog.json"
     if not catalog_path.exists():
@@ -119,4 +139,3 @@ def load_catalog(output_dir: Path | str) -> DdlCatalog:
             getattr(result, attr)[name] = entry
 
     return result
-
