@@ -18,6 +18,7 @@ from shared.oracle_extract_services import (
     extract_pk_unique as _extract_pk_unique,
     extract_proc_params as _extract_proc_params,
     extract_table_columns as _extract_table_columns,
+    extract_view_columns as _extract_view_columns,
     oracle_column_length as _oracle_column_length,
     write_oracle_staging_json as _write,
 )
@@ -53,6 +54,7 @@ def run_oracle_extraction(
         _write(staging_dir, "object_types.json", object_types_rows)
         if mv_fqns:
             _write(staging_dir, "mv_fqns.json", mv_fqns)
+        _write(staging_dir, "view_columns.json", _extract_view_columns(conn, schemas))
         _write(staging_dir, "proc_dmf.json", _extract_dmf(conn, schemas, "PROCEDURE"))
         _write(staging_dir, "view_dmf.json", _extract_dmf(conn, schemas, "VIEW"))
         _write(staging_dir, "func_dmf.json", _extract_dmf(conn, schemas, "FUNCTION"))
@@ -77,6 +79,7 @@ __all__ = [
     "_extract_foreign_keys",
     "_extract_identity_columns",
     "_extract_object_types",
+    "_extract_view_columns",
     "_extract_dmf",
     "_extract_proc_params",
     "_extract_packages",

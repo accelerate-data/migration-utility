@@ -66,3 +66,54 @@ def test_extract_dmf_rejects_unknown_dependency_type() -> None:
 
     with pytest.raises(ValueError, match="dep_type must be one of"):
         extract_dmf(MagicMock(), ["SH"], "PACKAGE")
+
+
+def test_extract_view_columns_uses_char_length_for_oracle_text() -> None:
+    from shared.oracle_extract_services import extract_view_columns
+
+    cur = MagicMock()
+    cur.description = [
+        ("OWNER",),
+        ("VIEW_NAME",),
+        ("COLUMN_NAME",),
+        ("COLUMN_ID",),
+        ("DATA_TYPE",),
+        ("DATA_LENGTH",),
+        ("CHAR_LENGTH",),
+        ("DATA_PRECISION",),
+        ("DATA_SCALE",),
+        ("NULLABLE",),
+    ]
+    cur.fetchall.return_value = [
+        ("SH", "PROFITS", "NAME", 1, "VARCHAR2", 80, 20, None, None, "Y"),
+        ("SH", "PROFITS", "AMOUNT", 2, "NUMBER", 22, 22, 10, 2, "N"),
+    ]
+    conn = MagicMock()
+    conn.cursor.return_value = cur
+
+    result = extract_view_columns(conn, ["SH"])
+
+    assert result == [
+        {
+            "schema_name": "SH",
+            "view_name": "PROFITS",
+            "column_name": "NAME",
+            "column_id": 1,
+            "type_name": "VARCHAR2",
+            "max_length": 20,
+            "precision": 0,
+            "scale": 0,
+            "is_nullable": 1,
+        },
+        {
+            "schema_name": "SH",
+            "view_name": "PROFITS",
+            "column_name": "AMOUNT",
+            "column_id": 2,
+            "type_name": "NUMBER",
+            "max_length": 22,
+            "precision": 10,
+            "scale": 2,
+            "is_nullable": 0,
+        },
+    ]

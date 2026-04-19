@@ -36,11 +36,34 @@ def table_columns_sql(schemas: list[str]) -> str:
     owners = build_schema_in_clause(schemas, uppercase=True)
     return dedent(
         f"""
-        SELECT OWNER, TABLE_NAME, COLUMN_NAME, COLUMN_ID, DATA_TYPE,
-               DATA_LENGTH, CHAR_LENGTH, DATA_PRECISION, DATA_SCALE, NULLABLE, IDENTITY_COLUMN
-        FROM ALL_TAB_COLUMNS
-        WHERE OWNER IN ({owners})
-        ORDER BY OWNER, TABLE_NAME, COLUMN_ID
+        SELECT c.OWNER, c.TABLE_NAME, c.COLUMN_NAME, c.COLUMN_ID, c.DATA_TYPE,
+               c.DATA_LENGTH, c.CHAR_LENGTH, c.DATA_PRECISION, c.DATA_SCALE,
+               c.NULLABLE, c.IDENTITY_COLUMN
+        FROM ALL_TAB_COLUMNS c
+        JOIN ALL_OBJECTS o ON o.OWNER = c.OWNER
+          AND o.OBJECT_NAME = c.TABLE_NAME
+          AND o.OBJECT_TYPE = 'TABLE'
+          AND o.STATUS = 'VALID'
+        WHERE c.OWNER IN ({owners})
+        ORDER BY c.OWNER, c.TABLE_NAME, c.COLUMN_ID
+        """
+    ).strip()
+
+
+def view_columns_sql(schemas: list[str]) -> str:
+    owners = build_schema_in_clause(schemas, uppercase=True)
+    return dedent(
+        f"""
+        SELECT c.OWNER, c.TABLE_NAME AS VIEW_NAME, c.COLUMN_NAME, c.COLUMN_ID,
+               c.DATA_TYPE, c.DATA_LENGTH, c.CHAR_LENGTH, c.DATA_PRECISION,
+               c.DATA_SCALE, c.NULLABLE
+        FROM ALL_TAB_COLUMNS c
+        JOIN ALL_OBJECTS o ON o.OWNER = c.OWNER
+          AND o.OBJECT_NAME = c.TABLE_NAME
+          AND o.OBJECT_TYPE IN ('VIEW', 'MATERIALIZED VIEW')
+          AND o.STATUS = 'VALID'
+        WHERE c.OWNER IN ({owners})
+        ORDER BY c.OWNER, c.TABLE_NAME, c.COLUMN_ID
         """
     ).strip()
 
@@ -179,6 +202,7 @@ __all__ = [
     "definitions_object_sql",
     "view_text_sql",
     "table_columns_sql",
+    "view_columns_sql",
     "pk_unique_sql",
     "foreign_keys_sql",
     "identity_columns_sql",

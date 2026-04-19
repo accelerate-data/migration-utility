@@ -16,6 +16,7 @@ from shared.oracle_extract_queries import (
     pk_unique_sql,
     proc_params_sql,
     table_columns_sql,
+    view_columns_sql,
 )
 from shared.setup_ddl_support.db_helpers import write_staging_json
 
@@ -56,6 +57,25 @@ def oracle_column_length(row: dict[str, Any]) -> int:
     else:
         value = row.get("DATA_LENGTH")
     return int(value) if value is not None else 0
+
+
+def extract_view_columns(conn: Any, schemas: list[str]) -> list[dict[str, Any]]:
+    cur = conn.cursor()
+    cur.execute(view_columns_sql(schemas))
+    rows = []
+    for row in _cursor_rows(cur):
+        rows.append({
+            "schema_name": row["OWNER"],
+            "view_name": row["VIEW_NAME"],
+            "column_name": row["COLUMN_NAME"],
+            "column_id": row["COLUMN_ID"],
+            "type_name": row["DATA_TYPE"],
+            "max_length": oracle_column_length(row),
+            "precision": row["DATA_PRECISION"] if row["DATA_PRECISION"] is not None else 0,
+            "scale": row["DATA_SCALE"] if row["DATA_SCALE"] is not None else 0,
+            "is_nullable": 1 if row["NULLABLE"] == "Y" else 0,
+        })
+    return rows
 
 
 def extract_pk_unique(conn: Any, schemas: list[str]) -> list[dict[str, Any]]:
@@ -204,6 +224,7 @@ __all__ = [
     "write_oracle_staging_json",
     "extract_table_columns",
     "oracle_column_length",
+    "extract_view_columns",
     "extract_pk_unique",
     "extract_foreign_keys",
     "extract_identity_columns",
