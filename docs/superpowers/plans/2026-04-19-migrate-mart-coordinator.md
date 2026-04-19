@@ -408,7 +408,7 @@ markdownlint docs/design/migrate-mart-coordinator/README.md docs/superpowers/pla
 - Modify: `commands/generate-model.md`
 - Modify: `commands/refactor-mart.md`
 
-- [ ] **Step 1: Add common coordinator-mode parsing text to each stage command**
+- [x] **Step 1: Add common coordinator-mode parsing text to each stage command**
 
   Insert an `Arguments` section near the top of each command:
 
@@ -438,7 +438,7 @@ markdownlint docs/design/migrate-mart-coordinator/README.md docs/superpowers/pla
   /refactor-mart <migrate-mart-plan-file> <stage-id> <worktree-name> <base-branch> <refactor-mart-plan-file> stg|int
   ```
 
-- [ ] **Step 2: Replace `git-checkpoints` setup text**
+- [x] **Step 2: Replace `git-checkpoints` setup text**
 
   In every stage command, replace the setup instruction that says to run `git-checkpoints` with deterministic helper instructions:
 
@@ -454,7 +454,7 @@ markdownlint docs/design/migrate-mart-coordinator/README.md docs/superpowers/pla
 
   Manual mode should derive a stable branch name from the existing run slug, detect the remote default branch, and call the same helper with that default branch as base.
 
-- [ ] **Step 3: Remove human PR prompts**
+- [x] **Step 3: Remove human PR prompts**
 
   In each command summary section, remove:
 
@@ -474,7 +474,7 @@ markdownlint docs/design/migrate-mart-coordinator/README.md docs/superpowers/pla
   Report the PR number and URL. In manual mode, tell the human to review and merge the PR. In coordinator mode, return the PR metadata to the coordinator and do not ask any question.
   ````
 
-- [ ] **Step 4: Add plan update ownership text**
+- [x] **Step 4: Add plan update ownership text**
 
   In coordinator mode, each command owns only its stage section in the Markdown plan while it runs:
 
@@ -482,13 +482,13 @@ markdownlint docs/design/migrate-mart-coordinator/README.md docs/superpowers/pla
   After each stage substep or item result, update only the matching `## Stage <stage-id>` checklist in `<plan-file>`, then commit the plan update with the artifact or catalog change that caused it.
   ```
 
-- [ ] **Step 5: Run markdownlint for command docs**
+- [x] **Step 5: Run markdownlint for command docs**
 
   ```bash
   markdownlint commands/scope-tables.md commands/profile-tables.md commands/generate-tests.md commands/refactor-query.md commands/generate-model.md commands/refactor-mart.md
   ```
 
-- [ ] **Step 6: Commit Workstream B checkpoint**
+- [x] **Step 6: Commit Workstream B checkpoint**
 
   ```bash
   git add commands/scope-tables.md commands/profile-tables.md commands/generate-tests.md commands/refactor-query.md commands/generate-model.md commands/refactor-mart.md
