@@ -67,6 +67,18 @@ def test_load_missing_returns_none() -> None:
     assert load_function_catalog(FIXTURES.parent, "dbo.nonexistent") is None
 
 
+def test_catalog_support_exports_core_helpers(tmp_path: Path) -> None:
+    from shared.catalog_support.paths import detect_catalog_bucket
+    from shared.catalog_support.references import ensure_references
+
+    catalog_dir = tmp_path / "catalog" / "tables"
+    catalog_dir.mkdir(parents=True)
+    (catalog_dir / "silver.dimcustomer.json").write_text("{}", encoding="utf-8")
+
+    assert detect_catalog_bucket(tmp_path, "silver.DimCustomer") == "tables"
+    assert "tables" in ensure_references({})["references"]
+
+
 # ── has_catalog ─────────────────────────────────────────────────────────────
 
 
