@@ -125,6 +125,7 @@ def test_maintainer_docs_use_the_internal_project_path() -> None:
         "commands/generate-tests.md",
         "commands/refactor-query.md",
         "commands/refactor-mart-plan.md",
+        "commands/migrate-mart-plan.md",
         "commands/refactor-mart.md",
         "commands/status.md",
         "skills/README.md",
