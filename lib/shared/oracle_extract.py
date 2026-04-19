@@ -8,7 +8,6 @@ from shared.db_connect import cursor_to_dicts as _cursor_rows
 from shared.db_connect import oracle_connect as _oracle_connect
 from shared.oracle_extract_queries import (
     dmf_sql,
-    definitions_object_sql,
     foreign_keys_sql,
     identity_columns_sql,
     invalid_object_types_sql,
@@ -17,116 +16,20 @@ from shared.oracle_extract_queries import (
     pk_unique_sql,
     proc_params_sql,
     table_columns_sql,
-    view_text_sql,
+)
+from shared.oracle_extract_ddl import (
+    extract_definition_rows as _extract_definitions,
+    extract_view_ddl_rows as _extract_view_ddl,
+    oracle_type_to_class_desc as _oracle_type_to_class_desc,
 )
 from shared.setup_ddl_support.db_helpers import write_staging_json
 
 logger = logging.getLogger(__name__)
 
 
-# ── Helpers ───────────────────────────────────────────────────────────────────
-
-
-def _oracle_type_to_class_desc(oracle_type: str) -> str:
-    mapping = {
-        "TABLE": "USER_TABLE",
-        "VIEW": "VIEW",
-        "PROCEDURE": "SQL_STORED_PROCEDURE",
-        "FUNCTION": "SQL_SCALAR_FUNCTION",
-        "PACKAGE": "SQL_STORED_PROCEDURE",
-    }
-    return mapping.get(oracle_type.upper(), oracle_type.upper())
-
-
 def _write(staging_dir: Path, filename: str, rows: list[Any]) -> None:
     """Write rows as JSON to staging_dir / filename."""
     write_staging_json(staging_dir, filename, rows, logger=logger, event_name="oracle_query")
-
-
-# ── Extraction functions ──────────────────────────────────────────────────────
-
-
-def _extract_definitions(conn: Any, schemas: list[str]) -> list[dict[str, Any]]:
-    cur = conn.cursor()
-    cur.execute(definitions_object_sql(schemas))
-    objects = _cursor_rows(cur)
-
-    rows: list[dict[str, Any]] = []
-    for obj in objects:
-        fqn = f"{obj['OWNER']}.{obj['OBJECT_TYPE']}.{obj['OBJECT_NAME']}"
-        try:
-            ddl_cur = conn.cursor()
-            ddl_cur.execute(
-                "SELECT DBMS_METADATA.GET_DDL(:obj_type, :obj_name, :owner) FROM DUAL",
-                obj_type=obj["OBJECT_TYPE"],
-                obj_name=obj["OBJECT_NAME"],
-                owner=obj["OWNER"],
-            )
-            result = ddl_cur.fetchone()
-            definition = result[0].read() if hasattr(result[0], "read") else str(result[0])
-            rows.append({
-                "schema_name": obj["OWNER"],
-                "object_name": obj["OBJECT_NAME"],
-                "definition": definition,
-            })
-        except Exception as exc:  # noqa: BLE001
-            logger.warning("event=oracle_ddl_skip object=%s error=%s", fqn, exc)
-
-    return rows
-
-
-def _extract_view_ddl(conn: Any, schemas: list[str]) -> list[dict[str, Any]]:
-    """Extract view DDL from ALL_VIEWS, reconstructing CREATE OR REPLACE VIEW statements.
-
-    ALL_VIEWS.TEXT is a LONG column containing the view body (the AS SELECT part).
-    We reconstruct the full DDL as: CREATE OR REPLACE VIEW owner.view_name AS <TEXT>.
-
-    Falls back to DBMS_METADATA.GET_DDL per view when TEXT is empty or at the
-    32,767-byte LONG truncation boundary (oracledb thin mode silently truncates).
-    """
-    cur = conn.cursor()
-    cur.execute(view_text_sql(schemas))
-    rows: list[dict[str, Any]] = []
-    for row in _cursor_rows(cur):
-        owner = row["OWNER"]
-        view_name = row["VIEW_NAME"]
-        text = row.get("TEXT") or ""
-        fqn = f"{owner}.{view_name}"
-        # ALL_VIEWS.TEXT is a LONG column. oracledb thin mode silently truncates
-        # LONG values at 32,767 bytes — truncated text arrives exactly at that
-        # boundary without any error signal. Treat empty or 32,767-byte text as
-        # potentially truncated and fall back to DBMS_METADATA.GET_DDL (CLOB).
-        if not text.strip() or len(text) == 32767:
-            try:
-                ddl_cur = conn.cursor()
-                ddl_cur.execute(
-                    "SELECT DBMS_METADATA.GET_DDL('VIEW', :n, :o) FROM DUAL",
-                    n=view_name,
-                    o=owner,
-                )
-                result = ddl_cur.fetchone()
-                definition = result[0].read() if hasattr(result[0], "read") else str(result[0])
-                rows.append({
-                    "schema_name": owner,
-                    "object_name": view_name,
-                    "definition": definition.strip(),
-                })
-            except Exception as exc:  # noqa: BLE001
-                logger.warning("event=oracle_view_long_truncation object=%s error=%s", fqn, exc)
-                # Create entry with truncated DDL so the view appears in catalog with a diagnostic
-                truncated_def = f"CREATE OR REPLACE VIEW {owner}.{view_name} AS\n{text.strip()}" if text.strip() else ""
-                if truncated_def:
-                    rows.append({
-                        "schema_name": owner,
-                        "object_name": view_name,
-                        "definition": truncated_def,
-                        "long_truncation": True,
-                    })
-            continue
-        definition = f"CREATE OR REPLACE VIEW {owner}.{view_name} AS\n{text.strip()}"
-        rows.append({"schema_name": owner, "object_name": view_name, "definition": definition})
-    logger.info("event=oracle_view_ddl count=%d", len(rows))
-    return rows
 
 
 def _extract_table_columns(conn: Any, schemas: list[str]) -> list[dict[str, Any]]:
