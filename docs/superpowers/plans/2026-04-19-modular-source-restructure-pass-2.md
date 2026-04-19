@@ -463,7 +463,7 @@ def test_catalog_support_exports_core_helpers(tmp_path: Path) -> None:
     (catalog_dir / "silver.dimcustomer.json").write_text("{}", encoding="utf-8")
 
     assert detect_catalog_bucket(tmp_path, "silver.DimCustomer") == "tables"
-    assert "tables" in ensure_references({})
+    assert "tables" in ensure_references({})["references"]
 ```
 
 - [ ] **Step 2: Run the new test and verify it fails before support modules exist**
