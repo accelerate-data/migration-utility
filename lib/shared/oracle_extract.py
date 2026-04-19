@@ -6,7 +6,20 @@ from typing import Any
 
 from shared.db_connect import cursor_to_dicts as _cursor_rows
 from shared.db_connect import oracle_connect as _oracle_connect
-from shared.setup_ddl_support.db_helpers import build_schema_in_clause, write_staging_json
+from shared.oracle_extract_queries import (
+    dmf_sql,
+    definitions_object_sql,
+    foreign_keys_sql,
+    identity_columns_sql,
+    invalid_object_types_sql,
+    object_types_sql,
+    packages_sql,
+    pk_unique_sql,
+    proc_params_sql,
+    table_columns_sql,
+    view_text_sql,
+)
+from shared.setup_ddl_support.db_helpers import write_staging_json
 
 logger = logging.getLogger(__name__)
 
@@ -34,17 +47,8 @@ def _write(staging_dir: Path, filename: str, rows: list[Any]) -> None:
 
 
 def _extract_definitions(conn: Any, schemas: list[str]) -> list[dict[str, Any]]:
-    owners = build_schema_in_clause(schemas, uppercase=True)
     cur = conn.cursor()
-    cur.execute(
-        f"""
-        SELECT OWNER, OBJECT_NAME, OBJECT_TYPE
-        FROM ALL_OBJECTS
-        WHERE OBJECT_TYPE IN ('PROCEDURE', 'FUNCTION')
-          AND OWNER IN ({owners})
-        ORDER BY OWNER, OBJECT_TYPE, OBJECT_NAME
-        """
-    )
+    cur.execute(definitions_object_sql(schemas))
     objects = _cursor_rows(cur)
 
     rows: list[dict[str, Any]] = []
@@ -80,16 +84,8 @@ def _extract_view_ddl(conn: Any, schemas: list[str]) -> list[dict[str, Any]]:
     Falls back to DBMS_METADATA.GET_DDL per view when TEXT is empty or at the
     32,767-byte LONG truncation boundary (oracledb thin mode silently truncates).
     """
-    owners = build_schema_in_clause(schemas, uppercase=True)
     cur = conn.cursor()
-    cur.execute(
-        f"""
-        SELECT OWNER, VIEW_NAME, TEXT
-        FROM ALL_VIEWS
-        WHERE OWNER IN ({owners})
-        ORDER BY OWNER, VIEW_NAME
-        """
-    )
+    cur.execute(view_text_sql(schemas))
     rows: list[dict[str, Any]] = []
     for row in _cursor_rows(cur):
         owner = row["OWNER"]
@@ -134,17 +130,8 @@ def _extract_view_ddl(conn: Any, schemas: list[str]) -> list[dict[str, Any]]:
 
 
 def _extract_table_columns(conn: Any, schemas: list[str]) -> list[dict[str, Any]]:
-    owners = build_schema_in_clause(schemas, uppercase=True)
     cur = conn.cursor()
-    cur.execute(
-        f"""
-        SELECT OWNER, TABLE_NAME, COLUMN_NAME, COLUMN_ID, DATA_TYPE,
-               DATA_LENGTH, CHAR_LENGTH, DATA_PRECISION, DATA_SCALE, NULLABLE, IDENTITY_COLUMN
-        FROM ALL_TAB_COLUMNS
-        WHERE OWNER IN ({owners})
-        ORDER BY OWNER, TABLE_NAME, COLUMN_ID
-        """
-    )
+    cur.execute(table_columns_sql(schemas))
     rows = []
     for row in _cursor_rows(cur):
         rows.append({
@@ -174,21 +161,8 @@ def _oracle_column_length(row: dict[str, Any]) -> int:
 
 
 def _extract_pk_unique(conn: Any, schemas: list[str]) -> list[dict[str, Any]]:
-    owners = build_schema_in_clause(schemas, uppercase=True)
     cur = conn.cursor()
-    cur.execute(
-        f"""
-        SELECT c.OWNER, c.TABLE_NAME, c.CONSTRAINT_NAME, c.CONSTRAINT_TYPE,
-               cc.COLUMN_NAME, cc.POSITION
-        FROM ALL_CONSTRAINTS c
-        JOIN ALL_CONS_COLUMNS cc ON cc.OWNER = c.OWNER
-          AND cc.CONSTRAINT_NAME = c.CONSTRAINT_NAME
-          AND cc.TABLE_NAME = c.TABLE_NAME
-        WHERE c.CONSTRAINT_TYPE IN ('P', 'U')
-          AND c.OWNER IN ({owners})
-        ORDER BY c.OWNER, c.TABLE_NAME, c.CONSTRAINT_NAME, cc.POSITION
-        """
-    )
+    cur.execute(pk_unique_sql(schemas))
     rows = []
     for row in _cursor_rows(cur):
         rows.append({
@@ -204,27 +178,8 @@ def _extract_pk_unique(conn: Any, schemas: list[str]) -> list[dict[str, Any]]:
 
 
 def _extract_foreign_keys(conn: Any, schemas: list[str]) -> list[dict[str, Any]]:
-    owners = build_schema_in_clause(schemas, uppercase=True)
     cur = conn.cursor()
-    cur.execute(
-        f"""
-        SELECT c.OWNER, c.TABLE_NAME, c.CONSTRAINT_NAME,
-               cc.COLUMN_NAME, cc.POSITION,
-               rc.OWNER AS REF_OWNER, rc.TABLE_NAME AS REF_TABLE_NAME,
-               rcc.COLUMN_NAME AS REF_COLUMN_NAME
-        FROM ALL_CONSTRAINTS c
-        JOIN ALL_CONS_COLUMNS cc ON cc.OWNER = c.OWNER
-          AND cc.CONSTRAINT_NAME = c.CONSTRAINT_NAME
-        JOIN ALL_CONSTRAINTS rc ON rc.CONSTRAINT_NAME = c.R_CONSTRAINT_NAME
-          AND rc.OWNER = c.R_OWNER
-        JOIN ALL_CONS_COLUMNS rcc ON rcc.OWNER = rc.OWNER
-          AND rcc.CONSTRAINT_NAME = rc.CONSTRAINT_NAME
-          AND rcc.POSITION = cc.POSITION
-        WHERE c.CONSTRAINT_TYPE = 'R'
-          AND c.OWNER IN ({owners})
-        ORDER BY c.OWNER, c.TABLE_NAME, c.CONSTRAINT_NAME, cc.POSITION
-        """
-    )
+    cur.execute(foreign_keys_sql(schemas))
     rows = []
     for row in _cursor_rows(cur):
         rows.append({
@@ -240,16 +195,8 @@ def _extract_foreign_keys(conn: Any, schemas: list[str]) -> list[dict[str, Any]]
 
 
 def _extract_identity_columns(conn: Any, schemas: list[str]) -> list[dict[str, Any]]:
-    owners = build_schema_in_clause(schemas, uppercase=True)
     cur = conn.cursor()
-    cur.execute(
-        f"""
-        SELECT OWNER, TABLE_NAME, COLUMN_NAME
-        FROM ALL_TAB_COLUMNS
-        WHERE IDENTITY_COLUMN = 'YES'
-          AND OWNER IN ({owners})
-        """
-    )
+    cur.execute(identity_columns_sql(schemas))
     rows = []
     for row in _cursor_rows(cur):
         rows.append({
@@ -266,6 +213,8 @@ def _extract_object_types(conn: Any, schemas: list[str]) -> tuple[list[dict[str,
     Returns a 2-tuple: the object_types rows (with MVs mapped to type "V") and
     a list of normalized FQNs for materialized views.
     """
+    cur = conn.cursor()
+    cur.execute(object_types_sql(schemas))
     type_map = {
         "TABLE": "U",
         "VIEW": "V",
@@ -273,18 +222,6 @@ def _extract_object_types(conn: Any, schemas: list[str]) -> tuple[list[dict[str,
         "FUNCTION": "FN",
         "MATERIALIZED VIEW": "V",
     }
-    owners = build_schema_in_clause(schemas, uppercase=True)
-    cur = conn.cursor()
-    cur.execute(
-        f"""
-        SELECT OWNER, OBJECT_NAME, OBJECT_TYPE
-        FROM ALL_OBJECTS
-        WHERE OBJECT_TYPE IN ('TABLE', 'VIEW', 'PROCEDURE', 'FUNCTION', 'MATERIALIZED VIEW')
-          AND OWNER IN ({owners})
-          AND STATUS = 'VALID'
-        ORDER BY OWNER, OBJECT_TYPE, OBJECT_NAME
-        """
-    )
     rows = []
     mv_fqns: list[str] = []
     for row in _cursor_rows(cur):
@@ -300,16 +237,7 @@ def _extract_object_types(conn: Any, schemas: list[str]) -> tuple[list[dict[str,
 
     # Log invalid objects for user awareness
     invalid_cur = conn.cursor()
-    invalid_cur.execute(
-        f"""
-        SELECT OWNER, OBJECT_NAME, OBJECT_TYPE, STATUS
-        FROM ALL_OBJECTS
-        WHERE OBJECT_TYPE IN ('TABLE', 'VIEW', 'PROCEDURE', 'FUNCTION', 'MATERIALIZED VIEW')
-          AND OWNER IN ({owners})
-          AND STATUS != 'VALID'
-        ORDER BY OWNER, OBJECT_TYPE, OBJECT_NAME
-        """
-    )
+    invalid_cur.execute(invalid_object_types_sql(schemas))
     for inv_row in _cursor_rows(invalid_cur):
         logger.warning(
             "event=oracle_invalid_object owner=%s name=%s type=%s status=%s",
@@ -319,24 +247,9 @@ def _extract_object_types(conn: Any, schemas: list[str]) -> tuple[list[dict[str,
     return rows, mv_fqns
 
 
-_VALID_DEP_TYPES = {"PROCEDURE", "VIEW", "FUNCTION"}
-
-
 def _extract_dmf(conn: Any, schemas: list[str], dep_type: str) -> list[dict[str, Any]]:
-    if dep_type not in _VALID_DEP_TYPES:
-        raise ValueError(f"dep_type must be one of {_VALID_DEP_TYPES}, got: {dep_type!r}")
-    owners = build_schema_in_clause(schemas, uppercase=True)
     cur = conn.cursor()
-    cur.execute(
-        f"""
-        SELECT OWNER, NAME, REFERENCED_OWNER, REFERENCED_NAME, REFERENCED_TYPE
-        FROM ALL_DEPENDENCIES
-        WHERE TYPE = '{dep_type}'
-          AND REFERENCED_TYPE IN ('TABLE', 'VIEW', 'FUNCTION', 'PROCEDURE')
-          AND OWNER IN ({owners})
-        ORDER BY OWNER, NAME
-        """
-    )
+    cur.execute(dmf_sql(schemas, dep_type))
     rows = []
     for row in _cursor_rows(cur):
         rows.append({
@@ -358,19 +271,8 @@ def _extract_dmf(conn: Any, schemas: list[str], dep_type: str) -> list[dict[str,
 
 
 def _extract_proc_params(conn: Any, schemas: list[str]) -> list[dict[str, Any]]:
-    owners = build_schema_in_clause(schemas, uppercase=True)
     cur = conn.cursor()
-    cur.execute(
-        f"""
-        SELECT OWNER, OBJECT_NAME, ARGUMENT_NAME, DATA_TYPE, DATA_LENGTH,
-               DATA_PRECISION, DATA_SCALE, IN_OUT, DEFAULTED
-        FROM ALL_ARGUMENTS
-        WHERE PACKAGE_NAME IS NULL
-          AND ARGUMENT_NAME IS NOT NULL
-          AND OWNER IN ({owners})
-        ORDER BY OWNER, OBJECT_NAME, SEQUENCE
-        """
-    )
+    cur.execute(proc_params_sql(schemas))
     rows = []
     for row in _cursor_rows(cur):
         rows.append({
@@ -392,22 +294,8 @@ def _extract_packages(conn: Any, schemas: list[str]) -> list[dict[str, Any]]:
 
     Returns a list of dicts with package_name, member_name, member_type, schema_name.
     """
-    owners = build_schema_in_clause(schemas, uppercase=True)
     cur = conn.cursor()
-    cur.execute(
-        f"""
-        SELECT OWNER, PACKAGE_NAME, OBJECT_NAME,
-               CASE WHEN DATA_TYPE IS NULL THEN 'PROCEDURE' ELSE 'FUNCTION' END AS MEMBER_TYPE
-        FROM ALL_ARGUMENTS
-        WHERE PACKAGE_NAME IS NOT NULL
-          AND OWNER IN ({owners})
-          AND ARGUMENT_NAME IS NULL
-          AND DATA_LEVEL = 0
-        GROUP BY OWNER, PACKAGE_NAME, OBJECT_NAME,
-                 CASE WHEN DATA_TYPE IS NULL THEN 'PROCEDURE' ELSE 'FUNCTION' END
-        ORDER BY OWNER, PACKAGE_NAME, OBJECT_NAME
-        """
-    )
+    cur.execute(packages_sql(schemas))
     rows = []
     for row in _cursor_rows(cur):
         rows.append({
