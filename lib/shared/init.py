@@ -10,21 +10,21 @@ import typer
 
 from shared.freetds import run_check_freetds
 from shared.init_support.local_env import (
-    quote_env_value as _quote_env_value,
-    run_write_local_env_overrides,
-    write_local_env_overrides,
+    quote_env_value as quote_env_value,
+    run_write_local_env_overrides as run_write_local_env_overrides,
+    write_local_env_overrides as write_local_env_overrides,
 )
 from shared.init_support.scaffold import (
-    GITIGNORE_ENTRIES,
-    GIT_WORKFLOW_MD,
-    is_executable_file as _is_executable_file,
-    run_scaffold_hooks,
-    run_scaffold_project,
+    GITIGNORE_ENTRIES as GITIGNORE_ENTRIES,
+    GIT_WORKFLOW_MD as GIT_WORKFLOW_MD,
+    is_executable_file as is_executable_file,
+    run_scaffold_hooks as run_scaffold_hooks,
+    run_scaffold_project as run_scaffold_project,
 )
 from shared.init_support.source_config import (
-    SOURCE_REGISTRY,
-    SourceConfig,
-    get_source_config,
+    SOURCE_REGISTRY as SOURCE_REGISTRY,
+    SourceConfig as SourceConfig,
+    get_source_config as get_source_config,
 )
 from shared.platform import HostPlatform  # noqa: F401
 from shared.platform import build_init_platform_gate_message  # noqa: F401
@@ -33,6 +33,24 @@ from shared.platform import supports_homebrew_install  # noqa: F401
 from shared.platform import supports_native_windows  # noqa: F401
 
 app = typer.Typer(add_completion=False, pretty_exceptions_enable=False)
+_quote_env_value = quote_env_value
+_is_executable_file = is_executable_file
+
+__all__ = [
+    "GITIGNORE_ENTRIES",
+    "GIT_WORKFLOW_MD",
+    "SOURCE_REGISTRY",
+    "SourceConfig",
+    "_quote_env_value",
+    "_is_executable_file",
+    "app",
+    "get_source_config",
+    "run_check_freetds",
+    "run_scaffold_hooks",
+    "run_scaffold_project",
+    "run_write_local_env_overrides",
+    "write_local_env_overrides",
+]
 
 
 @app.command("scaffold-project")

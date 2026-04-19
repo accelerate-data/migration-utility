@@ -33,7 +33,10 @@ from shared.catalog_models import (
     TableCatalog,
     ViewCatalog,
 )
-from shared.catalog_preservation import restore_enriched_fields, snapshot_enriched_fields
+from shared.catalog_preservation import (
+    restore_enriched_fields as restore_enriched_fields,
+    snapshot_enriched_fields as snapshot_enriched_fields,
+)
 from shared.dmf_processing import empty_scoped
 from shared.env_config import resolve_catalog_dir
 from shared.loader_data import CatalogFileMissingError, CatalogLoadError

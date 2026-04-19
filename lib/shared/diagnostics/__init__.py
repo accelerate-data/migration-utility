@@ -9,30 +9,54 @@ from typing import Optional
 import typer
 
 from shared.diagnostics.context import (
-    CatalogContext,
-    build_ddl_lookup as _build_ddl_lookup,
-    build_known_fqns as _build_known_fqns,
-    load_package_members as _load_package_members,
+    CatalogContext as CatalogContext,
+    build_ddl_lookup as build_ddl_lookup,
+    build_known_fqns as build_known_fqns,
+    load_package_members as load_package_members,
 )
 from shared.diagnostics.registry import (
-    ALL_DIALECTS,
-    DiagnosticRegistry,
-    DiagnosticResult,
-    _CheckSpec,
-    _REGISTRY,
-    diagnostic,
+    ALL_DIALECTS as ALL_DIALECTS,
+    DiagnosticRegistry as DiagnosticRegistry,
+    DiagnosticResult as DiagnosticResult,
+    _CheckSpec as _CheckSpec,
+    _REGISTRY as _REGISTRY,
+    diagnostic as diagnostic,
 )
 from shared.diagnostics.runner import (
-    OBJECT_BUCKETS as _OBJECT_BUCKETS,
-    run_checks as _run_checks,
-    run_diagnostics,
-    write_results as _write_results,
+    OBJECT_BUCKETS as OBJECT_BUCKETS,
+    run_checks as run_checks,
+    run_diagnostics as run_diagnostics,
+    write_results as write_results,
 )
 
 _THRESHOLDS: dict[str, int] = {
     "NESTED_VIEW_CHAIN_DEPTH": 5,
     "MULTI_TABLE_READ_COUNT": 5,
 }
+_build_ddl_lookup = build_ddl_lookup
+_build_known_fqns = build_known_fqns
+_load_package_members = load_package_members
+_OBJECT_BUCKETS = OBJECT_BUCKETS
+_run_checks = run_checks
+_write_results = write_results
+
+__all__ = [
+    "ALL_DIALECTS",
+    "CatalogContext",
+    "DiagnosticRegistry",
+    "DiagnosticResult",
+    "_CheckSpec",
+    "_REGISTRY",
+    "_THRESHOLDS",
+    "_build_ddl_lookup",
+    "_build_known_fqns",
+    "_load_package_members",
+    "_OBJECT_BUCKETS",
+    "_run_checks",
+    "_write_results",
+    "diagnostic",
+    "run_diagnostics",
+]
 
 app = typer.Typer(add_completion=False, pretty_exceptions_enable=False)
 
