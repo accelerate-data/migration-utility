@@ -1,586 +1,103 @@
-"""Pydantic v2 models for catalog objects.
-
-These models type the JSON files produced by ``setup-ddl`` and enriched by
-skills (scoping, profiling, refactoring, test generation, model generation).
-All models use ``extra="forbid"`` so unexpected fields raise immediately —
-the contract and code must stay in sync.
-"""
+"""Compatibility facade for catalog Pydantic contract models."""
 
 from __future__ import annotations
 
-from typing import Any, Literal
+from shared.catalog_model_support.base import _CATALOG_CONFIG, _STRICT_CONFIG
+from shared.catalog_model_support.catalogs import (
+    FunctionCatalog,
+    ProcedureCatalog,
+    TableCatalog,
+    ViewCatalog,
+)
+from shared.catalog_model_support.diagnostics import DiagnosticsEntry, ProfileDiagnosticsEntry
+from shared.catalog_model_support.enrichment import (
+    CompareSqlSummary,
+    GenerateSection,
+    RefactorSection,
+    SemanticCheck,
+    SemanticChecks,
+    SemanticReview,
+    TestGenSection,
+)
+from shared.catalog_model_support.profile import (
+    ForeignKeyType,
+    PiiSuggestedAction,
+    PrimaryKeyType,
+    ProfileClassification,
+    ProfileForeignKey,
+    ProfileNaturalKey,
+    ProfilePiiAction,
+    ProfilePrimaryKey,
+    ProfileSource,
+    ProfileWatermark,
+    TableProfileSection,
+    TableProfileStatus,
+    TableResolvedKind,
+    ViewClassification,
+    ViewProfileSection,
+    ViewProfileSource,
+    ViewProfileStatus,
+)
+from shared.catalog_model_support.references import (
+    RefEntry,
+    ReferencedByBucket,
+    ReferencesBucket,
+    ScopedRefList,
+)
+from shared.catalog_model_support.scoping import (
+    CandidateWriter,
+    ScopingResultItem,
+    ScopingSummary,
+    ScopingSummaryCounts,
+    SqlElement,
+    TableScopingSection,
+    ViewScopingSection,
+)
+from shared.catalog_model_support.statements import StatementEntry
 
-from pydantic import BaseModel, ConfigDict, Field, model_validator
-
-
-# ── Shared config ───────────────────────────────────────────────────────────
-
-_CATALOG_CONFIG = ConfigDict(extra="forbid", populate_by_name=True)
-_STRICT_CONFIG = ConfigDict(extra="forbid")
-
-
-# ── Shared reference models ─────────────────────────────────────────────────
-
-
-class RefEntry(BaseModel):
-    """A single reference entry inside in_scope / out_of_scope lists."""
-
-    model_config = _CATALOG_CONFIG
-
-    object_schema: str = Field(default="", alias="schema")
-    name: str = ""
-    is_selected: bool = False
-    is_updated: bool = False
-    is_insert_all: bool = False
-    detection: str | None = None
-    is_schema_bound: bool = False
-    is_caller_dependent: bool = False
-    is_ambiguous: bool = False
-    columns: list[Any] = []
-
-
-class ScopedRefList(BaseModel):
-    """Scoped reference list: in_scope + out_of_scope."""
-
-    model_config = _STRICT_CONFIG
-
-    in_scope: list[RefEntry] = []
-    out_of_scope: list[RefEntry] = []
-
-
-class ReferencesBucket(BaseModel):
-    """Outbound references from a proc/view/function to other objects."""
-
-    model_config = _STRICT_CONFIG
-
-    tables: ScopedRefList = ScopedRefList()
-    views: ScopedRefList = ScopedRefList()
-    functions: ScopedRefList = ScopedRefList()
-    procedures: ScopedRefList = ScopedRefList()
-
-
-class ReferencedByBucket(BaseModel):
-    """Inbound references to a table/view from other objects."""
-
-    model_config = _STRICT_CONFIG
-
-    procedures: ScopedRefList = ScopedRefList()
-    views: ScopedRefList = ScopedRefList()
-    functions: ScopedRefList = ScopedRefList()
-
-
-# ── Statement entry ─────────────────────────────────────────────────────────
-
-
-class StatementEntry(BaseModel):
-    """A single resolved statement in a procedure catalog."""
-
-    model_config = _STRICT_CONFIG
-
-    action: str
-    source: str
-    sql: str
-    type: str | None = None
-    rationale: str | None = None
-    index: int | None = None
-
-
-# ── Diagnostics entry ──────────────────────────────────────────────────────
-
-
-class DiagnosticsEntry(BaseModel):
-    """A single warning or error entry (mirrors common.json#/$defs/diagnostics_entry)."""
-
-    model_config = _STRICT_CONFIG
-
-    code: str
-    message: str
-    severity: Literal["error", "warning"]
-    item_id: str | None = None
-    field: str | None = None
-    details: dict[str, Any] | None = None
-
-
-class ProfileDiagnosticsEntry(BaseModel):
-    """A profile warning or error entry persisted in catalog profile sections."""
-
-    model_config = _STRICT_CONFIG
-
-    code: str
-    message: str
-    severity: Literal["error", "warning", "medium"]
-    item_id: str | None = None
-    field: str | None = None
-    details: dict[str, Any] | None = None
-
-
-# ── Profile decision enums ──────────────────────────────────────────────────
-
-
-TableProfileStatus = Literal["", "ok", "partial", "error"]
-ViewProfileStatus = Literal["ok"] | None
-ProfileSource = Literal["catalog", "llm", "catalog+llm", "manual"]
-TableResolvedKind = Literal[
-    "seed",
-    "insert",
-    "dim_non_scd",
-    "dim_scd1",
-    "dim_scd2",
-    "dim_junk",
-    "fact",
-    "fact_insert",
-    "fact_transaction",
-    "fact_periodic_snapshot",
-    "fact_accumulating_snapshot",
-    "fact_aggregate",
+__all__ = [
+    "_CATALOG_CONFIG",
+    "_STRICT_CONFIG",
+    "CandidateWriter",
+    "CompareSqlSummary",
+    "DiagnosticsEntry",
+    "ForeignKeyType",
+    "FunctionCatalog",
+    "GenerateSection",
+    "PiiSuggestedAction",
+    "PrimaryKeyType",
+    "ProcedureCatalog",
+    "ProfileClassification",
+    "ProfileDiagnosticsEntry",
+    "ProfileForeignKey",
+    "ProfileNaturalKey",
+    "ProfilePiiAction",
+    "ProfilePrimaryKey",
+    "ProfileSource",
+    "ProfileWatermark",
+    "RefEntry",
+    "ReferencedByBucket",
+    "ReferencesBucket",
+    "RefactorSection",
+    "ScopedRefList",
+    "ScopingResultItem",
+    "ScopingSummary",
+    "ScopingSummaryCounts",
+    "SemanticCheck",
+    "SemanticChecks",
+    "SemanticReview",
+    "SqlElement",
+    "StatementEntry",
+    "TableCatalog",
+    "TableProfileSection",
+    "TableProfileStatus",
+    "TableResolvedKind",
+    "TableScopingSection",
+    "TestGenSection",
+    "ViewCatalog",
+    "ViewClassification",
+    "ViewProfileSection",
+    "ViewProfileSource",
+    "ViewProfileStatus",
+    "ViewScopingSection",
 ]
-PrimaryKeyType = Literal["surrogate", "natural", "composite", "unknown", "none"]
-ForeignKeyType = Literal["standard", "role_playing", "degenerate"]
-PiiSuggestedAction = Literal["mask", "drop", "tokenize", "keep"]
-ViewClassification = Literal["stg", "mart"]
-ViewProfileSource = Literal["llm"]
-
-
-# ── Per-type scoping sections ───────────────────────────────────────────────
-
-
-class CandidateWriter(BaseModel):
-    """A single candidate writer procedure discovered during table scoping."""
-
-    model_config = _STRICT_CONFIG
-
-    procedure_name: str
-    rationale: str
-    dependencies: dict[str, Any] | None = None
-
-
-class TableScopingSection(BaseModel):
-    """Writer-selection results from the analyzing-table skill."""
-
-    model_config = _STRICT_CONFIG
-
-    status: str = ""
-    selected_writer: str | None = None
-    selected_writer_rationale: str | None = None
-    candidates: list[CandidateWriter] | None = None
-    warnings: list[DiagnosticsEntry] = []
-    errors: list[DiagnosticsEntry] = []
-
-
-class SqlElement(BaseModel):
-    """A single SQL structural element discovered during view scoping."""
-
-    model_config = _STRICT_CONFIG
-
-    type: str
-    detail: str
-
-
-class ViewScopingSection(BaseModel):
-    """SQL analysis results from the analyzing-table/view skill."""
-
-    model_config = _STRICT_CONFIG
-
-    status: str = ""
-    sql_elements: list[SqlElement] | None = None
-    call_tree: dict[str, Any] | None = None
-    logic_summary: str | None = None
-    rationale: str | None = None
-    warnings: list[DiagnosticsEntry] = []
-    errors: list[DiagnosticsEntry] = []
-
-
-# ── Scoping summary (batch rollup) ────────────────────────────────────────
-
-
-class ScopingResultItem(BaseModel):
-    """Per-item status in a scoping batch run."""
-
-    model_config = _STRICT_CONFIG
-
-    item_id: str
-    status: Literal[
-        "resolved", "ambiguous_multi_writer", "no_writer_found", "analyzed", "error",
-    ]
-
-
-class ScopingSummaryCounts(BaseModel):
-    """Aggregate counts for a scoping batch run."""
-
-    model_config = _STRICT_CONFIG
-
-    total: int
-    resolved: int
-    ambiguous_multi_writer: int
-    no_writer_found: int
-    analyzed: int
-    error: int
-
-
-class ScopingSummary(BaseModel):
-    """Batch rollup written to ``.migration-runs/summary.<epoch>.json`` by the scope command."""
-
-    model_config = _STRICT_CONFIG
-
-    schema_version: Literal["1.0"]
-    run_id: str
-    results: list[ScopingResultItem]
-    summary: ScopingSummaryCounts
-
-
-# ── Per-type profile sections ───────────────────────────────────────────────
-
-
-class ProfileClassification(BaseModel):
-    """Table kind classification decision."""
-
-    model_config = _STRICT_CONFIG
-
-    resolved_kind: TableResolvedKind | None = None
-    source: ProfileSource | None = None
-    confidence: str | None = None
-    rationale: str | None = None
-
-
-class ProfilePrimaryKey(BaseModel):
-    """Primary key decision for a profiled table."""
-
-    model_config = _STRICT_CONFIG
-
-    column: str | None = None
-    columns: list[str] = Field(default_factory=list)
-    primary_key_type: PrimaryKeyType | None = None
-    source: ProfileSource | None = None
-    rationale: str | None = None
-
-    @model_validator(mode="before")
-    @classmethod
-    def _normalize_legacy_column(cls, data: Any) -> Any:
-        if not isinstance(data, dict):
-            return data
-        normalized = dict(data)
-        if normalized.get("column") and not normalized.get("columns"):
-            normalized["columns"] = [normalized["column"]]
-        return normalized
-
-
-class ProfileNaturalKey(BaseModel):
-    """Natural key decision for a profiled table."""
-
-    model_config = _STRICT_CONFIG
-
-    columns: list[str] = Field(default_factory=list)
-    source: ProfileSource | None = None
-    rationale: str | None = None
-
-
-class ProfileWatermark(BaseModel):
-    """Incremental watermark decision for a profiled table."""
-
-    model_config = _STRICT_CONFIG
-
-    column: str | None = None
-    columns: list[str] = Field(default_factory=list)
-    strategy: str | None = None
-    watermark_type: str | None = None
-    source: ProfileSource | None = None
-    rationale: str | None = None
-
-    @model_validator(mode="before")
-    @classmethod
-    def _normalize_legacy_columns(cls, data: Any) -> Any:
-        if not isinstance(data, dict):
-            return data
-        normalized = dict(data)
-        columns = normalized.get("columns")
-        if not normalized.get("column") and isinstance(columns, list) and columns:
-            normalized["column"] = columns[0]
-        return normalized
-
-
-class ProfileForeignKey(BaseModel):
-    """Foreign-key role decision for a profiled table column."""
-
-    model_config = _STRICT_CONFIG
-
-    column: str | None = None
-    columns: list[str] = Field(default_factory=list)
-    fk_type: ForeignKeyType | None = None
-    references_source_relation: str | None = None
-    references_column: str | None = None
-    references_table: str | None = None
-    source: ProfileSource | None = None
-    rationale: str | None = None
-
-    @model_validator(mode="before")
-    @classmethod
-    def _normalize_legacy_fk_fields(cls, data: Any) -> Any:
-        if not isinstance(data, dict):
-            return data
-        normalized = dict(data)
-        columns = normalized.get("columns")
-        if not normalized.get("column") and isinstance(columns, list) and columns:
-            normalized["column"] = columns[0]
-        if not normalized.get("references_source_relation") and normalized.get("references_table"):
-            normalized["references_source_relation"] = normalized["references_table"]
-        return normalized
-
-
-class ProfilePiiAction(BaseModel):
-    """PII handling decision for a profiled table column."""
-
-    model_config = _STRICT_CONFIG
-
-    column: str
-    suggested_action: PiiSuggestedAction | None = None
-    action: PiiSuggestedAction | None = None
-    entity: str | None = None
-    source: ProfileSource | None = None
-    rationale: str | None = None
-
-    @model_validator(mode="before")
-    @classmethod
-    def _normalize_legacy_action(cls, data: Any) -> Any:
-        if not isinstance(data, dict):
-            return data
-        normalized = dict(data)
-        if not normalized.get("suggested_action") and normalized.get("action"):
-            normalized["suggested_action"] = normalized["action"]
-        return normalized
-
-
-class TableProfileSection(BaseModel):
-    """Profiling results for a table (classification, keys, PII, etc.)."""
-
-    model_config = _STRICT_CONFIG
-
-    status: TableProfileStatus = ""
-    classification: ProfileClassification | None = None
-    primary_key: ProfilePrimaryKey | None = None
-    natural_key: ProfileNaturalKey | None = None
-    watermark: ProfileWatermark | None = None
-    foreign_keys: list[ProfileForeignKey] = Field(default_factory=list)
-    pii_actions: list[ProfilePiiAction] = Field(default_factory=list)
-    warnings: list[ProfileDiagnosticsEntry] = Field(default_factory=list)
-    errors: list[ProfileDiagnosticsEntry] = Field(default_factory=list)
-
-    @model_validator(mode="before")
-    @classmethod
-    def _normalize_legacy_profile_shapes(cls, data: Any) -> Any:
-        """Normalize older persisted shorthand shapes into typed profile sections."""
-        if not isinstance(data, dict):
-            return data
-        normalized = dict(data)
-        if isinstance(normalized.get("natural_key"), list):
-            normalized["natural_key"] = {"columns": normalized["natural_key"]}
-        return normalized
-
-
-class ViewProfileSection(BaseModel):
-    """Profiling results for a view (stg/mart classification)."""
-
-    model_config = _STRICT_CONFIG
-
-    status: ViewProfileStatus = None
-    classification: ViewClassification
-    rationale: str = ""
-    source: ViewProfileSource
-    warnings: list[ProfileDiagnosticsEntry] = Field(default_factory=list)
-    errors: list[ProfileDiagnosticsEntry] = Field(default_factory=list)
-
-
-# ── Shared enriched-section models ──────────────────────────────────────────
-
-
-class SemanticCheck(BaseModel):
-    """A single semantic equivalence check (e.g. source_tables, joins)."""
-
-    model_config = _STRICT_CONFIG
-
-    passed: bool
-    summary: str
-
-
-class SemanticChecks(BaseModel):
-    """The five semantic equivalence checks performed during refactoring review."""
-
-    model_config = _STRICT_CONFIG
-
-    source_tables: SemanticCheck
-    output_columns: SemanticCheck
-    joins: SemanticCheck
-    filters: SemanticCheck
-    aggregation_grain: SemanticCheck
-
-
-class SemanticReview(BaseModel):
-    """Structured semantic review from the refactoring-sql skill's review sub-agent."""
-
-    model_config = _STRICT_CONFIG
-
-    passed: bool
-    checks: SemanticChecks
-    issues: list[Any] = []
-
-
-class CompareSqlSummary(BaseModel):
-    """Persisted proof summary from executable compare-sql equivalence testing."""
-
-    model_config = _STRICT_CONFIG
-
-    required: bool
-    executed: bool
-    passed: bool
-    scenarios_total: int
-    scenarios_passed: int
-    failed_scenarios: list[Any] = []
-
-
-class RefactorSection(BaseModel):
-    """CTE restructuring results from the refactoring-sql skill."""
-
-    model_config = _STRICT_CONFIG
-
-    status: str = ""
-    extracted_sql: str | None = None
-    refactored_sql: str | None = None
-    semantic_review: SemanticReview | None = None
-    compare_sql: CompareSqlSummary | None = None
-    warnings: list[DiagnosticsEntry] = []
-    errors: list[DiagnosticsEntry] = []
-
-
-class TestGenSection(BaseModel):
-    """Test generation summary from the test-harness write command."""
-
-    model_config = _STRICT_CONFIG
-
-    status: str = ""
-    test_spec_path: str | None = None
-    branches: int | None = None
-    unit_tests: int | None = None
-    coverage: str | None = None
-    warnings: list[Any] = []
-    errors: list[Any] = []
-
-
-class GenerateSection(BaseModel):
-    """dbt model generation summary from the migrate write-catalog command."""
-
-    model_config = _STRICT_CONFIG
-
-    status: str = ""
-    model_path: str | None = None
-    schema_yml: bool | None = None
-    compiled: bool | None = None
-    tests_passed: bool | None = None
-    test_count: int | None = None
-    warnings: list[Any] = []
-    errors: list[Any] = []
-
-
-# ── Top-level catalog models ────────────────────────────────────────────────
-
-
-class TableCatalog(BaseModel):
-    """Typed representation of a table catalog JSON file."""
-
-    model_config = _CATALOG_CONFIG
-
-    object_schema: str = Field(default="", alias="schema")
-    name: str = ""
-    columns: list[Any] = []
-    primary_keys: list[Any] = []
-    unique_indexes: list[Any] = []
-    foreign_keys: list[Any] = []
-    auto_increment_columns: list[Any] = []
-    change_capture: Any | None = None
-    sensitivity_classifications: list[Any] = []
-    statements: list[Any] = []
-    referenced_by: ReferencedByBucket | None = None
-    scoping: TableScopingSection | None = None
-    profile: TableProfileSection | None = None
-    refactor: RefactorSection | None = None
-    test_gen: TestGenSection | None = None
-    generate: GenerateSection | None = None
-    excluded: bool = False
-    is_source: bool = False
-    is_seed: bool = False
-    ddl_hash: str | None = None
-    stale: bool = False
-    warnings: list[Any] = []
-    errors: list[Any] = []
-
-
-class ProcedureCatalog(BaseModel):
-    """Typed representation of a procedure catalog JSON file."""
-
-    model_config = _CATALOG_CONFIG
-
-    object_schema: str = Field(default="", alias="schema")
-    name: str = ""
-    references: ReferencesBucket | None = None
-    referenced_by: ReferencedByBucket | None = None
-    params: list[Any] = []
-    needs_llm: bool = False
-    needs_enrich: bool = False
-    mode: str | None = None
-    routing_reasons: list[str] = []
-    statements: list[Any] = []
-    table_slices: dict[str, Any] = {}
-    refactor: RefactorSection | None = None
-    ddl_hash: str | None = None
-    stale: bool = False
-    dmf_errors: list[str] | None = None
-    segmenter_error: str | None = None
-    warnings: list[Any] = []
-    errors: list[Any] = []
-
-
-class ViewCatalog(BaseModel):
-    """Typed representation of a view catalog JSON file."""
-
-    model_config = _CATALOG_CONFIG
-
-    object_schema: str = Field(default="", alias="schema")
-    name: str = ""
-    references: ReferencesBucket | None = None
-    referenced_by: ReferencedByBucket | None = None
-    is_materialized_view: bool = False
-    sql: str | None = None
-    columns: list[Any] = []
-    primary_keys: list[Any] = []
-    unique_indexes: list[Any] = []
-    scoping: ViewScopingSection | None = None
-    profile: ViewProfileSection | None = None
-    refactor: RefactorSection | None = None
-    test_gen: TestGenSection | None = None
-    generate: GenerateSection | None = None
-    excluded: bool = False
-    ddl_hash: str | None = None
-    stale: bool = False
-    dmf_errors: list[str] | None = None
-    segmenter_error: str | None = None
-    long_truncation: bool = False
-    parse_error: str | None = None
-    warnings: list[Any] = []
-    errors: list[Any] = []
-
-
-class FunctionCatalog(BaseModel):
-    """Typed representation of a function catalog JSON file."""
-
-    model_config = _CATALOG_CONFIG
-
-    object_schema: str = Field(default="", alias="schema")
-    name: str = ""
-    references: ReferencesBucket | None = None
-    referenced_by: ReferencedByBucket | None = None
-    ddl_hash: str | None = None
-    stale: bool = False
-    dmf_errors: list[str] | None = None
-    segmenter_error: str | None = None
-    subtype: str | None = None
-    parse_error: str | None = None
-    warnings: list[Any] = []
-    errors: list[Any] = []
