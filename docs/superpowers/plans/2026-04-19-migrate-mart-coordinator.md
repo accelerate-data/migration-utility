@@ -263,7 +263,7 @@ markdownlint docs/design/migrate-mart-coordinator/README.md docs/superpowers/pla
 - Create: `tests/unit/worktree_script/test_stage_cleanup_script.py`
 - Modify: `tests/unit/repo_structure/test_root_plugin_layout.py`
 
-- [ ] **Step 1: Write failing tests for `stage-pr.sh`**
+- [x] **Step 1: Write failing tests for `stage-pr.sh`**
 
   Create `tests/unit/worktree_script/test_stage_pr_script.py` using the existing shell-shim style. Cover:
 
@@ -287,7 +287,7 @@ markdownlint docs/design/migrate-mart-coordinator/README.md docs/superpowers/pla
 
   The fake `gh` shim should record `gh pr list --head`, `gh pr create --base`, and `gh pr edit` calls.
 
-- [ ] **Step 2: Write failing tests for `stage-pr-merge.sh`**
+- [x] **Step 2: Write failing tests for `stage-pr-merge.sh`**
 
   Create `tests/unit/worktree_script/test_stage_pr_merge_script.py`. Cover:
 
@@ -307,7 +307,7 @@ markdownlint docs/design/migrate-mart-coordinator/README.md docs/superpowers/pla
   assert payload["status"] in {"merged", "already_merged"}
   ```
 
-- [ ] **Step 3: Write failing tests for `stage-cleanup.sh`**
+- [x] **Step 3: Write failing tests for `stage-cleanup.sh`**
 
   Create `tests/unit/worktree_script/test_stage_cleanup_script.py`. Cover idempotent cleanup:
 
@@ -319,7 +319,7 @@ markdownlint docs/design/migrate-mart-coordinator/README.md docs/superpowers/pla
       assert payload["branch"] == "feature/mart/040-profile"
   ```
 
-- [ ] **Step 4: Run tests and verify they fail**
+- [x] **Step 4: Run tests and verify they fail**
 
   ```bash
   cd lib && uv run pytest ../tests/unit/worktree_script/test_stage_pr_script.py ../tests/unit/worktree_script/test_stage_pr_merge_script.py ../tests/unit/worktree_script/test_stage_cleanup_script.py -v
@@ -327,7 +327,7 @@ markdownlint docs/design/migrate-mart-coordinator/README.md docs/superpowers/pla
 
   Expected: failures because the scripts do not exist.
 
-- [ ] **Step 5: Implement `stage-pr.sh`**
+- [x] **Step 5: Implement `stage-pr.sh`**
 
   Contract:
 
@@ -349,7 +349,7 @@ markdownlint docs/design/migrate-mart-coordinator/README.md docs/superpowers/pla
 
   Output JSON must include `status`, `branch`, `base_branch`, `pr_number`, and `pr_url`.
 
-- [ ] **Step 6: Implement `stage-pr-merge.sh`**
+- [x] **Step 6: Implement `stage-pr-merge.sh`**
 
   Contract:
 
@@ -365,7 +365,7 @@ markdownlint docs/design/migrate-mart-coordinator/README.md docs/superpowers/pla
   - Return `merge_conflict` when GitHub says the PR is not mergeable.
   - Merge with a normal non-force strategy when mergeable.
 
-- [ ] **Step 7: Implement `stage-cleanup.sh`**
+- [x] **Step 7: Implement `stage-cleanup.sh`**
 
   Contract:
 
@@ -380,17 +380,17 @@ markdownlint docs/design/migrate-mart-coordinator/README.md docs/superpowers/pla
   - Delete the remote branch when it exists.
   - Return `cleaned` or `already_clean` JSON.
 
-- [ ] **Step 8: Update repo-structure assertions**
+- [x] **Step 8: Update repo-structure assertions**
 
   In `tests/unit/repo_structure/test_root_plugin_layout.py`, assert all shared helper scripts exist and are executable.
 
-- [ ] **Step 9: Run focused tests and verify they pass**
+- [x] **Step 9: Run focused tests and verify they pass**
 
   ```bash
   cd lib && uv run pytest ../tests/unit/worktree_script ../tests/unit/repo_structure/test_root_plugin_layout.py -v
   ```
 
-- [ ] **Step 10: Commit Workstream A checkpoint**
+- [x] **Step 10: Commit Workstream A checkpoint**
 
   ```bash
   git add shared/scripts/stage-pr.sh shared/scripts/stage-pr-merge.sh shared/scripts/stage-cleanup.sh shared/scripts/README.md tests/unit/worktree_script/test_stage_pr_script.py tests/unit/worktree_script/test_stage_pr_merge_script.py tests/unit/worktree_script/test_stage_cleanup_script.py tests/unit/repo_structure/test_root_plugin_layout.py
