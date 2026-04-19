@@ -215,7 +215,11 @@ if [[ "$overall_status" == "blocked" ]]; then
 else
   if [[ "$mode" == "fix" ]]; then
     bootstrap_failures=()
-    if ! run_in_dir "$repo_root/lib" uv sync --extra dev; then
+    if run_in_dir "$repo_root/lib" uv sync --extra dev; then
+      if ! run_in_dir "$repo_root/lib" uv run python -c 'import pyodbc, oracledb, dbt.adapters.oracle, dbt.adapters.sqlserver'; then
+        bootstrap_failures+=("lib dependency verification failed")
+      fi
+    else
       bootstrap_failures+=("lib environment sync failed")
     fi
     if ! run_in_dir "$repo_root/mcp/ddl" uv sync; then
