@@ -537,11 +537,11 @@ markdownlint docs/design/migrate-mart-coordinator/README.md docs/superpowers/pla
 - Create: `commands/migrate-mart-plan.md`
 - Modify: `tests/unit/repo_structure/test_python_package_layout.py`
 
-- [ ] **Step 1: Add repo-structure failing test for new command**
+- [x] **Step 1: Add repo-structure failing test for new command**
 
   In `tests/unit/repo_structure/test_python_package_layout.py`, add `commands/migrate-mart-plan.md` to the command file expectations.
 
-- [ ] **Step 2: Run focused test and verify failure**
+- [x] **Step 2: Run focused test and verify failure**
 
   ```bash
   cd lib && uv run pytest ../tests/unit/repo_structure/test_python_package_layout.py -v
@@ -549,7 +549,7 @@ markdownlint docs/design/migrate-mart-coordinator/README.md docs/superpowers/pla
 
   Expected: failure because `commands/migrate-mart-plan.md` does not exist.
 
-- [ ] **Step 3: Create command frontmatter**
+- [x] **Step 3: Create command frontmatter**
 
   Create `commands/migrate-mart-plan.md`:
 
@@ -562,7 +562,7 @@ markdownlint docs/design/migrate-mart-coordinator/README.md docs/superpowers/pla
   ---
   ```
 
-- [ ] **Step 4: Add command guards**
+- [x] **Step 4: Add command guards**
 
   Required guard section:
 
@@ -577,7 +577,7 @@ markdownlint docs/design/migrate-mart-coordinator/README.md docs/superpowers/pla
   - If catalog ownership is unresolved after scoping, stop before writing an executable plan and tell the human which `ad-migration add-source-table`, `ad-migration add-seed-table`, or `ad-migration exclude-table` decisions are needed.
   ```
 
-- [ ] **Step 5: Add planner pipeline**
+- [x] **Step 5: Add planner pipeline**
 
   Include these exact steps:
 
@@ -589,7 +589,7 @@ markdownlint docs/design/migrate-mart-coordinator/README.md docs/superpowers/pla
   6. Write `docs/migration-plans/<slug>/README.md`.
   7. Commit the plan on the coordinator branch and open/update the final coordinator PR only when explicitly instructed by `/migrate-mart`, not during planning.
 
-- [ ] **Step 6: Add Markdown plan template**
+- [x] **Step 6: Add Markdown plan template**
 
   The command must write sections:
 
@@ -620,14 +620,14 @@ markdownlint docs/design/migrate-mart-coordinator/README.md docs/superpowers/pla
   - Command: `ad-migration replicate-source-tables --limit 10000 --yes`
   ```
 
-- [ ] **Step 7: Run markdownlint and repo-structure test**
+- [x] **Step 7: Run markdownlint and repo-structure test**
 
   ```bash
   markdownlint commands/migrate-mart-plan.md
   cd lib && uv run pytest ../tests/unit/repo_structure/test_python_package_layout.py -v
   ```
 
-- [ ] **Step 8: Commit Workstream C checkpoint**
+- [x] **Step 8: Commit Workstream C checkpoint**
 
   ```bash
   git add commands/migrate-mart-plan.md tests/unit/repo_structure/test_python_package_layout.py
@@ -641,17 +641,17 @@ markdownlint docs/design/migrate-mart-coordinator/README.md docs/superpowers/pla
 - Create: `commands/migrate-mart.md`
 - Modify: `tests/unit/repo_structure/test_python_package_layout.py`
 
-- [ ] **Step 1: Add repo-structure failing test**
+- [x] **Step 1: Add repo-structure failing test**
 
   Add `commands/migrate-mart.md` to command file expectations in `tests/unit/repo_structure/test_python_package_layout.py`.
 
-- [ ] **Step 2: Run focused test and verify failure**
+- [x] **Step 2: Run focused test and verify failure**
 
   ```bash
   cd lib && uv run pytest ../tests/unit/repo_structure/test_python_package_layout.py -v
   ```
 
-- [ ] **Step 3: Create command frontmatter**
+- [x] **Step 3: Create command frontmatter**
 
   ```md
   ---
@@ -662,7 +662,7 @@ markdownlint docs/design/migrate-mart-coordinator/README.md docs/superpowers/pla
   ---
   ```
 
-- [ ] **Step 4: Add coordinator guards**
+- [x] **Step 4: Add coordinator guards**
 
   Required guard section:
 
@@ -676,7 +676,7 @@ markdownlint docs/design/migrate-mart-coordinator/README.md docs/superpowers/pla
   - If plan metadata is malformed or missing, mark the coordinator blocked with `PLAN_INVALID` and stop.
   ```
 
-- [ ] **Step 5: Add resume algorithm**
+- [x] **Step 5: Add resume algorithm**
 
   Include exact behavior:
 
@@ -692,7 +692,7 @@ markdownlint docs/design/migrate-mart-coordinator/README.md docs/superpowers/pla
   5. After each merge, refresh coordinator worktree, rerun `migrate-util batch-plan`, update the Markdown plan, and commit the plan update.
   6. Launch exactly one subagent at a time.
 
-- [ ] **Step 6: Add stage execution table**
+- [x] **Step 6: Add stage execution table**
 
   The command should include this mapping:
 
@@ -710,7 +710,7 @@ markdownlint docs/design/migrate-mart-coordinator/README.md docs/superpowers/pla
   | 120 | recorded `/refactor-mart ... int` invocation |
   ```
 
-- [ ] **Step 7: Add final PR behavior**
+- [x] **Step 7: Add final PR behavior**
 
   State:
 
@@ -718,14 +718,14 @@ markdownlint docs/design/migrate-mart-coordinator/README.md docs/superpowers/pla
   When all stages are complete, open or update the final coordinator PR from the coordinator branch to the remote default branch. Do not merge the final coordinator PR. Report the URL for human review.
   ```
 
-- [ ] **Step 8: Run markdownlint and repo-structure test**
+- [x] **Step 8: Run markdownlint and repo-structure test**
 
   ```bash
   markdownlint commands/migrate-mart.md
   cd lib && uv run pytest ../tests/unit/repo_structure/test_python_package_layout.py -v
   ```
 
-- [ ] **Step 9: Commit Workstream D checkpoint**
+- [x] **Step 9: Commit Workstream D checkpoint**
 
   ```bash
   git add commands/migrate-mart.md tests/unit/repo_structure/test_python_package_layout.py
