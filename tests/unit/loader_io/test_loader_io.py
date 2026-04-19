@@ -10,6 +10,12 @@ import pytest
 from shared.loader_io import read_manifest
 
 
+def test_loader_io_support_exports_manifest_reader(tmp_path: Path) -> None:
+    from shared.loader_io_support.manifest import read_manifest
+
+    assert read_manifest(tmp_path)["dialect"] == "tsql"
+
+
 def test_read_manifest_defaults_dialect_when_missing(tmp_path: Path) -> None:
     (tmp_path / "manifest.json").write_text(
         json.dumps({"technology": "sql_server"}),
