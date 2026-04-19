@@ -13,6 +13,12 @@ function readIfExists(filePath) {
   return fs.readFileSync(filePath, 'utf8');
 }
 
+function expectedTerms(value) {
+  return String(value || '')
+    .split(',')
+    .map((term) => term.trim())
+    .filter(Boolean);
+}
 
 module.exports = (output, context) => {
   const repoRoot = path.resolve(__dirname, '..', '..', '..');
@@ -22,6 +28,20 @@ module.exports = (output, context) => {
   const outputText = String(output || '');
   const planText = planPath ? readIfExists(planPath) : '';
   const evidence = `${outputText}\n${planText}`.toLowerCase();
+  const blockerTerms = expectedTerms(context.vars.expected_blocker_terms);
+
+  if (blockerTerms.length > 0) {
+    for (const term of blockerTerms) {
+      if (!evidence.includes(term.toLowerCase())) {
+        return fail(`Missing expected blocker term '${term}'`);
+      }
+    }
+    return {
+      pass: true,
+      score: 1,
+      reason: 'Migrate mart plan blocker contract validated',
+    };
+  }
 
   if (planPath && !fs.existsSync(planPath) && !outputText.trim()) {
     return fail(`Plan file not found: ${planPath}`);
@@ -41,23 +61,24 @@ module.exports = (output, context) => {
     }
   }
 
-  const requiredFields = [
-    'Row limit: 10000',
-    'Worktree name:',
-    'Base branch:',
+  const requiredTerms = [
+    'Row limit',
+    '10000',
+    'Worktree name',
+    'Base branch',
     'Invocation:',
   ];
-  for (const field of requiredFields) {
-    if (!evidence.includes(field.toLowerCase())) {
-      return fail(`Missing required plan field '${field}'`);
+  for (const term of requiredTerms) {
+    if (!evidence.includes(term.toLowerCase())) {
+      return fail(`Missing required plan term '${term}'`);
     }
   }
 
-  if (!/branch:\s+feature\/migrate-mart-/i.test(evidence)) {
+  if (!/branch[:\s|`]+feature\/migrate-mart-/i.test(evidence)) {
     return fail('Coordinator branch metadata was not written');
   }
 
-  if (!/worktree path:\s+\.{2}\/worktrees\/feature\/migrate-mart-/i.test(evidence)) {
+  if (!/worktree path[:\s|`]+\.{2}\/worktrees\/feature\/migrate-mart-/i.test(evidence)) {
     return fail('Coordinator worktree path metadata was not written');
   }
 

@@ -18,8 +18,41 @@ defaultTest:
       value: file://../../assertions/check-migrate-mart-plan.js
 
 tests:
+  - description: "missing manifest guard — reports MANIFEST_NOT_FOUND"
+    vars:
+      fixture_path: "tests/evals/fixtures/cmd-status/status-all-summary"
+      plan_slug: "missing-manifest"
+      plan_file: "docs/migration-plans/missing-manifest/README.md"
+      scenario_guard: "Treat manifest.json as missing in the run workspace."
+      expected_blocker_terms: "MANIFEST_NOT_FOUND,manifest.json"
+
+  - description: "missing runtime target guard — reports target blocker"
+    vars:
+      fixture_path: "tests/evals/fixtures/cmd-status/status-all-summary"
+      plan_slug: "missing-target"
+      plan_file: "docs/migration-plans/missing-target/README.md"
+      scenario_guard: "Treat runtime.target as absent from manifest.json."
+      expected_blocker_terms: "runtime.target,TARGET"
+
+  - description: "missing sandbox guard — reports sandbox blocker"
+    vars:
+      fixture_path: "tests/evals/fixtures/cmd-status/status-all-summary"
+      plan_slug: "missing-sandbox"
+      plan_file: "docs/migration-plans/missing-sandbox/README.md"
+      scenario_guard: "Treat runtime.sandbox as absent from manifest.json."
+      expected_blocker_terms: "runtime.sandbox,SANDBOX"
+
+  - description: "catalog ownership blocked — reports source seed exclude decisions"
+    vars:
+      fixture_path: "tests/evals/fixtures/cmd-status/status-all-summary"
+      plan_slug: "ownership-blocked"
+      plan_file: "docs/migration-plans/ownership-blocked/README.md"
+      scenario_guard: "Treat catalog ownership as unresolved after scoping."
+      expected_blocker_terms: "add-source-table,add-seed-table,exclude-table"
+
   - description: "[smoke] happy path — writes coordinator plan with required headings"
     vars:
       fixture_path: "tests/evals/fixtures/cmd-status/status-all-summary"
       plan_slug: "migrate-mart-smoke"
       plan_file: "docs/migration-plans/migrate-mart-smoke/README.md"
+      scenario_guard: "No guard override."

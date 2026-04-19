@@ -789,7 +789,7 @@ markdownlint docs/design/migrate-mart-coordinator/README.md docs/superpowers/pla
 - Create: `tests/evals/assertions/check-migrate-mart-resume.js`
 - Modify: `tests/evals/package.json`
 
-- [ ] **Step 1: Add plan assertion**
+- [x] **Step 1: Add plan assertion**
 
   `check-migrate-mart-plan.js` should verify output or written plan contains:
 
@@ -806,11 +806,11 @@ markdownlint docs/design/migrate-mart-coordinator/README.md docs/superpowers/pla
 
   Also verify `Row limit: 10000`, `Worktree name:`, `Base branch:`, and `Invocation:`.
 
-- [ ] **Step 2: Add coordinator resume assertion**
+- [x] **Step 2: Add coordinator resume assertion**
 
   `check-migrate-mart-resume.js` should verify the command chooses the first incomplete stage and does not accept or mention a start-stage argument.
 
-- [ ] **Step 3: Add prompt files**
+- [x] **Step 3: Add prompt files**
 
   `tests/evals/prompts/cmd-migrate-mart-plan.txt`:
 
@@ -824,7 +824,7 @@ markdownlint docs/design/migrate-mart-coordinator/README.md docs/superpowers/pla
   Run /migrate-mart {{plan_file}} in {{run_path}}. Do not run real git, gh, or scripts commands in this eval. Validate the plan, identify the first incomplete stage, and report the intended next action.
   ```
 
-- [ ] **Step 4: Add package YAMLs**
+- [x] **Step 4: Add package YAMLs**
 
   Add scenarios:
 
@@ -836,7 +836,7 @@ markdownlint docs/design/migrate-mart-coordinator/README.md docs/superpowers/pla
   - malformed plan blocks coordinator
   - first incomplete stage resume
 
-- [ ] **Step 5: Add package scripts**
+- [x] **Step 5: Add package scripts**
 
   In `tests/evals/package.json`, add:
 
@@ -845,14 +845,14 @@ markdownlint docs/design/migrate-mart-coordinator/README.md docs/superpowers/pla
   "eval:cmd-migrate-mart": "promptfoo eval -c packages/cmd-migrate-mart/cmd-migrate-mart.yaml"
   ```
 
-- [ ] **Step 6: Run focused evals**
+- [x] **Step 6: Run focused evals**
 
   ```bash
   cd tests/evals && npm run eval:cmd-migrate-mart-plan
   cd tests/evals && npm run eval:cmd-migrate-mart
   ```
 
-- [ ] **Step 7: Commit Workstream E checkpoint**
+- [x] **Step 7: Commit Workstream E checkpoint**
 
   ```bash
   git add tests/evals/prompts/cmd-migrate-mart-plan.txt tests/evals/prompts/cmd-migrate-mart.txt tests/evals/packages/cmd-migrate-mart-plan/cmd-migrate-mart-plan.yaml tests/evals/packages/cmd-migrate-mart/cmd-migrate-mart.yaml tests/evals/assertions/check-migrate-mart-plan.js tests/evals/assertions/check-migrate-mart-resume.js tests/evals/package.json

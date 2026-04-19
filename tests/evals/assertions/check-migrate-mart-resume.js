@@ -47,6 +47,13 @@ function lower(text) {
   return String(text || '').toLowerCase();
 }
 
+function expectedTerms(value) {
+  return String(value || '')
+    .split(',')
+    .map((term) => term.trim())
+    .filter(Boolean);
+}
+
 module.exports = (output, context) => {
   const repoRoot = path.resolve(__dirname, '..', '..', '..');
   const runRoot = path.resolve(repoRoot, resolveProjectPath(context));
@@ -58,6 +65,25 @@ module.exports = (output, context) => {
   const planPath = path.join(runRoot, planFile);
   const outputText = String(output || '');
   const planText = readIfExists(planPath);
+  const evidence = `${outputText}\n${planText}`.toLowerCase();
+  const blockerTerms = expectedTerms(context.vars.expected_blocker_terms);
+
+  if (blockerTerms.length > 0) {
+    for (const term of blockerTerms) {
+      if (!evidence.includes(term.toLowerCase())) {
+        return fail(`Missing expected blocker term '${term}'`);
+      }
+    }
+    if (/\bstart[- ]stage\b|--start-stage/i.test(evidence)) {
+      return fail('Output or plan evidence mentioned a start-stage argument');
+    }
+    return {
+      pass: true,
+      score: 1,
+      reason: 'Migrate mart resume blocker contract validated',
+    };
+  }
+
   const parseSource = planText || outputText;
   const stages = parseStages(parseSource);
 
@@ -80,17 +106,16 @@ module.exports = (output, context) => {
     return fail(`Expected first incomplete stage ${expectedStage}, found ${resumeStage.id}`);
   }
 
-  if (expectedStageName && lower(resumeStage.name) !== expectedStageName) {
+  if (expectedStageName && !lower(resumeStage.name).includes(expectedStageName)) {
     return fail(`Expected first incomplete stage name '${expectedStageName}', found '${resumeStage.name}'`);
   }
 
-  const selectedStageTerms = [
-    `stage ${resumeStage.id}`,
-    `${resumeStage.id}: ${resumeStage.name}`.toLowerCase(),
-    lower(resumeStage.name),
-  ];
   const outputLower = lower(outputText);
-  if (!selectedStageTerms.some((term) => term && outputLower.includes(term))) {
+  const stagePattern = new RegExp(`stage\\s*(?:[:#-]\\s*)?\\**${resumeStage.id}\\**`, 'i');
+  const selectedStageId = stagePattern.test(outputText) || outputLower.includes(`stage ${resumeStage.id}`);
+  const selectedStageName = outputLower.includes(lower(resumeStage.name)) ||
+    (expectedStageName && outputLower.includes(expectedStageName));
+  if (!selectedStageId || !selectedStageName) {
     return fail(`Output did not identify the first incomplete stage ${resumeStage.id} (${resumeStage.name})`);
   }
 

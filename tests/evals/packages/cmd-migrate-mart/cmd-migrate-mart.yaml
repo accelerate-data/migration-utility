@@ -18,9 +18,17 @@ defaultTest:
       value: file://../../assertions/check-migrate-mart-resume.js
 
 tests:
+  - description: "malformed plan blocks coordinator — reports PLAN_INVALID"
+    vars:
+      fixture_path: "tests/evals/fixtures/cmd-status/status-all-summary"
+      plan_file: "docs/migration-plans/malformed/README.md"
+      scenario_guard: "Treat the plan metadata as malformed: missing Coordinator Branch and Base branch."
+      expected_blocker_terms: "PLAN_INVALID,Coordinator,Branch,Base branch"
+
   - description: "[smoke] first incomplete stage resume — picks stage 040 and ignores start-stage args"
     vars:
       fixture_path: "tests/evals/fixtures/cmd-status/status-all-summary"
       plan_file: "docs/migration-plans/migrate-mart-smoke/README.md"
+      scenario_guard: "No guard override."
       expected_resume_stage: "040"
       expected_resume_stage_name: "Profile"
