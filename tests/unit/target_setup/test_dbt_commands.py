@@ -38,6 +38,39 @@ def test_run_dbt_validation_command_runs_selected_models(tmp_path: Path) -> None
     assert result == DbtCommandResult(ran=True, command=expected)
 
 
+def test_run_dbt_validation_command_excludes_selectors(tmp_path: Path) -> None:
+    project_root = tmp_path / "project"
+    dbt_root = project_root / "dbt"
+    dbt_root.mkdir(parents=True)
+    completed = MagicMock(returncode=0, stdout="built", stderr="")
+
+    with patch("shared.target_setup_support.dbt_commands.subprocess.run", return_value=completed) as mock_run:
+        result = run_dbt_validation_command(
+            project_root,
+            "build",
+            ["stg_bronze__customer", "source:bronze.Customer"],
+            exclude=["test_type:unit"],
+        )
+
+    expected = [
+        "dbt",
+        "build",
+        "--project-dir",
+        str(dbt_root),
+        "--profiles-dir",
+        str(dbt_root),
+        "--target",
+        "dev",
+        "--select",
+        "stg_bronze__customer",
+        "source:bronze.Customer",
+        "--exclude",
+        "test_type:unit",
+    ]
+    assert mock_run.call_args.args[0] == expected
+    assert result == DbtCommandResult(ran=True, command=expected)
+
+
 def test_run_dbt_validation_command_skips_without_selectors(tmp_path: Path) -> None:
     with patch("shared.target_setup_support.dbt_commands.subprocess.run") as mock_run:
         result = run_dbt_validation_command(tmp_path, "compile", [])

@@ -20,6 +20,15 @@ from shared.setup_ddl_support.extract import run_extract, run_list_schemas
 logger = logging.getLogger(__name__)
 
 
+def _schema_name(entry: dict[str, Any]) -> str | None:
+    """Normalize schema discovery rows across source backends."""
+    value = entry.get("schema") or entry.get("owner")
+    if not isinstance(value, str):
+        return None
+    value = value.strip()
+    return value or None
+
+
 def _get_source_technology(root: Path) -> str:
     manifest_path = root / "manifest.json"
     if not manifest_path.exists():
@@ -79,7 +88,13 @@ def setup_source(
     if all_schemas:
         with cli_error_handler("discovering schemas in database"):
             discovered = run_list_schemas(root, database)
-        schema_list = [s["schema"] for s in discovered.get("schemas", [])]
+        schema_list = [
+            schema
+            for entry in discovered.get("schemas", [])
+            if isinstance(entry, dict)
+            for schema in [_schema_name(entry)]
+            if schema is not None
+        ]
         if not schema_list:
             error("No schemas found in the database. Verify the connection and database name.")
             raise typer.Exit(code=1)

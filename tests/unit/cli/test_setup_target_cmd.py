@@ -82,10 +82,18 @@ def test_setup_target_sql_server_uses_manifest_runtime_target(tmp_path):
 
 def test_setup_target_oracle_uses_manifest_runtime_target(tmp_path):
     _write_manifest(tmp_path, "oracle")
+    calls: list[str] = []
+
+    def record_guard(_root: Path) -> None:
+        calls.append("guard")
+
+    def record_write(_root: Path, _technology: str, _source_schema: str) -> None:
+        calls.append("write")
+
     with (
         patch("shared.cli.setup_target_cmd.require_target_vars"),
-        patch("shared.cli.setup_target_cmd.ensure_setup_target_can_rerun"),
-        patch("shared.cli.setup_target_cmd.write_target_runtime_from_env") as mock_write,
+        patch("shared.cli.setup_target_cmd.ensure_setup_target_can_rerun", side_effect=record_guard),
+        patch("shared.cli.setup_target_cmd.write_target_runtime_from_env", side_effect=record_write) as mock_write,
         patch("shared.cli.setup_target_cmd.run_setup_target", return_value=_SETUP_TARGET_OUT),
     ):
         result = runner.invoke(
@@ -94,6 +102,42 @@ def test_setup_target_oracle_uses_manifest_runtime_target(tmp_path):
         )
     assert result.exit_code == 0, result.output
     mock_write.assert_called_once_with(tmp_path, "oracle", "bronze")
+    assert calls == ["guard", "write"]
+    assert "Updated repo state" in result.output
+    assert "manifest.json" in result.output
+    assert "dbt/dbt_project.yml" in result.output
+    assert "dbt/models/staging/ - 4 files" in result.output
+    reminder = result.output.split("Updated repo state", 1)[1]
+    assert "/tmp/project" not in reminder
+    assert "Review and commit the repo changes before continuing" in result.output
+    assert "git add" not in result.output
+    assert "git commit" not in result.output
+    assert "git push" not in result.output
+
+
+def test_setup_target_passes_custom_source_schema(tmp_path):
+    _write_manifest(tmp_path, "sql_server")
+
+    with (
+        patch("shared.cli.setup_target_cmd.require_target_vars"),
+        patch("shared.cli.setup_target_cmd.ensure_setup_target_can_rerun"),
+        patch("shared.cli.setup_target_cmd.write_target_runtime_from_env") as mock_write,
+        patch("shared.cli.setup_target_cmd.run_setup_target", return_value=_SETUP_TARGET_OUT),
+    ):
+        result = runner.invoke(
+            app,
+            [
+                "setup-target",
+                "--source-schema",
+                "landing",
+                "--project-root",
+                str(tmp_path),
+            ],
+        )
+
+    assert result.exit_code == 0, result.output
+    mock_write.assert_called_once_with(tmp_path, "sql_server", "landing")
+    assert "source_schema=landing" in result.output
 
 
 def test_setup_target_exits_before_manifest_write_when_rerun_guard_fails(tmp_path):

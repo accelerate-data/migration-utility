@@ -234,6 +234,18 @@ class OracleOperations(DatabaseOperations):
 
     def _map_type(self, source_type: str) -> str:
         normalized = self._base_type_token(source_type)
+        if normalized in {
+            "NUMBER",
+            "VARCHAR2",
+            "NVARCHAR2",
+            "CHAR",
+            "NCHAR",
+            "CLOB",
+            "NCLOB",
+            "BLOB",
+            "RAW",
+        }:
+            return source_type.strip().upper()
         if normalized in {"INT", "INTEGER", "BIGINT", "SMALLINT", "TINYINT"}:
             return "NUMBER(19)"
         if normalized in {"DECIMAL", "NUMERIC", "MONEY"}:

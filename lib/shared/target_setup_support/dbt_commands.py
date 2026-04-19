@@ -36,12 +36,16 @@ def run_dbt_validation_command(
     project_root: Path,
     subcommand: str,
     selectors: list[str],
+    *,
+    exclude: list[str] | None = None,
 ) -> DbtCommandResult:
     if not selectors:
         return DbtCommandResult(ran=False, command=[])
 
     dbt_root = project_root / "dbt"
     command = [*dbt_base_command(project_root, subcommand), "--select", *selectors]
+    if exclude:
+        command.extend(["--exclude", *exclude])
     try:
         completed = subprocess.run(
             command,

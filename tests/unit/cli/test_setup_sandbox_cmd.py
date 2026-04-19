@@ -5,7 +5,10 @@ from unittest.mock import MagicMock, patch
 from typer.testing import CliRunner
 
 from shared.cli.main import app
-from shared.cli.setup_sandbox_cmd import _write_sandbox_connection_to_manifest
+from shared.cli.setup_sandbox_cmd import (
+    _build_sandbox_connection_manifest,
+    _write_sandbox_connection_to_manifest,
+)
 from shared.output_models.sandbox import (
     ErrorEntry,
     SandboxStatusOutput,
@@ -58,6 +61,41 @@ def test_setup_sandbox_runs_sandbox_up(tmp_path):
     assert "git add" not in result.output
     assert "git commit" not in result.output
     assert "git push" not in result.output
+
+def test_setup_sandbox_confirmation_decline_exits_before_provisioning(tmp_path):
+    _write_sandbox_manifest(tmp_path)
+    manifest = {
+        "runtime": {
+            "sandbox": {
+                "technology": "sql_server",
+                "dialect": "tsql",
+                "connection": {},
+            }
+        }
+    }
+    mock_backend = MagicMock()
+
+    with (
+        patch("shared.cli.setup_sandbox_cmd._load_manifest", return_value=manifest),
+        patch("shared.cli.setup_sandbox_cmd._get_sandbox_technology", return_value="sql_server"),
+        patch("shared.cli.setup_sandbox_cmd.require_sandbox_vars"),
+        patch("shared.cli.setup_sandbox_cmd._create_backend", return_value=mock_backend) as mock_create_backend,
+        patch("shared.cli.setup_sandbox_cmd._get_schemas", return_value=["silver"]),
+        patch("shared.cli.setup_sandbox_cmd._write_sandbox_connection_to_manifest") as mock_write_connection,
+        patch("shared.cli.setup_sandbox_cmd._write_sandbox_to_manifest") as mock_write_sandbox,
+    ):
+        result = runner.invoke(
+            app,
+            ["setup-sandbox", "--project-root", str(tmp_path)],
+            input="n\n",
+        )
+
+    assert result.exit_code == 0, result.output
+    assert "Aborted." in result.output
+    mock_create_backend.assert_not_called()
+    mock_backend.sandbox_up.assert_not_called()
+    mock_write_connection.assert_not_called()
+    mock_write_sandbox.assert_not_called()
 
 def test_setup_sandbox_reuses_existing_canonical_sandbox(tmp_path):
     _write_sandbox_manifest(tmp_path, with_sandbox=True)
@@ -268,8 +306,6 @@ def test_setup_sandbox_creates_new_when_canonical_sandbox_not_found(tmp_path):
     mock_write_sandbox.assert_called_once_with(tmp_path, "SBX_ABC123000000")
 
 def test_build_sql_server_sandbox_connection_omits_driver(monkeypatch):
-    from shared.cli.setup_sandbox_cmd import _build_sandbox_connection_manifest
-
     monkeypatch.setenv("SANDBOX_MSSQL_HOST", "sandbox-host")
     monkeypatch.setenv("SANDBOX_MSSQL_PORT", "1433")
     monkeypatch.setenv("SANDBOX_MSSQL_USER", "sandbox_admin")
@@ -293,6 +329,34 @@ def test_build_sql_server_sandbox_connection_omits_driver(monkeypatch):
     assert connection["password_env"] == "SANDBOX_MSSQL_PASSWORD"
     assert "driver" not in connection
 
+def test_build_oracle_sandbox_connection_preserves_schema_name(monkeypatch):
+    monkeypatch.setenv("SANDBOX_ORACLE_HOST", "sandbox-host")
+    monkeypatch.setenv("SANDBOX_ORACLE_PORT", "1521")
+    monkeypatch.setenv("SANDBOX_ORACLE_SERVICE", "FREEPDB1")
+    monkeypatch.setenv("SANDBOX_ORACLE_USER", "sandbox_admin")
+    monkeypatch.setenv("SANDBOX_ORACLE_PASSWORD", "sandbox-password")
+
+    manifest = {
+        "runtime": {
+            "sandbox": {
+                "technology": "oracle",
+                "dialect": "oracle",
+                "connection": {"schema_name": "SBX_000000000001"},
+            }
+        }
+    }
+
+    updated = _build_sandbox_connection_manifest(manifest, "oracle")
+
+    connection = updated["runtime"]["sandbox"]["connection"]
+    assert connection["host"] == "sandbox-host"
+    assert connection["port"] == "1521"
+    assert connection["service"] == "FREEPDB1"
+    assert connection["schema"] == "SBX_000000000001"
+    assert connection["user"] == "sandbox_admin"
+    assert connection["password_env"] == "SANDBOX_ORACLE_PASSWORD"
+    assert "database" not in connection
+
 def test_write_sandbox_connection_preserves_existing_canonical_name_and_ignores_legacy(tmp_path, monkeypatch):
     manifest = {
         "runtime": {
@@ -315,6 +379,33 @@ def test_write_sandbox_connection_preserves_existing_canonical_name_and_ignores_
     assert connection["database"] == "SBX_000000000001"
     assert connection["host"] == "127.0.0.1"
     assert "driver" not in connection
+    assert updated["sandbox"]["database"] == "SBX_LEGACY000000"
+
+def test_write_oracle_sandbox_connection_preserves_existing_schema_name(tmp_path, monkeypatch):
+    manifest = {
+        "runtime": {
+            "sandbox": {
+                "technology": "oracle",
+                "dialect": "oracle",
+                "connection": {"schema_name": "SBX_000000000001"},
+            }
+        },
+        "sandbox": {"database": "SBX_LEGACY000000"},
+    }
+    (tmp_path / "manifest.json").write_text(json.dumps(manifest), encoding="utf-8")
+    monkeypatch.setenv("SANDBOX_ORACLE_HOST", "127.0.0.1")
+    monkeypatch.setenv("SANDBOX_ORACLE_PORT", "1521")
+    monkeypatch.setenv("SANDBOX_ORACLE_SERVICE", "FREEPDB1")
+    monkeypatch.setenv("SANDBOX_ORACLE_USER", "system")
+
+    updated = _write_sandbox_connection_to_manifest(tmp_path, manifest, "oracle")
+
+    connection = updated["runtime"]["sandbox"]["connection"]
+    assert connection["schema"] == "SBX_000000000001"
+    assert connection["host"] == "127.0.0.1"
+    assert connection["service"] == "FREEPDB1"
+    assert connection["password_env"] == "SANDBOX_ORACLE_PASSWORD"
+    assert "database" not in connection
     assert updated["sandbox"]["database"] == "SBX_LEGACY000000"
 
 def test_setup_sandbox_shows_clean_error_on_db_failure(tmp_path):

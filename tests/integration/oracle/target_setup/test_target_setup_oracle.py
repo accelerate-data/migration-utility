@@ -203,16 +203,19 @@ def test_setup_target_materializes_source_and_seed_tables(tmp_path: Path) -> Non
 
         assert result.target_source_schema == target_schema
         assert any("SILVER_CONFIG" in t for t in result.created_tables)
-        assert any("BRONZE_CURRENCY" in f for f in result.seed_files)
+        assert any("BRONZE_CURRENCY" in f.upper() for f in result.seed_files)
         assert result.dbt_seed_ran is True
-        assert any(
-            count > 0 for count in result.seed_row_counts.values()
-        ), "Expected at least one seed table with rows"
+        bronze_currency_seed_rows = next(
+            count
+            for table_name, count in result.seed_row_counts.items()
+            if "BRONZE_CURRENCY" in table_name.upper()
+        )
+        assert bronze_currency_seed_rows > 0
 
         seed_csv = tmp_path / "dbt" / "seeds" / "bronze_currency.csv"
         assert seed_csv.exists()
         header = seed_csv.read_text(encoding="utf-8").splitlines()[0]
-        assert "CURRENCYCODE" in header
+        assert header == "CURRENCYCODE,CURRENCYNAME,MODIFIEDDATE"
 
         with _target_connection() as conn:
             cursor = conn.cursor()
@@ -225,6 +228,6 @@ def test_setup_target_materializes_source_and_seed_tables(tmp_path: Path) -> Non
             cursor.execute(
                 f'SELECT COUNT(*) FROM "{target_schema}"."BRONZE_CURRENCY"'
             )
-            assert cursor.fetchone()[0] > 0
+            assert cursor.fetchone()[0] == bronze_currency_seed_rows
     finally:
         _cleanup_target_tables(target_schema)

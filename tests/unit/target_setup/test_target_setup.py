@@ -149,7 +149,13 @@ def test_run_setup_target_validates_generated_staging_scope_after_source_tables(
         command_order.append("apply")
         return applied
 
-    def record_dbt(_project_root: Path, subcommand: str, selectors: list[str]) -> MagicMock:
+    def record_dbt(
+        _project_root: Path,
+        subcommand: str,
+        selectors: list[str],
+        *,
+        exclude: list[str] | None = None,
+    ) -> MagicMock:
         command_order.append(subcommand)
         command = [
             "dbt",
@@ -163,6 +169,8 @@ def test_run_setup_target_validates_generated_staging_scope_after_source_tables(
             "--select",
             *selectors,
         ]
+        if exclude:
+            command.extend(["--exclude", *exclude])
         return MagicMock(ran=True, command=command)
 
     with (
@@ -203,6 +211,8 @@ def test_run_setup_target_validates_generated_staging_scope_after_source_tables(
         "--select",
         "stg_bronze__customer",
         "source:bronze.Customer",
+        "--exclude",
+        "test_type:unit",
     ]
     assert command_order == ["apply", "compile", "build"]
     assert mock_dbt.call_args_list[0].args == (
@@ -215,6 +225,7 @@ def test_run_setup_target_validates_generated_staging_scope_after_source_tables(
         "build",
         ["stg_bronze__customer", "source:bronze.Customer"],
     )
+    assert mock_dbt.call_args_list[1].kwargs == {"exclude": ["test_type:unit"]}
     assert result.dbt_compile_ran is True
     assert result.dbt_compile_command == expected_compile
     assert result.dbt_build_ran is True

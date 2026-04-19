@@ -103,6 +103,54 @@ class TestSandboxLifecycle:
             cursor.execute("SELECT DB_ID(?)", sandbox_db)
             assert cursor.fetchone()[0] is None
 
+    def test_sandbox_status_reflects_existence(self) -> None:
+        backend = _make_backend()
+
+        result = backend.sandbox_up(schemas=[SQL_SERVER_FIXTURE_SCHEMA])
+        sandbox_db = result.sandbox_database
+
+        try:
+            status_up = backend.sandbox_status(
+                sandbox_db=sandbox_db,
+                schemas=[SQL_SERVER_FIXTURE_SCHEMA],
+            )
+            assert status_up.exists is True
+            assert status_up.status == "ok"
+            assert status_up.has_content is True
+            assert status_up.tables_count > 0
+        finally:
+            backend.sandbox_down(sandbox_db=sandbox_db)
+
+        status_down = backend.sandbox_status(
+            sandbox_db=sandbox_db,
+            schemas=[SQL_SERVER_FIXTURE_SCHEMA],
+        )
+        assert status_down.exists is False
+        assert status_down.status == "not_found"
+
+    def test_sandbox_reset_recreates_same_database_name(self) -> None:
+        backend = _make_backend()
+
+        result = backend.sandbox_up(schemas=[SQL_SERVER_FIXTURE_SCHEMA])
+        sandbox_db = result.sandbox_database
+        try:
+            reset_result = backend.sandbox_reset(
+                sandbox_db=sandbox_db,
+                schemas=[SQL_SERVER_FIXTURE_SCHEMA],
+            )
+
+            assert reset_result.status in ("ok", "partial")
+            assert reset_result.sandbox_database == sandbox_db
+            assert len(reset_result.tables_cloned) > 0
+            status = backend.sandbox_status(
+                sandbox_db=sandbox_db,
+                schemas=[SQL_SERVER_FIXTURE_SCHEMA],
+            )
+            assert status.exists is True
+            assert status.has_content is True
+        finally:
+            backend.sandbox_down(sandbox_db=sandbox_db)
+
     def test_sandbox_down_idempotent(self) -> None:
         backend = _make_backend()
 
