@@ -91,4 +91,3 @@ def clear_manifest_sandbox(project_root: Path) -> None:
         encoding="utf-8",
     )
     logger.info("event=manifest_update operation=clear_sandbox")
-
