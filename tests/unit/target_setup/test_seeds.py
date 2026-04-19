@@ -337,3 +337,26 @@ def test_materialize_seed_tables_skips_when_only_seed_properties_file(tmp_path: 
     mock_run.assert_not_called()
     assert result.ran is False
     assert result.command == []
+
+
+def test_materialize_seed_tables_reports_packaged_runtime_when_dbt_missing(
+    tmp_path: Path,
+) -> None:
+    project_root = _make_sql_server_project(tmp_path)
+    (project_root / "dbt").mkdir(exist_ok=True)
+
+    with patch(
+        "shared.target_setup_support.seeds.subprocess.run",
+        side_effect=FileNotFoundError("dbt"),
+    ):
+        try:
+            materialize_seed_tables(project_root, ["dbt/seeds/customertype.csv"])
+        except ValueError as exc:
+            message = str(exc)
+        else:
+            raise AssertionError("expected missing dbt ValueError")
+
+    assert "ad-migration doctor drivers" in message
+    assert "Homebrew formula resources" in message
+    assert "pip install" not in message
+    assert "uv pip install" not in message

@@ -122,6 +122,30 @@ class TestOracleSandboxLifecycle:
         assert status_down.exists is False
         assert status_down.status == "not_found"
 
+    def test_sandbox_reset_recreates_same_pdb_name(self) -> None:
+        backend = _make_backend()
+
+        result = backend.sandbox_up(schemas=[ORACLE_MIGRATION_SCHEMA])
+        sandbox_schema = result.sandbox_database
+
+        try:
+            reset_result = backend.sandbox_reset(
+                sandbox_db=sandbox_schema,
+                schemas=[ORACLE_MIGRATION_SCHEMA],
+            )
+
+            assert reset_result.status in ("ok", "partial"), reset_result.errors
+            assert reset_result.sandbox_database == sandbox_schema
+            assert len(reset_result.tables_cloned) > 0
+            status = backend.sandbox_status(
+                sandbox_db=sandbox_schema,
+                schemas=[ORACLE_MIGRATION_SCHEMA],
+            )
+            assert status.exists is True
+            assert status.has_content is True
+        finally:
+            backend.sandbox_down(sandbox_db=sandbox_schema)
+
     def test_sandbox_down_idempotent(self) -> None:
         backend = _make_backend()
         result = backend.sandbox_down(sandbox_db="SBX_000000000099")

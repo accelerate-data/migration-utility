@@ -85,6 +85,7 @@ def run_setup_target(project_root: Path) -> SetupTargetOutput:
         project_root,
         "build",
         [*generated_models, *generated_source_selectors],
+        exclude=["test_type:unit"],
     )
     source_files = sources.written_paths if isinstance(sources.written_paths, list) else []
     if not source_files and sources.path:

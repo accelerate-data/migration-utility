@@ -157,6 +157,8 @@ def test_scaffold_target_project_writes_oracle_profile(tmp_path: Path) -> None:
     profiles = (project_root / "dbt" / "profiles.yml").read_text(encoding="utf-8")
     assert 'type: oracle' in profiles
     assert "env_var('ORACLE_TARGET_PASSWORD')" in profiles
+    assert 'protocol: "tcp"' in profiles
+    assert 'database: "TARGETPDB"' in profiles
     assert 'service: "TARGETPDB"' in profiles
     assert 'schema: "BRONZE"' in profiles
 

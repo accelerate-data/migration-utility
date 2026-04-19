@@ -112,8 +112,7 @@ Update stale entries in the same commit that introduced the structural change.
 - **PR title format:** `VU-XXX: short description`
 - **PR body link:** `Fixes VU-XXX`
 - **Worktrees:** `../worktrees/<branchName>` relative to repo root. Full rules: `.claude/rules/git-workflow.md`.
-- **Worktree creation:** Use `./scripts/worktree.sh <branch-name>` as the canonical maintainer workflow for creating or attaching a repo worktree and bootstrapping it. Do not use raw `git worktree add` unless you are debugging the wrapper itself.
-- **Worktree script distinction:** This repo also contains `skills/git-checkpoints/scripts/worktree.sh`, but that copy is bundled into generated plugin projects. It is not the maintainer worktree workflow for `migration-utility`; maintainers should use the repo-root `scripts/worktree.sh`.
+- **Worktree creation:** Use `./scripts/worktree.sh <branch-name>` as the canonical contributor and maintainer workflow for creating or attaching a repo worktree and bootstrapping it. Do not use raw `git worktree add` unless you are debugging the wrapper itself.
 
 ## MCP Servers
 

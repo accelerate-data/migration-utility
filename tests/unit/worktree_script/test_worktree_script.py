@@ -154,7 +154,7 @@ def test_worktree_script_creates_new_branch_and_bootstraps(tmp_path: Path) -> No
         f"git worktree add -b feature/migrate-mart/040-profile {expected_path} feature/migrate-mart",
         f"direnv allow {expected_path}",
         "uv sync --extra dev",
-        "uv run python -c import pyodbc, oracledb",
+        "uv run python -c import pyodbc, oracledb, dbt.adapters.oracle, dbt.adapters.sqlserver",
         "npm ci --no-audit --no-fund",
     ]
     payload = json.loads(result.stdout.splitlines()[-1])
@@ -257,8 +257,9 @@ def test_worktree_script_fails_when_dependency_verification_fails(tmp_path: Path
     assert payload["code"] == "WORKTREE_DEPENDENCY_VERIFICATION_FAILED"
     assert payload["can_retry"] is True
     assert "pyodbc" in payload["message"]
+    assert "dbt.adapters.oracle" in payload["message"]
     assert log_path.read_text(encoding="utf-8").splitlines()[-1] == (
-        "uv run python -c import pyodbc, oracledb"
+        "uv run python -c import pyodbc, oracledb, dbt.adapters.oracle, dbt.adapters.sqlserver"
     )
     assert payload["branch"] == "feature/migrate-mart/080-import-fails"
 

@@ -312,6 +312,7 @@ def test_sqlserver_extraction_uses_shared_runner_for_metadata_specs(tmp_path: Pa
         "object_types.json": False,
         "definitions.json": False,
         "proc_params.json": False,
+        "view_columns.json": False,
         "indexed_views.json": False,
     }
     assert dmf_calls == [
@@ -328,6 +329,23 @@ def test_sqlserver_query_specs_scope_regular_queries_to_selected_schemas() -> No
         sql = spec.sql_factory(["dbo", "gold"])
         assert "SCHEMA_NAME(" in sql
         assert " IN ('dbo', 'gold')" in sql
+
+
+def test_sqlserver_view_columns_spec_extracts_view_columns() -> None:
+    from shared.sqlserver_extract import _sqlserver_query_specs
+
+    view_columns_spec = next(
+        spec
+        for spec in _sqlserver_query_specs()
+        if spec.filename == "view_columns.json"
+    )
+
+    sql = view_columns_spec.sql_factory(["dbo"])
+
+    assert "FROM sys.views v" in sql
+    assert "JOIN sys.columns c ON c.object_id = v.object_id" in sql
+    assert "SCHEMA_NAME(v.schema_id) IN ('dbo')" in sql
+    assert "ORDER BY schema_name, view_name, c.column_id" in sql
 
 
 def test_sqlserver_indexed_views_spec_writes_lowercase_fqns(tmp_path: Path) -> None:

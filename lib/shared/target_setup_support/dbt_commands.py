@@ -9,6 +9,13 @@ from pathlib import Path
 
 logger = logging.getLogger(__name__)
 
+MISSING_DBT_REMEDIATION = (
+    "dbt executable not found in the installed ad-migration runtime. Run "
+    "`ad-migration doctor drivers --project-root . --json`; if dbt is still "
+    "missing, fix the public CLI package or Homebrew formula resources so the "
+    "required dbt modules are bundled with the installed ad-migration runtime."
+)
+
 
 @dataclass(frozen=True)
 class DbtCommandResult:
@@ -36,12 +43,16 @@ def run_dbt_validation_command(
     project_root: Path,
     subcommand: str,
     selectors: list[str],
+    *,
+    exclude: list[str] | None = None,
 ) -> DbtCommandResult:
     if not selectors:
         return DbtCommandResult(ran=False, command=[])
 
     dbt_root = project_root / "dbt"
     command = [*dbt_base_command(project_root, subcommand), "--select", *selectors]
+    if exclude:
+        command.extend(["--exclude", *exclude])
     try:
         completed = subprocess.run(
             command,
@@ -51,7 +62,7 @@ def run_dbt_validation_command(
             check=False,
         )
     except FileNotFoundError as exc:
-        raise ValueError("dbt executable not found on PATH; install dbt before running setup-target validation.") from exc
+        raise ValueError(MISSING_DBT_REMEDIATION) from exc
     if completed.returncode != 0:
         details = (completed.stderr or completed.stdout or "").strip()
         message = f"dbt {subcommand} failed while validating generated staging models"

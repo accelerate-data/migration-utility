@@ -66,6 +66,8 @@ def render_profiles_yml(profile_name: str, target_role: RuntimeRole, target_sour
             "  outputs:\n"
             "    dev:\n"
             f"      type: {adapter_type}\n"
+            "      protocol: \"tcp\"\n"
+            f"      database: \"{service}\"\n"
             f"      host: \"{host}\"\n"
             f"      port: {int(port)}\n"
             f"      service: \"{service}\"\n"

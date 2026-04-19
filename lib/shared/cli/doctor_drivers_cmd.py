@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-import importlib
+import importlib.util
 import json
 import logging
 from dataclasses import dataclass
@@ -17,19 +17,19 @@ from shared.runtime_config_models import ManifestModel, RuntimeRole
 logger = logging.getLogger(__name__)
 
 TECHNOLOGY_DRIVER_MODULES = {
-    "oracle": "oracledb",
-    "sql_server": "pyodbc",
+    "oracle": ("oracledb", "dbt.adapters.oracle"),
+    "sql_server": ("pyodbc", "dbt.adapters.sqlserver"),
 }
 ROLE_NAMES = ("source", "sandbox", "target")
 MAINTAINER_REMEDIATION = (
-    "Fix the public CLI package or Homebrew formula resources so this driver is "
+    "Fix the public CLI package or Homebrew formula resources so this module is "
     "bundled with the installed ad-migration runtime."
 )
 
 
 @dataclass(frozen=True)
 class DriverRequirement:
-    """One Python driver required by a supported technology."""
+    """One Python runtime module required by a supported technology."""
 
     technology: str
     driver_module: str
@@ -38,7 +38,7 @@ class DriverRequirement:
 
 @dataclass(frozen=True)
 class DriverCheckResult:
-    """Import check result for one required driver."""
+    """Import check result for one required runtime module."""
 
     technology: str
     driver_module: str
@@ -75,23 +75,24 @@ def resolve_driver_requirements(project_root: Path) -> list[DriverRequirement]:
     configured_roles = _configured_role_technologies(manifest)
     requirements: list[DriverRequirement] = []
     for technology in sorted(SOURCE_REGISTRY):
-        driver_module = TECHNOLOGY_DRIVER_MODULES.get(technology)
-        if driver_module is None:
+        driver_modules = TECHNOLOGY_DRIVER_MODULES.get(technology)
+        if driver_modules is None:
             continue
-        requirements.append(
+        requirements.extend(
             DriverRequirement(
                 technology=technology,
                 driver_module=driver_module,
                 roles=configured_roles.get(technology, []),
             )
+            for driver_module in driver_modules
         )
     return requirements
 
 
 def _check_requirement(requirement: DriverRequirement) -> DriverCheckResult:
     try:
-        importlib.import_module(requirement.driver_module)
-    except ImportError as exc:
+        spec = importlib.util.find_spec(requirement.driver_module)
+    except (ImportError, ModuleNotFoundError, ValueError) as exc:
         return DriverCheckResult(
             technology=requirement.technology,
             driver_module=requirement.driver_module,
@@ -99,6 +100,15 @@ def _check_requirement(requirement: DriverRequirement) -> DriverCheckResult:
             importable=False,
             remediation=MAINTAINER_REMEDIATION,
             error=str(exc),
+        )
+    if spec is None:
+        return DriverCheckResult(
+            technology=requirement.technology,
+            driver_module=requirement.driver_module,
+            roles=requirement.roles,
+            importable=False,
+            remediation=MAINTAINER_REMEDIATION,
+            error=f"Module not found: {requirement.driver_module}",
         )
     return DriverCheckResult(
         technology=requirement.technology,
@@ -135,9 +145,9 @@ def _print_human_results(results: list[DriverCheckResult]) -> None:
         if remediation:
             output.error(f"{result.driver_module}: {remediation}")
     output.print_table(
-        "Public CLI Driver Readiness",
+        "Public CLI Runtime Readiness",
         rows,
-        columns=("Technology", "Driver", "Roles", "Status"),
+        columns=("Technology", "Module", "Roles", "Status"),
     )
 
 
@@ -156,7 +166,7 @@ def drivers(
         help="Print machine-readable JSON output.",
     ),
 ) -> None:
-    """Check supported backend Python drivers in the public CLI runtime."""
+    """Check supported backend Python drivers and dbt adapters in the public CLI runtime."""
 
     logger.info(
         "event=doctor_drivers component=public_cli operation=check status=start project_root=%s",

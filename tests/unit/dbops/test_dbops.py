@@ -194,6 +194,26 @@ def test_oracle_map_type_does_not_treat_point_as_integer(monkeypatch: pytest.Mon
     assert adapter._map_type("POINT") == "VARCHAR2(4000)"  # type: ignore[attr-defined]
 
 
+def test_oracle_map_type_preserves_native_oracle_catalog_types(monkeypatch: pytest.MonkeyPatch) -> None:
+    role = RuntimeRole(
+        technology="oracle",
+        dialect="oracle",
+        connection=RuntimeConnection(
+            host="localhost",
+            port="1521",
+            service="TARGETPDB",
+            user="system",
+            password_env="ORACLE_PWD",
+        ),
+    )
+    monkeypatch.setenv("ORACLE_PWD", "secret")
+    adapter = get_dbops("oracle").from_role(role)
+
+    assert adapter._map_type("NUMBER(10)") == "NUMBER(10)"  # type: ignore[attr-defined]
+    assert adapter._map_type("VARCHAR2(100)") == "VARCHAR2(100)"  # type: ignore[attr-defined]
+    assert adapter._map_type("CHAR(3)") == "CHAR(3)"  # type: ignore[attr-defined]
+
+
 def test_oracle_ensure_source_schema_raises_when_missing(monkeypatch: pytest.MonkeyPatch) -> None:
     """ensure_source_schema raises ValueError when the schema does not exist."""
     role = RuntimeRole(

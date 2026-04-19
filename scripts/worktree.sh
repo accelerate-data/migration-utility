@@ -127,16 +127,16 @@ sync_python_environment() {
 
   (
     cd "$lib_dir" &&
-      uv run python -c 'import pyodbc, oracledb'
+      uv run python -c 'import pyodbc, oracledb, dbt.adapters.oracle, dbt.adapters.sqlserver'
   ) || json_error \
     "WORKTREE_DEPENDENCY_VERIFICATION_FAILED" \
     "uv_verify_dependencies" \
-    "The worktree environment does not import pyodbc and oracledb." \
+    "The worktree environment does not import pyodbc, oracledb, dbt.adapters.oracle, and dbt.adapters.sqlserver." \
     "true" \
     "$(retry_command)" \
     "Run '$repair_command' to reinstall the integration dependencies, then rerun the worktree command."
 
-  echo "uv: verified worktree Python deps (pyodbc, oracledb)"
+  echo "uv: verified worktree Python deps (pyodbc, oracledb, dbt adapters)"
 }
 
 bootstrap_eval_dependencies() {

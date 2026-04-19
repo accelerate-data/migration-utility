@@ -244,6 +244,34 @@ def test_setup_source_all_schemas_discovers_and_extracts(tmp_path, monkeypatch):
     mock_extract.assert_called_once_with(tmp_path, "AdventureWorks2022", ["silver", "gold", "bronze"])
 
 
+def test_setup_source_oracle_all_schemas_uses_owner_field(tmp_path, monkeypatch):
+    _write_manifest(tmp_path, "oracle")
+    monkeypatch.setenv("SOURCE_ORACLE_HOST", "localhost")
+    monkeypatch.setenv("SOURCE_ORACLE_PORT", "1521")
+    monkeypatch.setenv("SOURCE_ORACLE_SERVICE", "FREEPDB1")
+    monkeypatch.setenv("SOURCE_ORACLE_USER", "sh")
+    monkeypatch.setenv("SOURCE_ORACLE_PASSWORD", "pw")
+
+    list_out = {"schemas": [{"owner": "SH"}, {"owner": "HR"}]}
+
+    with (
+        patch("shared.cli.setup_source_cmd._check_source_prereqs"),
+        patch("shared.cli.setup_source_cmd.run_scaffold_project", return_value=_SCAFFOLD_OUT),
+        patch("shared.cli.setup_source_cmd.run_scaffold_hooks", return_value=_HOOKS_OUT),
+        patch("shared.cli.setup_source_cmd.run_list_schemas", return_value=list_out) as mock_list,
+        patch("shared.cli.setup_source_cmd.run_extract", return_value=_EXTRACT_OUT) as mock_extract,
+    ):
+        result = runner.invoke(
+            app,
+            ["setup-source", "--all-schemas", "--yes",
+             "--project-root", str(tmp_path)],
+        )
+
+    assert result.exit_code == 0, result.output
+    mock_list.assert_called_once_with(tmp_path, None)
+    mock_extract.assert_called_once_with(tmp_path, None, ["SH", "HR"])
+
+
 def test_setup_source_all_schemas_prints_discovered_schemas(tmp_path, monkeypatch):
     _write_manifest(tmp_path, "sql_server")
     monkeypatch.setenv("SOURCE_MSSQL_HOST", "localhost")

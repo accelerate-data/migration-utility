@@ -67,6 +67,24 @@ DECLARE @schema_name sysname = N'__SOURCE_MSSQL_SCHEMA__';
 DECLARE @drop_sql nvarchar(max) = N'';
 
 SELECT @drop_sql = STRING_AGG(
+    N'ALTER TABLE ' + QUOTENAME(OBJECT_SCHEMA_NAME(fk.parent_object_id))
+    + N'.' + QUOTENAME(OBJECT_NAME(fk.parent_object_id))
+    + N' DROP CONSTRAINT ' + QUOTENAME(fk.name) + N';',
+    CHAR(10)
+)
+FROM sys.foreign_keys AS fk
+JOIN sys.tables AS parent_table
+  ON parent_table.object_id = fk.parent_object_id
+WHERE parent_table.schema_id = SCHEMA_ID(@schema_name);
+
+IF @drop_sql IS NOT NULL AND LEN(@drop_sql) > 0
+    EXEC sp_executesql @drop_sql;
+GO
+
+DECLARE @schema_name sysname = N'__SOURCE_MSSQL_SCHEMA__';
+DECLARE @drop_sql nvarchar(max) = N'';
+
+SELECT @drop_sql = STRING_AGG(
     N'DROP TABLE IF EXISTS [__SOURCE_MSSQL_SCHEMA__].[' + t.name + N'];',
     CHAR(10)
 )
