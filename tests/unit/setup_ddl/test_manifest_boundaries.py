@@ -16,6 +16,19 @@ def test_manifest_facade_reexports_existing_public_entrypoints() -> None:
     assert callable(manifest.identity_changed)
     assert callable(manifest.build_runtime_role)
     assert callable(manifest.build_oracle_schema_summary)
+    assert callable(manifest.dialect_for_technology)
+    assert callable(manifest.get_primary_technology)
+    assert callable(manifest.get_runtime_role)
+    assert callable(manifest.sanitize_manifest)
+    assert callable(manifest.set_extraction)
+    assert callable(manifest.set_runtime_role)
+    assert callable(manifest.validate_supported_dialects)
+    assert callable(manifest.validate_supported_technologies)
+    assert manifest.RuntimeConnection.__name__ == "RuntimeConnection"
+    assert manifest.RuntimeRole.__name__ == "RuntimeRole"
+    assert manifest.RuntimeSection.__name__ == "RuntimeSection"
+    assert manifest.ExtractionSection.__name__ == "ExtractionSection"
+    assert manifest.ManifestModel.__name__ == "ManifestModel"
     assert isinstance(manifest.TECH_DIALECT, dict)
 
 
