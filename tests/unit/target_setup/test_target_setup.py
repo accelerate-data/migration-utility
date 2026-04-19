@@ -1,4 +1,4 @@
-"""Tests for target-setup orchestration helpers."""
+"""Facade and orchestration tests for target setup."""
 
 from __future__ import annotations
 
@@ -8,17 +8,7 @@ from unittest.mock import MagicMock, patch
 
 import pytest
 
-from shared.target_setup import (
-    apply_target_source_tables,
-    ensure_setup_target_can_rerun,
-    export_seed_tables,
-    get_target_source_schema,
-    materialize_seed_tables,
-    run_setup_target,
-    scaffold_target_project,
-    write_target_runtime_from_env,
-    write_target_sources_yml,
-)
+from shared.target_setup import run_setup_target, write_target_sources_yml
 
 
 def _write_manifest(project_root: Path, manifest: dict) -> None:
@@ -122,53 +112,6 @@ def _make_oracle_project(tmp_path: Path) -> Path:
     return project_root
 
 
-def test_get_target_source_schema_defaults_to_bronze(tmp_path: Path) -> None:
-    project_root = tmp_path / "project"
-    project_root.mkdir()
-    _write_manifest(
-        project_root,
-        {"schema_version": "1.0", "technology": "sql_server", "dialect": "tsql", "runtime": {"target": {"technology": "sql_server", "dialect": "tsql", "connection": {"database": "TargetDB"}}}},
-    )
-    assert get_target_source_schema(project_root) == "bronze"
-
-
-def test_write_target_runtime_from_env_maps_sql_server_to_tsql_dialect(
-    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
-) -> None:
-    project_root = tmp_path / "project"
-    project_root.mkdir()
-    _write_manifest(
-        project_root,
-        {
-            "schema_version": "1.0",
-            "technology": "sql_server",
-            "dialect": "tsql",
-            "runtime": {
-                "source": {
-                    "technology": "sql_server",
-                    "dialect": "tsql",
-                    "connection": {"database": "SourceDB"},
-                },
-                "sandbox": {
-                    "technology": "sql_server",
-                    "dialect": "tsql",
-                    "connection": {},
-                },
-            },
-        },
-    )
-    monkeypatch.setenv("TARGET_MSSQL_DB", "TargetDB")
-
-    role = write_target_runtime_from_env(project_root, "sql_server")
-
-    manifest = json.loads((project_root / "manifest.json").read_text(encoding="utf-8"))
-    assert role.technology == "sql_server"
-    assert role.dialect == "tsql"
-    assert manifest["runtime"]["target"]["technology"] == "sql_server"
-    assert manifest["runtime"]["target"]["dialect"] == "tsql"
-    assert "driver" not in manifest["runtime"]["target"]["connection"]
-
-
 def test_write_target_sources_yml_writes_remapped_schema(tmp_path: Path) -> None:
     project_root = _make_sql_server_project(tmp_path)
     _seed_catalog_table(project_root, "Customer")
@@ -179,308 +122,12 @@ def test_write_target_sources_yml_writes_remapped_schema(tmp_path: Path) -> None
     assert "name: bronze" in contents
 
 
-def test_scaffold_target_project_writes_dbt_files(tmp_path: Path) -> None:
-    project_root = _make_sql_server_project(tmp_path)
-    updated = scaffold_target_project(project_root)
-    assert "dbt/dbt_project.yml" in updated
-    assert "dbt/profiles.yml" in updated
-    profiles = (project_root / "dbt" / "profiles.yml").read_text(encoding="utf-8")
-    assert 'type: sqlserver' in profiles
-    assert 'schema: "bronze"' in profiles
-    dbt_project = (project_root / "dbt" / "dbt_project.yml").read_text(encoding="utf-8")
-    assert "models:\n" in dbt_project
-    assert "staging:\n      +materialized: view" in dbt_project
-    assert "intermediate:\n      +materialized: ephemeral" in dbt_project
-    assert "marts:\n      +materialized: table" in dbt_project
-    assert (project_root / "dbt" / "models" / "staging").is_dir()
-    assert (project_root / "dbt" / "models" / "intermediate").is_dir()
-    assert (project_root / "dbt" / "models" / "marts").is_dir()
-
-
-def test_scaffold_target_project_writes_sql_server_profile(tmp_path: Path) -> None:
-    project_root = _make_sql_server_project(tmp_path)
-    scaffold_target_project(project_root)
-    profiles = (project_root / "dbt" / "profiles.yml").read_text(encoding="utf-8")
-    assert 'type: sqlserver' in profiles
-    assert 'driver: "FreeTDS"' in profiles
-    assert 'driver: "ODBC Driver 18 for SQL Server"' not in profiles
-    assert "env_var('SA_PASSWORD')" in profiles
-    assert 'database: "TargetDB"' in profiles
-
-
-def test_scaffold_target_project_configures_seed_schema_with_profile_schema(tmp_path: Path) -> None:
-    project_root = _make_sql_server_project(tmp_path)
-    scaffold_target_project(project_root)
-    project_yml = (project_root / "dbt" / "dbt_project.yml").read_text(encoding="utf-8")
-    assert 'seed-paths: ["seeds"]' in project_yml
-    assert '+schema: "bronze"' not in project_yml
-
-
-def test_scaffold_target_project_writes_oracle_profile(tmp_path: Path) -> None:
-    project_root = _make_oracle_project(tmp_path)
-    scaffold_target_project(project_root)
-    profiles = (project_root / "dbt" / "profiles.yml").read_text(encoding="utf-8")
-    assert 'type: oracle' in profiles
-    assert "env_var('ORACLE_TARGET_PASSWORD')" in profiles
-    assert 'service: "TARGETPDB"' in profiles
-    assert 'schema: "BRONZE"' in profiles
-
-
-def test_apply_target_source_tables_creates_missing_tables_via_adapter(tmp_path: Path) -> None:
-    project_root = _make_sql_server_project(tmp_path)
-    _seed_catalog_table(project_root, "Customer")
-    adapter = MagicMock()
-    adapter.list_source_tables.return_value = set()
-
-    with patch("shared.target_setup.get_dbops") as mock_get_dbops:
-        mock_get_dbops.return_value.from_role.return_value = adapter
-        result = apply_target_source_tables(project_root)
-
-    adapter.ensure_source_schema.assert_called_once_with("bronze")
-    adapter.create_source_table.assert_called_once()
-    assert result.created_tables == ["bronze.Customer"]
-    assert result.existing_tables == []
-
-
-def test_apply_target_source_tables_uses_target_sql_type(tmp_path: Path) -> None:
-    project_root = _make_sql_server_project(tmp_path)
-    (project_root / "catalog" / "tables").mkdir(parents=True)
-    (project_root / "catalog" / "tables" / "silver.customer.json").write_text(
-        json.dumps(
-            {
-                "schema": "silver",
-                "name": "Customer",
-                "is_source": True,
-                "columns": [
-                    {
-                        "name": "id",
-                        "source_sql_type": "NUMBER(10,0)",
-                        "canonical_tsql_type": "INT",
-                        "sql_type": "INT",
-                        "data_type": "NUMBER(10,0)",
-                        "is_nullable": False,
-                    }
-                ],
-            }
-        ),
-        encoding="utf-8",
-    )
-    adapter = MagicMock()
-    adapter.list_source_tables.return_value = set()
-
-    with patch("shared.target_setup.get_dbops") as mock_get_dbops:
-        mock_get_dbops.return_value.from_role.return_value = adapter
-        apply_target_source_tables(project_root)
-
-    created_columns = adapter.create_source_table.call_args.args[2]
-    assert created_columns[0].source_type == "INT"
-
-
-def test_apply_target_source_tables_is_idempotent(tmp_path: Path) -> None:
-    project_root = _make_sql_server_project(tmp_path)
-    _seed_catalog_table(project_root, "Customer")
-    adapter = MagicMock()
-    adapter.list_source_tables.return_value = {"customer"}
-
-    with patch("shared.target_setup.get_dbops") as mock_get_dbops:
-        mock_get_dbops.return_value.from_role.return_value = adapter
-        result = apply_target_source_tables(project_root)
-
-    adapter.create_source_table.assert_not_called()
-    assert result.created_tables == []
-    assert result.existing_tables == ["bronze.Customer"]
-
-
-def test_apply_target_source_tables_preserves_oracle_target_schema_case(
-    tmp_path: Path,
-) -> None:
-    project_root = _make_oracle_project(tmp_path)
-    _seed_catalog_table(project_root, "SILVER_CONFIG", schema="MIGRATIONTEST")
-    adapter = MagicMock()
-    adapter.list_source_tables.return_value = set()
-
-    with patch("shared.target_setup.get_dbops") as mock_get_dbops:
-        mock_get_dbops.return_value.from_role.return_value = adapter
-        result = apply_target_source_tables(project_root)
-
-    adapter.ensure_source_schema.assert_called_once_with("BRONZE")
-    adapter.create_source_table.assert_called_once()
-    assert adapter.create_source_table.call_args.args[0] == "BRONZE"
-    assert result.created_tables == ["BRONZE.SILVER_CONFIG"]
-
-
-def test_export_seed_tables_writes_seed_csv_from_source_table(tmp_path: Path) -> None:
-    project_root = _make_sql_server_project(tmp_path)
-    _seed_catalog_table(project_root, "CustomerType", is_source=False, is_seed=True)
-    adapter = MagicMock()
-    adapter.read_table_rows.return_value = (
-        ["id", "name"],
-        [(1, "Retail"), (2, "Partner, Channel"), (3, None)],
-    )
-
-    with patch("shared.target_setup.get_dbops") as mock_get_dbops:
-        mock_get_dbops.return_value.from_role.return_value = adapter
-        result = export_seed_tables(project_root)
-
-    adapter.read_table_rows.assert_called_once_with("silver", "CustomerType", ["id", "name"])
-    seed_path = project_root / "dbt" / "seeds" / "customertype.csv"
-    seed_yml_path = project_root / "dbt" / "seeds" / "_seeds.yml"
-    assert result.files == ["dbt/seeds/customertype.csv", "dbt/seeds/_seeds.yml"]
-    assert result.csv_files == ["dbt/seeds/customertype.csv"]
-    assert result.written_paths == ["dbt/seeds/customertype.csv", "dbt/seeds/_seeds.yml"]
-    assert result.row_counts == {"silver.customertype": 3}
-    assert seed_path.read_text(encoding="utf-8") == (
-        "id,name\n"
-        "1,Retail\n"
-        '2,"Partner, Channel"\n'
-        "3,\n"
-    )
-    assert seed_yml_path.read_text(encoding="utf-8") == (
-        "version: 2\n"
-        "seeds:\n"
-        "- name: customertype\n"
-        "  columns:\n"
-        "  - name: id\n"
-        "    data_type: INT\n"
-        "  - name: name\n"
-        "    data_type: NVARCHAR(50)\n"
-    )
-
-
-def test_export_seed_tables_uses_target_sql_type_in_seed_yml(tmp_path: Path) -> None:
-    project_root = _make_sql_server_project(tmp_path)
-    (project_root / "catalog" / "tables").mkdir(parents=True)
-    (project_root / "catalog" / "tables" / "silver.customertype.json").write_text(
-        json.dumps(
-            {
-                "schema": "silver",
-                "name": "CustomerType",
-                "is_seed": True,
-                "columns": [
-                    {
-                        "name": "id",
-                        "source_sql_type": "NUMBER(10,0)",
-                        "canonical_tsql_type": "INT",
-                        "sql_type": "INT",
-                        "data_type": "NUMBER(10,0)",
-                    }
-                ],
-            }
-        ),
-        encoding="utf-8",
-    )
-    adapter = MagicMock()
-    adapter.read_table_rows.return_value = (["id"], [(1,)])
-
-    with patch("shared.target_setup.get_dbops") as mock_get_dbops:
-        mock_get_dbops.return_value.from_role.return_value = adapter
-        export_seed_tables(project_root)
-
-    seed_yml_path = project_root / "dbt" / "seeds" / "_seeds.yml"
-    assert "data_type: INT" in seed_yml_path.read_text(encoding="utf-8")
-    assert "NUMBER(10,0)" not in seed_yml_path.read_text(encoding="utf-8")
-
-
-def test_export_seed_tables_preserves_oracle_source_schema_case(tmp_path: Path) -> None:
-    project_root = _make_oracle_project(tmp_path)
-    _seed_catalog_table(
-        project_root,
-        "BRONZE_CURRENCY",
-        schema="MIGRATIONTEST",
-        is_source=False,
-        is_seed=True,
-    )
-    adapter = MagicMock()
-    adapter.read_table_rows.return_value = (
-        ["ID", "NAME"],
-        [(1, "USD")],
-    )
-
-    with patch("shared.target_setup.get_dbops") as mock_get_dbops:
-        mock_get_dbops.return_value.from_role.return_value = adapter
-        result = export_seed_tables(project_root)
-
-    adapter.read_table_rows.assert_called_once_with(
-        "MIGRATIONTEST",
-        "BRONZE_CURRENCY",
-        ["id", "name"],
-    )
-    assert result.row_counts == {"migrationtest.bronze_currency": 1}
-
-
-def test_export_seed_tables_reports_no_written_paths_when_content_unchanged(tmp_path: Path) -> None:
-    project_root = _make_sql_server_project(tmp_path)
-    _seed_catalog_table(project_root, "CustomerType", is_source=False, is_seed=True)
-    adapter = MagicMock()
-    adapter.read_table_rows.return_value = (
-        ["id", "name"],
-        [(1, "Retail")],
-    )
-
-    with patch("shared.target_setup.get_dbops") as mock_get_dbops:
-        mock_get_dbops.return_value.from_role.return_value = adapter
-        first = export_seed_tables(project_root)
-        second = export_seed_tables(project_root)
-
-    assert first.written_paths == ["dbt/seeds/customertype.csv", "dbt/seeds/_seeds.yml"]
-    assert second.files == ["dbt/seeds/customertype.csv", "dbt/seeds/_seeds.yml"]
-    assert second.csv_files == ["dbt/seeds/customertype.csv"]
-    assert second.written_paths == []
-
-
-def test_materialize_seed_tables_runs_dbt_seed(tmp_path: Path) -> None:
-    project_root = _make_sql_server_project(tmp_path)
-    (project_root / "dbt").mkdir()
-    completed = MagicMock(returncode=0, stdout="seeded", stderr="")
-
-    with patch("shared.target_setup.subprocess.run", return_value=completed) as mock_run:
-        result = materialize_seed_tables(project_root, ["dbt/seeds/customertype.csv"])
-
-    expected_cmd = [
-        "dbt",
-        "seed",
-        "--project-dir",
-        str(project_root / "dbt"),
-        "--profiles-dir",
-        str(project_root / "dbt"),
-        "--target",
-        "dev",
-    ]
-    mock_run.assert_called_once()
-    assert mock_run.call_args.args[0] == expected_cmd
-    assert mock_run.call_args.kwargs["cwd"] == project_root / "dbt"
-    assert result.ran is True
-    assert result.command == expected_cmd
-
-
-def test_materialize_seed_tables_skips_when_no_seed_files(tmp_path: Path) -> None:
-    project_root = _make_sql_server_project(tmp_path)
-    with patch("shared.target_setup.subprocess.run") as mock_run:
-        result = materialize_seed_tables(project_root, [])
-
-    mock_run.assert_not_called()
-    assert result.ran is False
-    assert result.command == []
-
-
-def test_materialize_seed_tables_skips_when_only_seed_properties_file(tmp_path: Path) -> None:
-    project_root = _make_sql_server_project(tmp_path)
-    with patch("shared.target_setup.subprocess.run") as mock_run:
-        result = materialize_seed_tables(project_root, ["dbt/seeds/_seeds.yml"])
-
-    mock_run.assert_not_called()
-    assert result.ran is False
-    assert result.command == []
-
-
 def test_run_setup_target_validates_generated_staging_scope_after_source_tables(
     tmp_path: Path,
 ) -> None:
     """setup-target validates only generated staging/source artifacts after creating target tables."""
     project_root = _make_sql_server_project(tmp_path)
     command_order: list[str] = []
-    compile_result = MagicMock(returncode=0, stdout="compiled", stderr="")
-    build_result = MagicMock(returncode=0, stdout="built", stderr="")
     applied = MagicMock(
         physical_schema="bronze",
         desired_tables=["bronze.Customer"],
@@ -502,11 +149,21 @@ def test_run_setup_target_validates_generated_staging_scope_after_source_tables(
         command_order.append("apply")
         return applied
 
-    def record_run(command: list[str], **_: object) -> MagicMock:
-        command_order.append(command[1])
-        if command[1] == "compile":
-            return compile_result
-        return build_result
+    def record_dbt(_project_root: Path, subcommand: str, selectors: list[str]) -> MagicMock:
+        command_order.append(subcommand)
+        command = [
+            "dbt",
+            subcommand,
+            "--project-dir",
+            str(project_root / "dbt"),
+            "--profiles-dir",
+            str(project_root / "dbt"),
+            "--target",
+            "dev",
+            "--select",
+            *selectors,
+        ]
+        return MagicMock(ran=True, command=command)
 
     with (
         patch("shared.target_setup.scaffold_target_project", return_value=["dbt/dbt_project.yml"]),
@@ -517,7 +174,7 @@ def test_run_setup_target_validates_generated_staging_scope_after_source_tables(
             return_value=MagicMock(files=[], csv_files=[], row_counts={}, written_paths=[]),
         ),
         patch("shared.target_setup.materialize_seed_tables", return_value=MagicMock(ran=False, command=[])),
-        patch("shared.target_setup.subprocess.run", side_effect=record_run) as mock_run,
+        patch("shared.target_setup.run_dbt_validation_command", side_effect=record_dbt) as mock_dbt,
     ):
         result = run_setup_target(project_root)
 
@@ -548,8 +205,16 @@ def test_run_setup_target_validates_generated_staging_scope_after_source_tables(
         "source:bronze.Customer",
     ]
     assert command_order == ["apply", "compile", "build"]
-    assert mock_run.call_args_list[0].args[0] == expected_compile
-    assert mock_run.call_args_list[1].args[0] == expected_build
+    assert mock_dbt.call_args_list[0].args == (
+        project_root,
+        "compile",
+        ["stg_bronze__customer"],
+    )
+    assert mock_dbt.call_args_list[1].args == (
+        project_root,
+        "build",
+        ["stg_bronze__customer", "source:bronze.Customer"],
+    )
     assert result.dbt_compile_ran is True
     assert result.dbt_compile_command == expected_compile
     assert result.dbt_build_ran is True
@@ -582,11 +247,13 @@ def test_run_setup_target_skips_dbt_validation_when_no_generated_models(tmp_path
             return_value=MagicMock(files=[], csv_files=[], row_counts={}, written_paths=[]),
         ),
         patch("shared.target_setup.materialize_seed_tables", return_value=MagicMock(ran=False, command=[])),
-        patch("shared.target_setup.subprocess.run") as mock_run,
+        patch("shared.target_setup.run_dbt_validation_command", return_value=MagicMock(ran=False, command=[])) as mock_dbt,
     ):
         result = run_setup_target(project_root)
 
-    mock_run.assert_not_called()
+    assert mock_dbt.call_count == 2
+    assert mock_dbt.call_args_list[0].args == (project_root, "compile", [])
+    assert mock_dbt.call_args_list[1].args == (project_root, "build", [])
     assert result.dbt_compile_ran is False
     assert result.dbt_build_ran is False
 
@@ -610,7 +277,7 @@ def test_run_setup_target_stops_when_staging_sources_generation_fails(tmp_path: 
         patch("shared.target_setup.export_seed_tables") as mock_export_seeds,
         patch("shared.target_setup.materialize_seed_tables") as mock_materialize_seeds,
         patch("shared.target_setup.apply_target_source_tables") as mock_apply,
-        patch("shared.target_setup.subprocess.run") as mock_run,
+        patch("shared.target_setup.run_dbt_validation_command") as mock_dbt,
     ):
         with pytest.raises(ValueError, match="Cannot generate staging contract"):
             run_setup_target(project_root)
@@ -618,23 +285,7 @@ def test_run_setup_target_stops_when_staging_sources_generation_fails(tmp_path: 
     mock_export_seeds.assert_not_called()
     mock_materialize_seeds.assert_not_called()
     mock_apply.assert_not_called()
-    mock_run.assert_not_called()
-
-
-def test_setup_target_rerun_guard_rejects_existing_generated_models(tmp_path: Path) -> None:
-    project_root = _make_sql_server_project(tmp_path)
-    (project_root / "catalog" / "tables").mkdir(parents=True)
-    (project_root / "catalog" / "tables" / "silver.customer.json").write_text(
-        json.dumps({
-            "schema": "silver",
-            "name": "Customer",
-            "generate": {"status": "ok", "path": "dbt/models/marts/dim_customer.sql"},
-        }),
-        encoding="utf-8",
-    )
-
-    with pytest.raises(ValueError, match="ad-migration reset all --preserve-catalog"):
-        ensure_setup_target_can_rerun(project_root)
+    mock_dbt.assert_not_called()
 
 
 def test_run_setup_target_applies_delta_after_new_source_added(tmp_path: Path) -> None:
@@ -691,26 +342,3 @@ def test_run_setup_target_applies_delta_after_new_source_added(tmp_path: Path) -
     assert first.sources_path not in first.written_paths
     assert second.created_tables == ["bronze.Orders"]
     assert "bronze.Customer" in second.existing_tables
-
-
-def test_scaffold_target_project_rejects_unknown_technology(tmp_path: Path) -> None:
-    project_root = tmp_path / "project"
-    project_root.mkdir()
-    _write_manifest(
-        project_root,
-        {
-            "schema_version": "1.0",
-            "technology": "sql_server",
-            "dialect": "tsql",
-            "runtime": {
-                "target": {
-                    "technology": "postgres",
-                    "dialect": "postgres",
-                    "connection": {"database": "TargetDB"},
-                }
-            },
-        },
-    )
-
-    with pytest.raises(ValueError, match="Unknown technology: postgres"):
-        scaffold_target_project(project_root)
