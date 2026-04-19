@@ -8,15 +8,8 @@ from pathlib import Path
 
 from shared.loader_data import CatalogLoadError, DdlCatalog, DdlEntry, DdlParseError
 from shared.loader_io_support.manifest import read_manifest
+from shared.loader_io_support.directory import load_directory
 from shared.loader_parse import extract_refs
-
-try:
-    from shared.loader_io_support.directory import load_directory
-except ImportError:
-    def load_directory(project_root: Path | str, dialect: str = "tsql") -> DdlCatalog:
-        from shared.loader_io_support.directory import load_directory as _load_directory
-
-        return _load_directory(project_root, dialect=dialect)
 
 _CATALOG_SCHEMA_VERSION = "1.0"
 

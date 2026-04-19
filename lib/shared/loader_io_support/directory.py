@@ -9,7 +9,6 @@ from pathlib import Path
 from shared.env_config import resolve_ddl_dir
 from shared.loader_data import CatalogNotFoundError, DdlCatalog, DdlEntry, DdlParseError
 from shared.loader_io_support.manifest import read_manifest
-from shared.loader_io_support.indexing import load_catalog
 from shared.loader_parse import (
     GO_RE,
     extract_name,
@@ -130,5 +129,7 @@ def load_ddl(project_root: Path) -> tuple[DdlCatalog, str]:
         raise CatalogNotFoundError(project_root)
     catalog_json = project_root / "catalog.json"
     if catalog_json.exists():
+        from shared.loader_io_support.indexing import load_catalog
+
         return load_catalog(project_root), dialect
     return load_directory(project_root, dialect=dialect), dialect
