@@ -15,6 +15,8 @@ from tests.helpers import (
     SQL_SERVER_FIXTURE_SILVER_PATTERN_PROC,
 )
 from tests.integration.runtime_helpers import ensure_sql_server_migration_test_materialized
+from tests.integration.runtime_helpers import assert_manifest_has_runtime_roles
+from tests.integration.runtime_helpers import write_source_target_sandbox_manifest
 
 pytestmark = pytest.mark.integration
 
@@ -30,9 +32,7 @@ def _ensure_sql_server_fixture_materialized() -> None:
 class TestListDatabasesIntegration:
     def test_sql_server_returns_list(self, tmp_path):
         _ensure_sql_server_fixture_materialized()
-        (tmp_path / "manifest.json").write_text(
-            '{"technology": "sql_server", "dialect": "tsql"}', encoding="utf-8"
-        )
+        write_source_target_sandbox_manifest(tmp_path, source_technology="sql_server")
         result = _run_cli(["list-databases", "--project-root", str(tmp_path)])
         assert result.returncode == 0, result.stderr
         out = json.loads(result.stdout)
@@ -45,9 +45,7 @@ class TestListDatabasesIntegration:
 class TestListSchemasSqlServerIntegration:
     def test_returns_schemas_with_counts(self, tmp_path):
         _ensure_sql_server_fixture_materialized()
-        (tmp_path / "manifest.json").write_text(
-            '{"technology": "sql_server", "dialect": "tsql"}', encoding="utf-8"
-        )
+        write_source_target_sandbox_manifest(tmp_path, source_technology="sql_server")
         result = _run_cli([
             "list-schemas",
             "--project-root", str(tmp_path),
@@ -70,9 +68,7 @@ class TestListSchemasSqlServerIntegration:
 class TestExtractSqlServerIntegration:
     def test_produces_ddl_and_catalog(self, tmp_path):
         _ensure_sql_server_fixture_materialized()
-        (tmp_path / "manifest.json").write_text(
-            '{"technology": "sql_server", "dialect": "tsql"}', encoding="utf-8"
-        )
+        write_source_target_sandbox_manifest(tmp_path, source_technology="sql_server")
         result = _run_cli([
             "extract",
             "--database", SQL_SERVER_FIXTURE_DATABASE,
@@ -80,6 +76,7 @@ class TestExtractSqlServerIntegration:
             "--project-root", str(tmp_path),
         ], timeout=120)
         assert result.returncode == 0, result.stderr
+        assert_manifest_has_runtime_roles(tmp_path)
         assert (tmp_path / "ddl").is_dir()
         assert (tmp_path / "catalog").is_dir()
         assert (tmp_path / "manifest.json").exists()
@@ -94,9 +91,7 @@ class TestExtractSqlServerIntegration:
 
     def test_catalog_tables_non_empty(self, tmp_path):
         _ensure_sql_server_fixture_materialized()
-        (tmp_path / "manifest.json").write_text(
-            '{"technology": "sql_server", "dialect": "tsql"}', encoding="utf-8"
-        )
+        write_source_target_sandbox_manifest(tmp_path, source_technology="sql_server")
         result = _run_cli([
             "extract",
             "--database", SQL_SERVER_FIXTURE_DATABASE,
@@ -112,9 +107,7 @@ class TestExtractSqlServerIntegration:
 
     def test_procedure_catalog_has_routing_flags(self, tmp_path):
         _ensure_sql_server_fixture_materialized()
-        (tmp_path / "manifest.json").write_text(
-            '{"technology": "sql_server", "dialect": "tsql"}', encoding="utf-8"
-        )
+        write_source_target_sandbox_manifest(tmp_path, source_technology="sql_server")
         result = _run_cli([
             "extract",
             "--database", SQL_SERVER_FIXTURE_DATABASE,
@@ -133,9 +126,7 @@ class TestExtractSqlServerIntegration:
 
     def test_enriched_fields_preserved_on_reextract(self, tmp_path):
         _ensure_sql_server_fixture_materialized()
-        (tmp_path / "manifest.json").write_text(
-            '{"technology": "sql_server", "dialect": "tsql"}', encoding="utf-8"
-        )
+        write_source_target_sandbox_manifest(tmp_path, source_technology="sql_server")
         result = _run_cli([
             "extract",
             "--database", SQL_SERVER_FIXTURE_DATABASE,

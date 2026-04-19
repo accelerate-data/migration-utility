@@ -22,11 +22,13 @@ import pytest
 from tests.helpers import SHARED_LIB_DIR, SQL_SERVER_FIXTURE_SCHEMA
 from tests.integration.runtime_helpers import (
     SQL_SERVER_MIGRATION_DATABASE,
+    assert_manifest_has_runtime_roles,
     build_sql_server_admin_connection_string,
     build_sql_server_connection_string,
     ensure_sql_server_migration_test_materialized,
     sql_server_is_available,
     sql_server_sandbox_is_available,
+    write_source_target_sandbox_manifest,
 )
 
 pyodbc = pytest.importorskip("pyodbc", reason="pyodbc not installed — skipping integration tests")
@@ -203,6 +205,7 @@ def _write_json(path: Path, data: Any) -> None:
 
 
 def _run_write_catalog(staging_dir: Path, project_root: Path, database: str) -> dict[str, Any]:
+    write_source_target_sandbox_manifest(project_root, source_technology="sql_server")
     result = subprocess.run(
         [sys.executable, "-m", "shared.setup_ddl", "write-catalog",
          "--staging-dir", str(staging_dir),
@@ -212,6 +215,7 @@ def _run_write_catalog(staging_dir: Path, project_root: Path, database: str) -> 
         capture_output=True, text=True, timeout=30,
     )
     assert result.returncode == 0, f"write-catalog failed: {result.stderr}"
+    assert_manifest_has_runtime_roles(project_root)
     return json.loads(result.stdout)
 
 

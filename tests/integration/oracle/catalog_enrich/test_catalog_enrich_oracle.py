@@ -12,6 +12,7 @@ from tests.helpers import (
     run_setup_ddl_cli,
 )
 from tests.integration.runtime_helpers import ORACLE_MIGRATION_SCHEMA
+from tests.integration.runtime_helpers import write_source_target_sandbox_manifest
 
 pytestmark = pytest.mark.oracle
 
@@ -20,9 +21,7 @@ pytestmark = pytest.mark.oracle
 class TestEnrichCatalogOracleIntegration:
     def test_oracle_dialect_from_manifest(self, tmp_path, oracle_extract_env):
         git_init(tmp_path)
-        (tmp_path / "manifest.json").write_text(
-            json.dumps({"technology": "oracle", "dialect": "oracle"}), encoding="utf-8"
-        )
+        write_source_target_sandbox_manifest(tmp_path, source_technology="oracle")
         extract = run_setup_ddl_cli([
             "extract",
             "--schemas", ORACLE_MIGRATION_SCHEMA,
