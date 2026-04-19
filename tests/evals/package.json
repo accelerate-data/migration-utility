@@ -20,6 +20,8 @@
     "eval:cmd-generate-tests": "./scripts/promptfoo.sh eval --no-cache -c packages/cmd-generate-tests/cmd-generate-tests.yaml",
     "eval:cmd-status": "./scripts/promptfoo.sh eval --no-cache -c packages/cmd-status/cmd-status.yaml",
     "eval:cmd-refactor-mart": "./scripts/promptfoo.sh eval --no-cache -c packages/cmd-refactor-mart/cmd-refactor-mart.yaml",
+    "eval:cmd-migrate-mart-plan": "./scripts/promptfoo.sh eval --no-cache -c packages/cmd-migrate-mart-plan/cmd-migrate-mart-plan.yaml",
+    "eval:cmd-migrate-mart": "./scripts/promptfoo.sh eval --no-cache -c packages/cmd-migrate-mart/cmd-migrate-mart.yaml",
     "eval:refactoring-sql": "./scripts/promptfoo.sh eval --no-cache -c packages/refactoring-sql/skill-refactoring-sql.yaml",
     "eval:generating-tests": "./scripts/promptfoo.sh eval --no-cache -c packages/generating-tests/skill-generating-tests.yaml",
     "eval:cmd-refactor": "./scripts/promptfoo.sh eval --no-cache -c packages/cmd-refactor/cmd-refactor.yaml",

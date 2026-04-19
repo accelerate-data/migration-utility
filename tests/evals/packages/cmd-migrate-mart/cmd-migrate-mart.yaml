@@ -1,0 +1,26 @@
+# yaml-language-server: $schema=https://promptfoo.dev/config-schema.json
+description: "migrate-mart command — resume first incomplete stage"
+
+prompts:
+  - id: cmd-migrate-mart
+    label: cmd-migrate-mart
+    raw: file://../../prompts/cmd-migrate-mart.txt
+
+extensions:
+  - file://../../scripts/run-workspace-extension.js:extensionHook
+
+providers:
+  - file://../../providers/haiku-120.yaml
+
+defaultTest:
+  assert:
+    - type: javascript
+      value: file://../../assertions/check-migrate-mart-resume.js
+
+tests:
+  - description: "[smoke] first incomplete stage resume — picks stage 040 and ignores start-stage args"
+    vars:
+      fixture_path: "tests/evals/fixtures/cmd-status/status-all-summary"
+      plan_file: "docs/migration-plans/migrate-mart-smoke/README.md"
+      expected_resume_stage: "040"
+      expected_resume_stage_name: "Profile"

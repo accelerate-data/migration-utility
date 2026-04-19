@@ -1,0 +1,25 @@
+# yaml-language-server: $schema=https://promptfoo.dev/config-schema.json
+description: "migrate-mart-plan command — coordinator plan generation"
+
+prompts:
+  - id: cmd-migrate-mart-plan
+    label: cmd-migrate-mart-plan
+    raw: file://../../prompts/cmd-migrate-mart-plan.txt
+
+extensions:
+  - file://../../scripts/run-workspace-extension.js:extensionHook
+
+providers:
+  - file://../../providers/haiku-120.yaml
+
+defaultTest:
+  assert:
+    - type: javascript
+      value: file://../../assertions/check-migrate-mart-plan.js
+
+tests:
+  - description: "[smoke] happy path — writes coordinator plan with required headings"
+    vars:
+      fixture_path: "tests/evals/fixtures/cmd-status/status-all-summary"
+      plan_slug: "migrate-mart-smoke"
+      plan_file: "docs/migration-plans/migrate-mart-smoke/README.md"

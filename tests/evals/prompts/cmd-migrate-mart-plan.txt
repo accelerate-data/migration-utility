@@ -1,0 +1,20 @@
+You are running an eval harness for `/migrate-mart-plan` using canonical fixture input at {{fixture_path}} and writable run workspace at {{run_path}}.
+
+Run `/migrate-mart-plan {{plan_slug}}`.
+
+Read `${CLAUDE_PLUGIN_ROOT}/commands/migrate-mart-plan.md`, but treat the following harness rules as authoritative overrides for this eval. Do not ask clarifying questions. Do not pause for confirmation. Execute the task directly.
+
+Harness overrides:
+- Treat `{{fixture_path}}` as read-only input. Write all generated files to `{{run_path}}`. Do not create or use a worktree.
+- In this eval fixture, do not actually run git, shared/scripts, gh, `/commit`, `/commit-push-pr`, cleanup, or `git-checkpoints` commands.
+- Keep `${CLAUDE_PLUGIN_ROOT}` references as written.
+- Pass `--project-root {{run_path}}` to any CLI command that accepts `--project-root`.
+- Write the coordinator plan to `{{run_path}}/{{plan_file}}`.
+- The plan must include the required coordinator, source replication, and stage sections from `commands/migrate-mart-plan.md`.
+- The plan must include the fixed row limit and stage metadata fields referenced by the eval assertion.
+- Report the written plan location and the `/migrate-mart` handoff in the final response.
+
+Do not mention a start-stage argument.
+
+Final answer format:
+- Include a handoff block with `PR:`, `Branch:`, and `Worktree:`.
