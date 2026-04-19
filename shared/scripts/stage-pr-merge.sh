@@ -96,6 +96,7 @@ fi
 raw_pr="$1"
 base_branch="$2"
 pr_url=""
+pr_ref="$raw_pr"
 
 if ! git rev-parse --show-toplevel >/dev/null 2>&1; then
   pr_number="0"
@@ -114,7 +115,7 @@ if ! pr_number="$(normalize_pr_number "$raw_pr")"; then
     "The PR reference must be a number or GitHub PR URL."
 fi
 
-if ! pr_view_json="$(gh pr view "$pr_number" --json state,number,url,baseRefName,mergeStateStatus,statusCheckRollup)"; then
+if ! pr_view_json="$(gh pr view "$pr_ref" --json state,number,url,baseRefName,isDraft,mergeStateStatus,statusCheckRollup)"; then
   json_failure \
     "GH_PR_VIEW_FAILED" \
     "gh_pr_view" \
@@ -144,6 +145,14 @@ payload = json.loads(os.environ["PR_VIEW_JSON"])
 print(payload.get("baseRefName", ""))
 PY
 )"
+pr_is_draft="$(PR_VIEW_JSON="$pr_view_json" python3 - <<'PY'
+import json
+import os
+
+payload = json.loads(os.environ["PR_VIEW_JSON"])
+print("true" if payload.get("isDraft") else "")
+PY
+)"
 merge_state="$(PR_VIEW_JSON="$pr_view_json" python3 - <<'PY'
 import json
 import os
@@ -155,6 +164,11 @@ PY
 
 if [[ "$pr_state" == "MERGED" ]]; then
   json_success "already_merged"
+  exit 0
+fi
+
+if [[ "$pr_state" != "OPEN" || -n "$pr_is_draft" || "$pr_state" == "DRAFT" ]]; then
+  json_success "merge_conflict"
   exit 0
 fi
 
@@ -190,7 +204,7 @@ if [[ -n "$merge_state" && "$merge_state" != "CLEAN" ]]; then
   exit 0
 fi
 
-if ! gh pr merge "$pr_number" --merge --delete-branch=false >/dev/null; then
+if ! gh pr merge "$pr_ref" --merge --delete-branch=false >/dev/null; then
   json_failure \
     "GH_PR_MERGE_FAILED" \
     "gh_pr_merge" \
