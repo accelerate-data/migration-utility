@@ -1,4 +1,4 @@
-"""Tests for the git-checkpoints internal worktree helper."""
+"""Tests for the shared plugin worktree helper."""
 
 from __future__ import annotations
 
@@ -10,7 +10,7 @@ from pathlib import Path
 
 
 REPO_ROOT = Path(__file__).resolve().parents[3]
-SCRIPT_PATH = REPO_ROOT / "skills" / "git-checkpoints" / "scripts" / "worktree.sh"
+SCRIPT_PATH = REPO_ROOT / "shared" / "scripts" / "worktree.sh"
 
 
 def _write_executable(path: Path, body: str) -> None:
@@ -30,6 +30,11 @@ if [[ "$1" == "show-ref" ]]; then
     exit 0
   fi
   exit 1
+fi
+
+if [[ "$1" == "rev-parse" && "$2" == "--show-toplevel" ]]; then
+  pwd
+  exit 0
 fi
 
 if [[ "$1" == "worktree" && "$2" == "list" ]]; then
@@ -64,7 +69,11 @@ exit 99
     )
 
 
-def _base_env(tmp_path: Path, worktree_list_content: str = "", branch_exists: bool = False) -> tuple[dict[str, str], Path]:
+def _base_env(
+    tmp_path: Path,
+    worktree_list_content: str = "",
+    branch_exists: bool = False,
+) -> tuple[dict[str, str], Path]:
     bin_dir = tmp_path / "bin"
     bin_dir.mkdir()
     log_path = tmp_path / "calls.log"
@@ -126,7 +135,7 @@ def test_worktree_script_creates_new_branch_and_bootstraps(tmp_path: Path) -> No
     env, log_path = _base_env(tmp_path)
 
     result = subprocess.run(
-        [str(SCRIPT_PATH), "feature/test-branch"],
+        [str(SCRIPT_PATH), "feature/migrate-mart/040-profile", "040-profile", "feature/migrate-mart"],
         cwd=REPO_ROOT,
         capture_output=True,
         text=True,
@@ -135,19 +144,28 @@ def test_worktree_script_creates_new_branch_and_bootstraps(tmp_path: Path) -> No
     )
 
     assert result.returncode == 0
-    assert "created worktree" in result.stdout
-    expected_path = tmp_path / "worktrees" / "feature" / "test-branch"
+    expected_path = tmp_path / "worktrees" / "feature" / "migrate-mart" / "040-profile"
     assert expected_path.exists()
     assert not (expected_path / "tests" / "evals" / ".promptfoo").exists()
     assert log_path.read_text(encoding="utf-8").splitlines() == [
-        "git show-ref --verify --quiet refs/heads/feature/test-branch",
+        "git rev-parse --show-toplevel",
+        "git show-ref --verify --quiet refs/heads/feature/migrate-mart/040-profile",
         "git worktree list --porcelain",
-        f"git worktree add -b feature/test-branch {expected_path} HEAD",
+        f"git worktree add -b feature/migrate-mart/040-profile {expected_path} feature/migrate-mart",
         f"direnv allow {expected_path}",
         "uv sync --extra dev",
         "uv run python -c import pyodbc, oracledb",
         "npm ci --no-audit --no-fund",
     ]
+    payload = json.loads(result.stdout.splitlines()[-1])
+    assert payload == {
+        "status": "ready",
+        "branch": "feature/migrate-mart/040-profile",
+        "base_branch": "feature/migrate-mart",
+        "worktree_name": "040-profile",
+        "worktree_path": str(expected_path),
+        "reused": False,
+    }
 
 
 def test_worktree_script_attaches_existing_branch(tmp_path: Path) -> None:
@@ -155,7 +173,7 @@ def test_worktree_script_attaches_existing_branch(tmp_path: Path) -> None:
     env, log_path = _base_env(tmp_path, branch_exists=True)
 
     result = subprocess.run(
-        [str(SCRIPT_PATH), "feature/existing-branch"],
+        [str(SCRIPT_PATH), "feature/migrate-mart/050-setup", "050-setup", "feature/migrate-mart"],
         cwd=REPO_ROOT,
         capture_output=True,
         text=True,
@@ -164,18 +182,22 @@ def test_worktree_script_attaches_existing_branch(tmp_path: Path) -> None:
     )
 
     assert result.returncode == 0
-    expected_path = tmp_path / "worktrees" / "feature" / "existing-branch"
-    assert f"git worktree add {expected_path} feature/existing-branch" in log_path.read_text(encoding="utf-8")
+    expected_path = tmp_path / "worktrees" / "feature" / "migrate-mart" / "050-setup"
+    assert f"git worktree add {expected_path} feature/migrate-mart/050-setup" in log_path.read_text(encoding="utf-8")
+    payload = json.loads(result.stdout.splitlines()[-1])
+    assert payload["reused"] is False
 
 
-def test_worktree_script_reports_branch_checked_out_elsewhere(tmp_path: Path) -> None:
-    """Existing checked-out branches should fail with structured JSON."""
-    existing_path = tmp_path / "other" / "feature" / "existing-branch"
-    worktree_list = f"worktree {existing_path}\nHEAD deadbeef\nbranch refs/heads/feature/existing-branch\n\n"
+def test_worktree_script_reuses_branch_checked_out_elsewhere(tmp_path: Path) -> None:
+    """Existing checked-out branches should report the existing worktree as reusable state."""
+    existing_path = tmp_path / "other" / "feature" / "migrate-mart" / "060-profile"
+    worktree_list = (
+        f"worktree {existing_path}\nHEAD deadbeef\nbranch refs/heads/feature/migrate-mart/060-profile\n\n"
+    )
     env, _ = _base_env(tmp_path, worktree_list_content=worktree_list, branch_exists=True)
 
     result = subprocess.run(
-        [str(SCRIPT_PATH), "feature/existing-branch"],
+        [str(SCRIPT_PATH), "feature/migrate-mart/060-profile", "060-profile", "feature/migrate-mart"],
         cwd=REPO_ROOT,
         capture_output=True,
         text=True,
@@ -183,14 +205,13 @@ def test_worktree_script_reports_branch_checked_out_elsewhere(tmp_path: Path) ->
         check=False,
     )
 
-    assert result.returncode != 0
-    payload = json.loads(result.stderr.strip())
-    assert payload["code"] == "WORKTREE_BRANCH_ALREADY_CHECKED_OUT"
+    assert result.returncode == 0
+    payload = json.loads(result.stdout.splitlines()[-1])
+    assert payload["status"] == "ready"
+    assert payload["reused"] is True
     assert payload["existing_worktree_path"] == str(existing_path)
-    assert payload["requested_worktree_path"] == str(
-        tmp_path / "worktrees" / "feature" / "existing-branch"
-    )
-    assert payload["can_retry"] is False
+    assert payload["worktree_path"] == str(existing_path)
+    assert "created worktree" not in result.stdout
 
 
 def test_worktree_script_fails_when_uv_sync_fails(tmp_path: Path) -> None:
@@ -199,7 +220,7 @@ def test_worktree_script_fails_when_uv_sync_fails(tmp_path: Path) -> None:
     env["FAKE_UV_FAIL_SYNC"] = "1"
 
     result = subprocess.run(
-        [str(SCRIPT_PATH), "feature/sync-fails"],
+        [str(SCRIPT_PATH), "feature/migrate-mart/070-sync-fails", "070-sync-fails", "feature/migrate-mart"],
         cwd=REPO_ROOT,
         capture_output=True,
         text=True,
@@ -213,6 +234,8 @@ def test_worktree_script_fails_when_uv_sync_fails(tmp_path: Path) -> None:
     assert payload["can_retry"] is True
     assert "uv sync --extra dev" in payload["suggested_fix"]
     assert "npm install --no-audit --no-fund" not in log_path.read_text(encoding="utf-8")
+    assert payload["base_branch"] == "feature/migrate-mart"
+    assert payload["worktree_name"] == "070-sync-fails"
 
 
 def test_worktree_script_fails_when_dependency_verification_fails(tmp_path: Path) -> None:
@@ -221,7 +244,7 @@ def test_worktree_script_fails_when_dependency_verification_fails(tmp_path: Path
     env["FAKE_UV_FAIL_RUN"] = "1"
 
     result = subprocess.run(
-        [str(SCRIPT_PATH), "feature/import-fails"],
+        [str(SCRIPT_PATH), "feature/migrate-mart/080-import-fails", "080-import-fails", "feature/migrate-mart"],
         cwd=REPO_ROOT,
         capture_output=True,
         text=True,
@@ -237,6 +260,7 @@ def test_worktree_script_fails_when_dependency_verification_fails(tmp_path: Path
     assert log_path.read_text(encoding="utf-8").splitlines()[-1] == (
         "uv run python -c import pyodbc, oracledb"
     )
+    assert payload["branch"] == "feature/migrate-mart/080-import-fails"
 
 
 def test_worktree_script_falls_back_to_npm_install_without_lockfile(tmp_path: Path) -> None:
@@ -245,7 +269,7 @@ def test_worktree_script_falls_back_to_npm_install_without_lockfile(tmp_path: Pa
     env["FAKE_EVAL_LOCKFILE"] = "0"
 
     result = subprocess.run(
-        [str(SCRIPT_PATH), "feature/no-lockfile"],
+        [str(SCRIPT_PATH), "feature/migrate-mart/090-no-lockfile", "090-no-lockfile", "feature/migrate-mart"],
         cwd=REPO_ROOT,
         capture_output=True,
         text=True,

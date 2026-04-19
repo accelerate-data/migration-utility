@@ -10,9 +10,62 @@ from typer.testing import CliRunner
 from shared import profile
 from shared.loader import CatalogFileMissingError, CatalogLoadError
 from shared.output_models.profile import ProfileContext
+from shared.profile_support import table_context as profile_support_table_context
 from tests.unit.profile.helpers import _PROFILE_FIXTURES, _make_writable_copy
 
 _cli_runner = CliRunner()
+
+
+def test_profile_facade_reexports_context_model_types() -> None:
+    from shared.profile import (
+        CatalogSignals,
+        ProfileColumnDef,
+        ProfileContext,
+        ReferencesBucket,
+        RelatedProcedure,
+        SqlElement,
+        TableCatalog,
+        ViewProfileContext,
+        ViewReferences,
+    )
+
+    assert CatalogSignals.__name__ == "CatalogSignals"
+    assert ProfileColumnDef.__name__ == "ProfileColumnDef"
+    assert ProfileContext.__name__ == "ProfileContext"
+    assert ReferencesBucket.__name__ == "ReferencesBucket"
+    assert RelatedProcedure.__name__ == "RelatedProcedure"
+    assert SqlElement.__name__ == "SqlElement"
+    assert TableCatalog.__name__ == "TableCatalog"
+    assert ViewProfileContext.__name__ == "ViewProfileContext"
+    assert ViewReferences.__name__ == "ViewReferences"
+
+
+def test_profile_facade_reexports_context_helpers() -> None:
+    from shared.profile import (
+        load_and_merge_catalog,
+        load_ddl,
+        load_proc_catalog,
+        load_table_catalog,
+        load_view_catalog,
+        project_sql_dialect,
+        read_selected_writer,
+        references_from_selected_sql,
+        resolve_catalog_dir,
+        resolve_selected_writer_ddl_slice,
+        target_visible_columns,
+    )
+
+    assert load_and_merge_catalog.__name__ == "load_and_merge_catalog"
+    assert load_ddl.__name__ == "load_ddl"
+    assert load_proc_catalog.__name__ == "load_proc_catalog"
+    assert load_table_catalog.__name__ == "load_table_catalog"
+    assert load_view_catalog.__name__ == "load_view_catalog"
+    assert project_sql_dialect.__name__ == "project_sql_dialect"
+    assert read_selected_writer.__name__ == "read_selected_writer"
+    assert references_from_selected_sql.__name__ == "references_from_selected_sql"
+    assert resolve_catalog_dir.__name__ == "resolve_catalog_dir"
+    assert resolve_selected_writer_ddl_slice.__name__ == "resolve_selected_writer_ddl_slice"
+    assert target_visible_columns.__name__ == "target_visible_columns"
 
 
 def test_context_rich_catalog_all_signals_present() -> None:
@@ -209,6 +262,19 @@ def test_context_truncate_insert_proc_body() -> None:
     assert "TRUNCATE TABLE silver.DimProduct" in result.proc_body
     assert "INSERT INTO silver.DimProduct" in result.proc_body
 
+
+def test_profile_support_exports_table_context() -> None:
+    from shared.profile_support.table_context import run_context
+
+    result = run_context(
+        _PROFILE_FIXTURES,
+        "silver.FactSales",
+        "dbo.usp_load_fact_sales",
+    )
+
+    assert result.table == "silver.factsales"
+    assert result.writer == "dbo.usp_load_fact_sales"
+
 class TestContextWriterSlice:
 
     def test_run_context_uses_selected_writer_slice_without_full_proc_body(self, monkeypatch: pytest.MonkeyPatch) -> None:
@@ -225,7 +291,7 @@ class TestContextWriterSlice:
             )
             proc_path.write_text(json.dumps(proc_cat), encoding="utf-8")
             monkeypatch.setattr(
-                profile,
+                profile_support_table_context,
                 "load_ddl",
                 lambda *_args, **_kwargs: pytest.fail("selected slice context must not load full DDL"),
             )

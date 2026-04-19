@@ -11,12 +11,23 @@ import pytest
 from pydantic import ValidationError
 
 from shared.catalog import (
+    CatalogFileMissingError,
+    CatalogLoadError,
+    FunctionCatalog,
+    ProcedureCatalog,
+    _load_catalog_file,
+    TableCatalog,
+    ViewCatalog,
+    empty_scoped,
     has_catalog,
     load_function_catalog,
     load_proc_catalog,
     load_table_catalog,
     load_view_catalog,
+    fqn_parts,
     read_selected_writer,
+    normalize,
+    resolve_catalog_dir,
     restore_enriched_fields,
     snapshot_enriched_fields,
     write_proc_catalog,
@@ -24,7 +35,6 @@ from shared.catalog import (
     write_table_catalog,
 )
 from shared.routing import scan_routing_flags
-from shared.loader_data import CatalogLoadError
 from shared.dmf_processing import (
     flip_references,
     process_dmf_results,
@@ -65,6 +75,41 @@ def test_load_missing_returns_none() -> None:
     assert load_proc_catalog(FIXTURES.parent, "dbo.nonexistent") is None
     assert load_view_catalog(FIXTURES.parent, "dbo.nonexistent") is None
     assert load_function_catalog(FIXTURES.parent, "dbo.nonexistent") is None
+
+
+def test_catalog_facade_preserves_compatibility_exports() -> None:
+    assert issubclass(CatalogFileMissingError, Exception)
+    assert issubclass(CatalogLoadError, Exception)
+    assert TableCatalog.__name__ == "TableCatalog"
+    assert ProcedureCatalog.__name__ == "ProcedureCatalog"
+    assert ViewCatalog.__name__ == "ViewCatalog"
+    assert FunctionCatalog.__name__ == "FunctionCatalog"
+    assert normalize("dbo.DimCustomer") == "dbo.dimcustomer"
+    assert fqn_parts("dbo.dimcustomer") == ("dbo", "dimcustomer")
+    assert callable(resolve_catalog_dir)
+    assert callable(empty_scoped)
+    assert callable(_load_catalog_file)
+
+
+def test_catalog_support_exports_core_helpers(tmp_path: Path) -> None:
+    from shared.catalog_support.loaders import _load_catalog_file
+    from shared.catalog_support.merge import load_and_merge_catalog, write_json
+    from shared.catalog_support.paths import detect_catalog_bucket
+    from shared.catalog_support.references import ensure_references
+    from shared.catalog_support.writers import write_proc_catalog as support_write_proc_catalog
+    from shared.catalog_support.writers import write_table_catalog as support_write_table_catalog
+
+    catalog_dir = tmp_path / "catalog" / "tables"
+    catalog_dir.mkdir(parents=True)
+    (catalog_dir / "silver.dimcustomer.json").write_text("{}", encoding="utf-8")
+
+    assert detect_catalog_bucket(tmp_path, "silver.DimCustomer") == "tables"
+    assert "tables" in ensure_references({})["references"]
+    assert callable(_load_catalog_file)
+    assert callable(load_and_merge_catalog)
+    assert callable(write_json)
+    assert callable(support_write_proc_catalog)
+    assert callable(support_write_table_catalog)
 
 
 # ── has_catalog ─────────────────────────────────────────────────────────────

@@ -120,3 +120,12 @@ def test_view_context_scoping_error_status_raises() -> None:
         )
         with pytest.raises(ValueError, match="scoping not completed"):
             profile.run_view_context(root, "silver.vw_Err")
+
+
+def test_profile_support_exports_view_context() -> None:
+    from shared.profile_support.view_context import run_view_context
+
+    result = run_view_context(_PROFILE_FIXTURES, "silver.vw_Multi")
+
+    assert result.view == "silver.vw_multi"
+    assert result.references.tables.in_scope

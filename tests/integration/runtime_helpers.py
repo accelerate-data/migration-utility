@@ -1,6 +1,8 @@
 from __future__ import annotations
 
+import json
 import os
+from pathlib import Path
 from typing import Any
 
 import pytest
@@ -56,6 +58,51 @@ def require_env(role: str, variable_names: tuple[str, ...] | list[str]) -> None:
     missing = [name for name in variable_names if not os.environ.get(name)]
     if missing:
         pytest.skip(f"{role} env missing: {', '.join(missing)}")
+
+
+def write_source_target_sandbox_manifest(
+    project_root: Path,
+    *,
+    source_technology: str,
+    target_technology: str = "sql_server",
+    sandbox_technology: str | None = None,
+) -> None:
+    sandbox_technology = sandbox_technology or source_technology
+    source_dialect = "oracle" if source_technology == "oracle" else "tsql"
+    target_dialect = "oracle" if target_technology == "oracle" else "tsql"
+    sandbox_dialect = "oracle" if sandbox_technology == "oracle" else "tsql"
+    manifest = {
+        "schema_version": "1.0",
+        "technology": source_technology,
+        "dialect": source_dialect,
+        "runtime": {
+            "source": {
+                "technology": source_technology,
+                "dialect": source_dialect,
+            },
+            "target": {
+                "technology": target_technology,
+                "dialect": target_dialect,
+            },
+            "sandbox": {
+                "technology": sandbox_technology,
+                "dialect": sandbox_dialect,
+            },
+        },
+    }
+    project_root.mkdir(parents=True, exist_ok=True)
+    (project_root / "manifest.json").write_text(json.dumps(manifest), encoding="utf-8")
+    assert_manifest_has_runtime_roles(project_root)
+
+
+def assert_manifest_has_runtime_roles(project_root: Path) -> None:
+    manifest = json.loads((project_root / "manifest.json").read_text(encoding="utf-8"))
+    runtime = manifest.get("runtime")
+    assert isinstance(runtime, dict)
+    for role in ("source", "target", "sandbox"):
+        assert role in runtime
+        assert runtime[role].get("technology")
+        assert runtime[role].get("dialect")
 
 
 def build_sql_server_connection_string(

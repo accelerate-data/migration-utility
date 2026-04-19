@@ -33,10 +33,24 @@ Use `TaskCreate` and `TaskUpdate` to show live progress. At the start of Step 2,
 1. Generate run slug:
    - **Single object (1 item):** use the object FQN directly — `profile-<schema>-<name>` (lowercase, dots → hyphens). No LLM reasoning needed.
    - **Multiple objects (2+):** reason about the conversation context — what is the user trying to accomplish with this batch? Generate a short, descriptive slug that captures the intent (e.g. `profile-customer-dims`, `profile-order-pipeline`). The full slug (including the `profile-` prefix) must be lowercase, hyphen-separated, and at most 40 characters.
-2. Run the `git-checkpoints` skill with the run slug as the argument.
-   - If it returns the default branch name (not a worktree path): proceed without a branch or worktree. All file writes and git operations target the current directory. Set `<working-directory>` to `$(git rev-parse --show-toplevel)` for use in sub-agent prompts below.
-   - Otherwise: use the returned path as the working directory for all file writes and git operations in this run. Set `<working-directory>` to the returned path.
-3. Generate a run ID in the form `<epoch_ms>-<random_8hex>` (for example `1743868200123-a1b2c3d4`). All run artifacts use this as the filename suffix.
+2. Coordinator mode only happens when `$0` is a Markdown plan path. In coordinator mode, parse the invocation as:
+
+   ```text
+   /profile-tables <plan-file> <stage-id> <worktree-name> <base-branch> <object> [object ...]
+   ```
+
+   Read the matching `## Stage <stage-id>` checklist from `<plan-file>`. Use `$1` as the stage ID, `$2` as the worktree name, `$3` as the base branch, and `$4...` as the object arguments.
+3. Use `${CLAUDE_PLUGIN_ROOT}/shared/scripts/worktree.sh` for setup instead of `git-checkpoints`.
+   - Coordinator mode: read `Branch:`, `Worktree name:`, and `Base branch:` from the matching stage section, then run:
+
+     ```bash
+     "${CLAUDE_PLUGIN_ROOT}/shared/scripts/worktree.sh" "<branch>" "<worktree-name>" "<base-branch>"
+     ```
+
+     Use the returned `worktree_path` for all reads, writes, commits, and sub-agent prompts.
+   - Manual mode: derive a stable branch name from the run slug, resolve the remote default branch, and call the same helper with those explicit values.
+4. In coordinator mode, own only the matching `## Stage <stage-id>` checklist in `<plan-file>`. After each stage substep or item result, update only that checklist, then commit the plan update together with the artifact or catalog change that caused it.
+5. Generate a run ID in the form `<epoch_ms>-<random_8hex>` (for example `1743868200123-a1b2c3d4`). All run artifacts use this as the filename suffix.
 
 ### Step 2 — Route and run per item
 
@@ -92,12 +106,14 @@ Return the item result JSON.
    ```
 
 4. If all items errored, report errors only and stop.
-5. Ask the user:
+5. After successful item work is committed and pushed, always open or update a PR:
 
-   > All successful items have been committed and pushed.
-   > Raise a PR for this run? (y/n)
+   ```bash
+   "${CLAUDE_PLUGIN_ROOT}/shared/scripts/stage-pr.sh" "<branch>" "<base-branch>" "<title>" ".migration-runs/pr-body.<run_id>.md"
+   ```
 
-   If yes: run `/commit-push-pr profile-tables <comma-separated list of successfully processed tables>`.
+   Report the PR number and URL. In manual mode, tell the human to review and merge the PR. In coordinator mode, return the PR metadata to the coordinator and do not ask any question.
+
    After the PR is created or updated, tell the user:
 
    ```text

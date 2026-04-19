@@ -21,6 +21,8 @@ def test_root_plugin_layout_matches_the_desired_structure() -> None:
     assert (REPO_ROOT / ".claude-plugin" / "plugin.json").is_file()
     assert (REPO_ROOT / "commands").is_dir()
     assert (REPO_ROOT / "skills").is_dir()
+    assert (REPO_ROOT / "shared" / "scripts" / "worktree.sh").is_file()
+    assert (REPO_ROOT / "shared" / "scripts" / "README.md").is_file()
     assert (REPO_ROOT / "lib" / "pyproject.toml").is_file()
     assert (REPO_ROOT / "mcp" / "ddl" / "server.py").is_file()
 

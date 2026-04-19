@@ -8,6 +8,8 @@ import pytest
 
 from tests.helpers import run_setup_ddl_cli as _run_cli
 from tests.integration.runtime_helpers import ORACLE_MIGRATION_SCHEMA
+from tests.integration.runtime_helpers import assert_manifest_has_runtime_roles
+from tests.integration.runtime_helpers import write_source_target_sandbox_manifest
 
 pytestmark = pytest.mark.oracle
 
@@ -24,9 +26,7 @@ LEGACY_SALES = "sales"
 @pytest.mark.usefixtures("oracle_extract_env")
 class TestListSchemasOracleIntegration:
     def test_oracle_migrationtest_schema_present(self, tmp_path, oracle_extract_env):
-        (tmp_path / "manifest.json").write_text(
-            '{"technology": "oracle", "dialect": "oracle"}', encoding="utf-8"
-        )
+        write_source_target_sandbox_manifest(tmp_path, source_technology="oracle")
         result = _run_cli(["list-schemas", "--project-root", str(tmp_path)])
         assert result.returncode == 0, result.stderr
         out = json.loads(result.stdout)
@@ -42,15 +42,14 @@ class TestListSchemasOracleIntegration:
 @pytest.mark.usefixtures("oracle_extract_env")
 class TestExtractOracleIntegration:
     def test_migrationtest_produces_ddl_and_catalog(self, tmp_path, oracle_extract_env):
-        (tmp_path / "manifest.json").write_text(
-            '{"technology": "oracle", "dialect": "oracle"}', encoding="utf-8"
-        )
+        write_source_target_sandbox_manifest(tmp_path, source_technology="oracle")
         result = _run_cli([
             "extract",
             "--schemas", ORACLE_MIGRATION_SCHEMA,
             "--project-root", str(tmp_path),
         ], timeout=120)
         assert result.returncode == 0, result.stderr
+        assert_manifest_has_runtime_roles(tmp_path)
         assert (tmp_path / "ddl").is_dir()
         assert (tmp_path / "catalog").is_dir()
         tables_dir = tmp_path / "catalog" / "tables"
@@ -65,9 +64,7 @@ class TestExtractOracleIntegration:
         assert not any(stem.endswith(LEGACY_SALES) for stem in table_stems)
 
     def test_migrationtest_table_has_pk(self, tmp_path, oracle_extract_env):
-        (tmp_path / "manifest.json").write_text(
-            '{"technology": "oracle", "dialect": "oracle"}', encoding="utf-8"
-        )
+        write_source_target_sandbox_manifest(tmp_path, source_technology="oracle")
         result = _run_cli([
             "extract",
             "--schemas", ORACLE_MIGRATION_SCHEMA,
@@ -81,9 +78,7 @@ class TestExtractOracleIntegration:
         assert len(tables_with_pk) > 0
 
     def test_migrationtest_table_has_fk(self, tmp_path, oracle_extract_env):
-        (tmp_path / "manifest.json").write_text(
-            '{"technology": "oracle", "dialect": "oracle"}', encoding="utf-8"
-        )
+        write_source_target_sandbox_manifest(tmp_path, source_technology="oracle")
         result = _run_cli([
             "extract",
             "--schemas", ORACLE_MIGRATION_SCHEMA,
@@ -108,9 +103,7 @@ class TestExtractOracleIntegration:
         assert fk["referenced_columns"] == ["CONFIGID"]
 
     def test_migrationtest_change_capture_null(self, tmp_path, oracle_extract_env):
-        (tmp_path / "manifest.json").write_text(
-            '{"technology": "oracle", "dialect": "oracle"}', encoding="utf-8"
-        )
+        write_source_target_sandbox_manifest(tmp_path, source_technology="oracle")
         result = _run_cli([
             "extract",
             "--schemas", ORACLE_MIGRATION_SCHEMA,
@@ -123,9 +116,7 @@ class TestExtractOracleIntegration:
             assert data.get("change_capture") is None
 
     def test_migrationtest_views_sql_created(self, tmp_path, oracle_extract_env):
-        (tmp_path / "manifest.json").write_text(
-            '{"technology": "oracle", "dialect": "oracle"}', encoding="utf-8"
-        )
+        write_source_target_sandbox_manifest(tmp_path, source_technology="oracle")
         result = _run_cli([
             "extract",
             "--schemas", ORACLE_MIGRATION_SCHEMA,
@@ -141,9 +132,7 @@ class TestExtractOracleIntegration:
         assert "CREATE OR REPLACE VIEW" in content
 
     def test_migrationtest_extract_excludes_legacy_objects(self, tmp_path, oracle_extract_env):
-        (tmp_path / "manifest.json").write_text(
-            '{"technology": "oracle", "dialect": "oracle"}', encoding="utf-8"
-        )
+        write_source_target_sandbox_manifest(tmp_path, source_technology="oracle")
         result = _run_cli([
             "extract",
             "--schemas", ORACLE_MIGRATION_SCHEMA,
@@ -159,9 +148,7 @@ class TestExtractOracleIntegration:
         assert LEGACY_SALES not in extracted_names
 
     def test_migrationtest_views_catalog_created(self, tmp_path, oracle_extract_env):
-        (tmp_path / "manifest.json").write_text(
-            '{"technology": "oracle", "dialect": "oracle"}', encoding="utf-8"
-        )
+        write_source_target_sandbox_manifest(tmp_path, source_technology="oracle")
         result = _run_cli([
             "extract",
             "--schemas", ORACLE_MIGRATION_SCHEMA,
@@ -177,9 +164,7 @@ class TestExtractOracleIntegration:
         assert "CREATE OR REPLACE VIEW" in data["sql"]
 
     def test_migrationtest_views_ddl_contains_select(self, tmp_path, oracle_extract_env):
-        (tmp_path / "manifest.json").write_text(
-            '{"technology": "oracle", "dialect": "oracle"}', encoding="utf-8"
-        )
+        write_source_target_sandbox_manifest(tmp_path, source_technology="oracle")
         result = _run_cli([
             "extract",
             "--schemas", ORACLE_MIGRATION_SCHEMA,
@@ -190,9 +175,7 @@ class TestExtractOracleIntegration:
         assert "SELECT" in content.upper()
 
     def test_migrationtest_views_no_force_editionable(self, tmp_path, oracle_extract_env):
-        (tmp_path / "manifest.json").write_text(
-            '{"technology": "oracle", "dialect": "oracle"}', encoding="utf-8"
-        )
+        write_source_target_sandbox_manifest(tmp_path, source_technology="oracle")
         result = _run_cli([
             "extract",
             "--schemas", ORACLE_MIGRATION_SCHEMA,
