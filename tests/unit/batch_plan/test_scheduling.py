@@ -1,22 +1,38 @@
 """Tests for topological batching and build_batch_plan.
 
-Tests import shared.batch_plan functions directly for fast, fixture-based
+Tests import scheduler support helpers directly for fast, fixture-based
 execution.  No Docker or live database required.
 """
 
 from __future__ import annotations
 
 import json
+import subprocess
 import tempfile
 from pathlib import Path
 
 
-from shared.batch_plan import (
-    _topological_batches,
-    build_batch_plan,
-)
+from shared.batch_plan import build_batch_plan
+from shared.batch_plan_support.scheduling import _topological_batches
 
 from .conftest import _make_empty_project, _make_project
+
+
+def _init_git_repo(path: Path) -> None:
+    subprocess.run(["git", "init"], cwd=path, capture_output=True, check=True)
+    subprocess.run(
+        ["git", "-c", "commit.gpgsign=false", "commit", "--allow-empty", "-m", "i"],
+        cwd=path,
+        capture_output=True,
+        check=True,
+        env={
+            "GIT_AUTHOR_NAME": "t",
+            "GIT_AUTHOR_EMAIL": "t@t",
+            "GIT_COMMITTER_NAME": "t",
+            "GIT_COMMITTER_EMAIL": "t@t",
+            "HOME": str(Path.home()),
+        },
+    )
 
 
 # ── Topological batch tests ───────────────────────────────────────────────────
@@ -250,12 +266,7 @@ class TestBuildBatchPlan:
         (tmp_path / "manifest.json").write_text(
             json.dumps({"schema_version": "1.0", "technology": "sql_server"}), encoding="utf-8"
         )
-        import subprocess as _sp
-        _sp.run(["git", "init"], cwd=tmp_path, capture_output=True, check=True)
-        _sp.run(["git", "commit", "--allow-empty", "-m", "i"], cwd=tmp_path, capture_output=True,
-                check=True, env={"GIT_AUTHOR_NAME": "t", "GIT_AUTHOR_EMAIL": "t@t",
-                                 "GIT_COMMITTER_NAME": "t", "GIT_COMMITTER_EMAIL": "t@t",
-                                 "HOME": str(Path.home())})
+        _init_git_repo(tmp_path)
 
         # source_table: writerless (n_a)
         (tmp_path / "catalog" / "tables" / "src.source_table.json").write_text(json.dumps({
@@ -299,12 +310,7 @@ class TestBuildBatchPlan:
         (tmp_path / "manifest.json").write_text(
             json.dumps({"schema_version": "1.0", "technology": "sql_server"}), encoding="utf-8"
         )
-        import subprocess as _sp
-        _sp.run(["git", "init"], cwd=tmp_path, capture_output=True, check=True)
-        _sp.run(["git", "commit", "--allow-empty", "-m", "i"], cwd=tmp_path, capture_output=True,
-                check=True, env={"GIT_AUTHOR_NAME": "t", "GIT_AUTHOR_EMAIL": "t@t",
-                                 "GIT_COMMITTER_NAME": "t", "GIT_COMMITTER_EMAIL": "t@t",
-                                 "HOME": str(Path.home())})
+        _init_git_repo(tmp_path)
 
         # writerless source table
         (tmp_path / "catalog" / "tables" / "src.dim_lookup.json").write_text(json.dumps({
@@ -367,12 +373,7 @@ class TestBuildBatchPlan:
         (dst / "manifest.json").write_text(
             json.dumps({"schema_version": "1.0", "technology": "sql_server"}), encoding="utf-8"
         )
-        import subprocess as _sp
-        _sp.run(["git", "init"], cwd=dst, capture_output=True, check=True)
-        _sp.run(["git", "commit", "--allow-empty", "-m", "i"], cwd=dst, capture_output=True, check=True,
-                env={"GIT_AUTHOR_NAME": "t", "GIT_AUTHOR_EMAIL": "t@t",
-                     "GIT_COMMITTER_NAME": "t", "GIT_COMMITTER_EMAIL": "t@t",
-                     "HOME": str(Path.home())})
+        _init_git_repo(dst)
 
         # fact: fully prepared, no dbt model yet → migrate_needed
         _proc_refs = lambda tables, views, procs: {
@@ -454,12 +455,7 @@ class TestBuildBatchPlan:
         (dst / "manifest.json").write_text(
             json.dumps({"schema_version": "1.0", "technology": "sql_server"}), encoding="utf-8"
         )
-        import subprocess as _sp
-        _sp.run(["git", "init"], cwd=dst, capture_output=True, check=True)
-        _sp.run(["git", "commit", "--allow-empty", "-m", "i"], cwd=dst, capture_output=True, check=True,
-                env={"GIT_AUTHOR_NAME": "t", "GIT_AUTHOR_EMAIL": "t@t",
-                     "GIT_COMMITTER_NAME": "t", "GIT_COMMITTER_EMAIL": "t@t",
-                     "HOME": str(Path.home())})
+        _init_git_repo(dst)
 
         _proc_refs = lambda tables, views, procs: {
             "tables": {"in_scope": tables, "out_of_scope": []},

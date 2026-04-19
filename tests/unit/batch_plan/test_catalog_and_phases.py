@@ -1,7 +1,7 @@
 """Tests for catalog enumeration, phase classification, blocking deps, node building, and plan output.
 
-Tests import shared.batch_plan internal helper functions directly for fast,
-fixture-based execution.  No Docker or live database required.
+Tests import batch-plan support helpers directly for fast, fixture-based
+execution.  No Docker or live database required.
 """
 
 from __future__ import annotations
@@ -10,16 +10,22 @@ import json
 
 from shared.batch_plan import (
     _BatchPlanInputs,
-    _CatalogInventory,
     _build_migration_batches,
-    _build_plan_output,
-    _build_status_dashboard,
-    _classify_phases,
     _collect_plan_inputs,
-    _compute_blocking_deps,
+)
+from shared.batch_plan_support.dashboard import _build_status_dashboard
+from shared.batch_plan_support.inventory import (
+    _CatalogInventory,
     _enumerate_catalog,
+)
+from shared.batch_plan_support.nodes import (
+    _build_plan_output,
     _make_node,
     _resolve_excluded_type,
+)
+from shared.batch_plan_support.scheduling import (
+    _classify_phases,
+    _compute_blocking_deps,
 )
 
 
