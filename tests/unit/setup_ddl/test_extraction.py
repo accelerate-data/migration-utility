@@ -112,14 +112,18 @@ def test_run_extract_fails_loudly_on_manifest_read_error(tmp_path: Path) -> None
     import sys
     sys.path.insert(0, str(Path(__file__).resolve().parents[3] / "lib"))
     from shared import setup_ddl
-    from shared.setup_ddl_support import extract as setup_ddl_extract
+    from shared.setup_ddl_support import extract_orchestration
 
     (tmp_path / "manifest.json").write_text(
         '{"technology": "sql_server", "dialect": "tsql"}',
         encoding="utf-8",
     )
 
-    with patch.object(setup_ddl_extract, "read_manifest_strict", side_effect=ValueError("manifest.json is not valid JSON: boom")):
+    with patch.object(
+        extract_orchestration,
+        "read_manifest_strict",
+        side_effect=ValueError("manifest.json is not valid JSON: boom"),
+    ):
         with pytest.raises(ValueError, match="manifest.json is not valid JSON"):
             setup_ddl.run_extract(tmp_path, database="MigrationTest", schemas=["dbo"])
 
@@ -156,7 +160,7 @@ def test_assemble_ddl_reports_only_files_written_this_run(tmp_path: Path) -> Non
 
 def test_run_extract_reports_catalog_files_mutated_after_catalog_write(tmp_path: Path) -> None:
     from shared.output_models.catalog_enrich import CatalogEnrichOutput
-    from shared.setup_ddl_support import extract as setup_ddl_extract
+    from shared.setup_ddl_support import extract_orchestration
 
     catalog_path = tmp_path / "catalog" / "procedures" / "dbo.usp_load.json"
 
@@ -175,14 +179,14 @@ def test_run_extract_reports_catalog_files_mutated_after_catalog_write(tmp_path:
         return {"objects_checked": 1, "warnings_added": 1, "errors_added": 0}
 
     with (
-        patch.object(setup_ddl_extract, "require_technology", return_value="sql_server"),
-        patch.object(setup_ddl_extract, "read_manifest_strict", return_value={}),
-        patch.object(setup_ddl_extract, "get_connection_identity", return_value={}),
-        patch.object(setup_ddl_extract, "identity_changed", return_value=False),
-        patch.object(setup_ddl_extract, "run_db_extraction"),
-        patch.object(setup_ddl_extract, "assemble_ddl_from_staging", return_value=["ddl/procedures.sql"]),
-        patch.object(setup_ddl_extract, "run_write_manifest"),
-        patch.object(setup_ddl_extract, "run_write_catalog", side_effect=fake_write_catalog),
+        patch.object(extract_orchestration, "require_technology", return_value="sql_server"),
+        patch.object(extract_orchestration, "read_manifest_strict", return_value={}),
+        patch.object(extract_orchestration, "get_connection_identity", return_value={}),
+        patch.object(extract_orchestration, "identity_changed", return_value=False),
+        patch.object(extract_orchestration, "run_db_extraction"),
+        patch.object(extract_orchestration, "assemble_ddl_from_staging", return_value=["ddl/procedures.sql"]),
+        patch.object(extract_orchestration, "run_write_manifest"),
+        patch.object(extract_orchestration, "run_write_catalog", side_effect=fake_write_catalog),
         patch("shared.catalog.snapshot_enriched_fields", return_value={}),
         patch("shared.catalog.restore_enriched_fields"),
         patch(
@@ -191,14 +195,14 @@ def test_run_extract_reports_catalog_files_mutated_after_catalog_write(tmp_path:
         ),
         patch("shared.diagnostics.run_diagnostics", side_effect=fake_run_diagnostics),
     ):
-        result = setup_ddl_extract.run_extract(tmp_path, database="MigrationTest", schemas=["dbo"])
+        result = extract_orchestration.run_extract(tmp_path, database="MigrationTest", schemas=["dbo"])
 
     assert "catalog/procedures/dbo.usp_load.json" in result["written_paths"]
 
 
 def test_run_extract_reports_catalog_files_marked_stale_on_identity_change(tmp_path: Path) -> None:
     from shared.output_models.catalog_enrich import CatalogEnrichOutput
-    from shared.setup_ddl_support import extract as setup_ddl_extract
+    from shared.setup_ddl_support import extract_orchestration
 
     catalog_path = tmp_path / "catalog" / "procedures" / "dbo.usp_load.json"
     catalog_path.parent.mkdir(parents=True)
@@ -208,15 +212,15 @@ def test_run_extract_reports_catalog_files_marked_stale_on_identity_change(tmp_p
     )
 
     with (
-        patch.object(setup_ddl_extract, "require_technology", return_value="sql_server"),
-        patch.object(setup_ddl_extract, "read_manifest_strict", return_value={}),
-        patch.object(setup_ddl_extract, "get_connection_identity", return_value={}),
-        patch.object(setup_ddl_extract, "identity_changed", return_value=True),
-        patch.object(setup_ddl_extract, "run_db_extraction"),
-        patch.object(setup_ddl_extract, "assemble_ddl_from_staging", return_value=[]),
-        patch.object(setup_ddl_extract, "run_write_manifest"),
+        patch.object(extract_orchestration, "require_technology", return_value="sql_server"),
+        patch.object(extract_orchestration, "read_manifest_strict", return_value={}),
+        patch.object(extract_orchestration, "get_connection_identity", return_value={}),
+        patch.object(extract_orchestration, "identity_changed", return_value=True),
+        patch.object(extract_orchestration, "run_db_extraction"),
+        patch.object(extract_orchestration, "assemble_ddl_from_staging", return_value=[]),
+        patch.object(extract_orchestration, "run_write_manifest"),
         patch.object(
-            setup_ddl_extract,
+            extract_orchestration,
             "run_write_catalog",
             return_value={"tables": 0, "procedures": 0, "views": 0, "functions": 0, "written_paths": []},
         ),
@@ -228,7 +232,7 @@ def test_run_extract_reports_catalog_files_marked_stale_on_identity_change(tmp_p
         ),
         patch("shared.diagnostics.run_diagnostics", return_value={"objects_checked": 0, "warnings_added": 0, "errors_added": 0}),
     ):
-        result = setup_ddl_extract.run_extract(tmp_path, database="MigrationTest", schemas=["dbo"])
+        result = extract_orchestration.run_extract(tmp_path, database="MigrationTest", schemas=["dbo"])
 
     assert "catalog/procedures/dbo.usp_load.json" in result["written_paths"]
 
