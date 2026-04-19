@@ -101,7 +101,7 @@
     },
     "migration_commands": {
       "path": "commands/",
-      "description": "Stage-specific commands (LLM-driven only): scope-tables.md, profile-tables.md, generate-model.md, generate-tests.md, refactor-query.md, refactor-mart-plan.md, refactor-mart.md, status.md, review-diagnostics.md. Deterministic setup and state-mutation commands have moved to the ad-migration CLI (lib/shared/cli/)."
+      "description": "Stage-specific commands (LLM-driven only): scope-tables.md, profile-tables.md, generate-model.md, generate-tests.md, refactor-query.md, refactor-mart-plan.md, refactor-mart.md, status.md, review-diagnostics.md. Whole-mart orchestration commands: migrate-mart-plan.md writes the resumable migration plan and migrate-mart.md executes it. Deterministic setup and state-mutation commands have moved to the ad-migration CLI (lib/shared/cli/)."
     },
     "tests_migration": {
       "path": "tests/unit/",
@@ -113,7 +113,7 @@
     },
     "tests_evals": {
       "path": "tests/evals/",
-      "description": "Promptfoo eval harness for skill and command testing against MigrationTest schema. Per-scenario fixtures live under fixtures/<package>/<scenario-slug>/; runnable configs live in packages/ plus the standalone oracle-live/ and mssql-live/ live suites, while Oracle regression fixtures live under fixtures/oracle-regression/ and are consumed by the owning package configs. planning-refactor-mart/ covers the /refactor-mart-plan planning workflow; applying-staging-candidate/ and cmd-refactor-mart/ cover staging-wave refactor-mart execution. Assertions live under tests/evals/assertions/, including schema-helpers.js, check-refactor-mart-plan.js, and check-refactor-mart-stg-execution.js for shared path, term, plan-shape, status writeback, and no-mutation checks. No top-level Promptfoo config — use npm run eval:smoke for the curated offline pass."
+      "description": "Promptfoo eval harness for skill and command testing against MigrationTest schema. Per-scenario fixtures live under fixtures/<package>/<scenario-slug>/; runnable configs live in packages/ plus the standalone oracle-live/ and mssql-live/ live suites, while Oracle regression fixtures live under fixtures/oracle-regression/ and are consumed by the owning package configs. planning-refactor-mart/ covers the /refactor-mart-plan planning workflow; applying-staging-candidate/ and cmd-refactor-mart/ cover staging-wave refactor-mart execution. Upcoming migrate-mart-plan and migrate-mart command evals cover whole-mart planning/resume orchestration. Assertions live under tests/evals/assertions/, including schema-helpers.js, check-refactor-mart-plan.js, and check-refactor-mart-stg-execution.js for shared path, term, plan-shape, status writeback, and no-mutation checks. No top-level Promptfoo config — use npm run eval:smoke for the curated offline pass."
     },
     "tests_ddl_mcp": {
       "path": "mcp/ddl/tests/",
