@@ -144,6 +144,14 @@ payload = json.loads(os.environ["PR_VIEW_JSON"])
 print(payload.get("baseRefName", ""))
 PY
 )"
+merge_state="$(PR_VIEW_JSON="$pr_view_json" python3 - <<'PY'
+import json
+import os
+
+payload = json.loads(os.environ["PR_VIEW_JSON"])
+print(payload.get("mergeStateStatus", ""))
+PY
+)"
 
 if [[ "$pr_state" == "MERGED" ]]; then
   json_success "already_merged"
@@ -162,14 +170,11 @@ import os
 payload = json.loads(os.environ["PR_VIEW_JSON"])
 checks = payload.get("statusCheckRollup") or []
 states = {item.get("state") for item in checks}
-merge_state = payload.get("mergeStateStatus")
 
 if "PENDING" in states or "EXPECTED" in states or "QUEUED" in states or "IN_PROGRESS" in states:
     print("checks_pending")
 elif "FAILURE" in states or "ERROR" in states or "CANCELLED" in states or "TIMED_OUT" in states or "ACTION_REQUIRED" in states:
     print("checks_failed")
-elif merge_state in {"DIRTY", "CONFLICTING"}:
-    print("merge_conflict")
 else:
     print("")
 PY
@@ -177,6 +182,11 @@ PY
 
 if [[ -n "$blocker_status" ]]; then
   json_success "$blocker_status"
+  exit 0
+fi
+
+if [[ -n "$merge_state" && "$merge_state" != "CLEAN" ]]; then
+  json_success "merge_conflict"
   exit 0
 fi
 

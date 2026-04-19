@@ -143,6 +143,36 @@ def test_stage_cleanup_script_is_idempotent_when_already_clean(tmp_path: Path) -
     }
 
 
+def test_stage_cleanup_script_blocks_when_listed_worktree_path_is_missing(tmp_path: Path) -> None:
+    """A stale worktree reference should fail deterministically instead of cleaning."""
+    env, log_path = _base_env(tmp_path)
+    worktree_path = tmp_path / "worktrees" / "feature" / "migrate-mart" / "094-cleanup"
+    (tmp_path / "worktree-list.txt").write_text(
+        f"worktree {worktree_path}\nHEAD deadbeef\nbranch refs/heads/feature/migrate-mart/094-cleanup\n\n",
+        encoding="utf-8",
+    )
+
+    result = subprocess.run(
+        [str(SCRIPT_PATH), "feature/migrate-mart/094-cleanup", str(worktree_path)],
+        cwd=REPO_ROOT,
+        capture_output=True,
+        text=True,
+        env=env,
+        check=False,
+    )
+
+    assert result.returncode != 0
+    assert log_path.read_text(encoding="utf-8").splitlines() == [
+        "git rev-parse --show-toplevel",
+        "git worktree list --porcelain",
+    ]
+    payload = json.loads(result.stderr.strip())
+    assert payload["status"] == "failed"
+    assert payload["code"] == "WORKTREE_STALE_WORKTREE_REFERENCE"
+    assert payload["branch"] == "feature/migrate-mart/094-cleanup"
+    assert payload["worktree_path"] == str(worktree_path)
+
+
 def test_stage_cleanup_script_fails_when_local_branch_deletion_fails(tmp_path: Path) -> None:
     """Branch deletion errors should not be reported as cleaned."""
     env, log_path = _base_env(tmp_path)

@@ -133,7 +133,6 @@ def test_stage_pr_script_creates_pr_from_branch_and_body_file(tmp_path: Path) ->
         "git push --force-with-lease --set-upstream origin feature/migrate-mart/080-pr",
         "gh pr list --head feature/migrate-mart/080-pr --json number,url --limit 1",
         f"gh pr create --title Stage PR --body-file {created_url} --base main --head feature/migrate-mart/080-pr",
-        "gh pr view feature/migrate-mart/080-pr --json number,url",
     ]
     payload = json.loads(result.stdout.strip())
     assert payload == {

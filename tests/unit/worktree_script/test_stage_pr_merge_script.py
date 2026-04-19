@@ -152,6 +152,36 @@ def test_stage_pr_merge_script_blocks_when_pr_base_branch_differs(tmp_path: Path
     }
 
 
+def test_stage_pr_merge_script_blocks_when_merge_state_is_non_mergeable(tmp_path: Path) -> None:
+    """Blocked merge states should return merge_conflict without calling gh pr merge."""
+    env, log_path = _base_env(
+        tmp_path,
+        pr_json='{"state":"OPEN","number":105,"url":"https://github.com/example/repo/pull/105","mergeStateStatus":"BLOCKED","statusCheckRollup":[{"state":"SUCCESS"}]}',
+    )
+
+    result = subprocess.run(
+        [str(SCRIPT_PATH), "105", "main"],
+        cwd=REPO_ROOT,
+        capture_output=True,
+        text=True,
+        env=env,
+        check=False,
+    )
+
+    assert result.returncode == 0
+    assert log_path.read_text(encoding="utf-8").splitlines() == [
+        "git rev-parse --show-toplevel",
+        'gh pr view 105 --json state,number,url,baseRefName,mergeStateStatus,statusCheckRollup',
+    ]
+    payload = json.loads(result.stdout.strip())
+    assert payload == {
+        "status": "merge_conflict",
+        "pr_number": 105,
+        "pr_url": "https://github.com/example/repo/pull/105",
+        "base_branch": "main",
+    }
+
+
 def test_stage_pr_merge_script_reports_view_failure_as_json(tmp_path: Path) -> None:
     """Failed PR reads should return deterministic JSON instead of aborting."""
     env, _ = _base_env(

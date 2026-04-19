@@ -103,6 +103,15 @@ else
   worktree_present="1"
 fi
 
+if [[ "$worktree_present" == "1" && ! -d "$worktree_path" ]]; then
+  json_failure \
+    "WORKTREE_STALE_WORKTREE_REFERENCE" \
+    "stale_worktree" \
+    "The worktree list references a missing path." \
+    "$branch" \
+    "$worktree_path"
+fi
+
 if [[ "$worktree_present" == "1" && -d "$worktree_path" ]]; then
   if ! git worktree remove "$worktree_path"; then
     json_failure \

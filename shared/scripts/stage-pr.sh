@@ -177,7 +177,7 @@ if [[ -n "$existing_pr_number" ]]; then
   pr_url="$existing_pr_url"
   status_value="updated"
 else
-  if ! gh pr create --title "$title" --body-file "$body_file" --base "$base_branch" --head "$branch" >/dev/null; then
+  if ! pr_create_output="$(gh pr create --title "$title" --body-file "$body_file" --base "$base_branch" --head "$branch")"; then
     json_failure \
       "GH_PR_CREATE_FAILED" \
       "gh_pr_create" \
@@ -187,30 +187,25 @@ else
       "$title" \
       "$body_file"
   fi
-  if ! pr_view_json="$(gh pr view "$branch" --json number,url)"; then
-    json_failure \
-      "GH_PR_VIEW_FAILED" \
-      "gh_pr_view" \
-      "Could not read the created pull request." \
-      "$branch" \
-      "$base_branch" \
-      "$title" \
-      "$body_file"
-  fi
-  pr_number="$(PR_VIEW_JSON="$pr_view_json" python3 - <<'PY'
+  pr_url="$(PR_CREATE_OUTPUT="$pr_create_output" python3 - <<'PY'
 import json
 import os
+import re
 
-payload = json.loads(os.environ["PR_VIEW_JSON"])
-print(payload["number"])
+matches = re.findall(r"https?://\S+", os.environ["PR_CREATE_OUTPUT"])
+if not matches:
+    raise SystemExit(1)
+print(matches[-1])
 PY
 )"
-  pr_url="$(PR_VIEW_JSON="$pr_view_json" python3 - <<'PY'
-import json
+  pr_number="$(PR_CREATE_OUTPUT="$pr_create_output" python3 - <<'PY'
 import os
+import re
 
-payload = json.loads(os.environ["PR_VIEW_JSON"])
-print(payload["url"])
+matches = re.findall(r"/pull/([0-9]+)(?:/|$)", os.environ["PR_CREATE_OUTPUT"])
+if not matches:
+    raise SystemExit(1)
+print(matches[-1])
 PY
 )"
   status_value="created"
