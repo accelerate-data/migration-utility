@@ -11,7 +11,9 @@ from pathlib import Path
 
 import pytest
 
-from ddl_mcp_support.loader import load_directory
+from ddl_mcp_support import server_context
+from ddl_mcp_support.loader import DdlCatalog, DdlEntry, load_directory
+from ddl_mcp_support.server_context import DdlServerContext, parse_columns
 
 import server as ddl_server
 
@@ -112,6 +114,28 @@ def ddl_dir_no_functions(tmp_path: Path) -> Path:
     return tmp_path
 
 
+def install_project_context(
+    monkeypatch: pytest.MonkeyPatch,
+    project_root: Path,
+) -> DdlServerContext:
+    context = DdlServerContext()
+    monkeypatch.setattr(context, "project_root", lambda: project_root)
+    monkeypatch.setattr(ddl_server, "_context", context)
+    return context
+
+
+class StaticContext:
+    def __init__(self, catalog: DdlCatalog, dialect: str = "tsql") -> None:
+        self._catalog = catalog
+        self._dialect = dialect
+
+    def catalog(self) -> DdlCatalog:
+        return self._catalog
+
+    def catalog_dialect(self) -> str:
+        return self._dialect
+
+
 # ── get_dependencies — AST semantics ─────────────────────────────────────────
 
 def test_get_dependencies_includes_writers(ddl_dir: Path) -> None:
@@ -196,13 +220,12 @@ def test_get_dependencies_logs_skipped_procedures(
 ) -> None:
     """Parse failures are logged with the procedure name instead of being hidden."""
     catalog = load_directory(ddl_dir)
-    catalog.procedures["silver.usp_bad_parse"] = ddl_server.DdlEntry(
+    catalog.procedures["silver.usp_bad_parse"] = DdlEntry(
         raw_ddl="CREATE PROCEDURE silver.usp_bad_parse AS",
         ast=None,
         parse_error="synthetic parse failure",
     )
-    monkeypatch.setattr(ddl_server, "_project_root", lambda: ddl_dir)
-    monkeypatch.setattr(ddl_server, "_catalog", lambda _root: catalog)
+    monkeypatch.setattr(ddl_server, "_context", StaticContext(catalog))
 
     with caplog.at_level(logging.WARNING):
         result = asyncio.run(
@@ -229,7 +252,7 @@ def test_get_table_schema_returns_json(ddl_dir: Path) -> None:
 
     result = json.loads(json.dumps({
         "ddl": entry.raw_ddl,
-        "columns": ddl_server._parse_columns(entry),
+        "columns": parse_columns(entry),
     }))
 
     assert "ddl" in result
@@ -241,11 +264,9 @@ def test_get_table_schema_uses_cached_catalog_dialect(
     oracle_ddl_dir: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
     """Column rendering follows the catalog dialect, not a later manifest read."""
-    ddl_server._catalog_cache.clear()
-    ddl_server._catalog_dialect_cache.clear()
-    ddl_server._catalog(oracle_ddl_dir)
-    monkeypatch.setattr(ddl_server, "_project_root", lambda: oracle_ddl_dir)
-    monkeypatch.setattr(ddl_server, "read_manifest", lambda _root: {"dialect": "tsql"})
+    context = install_project_context(monkeypatch, oracle_ddl_dir)
+    context.catalog()
+    monkeypatch.setattr(server_context, "read_manifest", lambda _root: {"dialect": "tsql"})
 
     result = asyncio.run(
         ddl_server.call_tool("get_table_schema", {"name": "SH.CUSTOMERS"})
@@ -260,10 +281,7 @@ def test_call_tool_reloads_catalog_after_ddl_changes(
     ddl_dir: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
     """Subsequent tool calls should see on-disk DDL changes without restart."""
-    ddl_server._catalog_cache.clear()
-    ddl_server._catalog_dialect_cache.clear()
-    ddl_server._catalog_token_cache.clear()
-    monkeypatch.setattr(ddl_server, "_project_root", lambda: ddl_dir)
+    install_project_context(monkeypatch, ddl_dir)
 
     first = asyncio.run(ddl_server.call_tool("list_tables", {}))
     assert first[0].text == "silver.dimproduct"
@@ -289,20 +307,17 @@ def test_call_tool_reuses_cached_catalog_when_files_unchanged(
     ddl_dir: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
     """Repeated tool calls should reuse the cached catalog until files change."""
-    ddl_server._catalog_cache.clear()
-    ddl_server._catalog_dialect_cache.clear()
-    ddl_server._catalog_token_cache.clear()
-    monkeypatch.setattr(ddl_server, "_project_root", lambda: ddl_dir)
+    install_project_context(monkeypatch, ddl_dir)
 
     load_count = 0
-    original_load_directory = ddl_server.load_directory
+    original_load_directory = server_context.load_directory
 
     def tracked_load_directory(project_root: Path, dialect: str = "tsql"):
         nonlocal load_count
         load_count += 1
         return original_load_directory(project_root, dialect=dialect)
 
-    monkeypatch.setattr(ddl_server, "load_directory", tracked_load_directory)
+    monkeypatch.setattr(server_context, "load_directory", tracked_load_directory)
 
     first = asyncio.run(ddl_server.call_tool("list_tables", {}))
     second = asyncio.run(ddl_server.call_tool("list_tables", {}))
@@ -315,7 +330,7 @@ def test_call_tool_reuses_cached_catalog_when_files_unchanged(
 def test_get_table_schema_requires_name_argument(
     ddl_dir: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
-    monkeypatch.setattr(ddl_server, "_project_root", lambda: ddl_dir)
+    install_project_context(monkeypatch, ddl_dir)
 
     result = asyncio.run(ddl_server.call_tool("get_table_schema", {}))
 
@@ -325,7 +340,7 @@ def test_get_table_schema_requires_name_argument(
 def test_get_dependencies_requires_table_name_argument(
     ddl_dir: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
-    monkeypatch.setattr(ddl_server, "_project_root", lambda: ddl_dir)
+    install_project_context(monkeypatch, ddl_dir)
 
     result = asyncio.run(ddl_server.call_tool("get_dependencies", {}))
 
@@ -338,7 +353,7 @@ def test_get_table_schema_column_count(ddl_dir: Path) -> None:
     entry = catalog.get_table("silver.DimProduct")
     assert entry is not None
 
-    cols = ddl_server._parse_columns(entry)
+    cols = parse_columns(entry)
     assert len(cols) == 3
 
 
@@ -348,7 +363,7 @@ def test_get_table_schema_column_names(ddl_dir: Path) -> None:
     entry = catalog.get_table("silver.DimProduct")
     assert entry is not None
 
-    names = [c["name"] for c in ddl_server._parse_columns(entry)]
+    names = [c["name"] for c in parse_columns(entry)]
     assert "ProductKey" in names
     assert "Name" in names
     assert "Color" in names
@@ -360,7 +375,7 @@ def test_get_table_schema_nullable_column(ddl_dir: Path) -> None:
     entry = catalog.get_table("silver.DimProduct")
     assert entry is not None
 
-    cols = {c["name"]: c for c in ddl_server._parse_columns(entry)}
+    cols = {c["name"]: c for c in parse_columns(entry)}
     assert cols["Color"]["nullable"] is True
     assert cols["Name"]["nullable"] is False
 
@@ -369,7 +384,7 @@ def test_project_root_is_cached(
     oracle_ddl_dir: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
     """Project-root resolution only performs filesystem and git checks once."""
-    ddl_server._project_root_cache.clear()
+    context = DdlServerContext()
 
     exists_calls = 0
     git_calls = 0
@@ -386,10 +401,10 @@ def test_project_root_is_cached(
 
     monkeypatch.setenv("DDL_PATH", str(oracle_ddl_dir))
     monkeypatch.setattr(Path, "exists", tracked_exists)
-    monkeypatch.setattr(ddl_server, "assert_git_repo", tracked_assert_git_repo)
+    monkeypatch.setattr(server_context, "assert_git_repo", tracked_assert_git_repo)
 
-    first = ddl_server._project_root()
-    second = ddl_server._project_root()
+    first = context.project_root()
+    second = context.project_root()
 
     assert first == oracle_ddl_dir
     assert second == oracle_ddl_dir
@@ -473,7 +488,7 @@ def test_parse_columns_oracle_varchar2(oracle_ddl_dir: Path) -> None:
     entry = catalog.get_table("SH.CUSTOMERS")
     assert entry is not None
 
-    cols = {c["name"]: c for c in ddl_server._parse_columns(entry, dialect="oracle")}
+    cols = {c["name"]: c for c in parse_columns(entry, dialect="oracle")}
     assert cols["CUST_FIRST_NAME"]["type"] == "VARCHAR2(20)"
 
 
@@ -483,7 +498,7 @@ def test_parse_columns_oracle_number(oracle_ddl_dir: Path) -> None:
     entry = catalog.get_table("SH.CUSTOMERS")
     assert entry is not None
 
-    cols = {c["name"]: c for c in ddl_server._parse_columns(entry, dialect="oracle")}
+    cols = {c["name"]: c for c in parse_columns(entry, dialect="oracle")}
     assert cols["CUST_ID"]["type"] == "NUMBER"
 
 
@@ -493,7 +508,7 @@ def test_parse_columns_oracle_char(oracle_ddl_dir: Path) -> None:
     entry = catalog.get_table("SH.CUSTOMERS")
     assert entry is not None
 
-    cols = {c["name"]: c for c in ddl_server._parse_columns(entry, dialect="oracle")}
+    cols = {c["name"]: c for c in parse_columns(entry, dialect="oracle")}
     assert cols["CUST_GENDER"]["type"] == "CHAR(1)"
 
 
@@ -504,7 +519,7 @@ def test_parse_columns_oracle_no_tsql_types(oracle_ddl_dir: Path) -> None:
     assert entry is not None
 
     tsql_types = {"NVARCHAR", "INT", "BIGINT", "BIT", "UNIQUEIDENTIFIER"}
-    cols = ddl_server._parse_columns(entry, dialect="oracle")
+    cols = parse_columns(entry, dialect="oracle")
     rendered_types = {c["type"] for c in cols}
     assert tsql_types.isdisjoint(rendered_types)
 
@@ -532,7 +547,7 @@ def test_oracle_get_table_schema_column_types(oracle_ddl_dir: Path) -> None:
     entry = catalog.get_table("SH.CUSTOMERS")
     assert entry is not None
 
-    cols = {c["name"]: c for c in ddl_server._parse_columns(entry, dialect="oracle")}
+    cols = {c["name"]: c for c in parse_columns(entry, dialect="oracle")}
     assert cols["CUST_FIRST_NAME"]["type"] == "VARCHAR2(20)"
     assert cols["CUST_ID"]["type"] == "NUMBER"
     assert cols["CUST_GENDER"]["type"] == "CHAR(1)"
