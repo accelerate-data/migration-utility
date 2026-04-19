@@ -13,6 +13,28 @@ const fs = require('fs');
 const path = require('path');
 const { normalizeTerms, resolveProjectPath } = require('./schema-helpers');
 
+function findLatestItemResult(repoRoot, fixturePath, table) {
+  const migrationsDir = path.resolve(repoRoot, fixturePath, '.migration-runs');
+  if (!fs.existsSync(migrationsDir)) return null;
+  const prefix = `${table.toLowerCase()}.`;
+  const files = fs.readdirSync(migrationsDir)
+    .filter(file => file.toLowerCase().startsWith(prefix) && file.endsWith('.json'))
+    .sort((a, b) => {
+      const aPath = path.join(migrationsDir, a);
+      const bPath = path.join(migrationsDir, b);
+      const mtimeA = fs.statSync(aPath).mtimeMs;
+      const mtimeB = fs.statSync(bPath).mtimeMs;
+      if (mtimeA !== mtimeB) return mtimeA - mtimeB;
+      return a.localeCompare(b);
+    });
+  if (files.length === 0) return null;
+  try {
+    return JSON.parse(fs.readFileSync(path.join(migrationsDir, files[files.length - 1]), 'utf8'));
+  } catch (_error) {
+    return null;
+  }
+}
+
 module.exports = (output, context) => {
   const fixturePath = resolveProjectPath(context);
   const table = context.vars.target_table;
@@ -57,15 +79,17 @@ module.exports = (output, context) => {
   }
 
   const scoping = catalog.scoping;
+  const latestResult = findLatestItemResult(repoRoot, fixturePath, table);
 
   // Check scoping.status is in expected list
   if (expectedStatuses.length > 0) {
-    const actualStatus = (scoping.status || '').toLowerCase();
+    const statusValue = scoping.status || latestResult?.status || '';
+    const actualStatus = statusValue.toLowerCase();
     if (!expectedStatuses.includes(actualStatus)) {
       return {
         pass: false,
         score: 0,
-        reason: `Expected scoping.status in [${expectedStatuses.join(', ')}], got '${scoping.status}'`
+        reason: `Expected scoping.status in [${expectedStatuses.join(', ')}], got '${statusValue}'`
       };
     }
   }

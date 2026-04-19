@@ -49,16 +49,13 @@ tests:
       expected_item_statuses: '{"dim.dim_address": "ok"}'
       expected_output_terms: "ok"
       expected_status: "ok"
+      expected_kind: "dim_scd2"
+      expected_pii_columns: "address_line_1,city,postal_code"
+      expected_watermark_column: "valid_from"
+      rejected_profile_terms: "card_type,exp_month,exp_year,credit_card_id"
     assert:
       - type: javascript
         value: file://../../assertions/check-table-profile.js
-      - type: llm-rubric
-        value: >
-          The profiling analysis describes address dimension logic (address_id, address_line_1, city,
-          state_province_id, postal_code, SCD2 valid_from/valid_to/is_current) and does NOT describe
-          credit card fields (card_type, exp_month, exp_year, credit_card_id) as the target table logic.
-          The response acknowledges the proc is a multi-table writer but correctly scopes analysis
-          to dim_address only.
 
   # ── oracle regression ────────────────────────────────────────
   # Verifies that the profile command produces a valid profile for an Oracle target

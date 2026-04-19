@@ -7,7 +7,10 @@ Read `${CLAUDE_PLUGIN_ROOT}/commands/generate-tests.md`, but treat the following
 Harness overrides:
 - Treat `{{fixture_path}}` as read-only input. Write all generated files to `{{run_path}}`. Do not create or use a worktree.
 - In this eval fixture, do not actually run git, shared/scripts, gh, `/commit`, `/commit-push-pr`, cleanup, or `git-checkpoints` commands.
-- The final answer must include a handoff block with these exact labels: `PR:`, `Branch:`, and `Worktree:`. Use simulated values if needed, because the eval checks those labels literally.
+- The final answer must end with a handoff block using these exact labels:
+  `PR: simulated-generate-tests`
+  `Branch: simulated-generate-tests`
+  `Worktree: {{run_path}}`
 - Do not spawn sub-agents for this eval. Process the target tables sequentially in the current conversation.
 - Keep `${CLAUDE_PLUGIN_ROOT}` references as written.
 - Pass `--project-root {{run_path}}` to every CLI command that accepts `--project-root`.
@@ -16,5 +19,6 @@ Harness overrides:
 - During the review step, write the final review JSON for each table to `{{run_path}}/test-review-results/<schema.table>.json`.
 - Do not finalize `.migration-runs/<schema.table>.<run_id>.json` or the summary until the review loop for that table has completed or failed.
 - Do not approve or summarize a table as `ok`/`complete` unless the final `test-specs/<schema.table>.json` contains valid `expect.rows` for every covering scenario.
+- For the IfElseTarget repair fixtures, `if_premium_path` scenarios must use only source rows with `ListPrice > 100` and expect `PriceCategory: "Premium"`; `else_standard_path` scenarios must use only source rows with `ListPrice <= 100` and expect `PriceCategory: "Standard"`. Both scenarios must include non-empty `expect.rows`.
 
 If one table fails, continue processing the remaining tables and then write the summary.

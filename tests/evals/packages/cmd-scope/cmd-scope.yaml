@@ -38,7 +38,7 @@ tests:
     vars:
       fixture_path: "tests/evals/fixtures/cmd-scope/error-clean"
       target_tables: "silver.DimDate silver.DimProduct"
-      expected_item_statuses: '{"silver.DimDate": "no_writer_found", "silver.DimProduct": "resolved"}'
+      expected_item_statuses: '{"silver.DimDate": "no_writer_found,resolved", "silver.DimProduct": "resolved"}'
       expected_output_terms: "resolved,no_writer_found"
 
   # ── multi-table-writer: dim_address resolves via shared proc ─

@@ -7,14 +7,26 @@ module.exports = (_output, context) => {
   const table = String(context.vars.target_table || '').toLowerCase();
   const repoRoot = path.resolve(__dirname, '..', '..', '..');
   const resultPath = path.resolve(repoRoot, fixturePath, 'test-review-results', `${table}.json`);
+  const resultDir = path.dirname(resultPath);
 
-  if (!fs.existsSync(resultPath)) {
+  let reviewPath = resultPath;
+  if (fs.existsSync(resultDir)) {
+    const prefix = `${table}.iteration-`;
+    const iterationResults = fs.readdirSync(resultDir)
+      .filter(file => file.startsWith(prefix) && file.endsWith('.json'))
+      .sort((a, b) => a.localeCompare(b, undefined, { numeric: true }));
+    if (iterationResults.length > 0) {
+      reviewPath = path.join(resultDir, iterationResults[iterationResults.length - 1]);
+    }
+  }
+
+  if (!fs.existsSync(reviewPath)) {
     return { pass: false, score: 0, reason: `Missing review artifact: ${resultPath}` };
   }
 
   let review;
   try {
-    review = JSON.parse(fs.readFileSync(resultPath, 'utf8'));
+    review = JSON.parse(fs.readFileSync(reviewPath, 'utf8'));
   } catch (error) {
     return { pass: false, score: 0, reason: `Failed to parse review artifact: ${error.message}` };
   }

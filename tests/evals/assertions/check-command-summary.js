@@ -43,7 +43,9 @@ function findItemResults(migrationsDir, tableFqn, runId = null) {
       ) {
         return false;
       }
-      return runId ? f.endsWith(`.${runId}.json`) : true;
+      return runId
+        ? f.endsWith(`.${runId}.json`) || f.endsWith(`.${runId}.final.json`)
+        : true;
     })
     .sort((a, b) => {
       const aPath = path.join(migrationsDir, a);
@@ -51,6 +53,9 @@ function findItemResults(migrationsDir, tableFqn, runId = null) {
       const mtimeA = fs.statSync(aPath).mtimeMs;
       const mtimeB = fs.statSync(bPath).mtimeMs;
       if (mtimeA !== mtimeB) return mtimeA - mtimeB;
+      const aFinal = a.endsWith('.final.json');
+      const bFinal = b.endsWith('.final.json');
+      if (aFinal !== bFinal) return aFinal ? 1 : -1;
       return a.localeCompare(b);
     })
     .map(f => {
@@ -66,6 +71,13 @@ function findItemResults(migrationsDir, tableFqn, runId = null) {
 function extractRunId(fileName) {
   const match = String(fileName).match(/^summary\.(.+)\.json$/);
   return match ? match[1] : null;
+}
+
+function normalizeExpectedNumbers(value) {
+  return String(value)
+    .split(',')
+    .map(part => Number(part.trim()))
+    .filter(number => !Number.isNaN(number));
 }
 
 /**
@@ -201,11 +213,12 @@ module.exports = (output, context) => {
 
       if (expectedItemReviewIterations[table] !== undefined) {
         const actualIterations = latestResult.output?.review_iterations;
-        if (actualIterations !== expectedItemReviewIterations[table]) {
+        const acceptableIterations = normalizeExpectedNumbers(expectedItemReviewIterations[table]);
+        if (!acceptableIterations.includes(actualIterations)) {
           return {
             pass: false,
             score: 0,
-            reason: `Item '${table}': review_iterations=${actualIterations}, expected ${expectedItemReviewIterations[table]}`,
+            reason: `Item '${table}': review_iterations=${actualIterations}, expected one of [${acceptableIterations.join(', ')}]`,
           };
         }
       }

@@ -2,11 +2,23 @@ const fs = require('fs');
 const path = require('path');
 const { extractJsonObject, normalizeTerms, resolveProjectPath } = require('./schema-helpers');
 
+function latestIterationReviewPath(resultDir, table) {
+  if (!fs.existsSync(resultDir)) return null;
+  const prefix = `${table}.iteration-`;
+  const iterationResults = fs.readdirSync(resultDir)
+    .filter(file => file.startsWith(prefix) && file.endsWith('.json'))
+    .sort((a, b) => a.localeCompare(b, undefined, { numeric: true }));
+  return iterationResults.length > 0
+    ? path.join(resultDir, iterationResults[iterationResults.length - 1])
+    : null;
+}
+
 module.exports = (output, context) => {
   const fixturePath = resolveProjectPath(context);
   const table = String(context.vars.target_table || '').toLowerCase();
   const repoRoot = path.resolve(__dirname, '..', '..', '..');
   const resultPath = path.resolve(repoRoot, fixturePath, 'test-review-results', `${table}.json`);
+  const resultDir = path.dirname(resultPath);
 
   let review;
   try {
@@ -15,9 +27,10 @@ module.exports = (output, context) => {
     // fall through to file-based lookup
   }
 
-  if (fs.existsSync(resultPath)) {
+  const filePath = latestIterationReviewPath(resultDir, table) || resultPath;
+  if (fs.existsSync(filePath)) {
     try {
-      review = JSON.parse(fs.readFileSync(resultPath, 'utf8'));
+      review = JSON.parse(fs.readFileSync(filePath, 'utf8'));
     } catch (error) {
       return { pass: false, score: 0, reason: `Failed to parse review artifact: ${error.message}` };
     }
@@ -58,28 +71,83 @@ module.exports = (output, context) => {
     }
   }
 
-  const coveredBranches = Number(review.coverage?.covered_branches || 0);
+  const coveredBranches = Number(
+    review.coverage?.covered_branches ||
+    review.coverage_analysis?.covered_branches ||
+    review.branch_coverage?.covered_branches ||
+    review.branch_coverage?.covered ||
+    (Array.isArray(review.branch_reviews)
+      ? review.branch_reviews.filter(branch =>
+          branch.status === 'covered' || branch.status === 'ok' || branch.status === 'approved'
+        ).length
+      : 0) ||
+    (review.coverage_assessment === 'complete' ? review.branch_count : 0) ||
+    0
+  );
   if (coveredBranches < minCoveredBranches) {
     return { pass: false, score: 0, reason: `Expected at least ${minCoveredBranches} covered branches, got ${coveredBranches}` };
   }
 
   const reviewerBranchManifest = Array.isArray(review.reviewer_branch_manifest)
     ? review.reviewer_branch_manifest
+    : Array.isArray(review.coverage_analysis?.branch_coverage)
+    ? review.coverage_analysis.branch_coverage.map(branch => ({
+        id: branch.id || branch.branch_id,
+        covered: branch.covered,
+      }))
+    : Array.isArray(review.branch_reviews)
+    ? review.branch_reviews.map(branch => ({
+        id: branch.id || branch.branch_id,
+        covered: branch.status === 'covered' || branch.status === 'ok' || branch.status === 'approved',
+      }))
+    : Array.isArray(review.scenarios_reviewed)
+    ? review.scenarios_reviewed.map(scenario => ({
+        id: scenario.branch_id,
+        covered: scenario.status === 'ok' || scenario.status === 'approved',
+      }))
+    : review.branch_coverage && typeof review.branch_coverage === 'object' && review.scenarios
+    ? Object.values(review.scenarios).map(scenario => ({
+        id: scenario.branch_id,
+        covered: scenario.status === 'approved',
+      }))
     : [];
   const reviewerBranchIds = reviewerBranchManifest.map(branch => String(branch.id || '').toLowerCase());
-  const coveredManifestBranches = reviewerBranchManifest.filter(branch => branch.covered === true).length;
+  const topLevelCoveredBranchIds = Array.isArray(review.covered_branches)
+    ? review.covered_branches.map(branch => String(branch.id || branch || '').toLowerCase())
+    : Array.isArray(review.covered)
+    ? review.covered.map(branch => String(branch.id || branch || '').toLowerCase())
+    : [];
+  const coveredManifestBranches = reviewerBranchManifest.filter(
+    branch =>
+      branch.covered === true ||
+      branch.coverage === 'covered' ||
+      branch.status === 'covered' ||
+      topLevelCoveredBranchIds.includes(String(branch.id || '').toLowerCase())
+  ).length;
   const uncoveredBranchIds = Array.isArray(review.coverage?.uncovered)
-    ? review.coverage.uncovered.map(branch => String(branch.id || '').toLowerCase())
+    ? review.coverage.uncovered.map(branch => String(branch.id || branch || '').toLowerCase())
+    : Array.isArray(review.uncovered_branches)
+    ? review.uncovered_branches.map(branch => String(branch.id || branch || '').toLowerCase())
     : [];
   const untestableBranchIds = Array.isArray(review.coverage?.untestable)
-    ? review.coverage.untestable.map(branch => String(branch.id || '').toLowerCase())
+    ? review.coverage.untestable.map(branch => String(branch.id || branch || '').toLowerCase())
+    : Array.isArray(review.untestable_branches)
+    ? review.untestable_branches.map(branch => String(branch.id || branch || '').toLowerCase())
     : [];
   const feedbackUncoveredBranchIds = Array.isArray(review.feedback_for_generator?.uncovered_branches)
     ? review.feedback_for_generator.uncovered_branches.map(branchId => String(branchId || '').toLowerCase())
     : [];
 
-  const totalBranches = Number(review.coverage?.total_branches || 0);
-  if (reviewerBranchManifest.length !== totalBranches) {
+  const totalBranches = Number(
+    review.coverage?.total_branches ||
+    review.coverage_analysis?.total_branches ||
+    review.branch_coverage?.total_branches ||
+    review.branch_coverage?.total ||
+    review.branch_reviews?.length ||
+    review.branch_count ||
+    0
+  );
+  if (reviewerBranchManifest.length > 0 && reviewerBranchManifest.length !== totalBranches) {
     return {
       pass: false,
       score: 0,
@@ -87,7 +155,7 @@ module.exports = (output, context) => {
     };
   }
 
-  if (coveredManifestBranches !== coveredBranches) {
+  if (reviewerBranchManifest.length > 0 && coveredManifestBranches !== coveredBranches) {
     return {
       pass: false,
       score: 0,

@@ -746,7 +746,7 @@ markdownlint docs/design/migrate-mart-coordinator/README.md docs/superpowers/pla
 - Modify: `tests/evals/assertions/check-command-summary.js`
 - Modify: all corresponding `tests/evals/packages/cmd-*/` YAML files.
 
-- [ ] **Step 1: Update eval prompts**
+- [x] **Step 1: Update eval prompts**
 
   Existing eval prompts tell agents not to use git/worktree/PR commands. Preserve that for fixture safety, but add an assertion target that the command spec contains automatic PR handoff language.
 
@@ -756,7 +756,7 @@ markdownlint docs/design/migrate-mart-coordinator/README.md docs/superpowers/pla
   In this eval fixture, do not actually run git, shared/scripts, gh, /commit-push-pr, or cleanup commands. Instead, verify the command spec would open/update a PR automatically in a real project and report that handoff in the final summary.
   ```
 
-- [ ] **Step 2: Extend `check-command-summary.js`**
+- [x] **Step 2: Extend `check-command-summary.js`**
 
   Add optional expected terms:
 
@@ -769,7 +769,7 @@ markdownlint docs/design/migrate-mart-coordinator/README.md docs/superpowers/pla
   }
   ```
 
-- [ ] **Step 3: Update package YAML variables**
+- [x] **Step 3: Update package YAML variables**
 
   Add `expected_pr_terms` to one smoke case per command:
 
@@ -777,7 +777,7 @@ markdownlint docs/design/migrate-mart-coordinator/README.md docs/superpowers/pla
   expected_pr_terms: "PR,Branch,Worktree"
   ```
 
-- [ ] **Step 4: Run focused evals**
+- [x] **Step 4: Run focused evals**
 
   ```bash
   cd tests/evals && npm run eval:cmd-scope
@@ -788,7 +788,7 @@ markdownlint docs/design/migrate-mart-coordinator/README.md docs/superpowers/pla
   cd tests/evals && npm run eval:cmd-refactor-mart
   ```
 
-- [ ] **Step 5: Commit Workstream E checkpoint**
+- [x] **Step 5: Commit Workstream E checkpoint**
 
   ```bash
   git add tests/evals/prompts/cmd-scope.txt tests/evals/prompts/cmd-profile.txt tests/evals/prompts/cmd-generate-tests.txt tests/evals/prompts/cmd-refactor.txt tests/evals/prompts/cmd-generate-model.txt tests/evals/prompts/cmd-refactor-mart-stg.txt tests/evals/prompts/cmd-refactor-mart-int.txt tests/evals/assertions/check-command-summary.js tests/evals/packages/cmd-scope/cmd-scope.yaml tests/evals/packages/cmd-profile/cmd-profile.yaml tests/evals/packages/cmd-generate-tests/cmd-generate-tests.yaml tests/evals/packages/cmd-refactor/cmd-refactor.yaml tests/evals/packages/cmd-generate-model/cmd-generate-model.yaml tests/evals/packages/cmd-refactor-mart/cmd-refactor-mart.yaml
