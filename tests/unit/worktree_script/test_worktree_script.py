@@ -292,6 +292,7 @@ def test_worktree_script_reuses_branch_checked_out_elsewhere(tmp_path: Path) -> 
         f"worktree {existing_path}\nHEAD deadbeef\nbranch refs/heads/feature/migrate-mart/060-profile\n\n"
     )
     env, _ = _base_env(tmp_path, worktree_list_content=worktree_list, branch_exists=True)
+    _create_existing_worktree(existing_path)
 
     result = subprocess.run(
         [str(SCRIPT_PATH), "feature/migrate-mart/060-profile", "060-profile", "feature/migrate-mart"],
@@ -309,6 +310,33 @@ def test_worktree_script_reuses_branch_checked_out_elsewhere(tmp_path: Path) -> 
     assert payload["existing_worktree_path"] == str(existing_path)
     assert payload["worktree_path"] == str(existing_path)
     assert "created worktree" not in result.stdout
+
+
+def test_worktree_script_blocks_when_tracked_worktree_path_is_missing(tmp_path: Path) -> None:
+    """Stale git worktree metadata should not resolve to a ready state."""
+    missing_path = tmp_path / "gone" / "feature" / "migrate-mart" / "066-missing"
+    worktree_list = (
+        f"worktree {missing_path}\nHEAD deadbeef\nbranch refs/heads/feature/migrate-mart/066-missing\n\n"
+    )
+    env, _ = _base_env(tmp_path, worktree_list_content=worktree_list, branch_exists=True)
+
+    result = subprocess.run(
+        [str(SCRIPT_PATH), "feature/migrate-mart/066-missing", "066-missing", "feature/migrate-mart"],
+        cwd=REPO_ROOT,
+        capture_output=True,
+        text=True,
+        env=env,
+        check=False,
+    )
+
+    assert result.returncode != 0
+    payload = json.loads(result.stderr.strip())
+    assert payload["code"] == "WORKTREE_STALE_WORKTREE_REFERENCE"
+    assert payload["existing_worktree_path"] == str(missing_path)
+    assert payload["requested_worktree_path"] == str(
+        tmp_path / "worktrees" / "feature" / "migrate-mart" / "066-missing"
+    )
+    assert "ready" not in result.stdout
 
 
 def test_worktree_script_blocks_when_reused_worktree_is_dirty(tmp_path: Path) -> None:

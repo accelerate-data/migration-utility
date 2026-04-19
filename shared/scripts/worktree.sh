@@ -159,7 +159,13 @@ ensure_clean_worktree() {
   local status_output=""
 
   if [[ ! -d "$target_path" ]]; then
-    return 0
+    json_failure \
+      "WORKTREE_STALE_WORKTREE_REFERENCE" \
+      "stale_worktree" \
+      "Git reports an attached worktree, but the path is missing." \
+      "false" \
+      "Run 'git worktree prune' to clear stale metadata or recreate the worktree before rerunning the helper." \
+      "$target_path"
   fi
 
   if ! status_output="$(git -C "$target_path" status --porcelain)"; then
