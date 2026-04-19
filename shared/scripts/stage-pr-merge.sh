@@ -76,7 +76,7 @@ PY
 normalize_pr_number() {
   local raw_value="$1"
 
-  if [[ "$raw_value" =~ /pull/([0-9]+)(/|$) ]]; then
+  if [[ "$raw_value" =~ /pull/([0-9]+)(/|[?#]|$) ]]; then
     printf '%s\n' "${BASH_REMATCH[1]}"
     return 0
   fi

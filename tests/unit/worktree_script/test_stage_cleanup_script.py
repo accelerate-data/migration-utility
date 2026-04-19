@@ -114,6 +114,46 @@ def test_stage_cleanup_script_removes_worktree_and_branch(tmp_path: Path) -> Non
     }
 
 
+def test_stage_cleanup_script_handles_relative_worktree_path(tmp_path: Path) -> None:
+    """A relative worktree spelling should still resolve to the real worktree."""
+    env, log_path = _base_env(tmp_path)
+    env["FAKE_GIT_LOCAL_REF_EXISTS"] = "0"
+    env["FAKE_GIT_REMOTE_REF_EXISTS"] = "0"
+    worktree_path = tmp_path / "worktrees" / "feature" / "migrate-mart" / "095-cleanup"
+    worktree_path.mkdir(parents=True)
+    (tmp_path / "worktree-list.txt").write_text(
+        f"worktree {worktree_path}\nHEAD deadbeef\nbranch refs/heads/feature/migrate-mart/095-cleanup\n\n",
+        encoding="utf-8",
+    )
+    relative_worktree_path = os.path.relpath(worktree_path, REPO_ROOT)
+
+    result = subprocess.run(
+        [str(SCRIPT_PATH), "feature/migrate-mart/095-cleanup", relative_worktree_path],
+        cwd=REPO_ROOT,
+        capture_output=True,
+        text=True,
+        env=env,
+        check=False,
+    )
+
+    assert result.returncode == 0
+    assert log_path.read_text(encoding="utf-8").splitlines() == [
+        "git rev-parse --show-toplevel",
+        "git worktree list --porcelain",
+        f"git worktree remove {worktree_path}",
+        "git show-ref --verify --quiet refs/heads/feature/migrate-mart/095-cleanup",
+        "git show-ref --verify --quiet refs/remotes/origin/feature/migrate-mart/095-cleanup",
+        "git branch -d feature/migrate-mart/095-cleanup",
+        "git push origin --delete feature/migrate-mart/095-cleanup",
+    ]
+    payload = json.loads(result.stdout.strip())
+    assert payload == {
+        "status": "cleaned",
+        "branch": "feature/migrate-mart/095-cleanup",
+        "worktree_path": relative_worktree_path,
+    }
+
+
 def test_stage_cleanup_script_is_idempotent_when_already_clean(tmp_path: Path) -> None:
     """Missing worktree and missing branch should report already_clean."""
     env, log_path = _base_env(tmp_path)

@@ -73,12 +73,24 @@ PY
   exit 1
 }
 
+canonicalize_path() {
+  local raw_path="$1"
+
+  python3 - "$raw_path" <<'PY'
+import pathlib
+import sys
+
+print(pathlib.Path(sys.argv[1]).resolve(strict=False))
+PY
+}
+
 if [[ $# -ne 2 ]]; then
   usage_failure "$0"
 fi
 
 branch="$1"
 worktree_path="$2"
+resolved_worktree_path="$(canonicalize_path "$worktree_path")"
 
 if ! git rev-parse --show-toplevel >/dev/null 2>&1; then
   json_failure \
@@ -97,13 +109,26 @@ if ! worktree_list="$(git worktree list --porcelain)"; then
     "$branch" \
     "$worktree_path"
 fi
-if ! printf '%s\n' "$worktree_list" | grep -Fqx "worktree $worktree_path"; then
-  worktree_present="0"
-else
-  worktree_present="1"
-fi
+worktree_present="$(WORKTREE_LIST="$worktree_list" ORIGINAL_WORKTREE="$worktree_path" RESOLVED_WORKTREE="$resolved_worktree_path" python3 - <<'PY'
+import os
+import pathlib
 
-if [[ "$worktree_present" == "1" && ! -d "$worktree_path" ]]; then
+original = os.environ["ORIGINAL_WORKTREE"]
+resolved = pathlib.Path(os.environ["RESOLVED_WORKTREE"]).resolve(strict=False)
+
+for line in os.environ["WORKTREE_LIST"].splitlines():
+    if not line.startswith("worktree "):
+        continue
+    listed = line.split(" ", 1)[1]
+    if listed == original or pathlib.Path(listed).resolve(strict=False) == resolved:
+        print("1")
+        break
+else:
+    print("0")
+PY
+)"
+
+if [[ "$worktree_present" == "1" && ! -d "$resolved_worktree_path" ]]; then
   json_failure \
     "WORKTREE_STALE_WORKTREE_REFERENCE" \
     "stale_worktree" \
@@ -112,8 +137,8 @@ if [[ "$worktree_present" == "1" && ! -d "$worktree_path" ]]; then
     "$worktree_path"
 fi
 
-if [[ "$worktree_present" == "1" && -d "$worktree_path" ]]; then
-  if ! git worktree remove "$worktree_path"; then
+if [[ "$worktree_present" == "1" && -d "$resolved_worktree_path" ]]; then
+  if ! git worktree remove "$resolved_worktree_path"; then
     json_failure \
       "WORKTREE_REMOVE_FAILED" \
       "git_worktree_remove" \

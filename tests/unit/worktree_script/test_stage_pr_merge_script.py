@@ -273,6 +273,68 @@ def test_stage_pr_merge_script_preserves_url_input_when_merging(tmp_path: Path) 
     }
 
 
+def test_stage_pr_merge_script_accepts_query_string_url_input(tmp_path: Path) -> None:
+    """Query-string PR URLs should be normalized for the PR number but preserved for gh."""
+    env, log_path = _base_env(
+        tmp_path,
+        pr_json='{"state":"OPEN","number":109,"url":"https://github.com/example/repo/pull/109?expand=1","mergeStateStatus":"CLEAN","statusCheckRollup":[{"state":"SUCCESS"}]}',
+    )
+
+    result = subprocess.run(
+        [str(SCRIPT_PATH), "https://github.com/example/fork/pull/109?expand=1", "main"],
+        cwd=REPO_ROOT,
+        capture_output=True,
+        text=True,
+        env=env,
+        check=False,
+    )
+
+    assert result.returncode == 0
+    assert log_path.read_text(encoding="utf-8").splitlines() == [
+        "git rev-parse --show-toplevel",
+        "gh pr view https://github.com/example/fork/pull/109?expand=1 --json state,number,url,baseRefName,isDraft,mergeStateStatus,statusCheckRollup",
+        "gh pr merge https://github.com/example/fork/pull/109?expand=1 --merge --delete-branch=false",
+    ]
+    payload = json.loads(result.stdout.strip())
+    assert payload == {
+        "status": "merged",
+        "pr_number": 109,
+        "pr_url": "https://github.com/example/repo/pull/109?expand=1",
+        "base_branch": "main",
+    }
+
+
+def test_stage_pr_merge_script_accepts_fragment_url_input(tmp_path: Path) -> None:
+    """Fragment PR URLs should be normalized for the PR number but preserved for gh."""
+    env, log_path = _base_env(
+        tmp_path,
+        pr_json='{"state":"OPEN","number":110,"url":"https://github.com/example/repo/pull/110#issuecomment-1","mergeStateStatus":"CLEAN","statusCheckRollup":[{"state":"SUCCESS"}]}',
+    )
+
+    result = subprocess.run(
+        [str(SCRIPT_PATH), "https://github.com/example/fork/pull/110#issuecomment-1", "main"],
+        cwd=REPO_ROOT,
+        capture_output=True,
+        text=True,
+        env=env,
+        check=False,
+    )
+
+    assert result.returncode == 0
+    assert log_path.read_text(encoding="utf-8").splitlines() == [
+        "git rev-parse --show-toplevel",
+        "gh pr view https://github.com/example/fork/pull/110#issuecomment-1 --json state,number,url,baseRefName,isDraft,mergeStateStatus,statusCheckRollup",
+        "gh pr merge https://github.com/example/fork/pull/110#issuecomment-1 --merge --delete-branch=false",
+    ]
+    payload = json.loads(result.stdout.strip())
+    assert payload == {
+        "status": "merged",
+        "pr_number": 110,
+        "pr_url": "https://github.com/example/repo/pull/110#issuecomment-1",
+        "base_branch": "main",
+    }
+
+
 def test_stage_pr_merge_script_reports_view_failure_as_json(tmp_path: Path) -> None:
     """Failed PR reads should return deterministic JSON instead of aborting."""
     env, _ = _base_env(
