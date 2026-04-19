@@ -43,7 +43,7 @@
 - Create: `lib/shared/oracle_extract_queries.py`
 - Test: `tests/unit/setup_ddl/test_oracle_extract_queries.py`
 
-- [ ] **Step 1: Write failing query-spec tests**
+- [x] **Step 1: Write failing query-spec tests**
 
 Create `tests/unit/setup_ddl/test_oracle_extract_queries.py`:
 
@@ -92,7 +92,7 @@ def test_dmf_sql_maps_dependency_type_into_filter() -> None:
     assert "OWNER IN ('SH')" in sql
 ```
 
-- [ ] **Step 2: Verify red**
+- [x] **Step 2: Verify red**
 
 Run:
 
@@ -102,7 +102,7 @@ cd lib && uv run pytest ../tests/unit/setup_ddl/test_oracle_extract_queries.py -
 
 Expected: fails with `ModuleNotFoundError: No module named 'shared.oracle_extract_queries'`.
 
-- [ ] **Step 3: Implement SQL builders**
+- [x] **Step 3: Implement SQL builders**
 
 Create `lib/shared/oracle_extract_queries.py` by moving SQL construction out of `oracle_extract.py`. Keep SQL text equivalent to the original implementation.
 
@@ -133,7 +133,7 @@ def definitions_object_sql(schemas: list[str]) -> str:
 
 Add the remaining query functions with the exact SQL currently embedded in `oracle_extract.py`.
 
-- [ ] **Step 4: Verify green**
+- [x] **Step 4: Verify green**
 
 Run:
 
@@ -143,7 +143,7 @@ cd lib && uv run pytest ../tests/unit/setup_ddl/test_oracle_extract_queries.py -
 
 Expected: all tests pass.
 
-- [ ] **Step 5: Commit**
+- [x] **Step 5: Commit**
 
 ```bash
 git add lib/shared/oracle_extract_queries.py tests/unit/setup_ddl/test_oracle_extract_queries.py
@@ -160,7 +160,7 @@ git commit -m "refactor: add oracle extraction query specs"
 - Modify: `lib/shared/oracle_extract.py`
 - Test: `tests/unit/setup_ddl/test_oracle_extract_ddl.py`
 
-- [ ] **Step 1: Write failing DDL-helper tests**
+- [x] **Step 1: Write failing DDL-helper tests**
 
 Create `tests/unit/setup_ddl/test_oracle_extract_ddl.py`:
 
@@ -224,7 +224,7 @@ def test_extract_view_ddl_rows_keeps_truncated_diagnostic_when_metadata_fails() 
     ]
 ```
 
-- [ ] **Step 2: Verify red**
+- [x] **Step 2: Verify red**
 
 Run:
 
@@ -234,7 +234,7 @@ cd lib && uv run pytest ../tests/unit/setup_ddl/test_oracle_extract_ddl.py -q
 
 Expected: fails with `ModuleNotFoundError: No module named 'shared.oracle_extract_ddl'`.
 
-- [ ] **Step 3: Implement DDL helper module**
+- [x] **Step 3: Implement DDL helper module**
 
 Move these behaviors into `lib/shared/oracle_extract_ddl.py`:
 
@@ -245,7 +245,7 @@ Move these behaviors into `lib/shared/oracle_extract_ddl.py`:
 
 Use `definitions_object_sql` and `view_text_sql` from `oracle_extract_queries.py`.
 
-- [ ] **Step 4: Keep legacy facade imports**
+- [x] **Step 4: Keep legacy facade imports**
 
 In `lib/shared/oracle_extract.py`, import and alias:
 
@@ -259,7 +259,7 @@ from shared.oracle_extract_ddl import (
 
 Do not change `run_oracle_extraction` yet.
 
-- [ ] **Step 5: Verify green plus compatibility**
+- [x] **Step 5: Verify green plus compatibility**
 
 Run:
 
@@ -269,7 +269,7 @@ cd lib && uv run pytest ../tests/unit/setup_ddl/test_oracle_extract_ddl.py ../te
 
 Expected: all tests pass.
 
-- [ ] **Step 6: Commit**
+- [x] **Step 6: Commit**
 
 ```bash
 git add lib/shared/oracle_extract_ddl.py lib/shared/oracle_extract.py tests/unit/setup_ddl/test_oracle_extract_ddl.py
@@ -286,7 +286,7 @@ git commit -m "refactor: split oracle DDL extraction helpers"
 - Modify: `lib/shared/oracle_extract.py`
 - Test: `tests/unit/setup_ddl/test_oracle_extract_services.py`
 
-- [ ] **Step 1: Write failing service tests**
+- [x] **Step 1: Write failing service tests**
 
 Create `tests/unit/setup_ddl/test_oracle_extract_services.py`:
 
@@ -361,7 +361,7 @@ def test_extract_dmf_rejects_unknown_dependency_type() -> None:
         extract_dmf(MagicMock(), ["SH"], "PACKAGE")
 ```
 
-- [ ] **Step 2: Verify red**
+- [x] **Step 2: Verify red**
 
 Run:
 
@@ -371,7 +371,7 @@ cd lib && uv run pytest ../tests/unit/setup_ddl/test_oracle_extract_services.py 
 
 Expected: fails with `ModuleNotFoundError: No module named 'shared.oracle_extract_services'`.
 
-- [ ] **Step 3: Implement service module**
+- [x] **Step 3: Implement service module**
 
 Move these functions into `lib/shared/oracle_extract_services.py`:
 
@@ -388,7 +388,7 @@ Move these functions into `lib/shared/oracle_extract_services.py`:
 
 Use SQL builders from `oracle_extract_queries.py` and `oracle_type_to_class_desc` from `oracle_extract_ddl.py`.
 
-- [ ] **Step 4: Keep legacy facade imports**
+- [x] **Step 4: Keep legacy facade imports**
 
 In `lib/shared/oracle_extract.py`, import and alias service functions back to the old private names:
 
@@ -407,7 +407,7 @@ from shared.oracle_extract_services import (
 )
 ```
 
-- [ ] **Step 5: Verify green plus compatibility**
+- [x] **Step 5: Verify green plus compatibility**
 
 Run:
 
@@ -417,7 +417,7 @@ cd lib && uv run pytest ../tests/unit/setup_ddl/test_oracle_extract_services.py 
 
 Expected: all tests pass.
 
-- [ ] **Step 6: Commit**
+- [x] **Step 6: Commit**
 
 ```bash
 git add lib/shared/oracle_extract_services.py lib/shared/oracle_extract.py tests/unit/setup_ddl/test_oracle_extract_services.py
@@ -433,7 +433,7 @@ git commit -m "refactor: split oracle extraction services"
 - Modify: `lib/shared/oracle_extract.py`
 - Test: `tests/unit/setup_ddl/test_oracle_extract_boundaries.py`
 
-- [ ] **Step 1: Write facade boundary tests**
+- [x] **Step 1: Write facade boundary tests**
 
 Create `tests/unit/setup_ddl/test_oracle_extract_boundaries.py`:
 
@@ -468,7 +468,7 @@ def test_split_modules_export_owned_entrypoints() -> None:
     assert callable(oracle_extract_services.extract_table_columns)
 ```
 
-- [ ] **Step 2: Verify red if Task 4 starts before facade cleanup**
+- [x] **Step 2: Verify red if Task 4 starts before facade cleanup**
 
 Run:
 
@@ -478,7 +478,7 @@ cd lib && uv run pytest ../tests/unit/setup_ddl/test_oracle_extract_boundaries.p
 
 Expected: passes if Tasks 1-3 already added exports; otherwise fails on missing modules.
 
-- [ ] **Step 3: Reduce `oracle_extract.py` to orchestration**
+- [x] **Step 3: Reduce `oracle_extract.py` to orchestration**
 
 Remove moved implementation bodies from `lib/shared/oracle_extract.py`. Keep only:
 
@@ -490,7 +490,7 @@ Remove moved implementation bodies from `lib/shared/oracle_extract.py`. Keep onl
 
 Make `run_oracle_extraction` call the imported aliases or public service names in the same order as before.
 
-- [ ] **Step 4: Verify facade and existing Oracle tests**
+- [x] **Step 4: Verify facade and existing Oracle tests**
 
 Run:
 
@@ -500,7 +500,7 @@ cd lib && uv run pytest ../tests/unit/setup_ddl/test_oracle_extract_boundaries.p
 
 Expected: all tests pass.
 
-- [ ] **Step 5: Commit**
+- [x] **Step 5: Commit**
 
 ```bash
 git add lib/shared/oracle_extract.py tests/unit/setup_ddl/test_oracle_extract_boundaries.py
@@ -515,7 +515,7 @@ git commit -m "refactor: make oracle extraction facade explicit"
 
 - Modify: `repo-map.json`
 
-- [ ] **Step 1: Update repo map**
+- [x] **Step 1: Update repo map**
 
 In `repo-map.json`, replace the `oracle_extract.py` description in `modules.shared_python.description` with language equivalent to:
 
@@ -523,7 +523,7 @@ In `repo-map.json`, replace the `oracle_extract.py` description in `modules.shar
 oracle_extract.py (direct Oracle extraction orchestration facade; called by run_extract), oracle_extract_queries.py (Oracle metadata SQL builders), oracle_extract_ddl.py (DBMS_METADATA and ALL_VIEWS LONG fallback DDL helpers), oracle_extract_services.py (Oracle metadata row extraction and staging writes)
 ```
 
-- [ ] **Step 2: Validate JSON**
+- [x] **Step 2: Validate JSON**
 
 Run:
 
@@ -533,7 +533,7 @@ python -m json.tool repo-map.json >/tmp/repo-map-check.json
 
 Expected: exit 0.
 
-- [ ] **Step 3: Run focused unit verification**
+- [x] **Step 3: Run focused unit verification**
 
 Run:
 
@@ -543,7 +543,7 @@ cd lib && uv run pytest ../tests/unit/setup_ddl/test_oracle_extract.py ../tests/
 
 Expected: all tests pass.
 
-- [ ] **Step 4: Run full setup-ddl unit suite**
+- [x] **Step 4: Run full setup-ddl unit suite**
 
 Run:
 
@@ -553,7 +553,7 @@ cd lib && uv run pytest ../tests/unit/setup_ddl -q
 
 Expected: all tests pass.
 
-- [ ] **Step 5: Lint plan markdown**
+- [x] **Step 5: Lint plan markdown**
 
 Run:
 
@@ -563,14 +563,14 @@ markdownlint docs/superpowers/plans/2026-04-19-oracle-extract-boundary-cleanup.m
 
 Expected: exit 0.
 
-- [ ] **Step 6: Commit repo map and plan**
+- [x] **Step 6: Commit repo map and plan**
 
 ```bash
 git add docs/superpowers/plans/2026-04-19-oracle-extract-boundary-cleanup.md repo-map.json
 git commit -m "docs: plan oracle extraction boundary cleanup"
 ```
 
-- [ ] **Step 7: Final review**
+- [x] **Step 7: Final review**
 
 Dispatch a read-only review subagent over `origin/main..HEAD` focused on Oracle extraction behavior drift, DBMS_METADATA fallback semantics, staging file names, public import contracts, and test gaps.
 
