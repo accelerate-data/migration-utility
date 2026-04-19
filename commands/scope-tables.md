@@ -160,8 +160,8 @@ Written to `.migration-runs/summary.<run_id>.json`:
 
 ```json
 {
-  "schema_version": "1.0",
-  "run_id": "<uuid>",
+    "schema_version": "1.0",
+    "run_id": "<epoch_ms>-<random_8hex>",
   "results": [
     {"item_id": "silver.dimcurrency", "status": "resolved"},
     {"item_id": "silver.dimdate", "status": "error"}
