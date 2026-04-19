@@ -191,6 +191,30 @@ def test_worktree_script_creates_new_branch_and_bootstraps(tmp_path: Path) -> No
     }
 
 
+def test_worktree_script_reports_usage_error_on_wrong_arity(tmp_path: Path) -> None:
+    """Wrong arity should fail with deterministic usage JSON and exit code 2."""
+    env, _ = _base_env(tmp_path)
+
+    result = subprocess.run(
+        [str(SCRIPT_PATH), "feature/migrate-mart/040-profile", "040-profile"],
+        cwd=REPO_ROOT,
+        capture_output=True,
+        text=True,
+        env=env,
+        check=False,
+    )
+
+    assert result.returncode == 2
+    payload = json.loads(result.stderr.strip())
+    assert payload["code"] == "USAGE"
+    assert payload["contract"] == "worktree.sh <branch> <worktree-name> <base-branch>"
+    assert payload["retry_command"] == str(SCRIPT_PATH)
+    assert payload["suggested_fix"] == (
+        "Call the helper with exactly three arguments: <branch> <worktree-name> <base-branch>."
+    )
+    assert payload["can_retry"] is False
+
+
 def test_worktree_script_reports_repo_root_resolution_failure(tmp_path: Path) -> None:
     """Repo-root resolution failures should return deterministic JSON."""
     env, _ = _base_env(tmp_path)

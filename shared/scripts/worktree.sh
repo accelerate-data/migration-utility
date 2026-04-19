@@ -1,9 +1,29 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
+usage_failure() {
+  local actual_argv0="$1"
+
+  SCRIPT_PATH="$actual_argv0" python3 - <<'PY' >&2
+import json
+import os
+
+payload = {
+    "code": "USAGE",
+    "step": "argument_validation",
+    "message": "Incorrect worktree helper usage.",
+    "contract": "worktree.sh <branch> <worktree-name> <base-branch>",
+    "retry_command": os.environ["SCRIPT_PATH"],
+    "suggested_fix": "Call the helper with exactly three arguments: <branch> <worktree-name> <base-branch>.",
+    "can_retry": False,
+}
+print(json.dumps(payload))
+PY
+  exit 2
+}
+
 if [[ $# -ne 3 ]]; then
-  echo "Usage: $0 <branch> <worktree-name> <base-branch>" >&2
-  exit 1
+  usage_failure "$0"
 fi
 
 branch="$1"
