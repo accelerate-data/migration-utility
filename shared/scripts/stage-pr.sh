@@ -133,7 +133,7 @@ if ! git push --force-with-lease --set-upstream origin "$branch"; then
     "$body_file"
 fi
 
-existing_pr_json="$(gh pr list --head "$branch" --base "$base_branch" --json number,url --limit 1)"
+existing_pr_json="$(gh pr list --head "$branch" --json number,url --limit 1)"
 existing_pr_number="$(STAGE_PR_JSON="$existing_pr_json" python3 - <<'PY'
 import json
 import os

@@ -73,6 +73,41 @@ exit 99
     return env, log_path
 
 
+def _base_env_with_head_only_lookup(tmp_path: Path, *, existing_pr_json: str) -> tuple[dict[str, str], Path]:
+    env, log_path = _base_env(tmp_path, existing_pr_json=existing_pr_json)
+    gh_path = Path(env["PATH"].split(":", 1)[0]) / "gh"
+    gh_path.write_text(
+        f"""#!/usr/bin/env bash
+set -euo pipefail
+echo "gh $*" >> "{log_path}"
+if [[ "$1" == "pr" && "$2" == "list" ]]; then
+  if [[ "$*" == *"--base"* ]]; then
+    printf '%s\n' '[]'
+  else
+    cat "{tmp_path / 'pr-view.json'}"
+  fi
+  exit 0
+fi
+if [[ "$1" == "pr" && "$2" == "create" ]]; then
+  printf '%s\n' "${{FAKE_GH_CREATE_URL:-https://github.com/example/repo/pull/101}}"
+  exit 0
+fi
+if [[ "$1" == "pr" && "$2" == "edit" ]]; then
+  printf '%s\n' "${{FAKE_GH_EDIT_URL:-https://github.com/example/repo/pull/101}}"
+  exit 0
+fi
+if [[ "$1" == "pr" && "$2" == "view" ]]; then
+  printf '%s\n' "${{FAKE_GH_VIEW_JSON}}"
+  exit 0
+fi
+echo "unexpected gh invocation: $*" >&2
+exit 99
+""",
+        encoding="utf-8",
+    )
+    return env, log_path
+
+
 def test_stage_pr_script_creates_pr_from_branch_and_body_file(tmp_path: Path) -> None:
     """A branch without an open PR should push and create one deterministically."""
     env, log_path = _base_env(tmp_path)
@@ -93,7 +128,7 @@ def test_stage_pr_script_creates_pr_from_branch_and_body_file(tmp_path: Path) ->
     assert log_path.read_text(encoding="utf-8").splitlines() == [
         "git rev-parse --show-toplevel",
         "git push --force-with-lease --set-upstream origin feature/migrate-mart/080-pr",
-        "gh pr list --head feature/migrate-mart/080-pr --base main --json number,url --limit 1",
+        "gh pr list --head feature/migrate-mart/080-pr --json number,url --limit 1",
         f"gh pr create --title Stage PR --body-file {created_url} --base main --head feature/migrate-mart/080-pr",
         "gh pr view feature/migrate-mart/080-pr --json number,url",
     ]
@@ -129,3 +164,39 @@ def test_stage_pr_script_reports_push_failure_as_json(tmp_path: Path) -> None:
     assert payload["branch"] == "feature/migrate-mart/081-pr"
     assert payload["base_branch"] == "main"
     assert payload["code"] == "GIT_PUSH_FAILED"
+
+
+def test_stage_pr_script_updates_existing_pr_when_requested_base_changes(tmp_path: Path) -> None:
+    """Existing PRs should be found by head branch and updated to the new base."""
+    env, log_path = _base_env_with_head_only_lookup(
+        tmp_path,
+        existing_pr_json='[{"number":101,"url":"https://github.com/example/repo/pull/101"}]',
+    )
+    body_file = tmp_path / "body.md"
+    body_file.write_text("body text\n", encoding="utf-8")
+
+    result = subprocess.run(
+        [str(SCRIPT_PATH), "feature/migrate-mart/080-pr", "release", "Stage PR", str(body_file)],
+        cwd=REPO_ROOT,
+        capture_output=True,
+        text=True,
+        env=env,
+        check=False,
+    )
+
+    assert result.returncode == 0
+    body_path = body_file.resolve()
+    assert log_path.read_text(encoding="utf-8").splitlines() == [
+        "git rev-parse --show-toplevel",
+        "git push --force-with-lease --set-upstream origin feature/migrate-mart/080-pr",
+        "gh pr list --head feature/migrate-mart/080-pr --json number,url --limit 1",
+        f"gh pr edit 101 --title Stage PR --body-file {body_path} --base release",
+    ]
+    payload = json.loads(result.stdout.strip())
+    assert payload == {
+        "status": "updated",
+        "branch": "feature/migrate-mart/080-pr",
+        "base_branch": "release",
+        "pr_number": 101,
+        "pr_url": "https://github.com/example/repo/pull/101",
+    }

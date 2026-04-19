@@ -104,7 +104,7 @@ if [[ "$worktree_present" == "1" && -d "$worktree_path" ]]; then
       "Could not remove the worktree." \
       "$branch" \
       "$worktree_path"
-    fi
+  fi
 fi
 
 if git show-ref --verify --quiet "refs/heads/$branch"; then
@@ -125,11 +125,25 @@ if [[ "$worktree_present" != "1" && "$local_branch_present" != "1" && "$remote_b
 fi
 
 if [[ "$local_branch_present" == "1" ]]; then
-  git branch -d "$branch" >/dev/null 2>&1 || true
+  if ! git branch -d "$branch" >/dev/null 2>&1; then
+    json_failure \
+      "LOCAL_BRANCH_DELETE_FAILED" \
+      "git_branch_delete" \
+      "Could not delete the local branch." \
+      "$branch" \
+      "$worktree_path"
+  fi
 fi
 
 if [[ "$remote_branch_present" == "1" ]]; then
-  git push origin --delete "$branch" >/dev/null 2>&1 || true
+  if ! git push origin --delete "$branch" >/dev/null 2>&1; then
+    json_failure \
+      "REMOTE_BRANCH_DELETE_FAILED" \
+      "git_remote_branch_delete" \
+      "Could not delete the remote branch." \
+      "$branch" \
+      "$worktree_path"
+  fi
 fi
 
 json_success "cleaned" "$branch" "$worktree_path"

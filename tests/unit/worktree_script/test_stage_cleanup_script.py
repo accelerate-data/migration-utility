@@ -51,6 +51,9 @@ fi
 if [[ "$1" == "push" && "$2" == "origin" && "$4" == "--delete" ]]; then
   exit "${{FAKE_GIT_PUSH_DELETE_EXIT:-0}}"
 fi
+if [[ "$1" == "push" && "$2" == "origin" && "$3" == "--delete" ]]; then
+  exit "${{FAKE_GIT_PUSH_DELETE_EXIT:-0}}"
+fi
 if [[ "$1" == "worktree" && "$2" == "list" ]]; then
   cat "${{FAKE_GIT_WORKTREE_LIST:-/dev/null}}"
   exit 0
@@ -135,3 +138,34 @@ def test_stage_cleanup_script_is_idempotent_when_already_clean(tmp_path: Path) -
         "branch": "feature/migrate-mart/091-cleanup",
         "worktree_path": str(worktree_path),
     }
+
+
+def test_stage_cleanup_script_fails_when_local_branch_deletion_fails(tmp_path: Path) -> None:
+    """Branch deletion errors should not be reported as cleaned."""
+    env, log_path = _base_env(tmp_path)
+    env["FAKE_GIT_LOCAL_REF_EXISTS"] = "0"
+    env["FAKE_GIT_REMOTE_REF_EXISTS"] = "1"
+    env["FAKE_GIT_BRANCH_DELETE_EXIT"] = "1"
+    worktree_path = tmp_path / "worktrees" / "feature" / "migrate-mart" / "092-cleanup"
+    worktree_path.mkdir(parents=True)
+    (tmp_path / "worktree-list.txt").write_text(
+        f"worktree {worktree_path}\nHEAD deadbeef\nbranch refs/heads/feature/migrate-mart/092-cleanup\n\n",
+        encoding="utf-8",
+    )
+
+    result = subprocess.run(
+        [str(SCRIPT_PATH), "feature/migrate-mart/092-cleanup", str(worktree_path)],
+        cwd=REPO_ROOT,
+        capture_output=True,
+        text=True,
+        env=env,
+        check=False,
+    )
+
+    assert result.returncode != 0
+    payload = json.loads(result.stderr.strip())
+    assert payload["status"] == "failed"
+    assert payload["code"] == "LOCAL_BRANCH_DELETE_FAILED"
+    assert payload["branch"] == "feature/migrate-mart/092-cleanup"
+    assert payload["worktree_path"] == str(worktree_path)
+    assert "git branch -d feature/migrate-mart/092-cleanup" in log_path.read_text(encoding="utf-8")

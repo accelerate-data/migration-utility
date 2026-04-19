@@ -77,7 +77,7 @@ def test_stage_pr_merge_script_reports_checks_pending_before_merge(tmp_path: Pat
     assert result.returncode == 0
     assert log_path.read_text(encoding="utf-8").splitlines() == [
         "git rev-parse --show-toplevel",
-        'gh pr view 101 --json state,number,url,mergeStateStatus,statusCheckRollup',
+        'gh pr view 101 --json state,number,url,baseRefName,mergeStateStatus,statusCheckRollup',
     ]
     payload = json.loads(result.stdout.strip())
     assert payload == {
@@ -107,7 +107,7 @@ def test_stage_pr_merge_script_merges_clean_pr(tmp_path: Path) -> None:
     assert result.returncode == 0
     assert log_path.read_text(encoding="utf-8").splitlines() == [
         "git rev-parse --show-toplevel",
-        "gh pr view 102 --json state,number,url,mergeStateStatus,statusCheckRollup",
+        "gh pr view 102 --json state,number,url,baseRefName,mergeStateStatus,statusCheckRollup",
         "gh pr merge 102 --merge --delete-branch=false",
     ]
     payload = json.loads(result.stdout.strip())
@@ -118,3 +118,32 @@ def test_stage_pr_merge_script_merges_clean_pr(tmp_path: Path) -> None:
         "base_branch": "main",
     }
 
+
+def test_stage_pr_merge_script_blocks_when_pr_base_branch_differs(tmp_path: Path) -> None:
+    """A PR opened against a different base should not be merged into the requested base."""
+    env, log_path = _base_env(
+        tmp_path,
+        pr_json='{"state":"OPEN","number":103,"url":"https://github.com/example/repo/pull/103","baseRefName":"release","mergeStateStatus":"CLEAN","statusCheckRollup":[{"state":"SUCCESS"}]}',
+    )
+
+    result = subprocess.run(
+        [str(SCRIPT_PATH), "103", "main"],
+        cwd=REPO_ROOT,
+        capture_output=True,
+        text=True,
+        env=env,
+        check=False,
+    )
+
+    assert result.returncode == 0
+    assert log_path.read_text(encoding="utf-8").splitlines() == [
+        "git rev-parse --show-toplevel",
+        'gh pr view 103 --json state,number,url,baseRefName,mergeStateStatus,statusCheckRollup',
+    ]
+    payload = json.loads(result.stdout.strip())
+    assert payload == {
+        "status": "merge_conflict",
+        "pr_number": 103,
+        "pr_url": "https://github.com/example/repo/pull/103",
+        "base_branch": "main",
+    }

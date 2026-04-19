@@ -114,7 +114,7 @@ if ! pr_number="$(normalize_pr_number "$raw_pr")"; then
     "The PR reference must be a number or GitHub PR URL."
 fi
 
-pr_view_json="$(gh pr view "$pr_number" --json state,number,url,mergeStateStatus,statusCheckRollup)"
+pr_view_json="$(gh pr view "$pr_number" --json state,number,url,baseRefName,mergeStateStatus,statusCheckRollup)"
 pr_state="$(PR_VIEW_JSON="$pr_view_json" python3 - <<'PY'
 import json
 import os
@@ -131,9 +131,22 @@ payload = json.loads(os.environ["PR_VIEW_JSON"])
 print(payload.get("url", ""))
 PY
 )"
+pr_base_branch="$(PR_VIEW_JSON="$pr_view_json" python3 - <<'PY'
+import json
+import os
+
+payload = json.loads(os.environ["PR_VIEW_JSON"])
+print(payload.get("baseRefName", ""))
+PY
+)"
 
 if [[ "$pr_state" == "MERGED" ]]; then
   json_success "already_merged"
+  exit 0
+fi
+
+if [[ -n "$pr_base_branch" && "$pr_base_branch" != "$base_branch" ]]; then
+  json_success "merge_conflict"
   exit 0
 fi
 
