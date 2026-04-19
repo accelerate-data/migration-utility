@@ -246,7 +246,7 @@ def _unit_test_to_dbt(
             "rows": given.get("rows", []),
         })
     expect = entry.get("expect")
-    if expect and expect.get("rows"):
+    if expect is not None and "rows" in expect:
         dbt_test["expect"] = {"rows": expect["rows"]}
     return dbt_test
 

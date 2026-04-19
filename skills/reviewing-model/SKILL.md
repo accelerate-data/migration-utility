@@ -34,59 +34,33 @@ then return exactly one `ModelReviewResult`.
      --project-root <project_root>
    ```
 
-   If `ready` is `false`, return a valid `ModelReviewResult` with
-   `status: "error"` and the surfaced `code` and `reason`. Do not gather
-   context, read generated artifacts, run review checks, or write feedback after
-   a failed readiness check.
+   If `ready` is `false`, return a valid `ModelReviewResult` with `status: "error"` and the surfaced `code` and `reason`. Do not gather context, read generated artifacts, run review checks, or write feedback after a failed readiness check.
 
 2. Gather context and locate artifacts.
 
-   Read and apply [review-inputs.md](references/review-inputs.md). Use
-   `selected_writer_ddl_slice` as the correctness ground truth when present.
-   Otherwise use `proc_body`. If both are empty, return a context error.
+   Read and apply [review-inputs.md](references/review-inputs.md). Use `selected_writer_ddl_slice` as the correctness ground truth when present. Otherwise use `proc_body`. If both are empty, return a context error.
 
 3. Verify artifact fundamentals.
 
-   Read the written artifacts directly from disk and apply
-   [model-artifact-invariants.md](../_shared/references/model-artifact-invariants.md)
-   plus the naming contract in
-   [model-naming.md](../_shared/references/model-naming.md). Do not trust
-   generator self-reported booleans such as `generated.*`.
+   Read the written artifacts directly from disk and apply [model-artifact-invariants.md](../_shared/references/model-artifact-invariants.md) plus the naming contract in [model-naming.md](../_shared/references/model-naming.md). Do not trust generator self-reported booleans such as `generated.*`.
 
-   Artifact invariant failures belong under `checks.standards`; never add a
-   `checks.artifact_fundamentals` key. Missing blocker controls such as
-   `_dbt_run_id` or `_loaded_at` must return `revision_requested`, not
-   `approved`.
+   Artifact invariant failures belong under `checks.standards`; never add a `checks.artifact_fundamentals` key. Missing blocker controls such as `_dbt_run_id` or `_loaded_at` must return `revision_requested`, not `approved`.
 
 4. Review correctness.
 
-   Apply the correctness checklist in
-   [review-checks.md](references/review-checks.md). Use
-   `REVIEW_CORRECTNESS_GAP` in both `checks.correctness.issues[]` and the
-   matching `feedback_for_model_generator[]` item for any correctness failure.
+   Apply the correctness checklist in [review-checks.md](references/review-checks.md). Use `REVIEW_CORRECTNESS_GAP` in both `checks.correctness.issues[]` and the matching `feedback_for_model_generator[]` item for any correctness failure.
 
 5. Review test integration.
 
-   Apply the test-integration checklist in
-   [review-checks.md](references/review-checks.md). Use
-   `REVIEW_TEST_INTEGRATION_GAP` in `checks.test_integration.issues[]` for any
-   failure.
+   Apply the test-integration checklist in [review-checks.md](references/review-checks.md). Use `REVIEW_TEST_INTEGRATION_GAP` in `checks.test_integration.issues[]` for any failure.
 
 6. Review standards.
 
-   Apply the standards checklist in
-   [review-checks.md](references/review-checks.md) and all shared standards it
-   references. This is exhaustive: direct `source()` usage in mart models for
-   confirmed source tables, and direct source/raw warehouse usage for seed
-   dependencies, must kick back.
+   Apply the standards checklist in [review-checks.md](references/review-checks.md) and all shared standards it references. This is exhaustive: direct `source()` usage in mart models for confirmed source tables, and direct source/raw warehouse usage for seed dependencies, must kick back.
 
-   Classify each dependency before assigning standards codes. If catalog
-   metadata marks the relation `is_seed: true`, direct `source()` or raw
-   warehouse references are `MDL_017`, not `MDL_016`.
+   Classify each dependency before assigning standards codes. If catalog metadata marks the relation `is_seed: true`, direct `source()` or raw warehouse references are `MDL_017`, not `MDL_016`.
 
-   Use `REVIEW_STANDARDS_VIOLATION` in `checks.standards.issues[]`. Report
-   every directly observable stable standards code in
-   `feedback_for_model_generator[]`.
+   Use `REVIEW_STANDARDS_VIOLATION` in `checks.standards.issues[]`. Report every directly observable stable standards code in `feedback_for_model_generator[]`.
 
 Steps 3-6 always run unless a prerequisite/read/parse failure prevents review.
 
@@ -98,13 +72,10 @@ Return:
 - `revision_requested` if standards, correctness, or test-integration issues exist
 - `error` only for prerequisite, IO/parse, or missing-artifact/test-spec failures
 
-When returning `revision_requested`, populate `feedback_for_model_generator[]`
-and add `REVIEW_KICKED_BACK` to `warnings[]`.
+When returning `revision_requested`, populate `feedback_for_model_generator[]` and add `REVIEW_KICKED_BACK` to `warnings[]`.
 
-Do not emit `approved_with_warnings`; `/generate-model` owns max-review-loop
-and soft-approval policy.
+Do not emit `approved_with_warnings`; `/generate-model` owns max-review-loop and soft-approval policy.
 
 ## Boundary Rules
 
-This skill is read-only. It must not modify files, run dbt commands, or
-override profile decisions.
+This skill is read-only. It must not modify files, run dbt commands, or override profile decisions.

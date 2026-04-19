@@ -1,0 +1,12 @@
+id: anthropic:claude-agent-sdk
+config:
+  model: claude-sonnet-4-6
+  working_dir: ../..
+  max_turns: 200
+  permission_mode: auto
+  append_allowed_tools:
+    - Read
+    - Write
+    - Bash
+    - Glob
+    - Grep

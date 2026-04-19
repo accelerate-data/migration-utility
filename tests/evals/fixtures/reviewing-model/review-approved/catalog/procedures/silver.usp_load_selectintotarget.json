@@ -65,5 +65,8 @@
       "source": "ast",
       "sql": "SELECT CAST(ProductID AS NVARCHAR(25)) AS ProductAlternateKey, ProductName AS EnglishProductName INTO silver.SelectIntoTarget FROM bronze.Product"
     }
-  ]
+  ],
+  "refactor": {
+    "status": "ok"
+  }
 }

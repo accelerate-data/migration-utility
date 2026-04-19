@@ -11,6 +11,8 @@ Harness overrides:
 - Keep `${CLAUDE_PLUGIN_ROOT}` references as written.
 - Pass `--project-root {{run_path}}` to every CLI command that accepts `--project-root`.
 - Write run artifacts to `{{run_path}}/.migration-runs/` using the command's normal item-result and summary formats.
-- If dbt compile or dbt build is unavailable in the eval environment, skip those steps and record the command result accordingly instead of stopping for missing tooling.
+- If dbt compile, dbt build, dbt run --empty, or dbt test is unavailable in the eval environment, skip those steps and record the command result accordingly instead of stopping for missing tooling.
+- For unit-test setup (Stage 3): if dbt run --empty is unavailable, note the parents that would be materialised and record status "ok" in the setup result.
+- For unit-test repair (Stage 4): if dbt test is unavailable, record dbt_test_passed as false with a note that the eval environment could not execute unit tests.
 
 If one table fails, continue processing the remaining tables and then write the summary.

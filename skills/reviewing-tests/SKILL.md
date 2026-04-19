@@ -25,8 +25,7 @@ Quality gate for generated test specs.
 
 1. Run the generating-test readiness guard:
    `migrate-util ready test-gen --object <item_id> --project-root <project_root>`.
-   Stop on readiness failure and report the surfaced `code` and `reason`. Do
-   not inspect or write review artifacts after a failed readiness check.
+   Stop on readiness failure and report the surfaced `code` and `reason`. Do not inspect or write review artifacts after a failed readiness check.
 2. Assemble context using the table or view path in [references/table-vs-view-context.md](references/table-vs-view-context.md).
 3. Read `test-specs/<item_id>.json`.
 4. Build your own branch manifest from the source logic. Apply [../test-invariants/SKILL.md](../test-invariants/SKILL.md).

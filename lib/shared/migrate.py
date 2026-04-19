@@ -93,7 +93,7 @@ def write_catalog_cmd(
     table: str = typer.Option(..., help="Fully-qualified table/view name"),
     model_path: str = typer.Option(..., "--model-path", help="Relative path to dbt model SQL file"),
     compiled: bool = typer.Option(..., help="Whether dbt compile succeeded"),
-    tests_passed: bool = typer.Option(..., "--tests-passed", help="Whether dbt test passed"),
+    tests_passed: bool = typer.Option(..., "--tests-passed/--no-tests-passed", help="Whether dbt test passed"),
     test_count: int = typer.Option(0, "--test-count", help="Number of dbt tests executed"),
     schema_yml_flag: bool = typer.Option(False, "--schema-yml", help="Whether schema YAML entry exists"),
     warnings_json: Optional[str] = typer.Option(None, "--warnings", help="JSON array of warning diagnostics"),

@@ -58,6 +58,10 @@
   },
   "mode": "deterministic",
   "routing_reasons": [],
+  "refactor": {
+    "status": "ok",
+    "refactored_sql": "with source_product as (\n    select * from [bronze].[Product]\n),\n\nfinal as (\n    select\n        cast(ProductID as nvarchar(25)) as ProductAlternateKey,\n        ProductName as EnglishProductName\n    from source_product\n)\n\nselect * from final"
+  },
   "statements": [
     {
       "type": "SelectInto",

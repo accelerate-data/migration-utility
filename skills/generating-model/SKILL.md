@@ -28,20 +28,12 @@ Do not use this skill for batch orchestration. `/generate-model` owns batching, 
 - Reviewer handoff: use `artifact_paths` and `revision_feedback` exactly as given.
 - Offline compile: fall back to `dbt parse` and warn.
 - Before returning `ok` or `partial`, satisfy [../_shared/references/model-artifact-invariants.md](../_shared/references/model-artifact-invariants.md).
-- Derive `model_name` mechanically from the target object name: drop the schema,
-  lowercase the object name, and preserve only underscores that already exist.
-  Do not split CamelCase. Examples: `silver.InsertSelectTarget` ->
-  `insertselecttarget`, `silver.FactSales` -> `factsales`,
-  `silver.dim_customer` -> `dim_customer`.
-- Before returning `ok` or `partial` for an ordinary migrated table/view target,
-  verify the SQL path is `models/marts/<model_name>.sql` and the YAML path is
-  `models/marts/_marts__models.yml`. A generated target artifact under
-  `models/staging/` is an error; staging is only for source wrappers created by
-  setup-target.
+- Derive `model_name` mechanically from the target object name: drop the schema, lowercase the object name, and preserve only underscores that already exist. Do not split CamelCase. Examples: `silver.InsertSelectTarget` -> `insertselecttarget`, `silver.FactSales` -> `factsales`, `silver.dim_customer` -> `dim_customer`.
+- Before returning `ok` or `partial` for an ordinary migrated table/view target, verify the SQL path is `models/marts/<model_name>.sql` and the YAML path is `models/marts/_marts__models.yml`. A generated target artifact under `models/staging/` is an error; staging is only for source wrappers created by setup-target.
 - Missing confirmed staging wrapper: return `status: "error"` with `GENERATION_FAILED`.
 - Do not create or mutate test-spec scenarios. Report uncovered logic as warnings for `/generate-tests`.
 
-Return exactly one `ModelGenerationOutput`. Use `execution.dbt_test_passed` for the `dbt build` result. For snapshots, `artifact_paths` must use the CLI-returned `snapshots/...` paths.
+Return exactly one `ModelGenerationOutput`. Set `execution.dbt_compile_passed` from the compile result and `execution.dbt_test_passed: false`. For snapshots, `artifact_paths` must use the CLI-returned `snapshots/...` paths.
 
 ## Happy Path
 
@@ -53,7 +45,7 @@ Return exactly one `ModelGenerationOutput`. Use `execution.dbt_test_passed` for 
      --project-root <project_root>
    ```
 
-   If `ready` is `false`, stop and report the returned `code` and `reason`. Do not assemble context, generate dbt SQL, run dbt, or write catalog/model artifacts after a failed readiness check.
+   If `ready` is `false`, stop and report the returned `code` and `reason`.
 
 2. Assemble deterministic context and choose the generation source.
 
@@ -70,21 +62,11 @@ Return exactly one `ModelGenerationOutput`. Use `execution.dbt_test_passed` for 
 
    Apply [dbt-project-standards](../_shared/references/dbt-project-standards.md), [sql-style](../_shared/references/sql-style.md), [cte-structure](../_shared/references/cte-structure.md), [model-naming](../_shared/references/model-naming.md), and [model-artifact-invariants](../_shared/references/model-artifact-invariants.md).
 
-   Compute `model_name` before writing anything. Use the exact `model_name`
-   for the SQL filename, YAML `models[].name`, rendered unit test `model`
-   field, dbt validation selector, catalog writeback, and returned
-   `artifact_paths`. Do not use dbt-style word splitting for CamelCase legacy
-   object names.
+   Compute `model_name` before writing anything. Use the exact `model_name` for the SQL filename, YAML `models[].name`, rendered unit test `model` field, dbt validation selector, catalog writeback, and returned `artifact_paths`. Do not use dbt-style word splitting for CamelCase legacy object names.
 
-   Preserve target column names exactly as listed in catalog context. Do not
-   snake_case, rename, drop, or re-order locked target columns while applying
-   SQL style.
+   Preserve target column names exactly as listed in catalog context. Do not snake_case, rename, drop, or re-order locked target columns while applying SQL style.
 
-   Add required dbt control columns in the final projection before writing:
-   `_dbt_run_id` as `'{{ invocation_id }}'` for every generated model, and
-   `_loaded_at` as `{{ current_timestamp() }}` for ordinary table marts and
-   snapshots. These columns are generation metadata; add them even when they are
-   absent from the legacy target table schema.
+   Add required dbt control columns in the final projection before writing: `_dbt_run_id` as `'{{ invocation_id }}'` for every generated model, and `_loaded_at` as `{{ current_timestamp() }}` for ordinary table marts and snapshots. These columns are generation metadata; add them even when they are absent from the legacy target table schema.
 
    Use project defaults for ordinary mart tables. Add model-level `config(` only for exceptions: aliases, schemas, incremental models, snapshots, or view materialization. For source/seed refs and missing wrapper handling, follow [artifact-writing.md](references/artifact-writing.md). For snapshots, follow [snapshot-generation.md](references/snapshot-generation.md).
 
@@ -106,14 +88,11 @@ Return exactly one `ModelGenerationOutput`. Use `execution.dbt_test_passed` for 
 
    Follow [artifact-writing.md](references/artifact-writing.md). Use the CLI-returned written paths. Do not hardcode output paths or use direct file writes.
 
-   After writing, verify ordinary migrated targets landed under
-   `models/marts/`. If the artifact is under `models/staging/`, do not return
-   success; rewrite through the correct mart path or return `status: "error"`
-   with `GENERATION_FAILED`.
+   After writing, verify ordinary migrated targets landed under `models/marts/`. If the artifact is under `models/staging/`, do not return success; rewrite through the correct mart path or return `status: "error"` with `GENERATION_FAILED`.
 
-8. Validate with dbt using the manifest runtime roles.
+8. Compile-validate with dbt using the manifest runtime roles.
 
-   Follow [validation.md](references/validation.md). Use `dbt build`, not `dbt test` alone. Record it in `execution.dbt_test_passed`.
+   Follow [validation.md](references/validation.md). Record the compile result in `execution.dbt_compile_passed`. Set `execution.dbt_test_passed: false`.
 
 9. Record test gaps without mutating approved specs.
 
@@ -151,5 +130,5 @@ The generator owns generation facts, not reviewer judgment.
 - [../../lib/shared/generate_model_error_codes.md](../../lib/shared/generate_model_error_codes.md) — canonical statuses and surfaced codes
 - [references/context-selection.md](references/context-selection.md) — source SQL selection and equivalence checks
 - [references/artifact-writing.md](references/artifact-writing.md) — unit tests, CLI writes, and catalog status
-- [references/validation.md](references/validation.md) — dbt compile/build/parse handling
+- [references/validation.md](references/validation.md) — dbt compile and parse handling
 - [references/snapshot-generation.md](references/snapshot-generation.md) — snapshot-specific generation rules

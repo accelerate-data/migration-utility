@@ -14,9 +14,7 @@ Modes:
 - `stg`: approved `Type: stg` candidates only.
 - `int`: approved `Type: int` and `Type: mart` candidates only.
 
-Never apply unapproved candidates. Never edit candidates outside the selected
-mode. `skipped` is a final-summary category only; do not write
-`Execution status: skipped`.
+Never apply unapproved candidates. Never edit candidates outside the selected mode. `skipped` is a final-summary category only; do not write `Execution status: skipped`.
 
 ## Guards
 
@@ -24,8 +22,7 @@ mode. `skipped` is a final-summary category only; do not write
 - If the plan file is missing, fail with `PLAN_NOT_FOUND`.
 - If mode is not `stg` or `int`, fail with `INVALID_MODE`.
 - If `manifest.json` is missing, fail with `MANIFEST_NOT_FOUND`.
-- If `dbt/dbt_project.yml` is missing, fail with `DBT_PROJECT_MISSING` and
-  tell the user to run `ad-migration setup-target`.
+- If `dbt/dbt_project.yml` is missing, fail with `DBT_PROJECT_MISSING` and tell the user to run `ad-migration setup-target`.
 
 ## Setup
 
@@ -51,21 +48,15 @@ Check dependencies before any dbt edit or apply-skill invocation.
 
 Block the selected candidate in the plan when:
 
-- `Depends on:` is missing, empty, malformed, ambiguous, or not exactly `none`
-  or candidate IDs;
+- `Depends on:` is missing, empty, malformed, ambiguous, or not exactly `none` or candidate IDs;
 - a referenced dependency section is missing; or
 - any dependency is not `Execution status: applied`.
 
-Include the metadata problem, or each missing/unsatisfied dependency ID and its
-actual status, in exactly one `Blocked reason:` bullet.
+Include the metadata problem, or each missing/unsatisfied dependency ID and its actual status, in exactly one `Blocked reason:` bullet.
 
-Process selected candidates in plan order. After each apply-skill invocation,
-reread the plan before gating the next selected candidate so a newly applied
-candidate can satisfy downstream dependencies in the same wave.
+Process selected candidates in plan order. After each apply-skill invocation, reread the plan before gating the next selected candidate so a newly applied candidate can satisfy downstream dependencies in the same wave.
 
-After the guards pass, perform selected plan and dbt edits directly in the
-active working directory. Do not ask for permission before dispatching a
-selected candidate.
+After the guards pass, perform selected plan and dbt edits directly in the active working directory. Do not ask for permission before dispatching a selected candidate.
 
 ## Apply
 
@@ -94,7 +85,4 @@ blocked: <n>
 skipped: <n>
 ```
 
-List blocked candidate IDs with dependency or metadata reasons. List failed
-candidate IDs with validation summaries. Skipped means approved candidates not
-selected for the current mode plus unapproved candidates in the current wave;
-blocked candidates are not skipped.
+List blocked candidate IDs with dependency or metadata reasons. List failed candidate IDs with validation summaries. Skipped means approved candidates not selected for the current mode plus unapproved candidates in the current wave; blocked candidates are not skipped.

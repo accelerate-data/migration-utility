@@ -38,8 +38,7 @@ Use `TaskCreate` and `TaskUpdate` to show live progress. At the start of Step 2,
 2. Run the `git-checkpoints` skill with the run slug as the argument.
    - If it returns the default branch name (not a worktree path): proceed without a branch or worktree. All file writes and git operations target the current directory. Set `<working-directory>` to `$(git rev-parse --show-toplevel)` for use in sub-agent prompts below.
    - Otherwise: use the returned path as the working directory for all file writes and git operations in this run. Set `<working-directory>` to the returned path.
-3. Generate a run ID in the form `<epoch_ms>-<random_8hex>` (for example
-   `1743868200123-a1b2c3d4`). All run artifacts use this as the filename suffix.
+3. Generate a run ID in the form `<epoch_ms>-<random_8hex>` (for example `1743868200123-a1b2c3d4`). All run artifacts use this as the filename suffix.
 
 ### Step 2 — Generate scenarios per table
 

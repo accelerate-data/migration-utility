@@ -1,12 +1,8 @@
 # Plan File Contract
 
-The refactor-mart plan is markdown optimized for human review and LLM
-interpretation. Do not create a Python parser, JSON schema, or parallel machine
-contract for this file.
+The refactor-mart plan is markdown optimized for human review and LLM interpretation. Do not create a Python parser, JSON schema, or parallel machine contract for this file.
 
-Each candidate must occupy exactly one level-2 markdown section. Do not add a
-separate `## Candidates` wrapper and do not nest candidates under `###`
-headings:
+Each candidate must occupy exactly one level-2 markdown section. Do not add a separate `## Candidates` wrapper and do not nest candidates under `###` headings:
 
 ```md
 ## Candidate: <ID>
@@ -24,25 +20,20 @@ headings:
 - Use `STG-` for staging candidates.
 - Use `INT-` for intermediate candidates.
 - Use `MART-` for mart candidates.
-- Keep IDs stable within the plan file. Prefer short numbers such as `STG-001`
-  over descriptive IDs that may change during editing.
+- Keep IDs stable within the plan file. Prefer short numbers such as `STG-001` over descriptive IDs that may change during editing.
 
 ## Approval
 
 - Use unchecked approval syntax by default: `- [ ] Approve: no`.
-- Use checked approval syntax only when the change is narrow, evidence-backed,
-  and mechanically safe: `- [x] Approve: yes`.
-- Do not mix checkbox state and approval value. The only valid combinations are
-  `- [x] Approve: yes` and `- [ ] Approve: no`.
-- Do not auto-approve broad grain changes, ambiguous business logic, or changes
-  that require domain review.
+- Use checked approval syntax only when the change is narrow, evidence-backed, and mechanically safe: `- [x] Approve: yes`.
+- Do not mix checkbox state and approval value. The only valid combinations are `- [x] Approve: yes` and `- [ ] Approve: no`.
+- Do not auto-approve broad grain changes, ambiguous business logic, or changes that require domain review.
 
 ## Dependencies
 
 - Staging candidates normally use `Depends on: none`.
 - Non-staging candidates must list every required upstream candidate ID.
-- A dependency is satisfied only after the referenced candidate has
-  `Execution status: applied`.
+- A dependency is satisfied only after the referenced candidate has `Execution status: applied`.
 - Use comma-separated IDs for multiple dependencies.
 
 ## Validation
@@ -55,6 +46,4 @@ Validation must name the smallest useful dbt scope for proving the candidate:
 
 ## Status Updates
 
-Planning writes new candidates with `Execution status: planned`. Apply commands
-are responsible for changing status to `applied`, `failed`, or `blocked` and for
-recording the reason in the same candidate section.
+Planning writes new candidates with `Execution status: planned`. Apply commands are responsible for changing status to `applied`, `failed`, or `blocked` and for recording the reason in the same candidate section.

@@ -22,8 +22,4 @@ Source: https://docs.getdbt.com/best-practices/how-we-style/1-how-we-style-our-d
 | MDL_016 | Mart models must reference confirmed source dependencies through `ref('stg_bronze__<entity>')`, not direct `source()` calls or raw warehouse names | error |
 | MDL_017 | Mart models must reference catalog tables marked `is_seed: true` through `ref('<seed_name>')`, not `source()` calls or raw warehouse names | error |
 
-Derive first-pass mart `model_name` mechanically from the target object name:
-drop the schema, lowercase the object name, and preserve only underscores that
-already exist. Do not split CamelCase or invent separators. For example,
-`silver.InsertSelectTarget` becomes `insertselecttarget`, `silver.FactSales`
-becomes `factsales`, and `silver.dim_customer` remains `dim_customer`.
+Derive first-pass mart `model_name` mechanically from the target object name: drop the schema, lowercase the object name, and preserve only underscores that already exist. Do not split CamelCase or invent separators. For example, `silver.InsertSelectTarget` becomes `insertselecttarget`, `silver.FactSales` becomes `factsales`, and `silver.dim_customer` remains `dim_customer`.

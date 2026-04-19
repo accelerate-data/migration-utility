@@ -112,8 +112,7 @@ Reviewer code: use `MDL_016` when mart SQL bypasses a confirmed staging wrapper.
 ## Snapshots
 
 Snapshot targets are written under `snapshots/` by `migrate write`.
-Snapshot YAML uses a top-level `snapshots:` key in
-`snapshots/_snapshots__models.yml`.
+Snapshot YAML uses a top-level `snapshots:` key in `snapshots/_snapshots__models.yml`.
 
 ## Intermediate Models
 
