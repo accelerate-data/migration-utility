@@ -124,6 +124,15 @@ def test_repo_map_points_commands_at_the_split_projects() -> None:
         assert repo_map["commands"][command_name].startswith(expected_prefix)
 
 
+def test_repo_map_documents_plugin_runtime_scripts() -> None:
+    repo_map = json.loads((REPO_ROOT / "repo-map.json").read_text(encoding="utf-8"))
+
+    assert "scripts/" in repo_map["key_directories"]
+    scripts_description = repo_map["key_directories"]["scripts/"]
+    assert "maintainer development helper" in scripts_description
+    assert "deterministic plugin runtime helpers" in scripts_description
+
+
 def test_maintainer_docs_use_the_internal_project_path() -> None:
     internal_files = [
         "commands/init-ad-migration.md",

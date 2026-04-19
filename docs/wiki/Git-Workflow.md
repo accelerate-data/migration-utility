@@ -1,10 +1,10 @@
 # Git Workflow
 
-The migration utility uses [git worktrees](https://git-scm.com/docs/git-worktree), structured branch names, and per-item commits to keep batch work isolated and reviewable when you choose a feature branch. A worktree is a second working copy of the repo that shares the same `.git` directory.
+The migration utility uses [git worktrees](https://git-scm.com/docs/git-worktree), structured branch names, and checkpoint commits to keep batch work isolated and reviewable. A worktree is a second working copy of the repo that shares the same `.git` directory.
 
 ## Worktrees
 
-Batch commands (`/scope-tables`, `/profile-tables`, `/generate-tests`, `/refactor-query`, `/generate-model`) check your current branch before they write. If you are on the default branch, they ask whether to continue in place or create a feature branch with a worktree. If you are already on a feature branch, they use the current checkout.
+Batch stage commands (`/scope-tables`, `/profile-tables`, `/generate-tests`, `/refactor-query`, `/generate-model`) create or attach an isolated worktree before they write. `/migrate-mart-plan` creates a planning worktree and opens the planning PR. `/migrate-mart` creates a coordinator worktree, then launches one stage worktree at a time from the coordinator branch.
 
 Worktrees are created at `../worktrees/<branchName>` relative to the repo root. For feature branches, the full prefix is preserved:
 
@@ -22,27 +22,28 @@ Created worktrees are bootstrapped with environment files and dependencies so th
 
 ## Main-branch check
 
-Every batch command checks the current branch at startup. If you are on the default branch, the command asks whether to continue there or create a feature-branch worktree first.
-
-If you continue on the default branch, the command runs in the current checkout. If you create a feature branch worktree, subsequent work in that run uses the new worktree path.
+Batch commands do not write migration output directly on the default branch. They create or attach the planned worktree and report its branch, path, and PR in the command handoff.
 
 ## Branch naming
 
 | Mode | Branch pattern | Created by |
 |---|---|---|
 | Interactive workflow | Your current branch | You manage manually |
-| Single-item batch command | `feature/<command>-<schema>-<name>` if you choose a worktree | Command, after confirmation |
-| Multi-item batch command | `feature/<short-run-slug>` if you choose a worktree | Command, after confirmation |
+| Single-item stage command | `feature/<command>-<schema>-<name>` | Command |
+| Multi-item stage command | `feature/<short-run-slug>` | Command |
+| Whole-mart planning | `feature/migrate-mart-<slug>-plan` | `/migrate-mart-plan` |
+| Whole-mart coordinator | `feature/migrate-mart-<slug>` | `/migrate-mart` |
+| Whole-mart stage | `feature/migrate-mart-<slug>/<stage-id>-<stage-name>-<slug>` | `/migrate-mart` |
 
 Single-object interactive workflows (`/analyzing-table`, `/profiling-table`, etc.) do not create branches. You work on whatever branch you are already on.
 
-Batch commands generate deterministic run slugs for single objects and short descriptive run slugs for multi-object batches. If you choose the worktree option from the default-branch prompt, that slug becomes the feature branch suffix.
+Batch commands generate deterministic run slugs for single objects and short descriptive run slugs for multi-object batches. Whole-mart commands use the plan slug so a rerun can attach to the same coordinator and stage worktrees.
 
 ## Commit granularity
 
 Each item is committed as soon as it reaches a persisted non-error state in the loop. Items with status `error` are reverted inline before processing continues.
 
-Per-item commits are pushed to remote immediately after committing.
+Checkpoint commits are pushed to remote immediately after committing.
 
 ### Commit message format
 
@@ -64,24 +65,19 @@ generate-model(silver.FactSales): stg_factsales + mart, incremental materializat
 Pull requests have titles derived from the command and tables processed:
 
 - **Title:** `<command>: <table1>, <table2>` (e.g. `scope-tables: silver.DimCustomer, silver.DimProduct`)
-- **Body:** created by the PR command; batch summaries remain in the command output and run logs
+- **Body:** created by the command; batch summaries remain in the command output and run logs
 
-At the end of each batch command, you are offered the option to open a PR:
+Stage commands open or update their PR automatically and report the PR URL in the handoff. `/migrate-mart` merges each completed stage PR into the coordinator branch before moving to the next incomplete stage.
 
-```text
-All successful items committed and pushed.
-Raise a PR for this run? (y/n)
-```
-
-PRs target the repo's default branch. The user reviews and merges — commands do not auto-merge.
+Standalone stage-command PRs target the repo's default branch for human review. Whole-mart stage PRs target the coordinator branch and are merged by `/migrate-mart`; the final coordinator PR targets the default branch and remains human-reviewed.
 
 ## Interactive vs multi-table differences
 
 | Aspect | Interactive workflow | Batch command |
 |---|---|---|
-| Branching | user's current branch | Current branch, or feature worktree if selected |
-| Approval | Reviewed inline | Main-branch choice at start; per-item commits |
-| PR creation | user manages manually | Command offers PR at end |
+| Branching | user's current branch | Command-managed worktree |
+| Approval | Reviewed inline | Per-item commits and PR handoff |
+| PR creation | user manages manually | Command opens or updates PR |
 | Error handling | user handles directly | Inline revert per error, surface in summary |
 
 ## Committing and pushing

@@ -33,6 +33,18 @@ def test_wiki_uses_public_command_names_after_rename() -> None:
     assert "/refactor-query" in text
 
 
+def test_wiki_documents_whole_mart_commands() -> None:
+    home = (WIKI_DIR / "Home.md").read_text(encoding="utf-8")
+    command_reference = (WIKI_DIR / "Command-Reference.md").read_text(encoding="utf-8")
+    text = _wiki_text()
+
+    assert "/migrate-mart-plan" in home
+    assert "/migrate-mart" in home
+    assert "/migrate-mart-plan" in command_reference
+    assert "/migrate-mart" in command_reference
+    assert "final coordinator PR" in text
+
+
 def test_wiki_does_not_document_removed_test_spec_yaml_artifacts() -> None:
     text = _wiki_text()
 
@@ -63,6 +75,9 @@ def test_wiki_does_not_expose_internal_cli_or_implementation_paths() -> None:
         "packages/ad-migration-internal",
         "skills/",
         "commands/",
+        "scripts/",
+        "stage-worktree.sh",
+        "stage-pr.sh",
     ]
     for term in internal_terms:
         assert term not in text

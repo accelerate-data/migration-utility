@@ -15,10 +15,11 @@ There are also terminal CLI commands (like `ad-migration setup-source`) that you
 
 ## Pipeline overview
 
-The workflow has two layers:
+The workflow has three layers:
 
 1. **Project setup** runs once per migration repo.
-2. **Per-object migration** runs for each table or view you want to migrate.
+2. **Whole-mart migration** plans and executes the scoped mart end to end.
+3. **Per-object migration** runs an individual stage when you want direct control.
 
 ### Project setup
 
@@ -28,6 +29,18 @@ The workflow has two layers:
 | 2 | `ad-migration setup-source` | Extracts DDL and builds the local catalog |
 | 3 | `ad-migration setup-target` | Collects target runtime, scaffolds the dbt project, and generates staging source metadata |
 | 4 | `ad-migration setup-sandbox` | Creates the throwaway database used for proof-backed testing |
+
+### Whole-mart migration
+
+```text
+/migrate-mart-plan
+  -> review source, seed, and excluded tables
+  -> /migrate-mart
+```
+
+`/migrate-mart-plan` verifies source, target, and sandbox readiness, scopes the requested mart, writes a resumable Markdown plan, opens the planning PR, and stops for human review. Use the `ad-migration` CLI to classify source, seed, and excluded tables, then rerun `/migrate-mart-plan` if the catalog changes.
+
+`/migrate-mart` resumes the first incomplete plan stage, runs one stage at a time, merges each stage PR into the coordinator branch, updates the plan, and opens the final coordinator PR for human review.
 
 ### Per-object migration
 
@@ -39,16 +52,16 @@ The workflow has two layers:
   -> /generate-model
 ```
 
-Batch commands check your git branch before writing. If you are on the default branch, they ask whether to continue there or create a feature-branch worktree; if you are already on a feature branch, they use the current checkout. The `ad-migration` CLI does not commit, push, open PRs, or clean worktrees for you.
+Stage commands create isolated worktrees for their run, commit and push successful work, and open or update a stage PR automatically. The `ad-migration` CLI does not commit, push, open PRs, or clean worktrees for you.
 
 ## Interactive vs batch
 
 | Mode | Entry point | Best for |
 |---|---|---|
 | Interactive | `/listing-objects`, `/analyzing-table`, `/profiling-table` | Exploring or fixing one object at a time |
-| Batch | `/scope-tables`, `/profile-tables`, `/generate-tests`, `/refactor-query`, `/generate-model` | Processing multiple objects with git automation |
+| Batch | `/migrate-mart-plan`, `/migrate-mart`, `/scope-tables`, `/profile-tables`, `/generate-tests`, `/refactor-query`, `/generate-model` | Processing a mart or stage with git automation |
 
-Both are typed as `/` commands inside a Claude Code session. Interactive commands work on a single object and wait for your input at decision points. Batch commands process a list of objects, commit each one as it finishes, and can open a PR at the end.
+Both are typed as `/` commands inside a Claude Code session. Interactive commands work on a single object and wait for your input at decision points. Batch commands process a list of objects, commit durable progress, and open or update PRs automatically.
 
 ## Commands
 
@@ -60,6 +73,8 @@ The plugin exposes these `/` commands inside Claude Code:
 - `/generate-tests`
 - `/refactor-query`
 - `/generate-model`
+- `/migrate-mart-plan`
+- `/migrate-mart`
 - `/status`
 - `/cleanup-worktrees`
 

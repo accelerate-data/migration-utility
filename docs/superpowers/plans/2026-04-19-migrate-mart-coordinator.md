@@ -871,7 +871,7 @@ markdownlint docs/design/migrate-mart-coordinator/README.md docs/superpowers/pla
 - Modify: `tests/unit/repo_structure/test_python_package_layout.py`
 - Modify: `tests/unit/repo_structure/test_wiki_public_contract.py`
 
-- [ ] **Step 1: Update repo-map**
+- [x] **Step 1: Update repo-map**
 
   Add `scripts/` to key directories and mention:
 
@@ -886,21 +886,21 @@ markdownlint docs/design/migrate-mart-coordinator/README.md docs/superpowers/pla
   "migrate_mart_command": "/migrate-mart <plan-file>"
   ```
 
-- [ ] **Step 2: Update wiki command list**
+- [x] **Step 2: Update wiki command list**
 
   In `docs/wiki/Home.md` and `docs/wiki/Command-Reference.md`, add `/migrate-mart-plan` and `/migrate-mart` as the whole-scope mart workflow.
 
   Keep internal helper paths out of public prose.
 
-- [ ] **Step 3: Update Git workflow wiki**
+- [x] **Step 3: Update Git workflow wiki**
 
   In `docs/wiki/Git-Workflow.md`, explain that stage commands now create/update PRs automatically and that `/migrate-mart` merges stage PRs into the coordinator branch, while final PR remains human-reviewed.
 
-- [ ] **Step 4: Update installation/prereq docs**
+- [x] **Step 4: Update installation/prereq docs**
 
   In `docs/wiki/Installation-and-Prerequisites.md`, update the batch command language that currently says commands ask before opening PRs.
 
-- [ ] **Step 5: Update structure tests**
+- [x] **Step 5: Update structure tests**
 
   Add assertions that:
 
@@ -908,14 +908,14 @@ markdownlint docs/design/migrate-mart-coordinator/README.md docs/superpowers/pla
   - public wiki mentions `/migrate-mart-plan` and `/migrate-mart`
   - public wiki does not expose `scripts/` paths as user commands
 
-- [ ] **Step 6: Run docs tests and markdownlint**
+- [x] **Step 6: Run docs tests and markdownlint**
 
   ```bash
   cd lib && uv run pytest ../tests/unit/repo_structure -v
   markdownlint docs/wiki/Home.md docs/wiki/Command-Reference.md docs/wiki/Git-Workflow.md docs/wiki/Installation-and-Prerequisites.md repo-map.json
   ```
 
-- [ ] **Step 7: Commit Workstream E checkpoint**
+- [x] **Step 7: Commit Workstream E checkpoint**
 
   ```bash
   git add repo-map.json docs/wiki/Home.md docs/wiki/Command-Reference.md docs/wiki/Git-Workflow.md docs/wiki/Installation-and-Prerequisites.md tests/unit/repo_structure/test_python_package_layout.py tests/unit/repo_structure/test_wiki_public_contract.py

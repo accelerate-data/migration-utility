@@ -14,6 +14,8 @@ Plugin commands run inside Claude Code and handle LLM-driven pipeline stages.
 
 | Command | Purpose |
 |---|---|
+| `/migrate-mart-plan` | Build or refresh the whole-mart migration plan, open the planning PR, and stop for source, seed, and exclusion review |
+| `/migrate-mart` | Execute the first incomplete whole-mart plan stage, merging stage PRs into the coordinator branch and leaving the final PR for review |
 | `/scope-tables` | Resolve writers for tables or analyze views |
 | `/profile-tables` | Write migration profiles for tables, views, or MVs |
 | `/generate-tests` | Generate and review test scenarios, then capture ground truth |
@@ -63,4 +65,5 @@ On Linux and WSL, install the GitHub release wheel artifacts into Python 3.11+. 
 
 - Source-confirmed tables are skipped by downstream migration commands.
 - The `ad-migration` CLI does not commit, push, open PRs, or clean worktrees; do those git operations yourself in the shell.
+- Batch plugin commands commit and push durable progress, then open or update their PRs automatically.
 - For the full ad-migration CLI reference including options and exit codes, see [[CLI Reference]].
