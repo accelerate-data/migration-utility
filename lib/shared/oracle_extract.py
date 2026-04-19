@@ -25,9 +25,6 @@ from shared.oracle_extract_services import (
 logger = logging.getLogger(__name__)
 
 
-# ── Public entry point ────────────────────────────────────────────────────────
-
-
 def run_oracle_extraction(
     staging_dir: Path,
     schemas: list[str],
@@ -67,3 +64,20 @@ def run_oracle_extraction(
         _write(staging_dir, "sensitivity.json", [])
     finally:
         conn.close()
+
+
+__all__ = [
+    "run_oracle_extraction",
+    "_oracle_type_to_class_desc",
+    "_extract_definitions",
+    "_extract_view_ddl",
+    "_extract_table_columns",
+    "_oracle_column_length",
+    "_extract_pk_unique",
+    "_extract_foreign_keys",
+    "_extract_identity_columns",
+    "_extract_object_types",
+    "_extract_dmf",
+    "_extract_proc_params",
+    "_extract_packages",
+]
