@@ -51,6 +51,46 @@ test('check-test-review accepts top-level covered branch review shape', () => {
   }
 });
 
+test('check-test-review accepts reviewer manifest is_covered shape', () => {
+  const tmp = fs.mkdtempSync(path.join(os.tmpdir(), 'test-review-'));
+  const runPath = path.relative(repoRoot, tmp);
+  const reviewDir = path.join(tmp, 'test-review-results');
+  fs.mkdirSync(reviewDir, { recursive: true });
+
+  fs.writeFileSync(
+    path.join(reviewDir, 'silver.ifelsetarget.json'),
+    JSON.stringify({
+      item_id: 'silver.ifelsetarget',
+      status: 'success',
+      verdict: 'approved_with_warnings',
+      reviewer_branch_manifest: [
+        { id: 'if_premium_path', is_covered: true },
+        { id: 'else_standard_path', is_covered: true },
+      ],
+      coverage: {
+        total_branches: 2,
+        covered_branches: 2,
+        uncovered: [],
+        untestable: [],
+      },
+    }),
+  );
+
+  try {
+    const result = checkTestReview('', {
+      vars: {
+        run_path: runPath,
+        target_table: 'silver.IfElseTarget',
+        min_covered_branches: 2,
+      },
+    });
+
+    assert.equal(result.pass, true, result.reason);
+  } finally {
+    fs.rmSync(tmp, { recursive: true, force: true });
+  }
+});
+
 test('check-test-review accepts coverage_analysis branch review shape', () => {
   const tmp = fs.mkdtempSync(path.join(os.tmpdir(), 'test-review-'));
   const runPath = path.relative(repoRoot, tmp);
@@ -69,6 +109,39 @@ test('check-test-review accepts coverage_analysis branch review shape', () => {
           { branch_id: 'if_premium_path', covered: true },
           { branch_id: 'else_standard_path', covered: true },
         ],
+      },
+    }),
+  );
+
+  try {
+    const result = checkTestReview('', {
+      vars: {
+        run_path: runPath,
+        target_table: 'silver.IfElseTarget',
+        min_covered_branches: 2,
+      },
+    });
+
+    assert.equal(result.pass, true, result.reason);
+  } finally {
+    fs.rmSync(tmp, { recursive: true, force: true });
+  }
+});
+
+test('check-test-review accepts keyed coverage_analysis review shape', () => {
+  const tmp = fs.mkdtempSync(path.join(os.tmpdir(), 'test-review-'));
+  const runPath = path.relative(repoRoot, tmp);
+  const reviewDir = path.join(tmp, 'test-review-results');
+  fs.mkdirSync(reviewDir, { recursive: true });
+
+  fs.writeFileSync(
+    path.join(reviewDir, 'silver.ifelsetarget.json'),
+    JSON.stringify({
+      item_id: 'silver.ifelsetarget',
+      approved: true,
+      coverage_analysis: {
+        if_premium_path: { covered: true, scenario_count: 1 },
+        else_standard_path: { covered: true, scenario_count: 1 },
       },
     }),
   );
@@ -125,6 +198,85 @@ test('check-test-review accepts branch_coverage object review shape', () => {
   }
 });
 
+test('check-test-review accepts keyed branch_coverage review shape', () => {
+  const tmp = fs.mkdtempSync(path.join(os.tmpdir(), 'test-review-'));
+  const runPath = path.relative(repoRoot, tmp);
+  const reviewDir = path.join(tmp, 'test-review-results');
+  fs.mkdirSync(reviewDir, { recursive: true });
+
+  fs.writeFileSync(
+    path.join(reviewDir, 'silver.ifelsetarget.json'),
+    JSON.stringify({
+      item_id: 'silver.ifelsetarget',
+      verdict: 'approved',
+      branch_coverage: {
+        if_premium_path: {
+          covered: true,
+          status: 'complete',
+          scenarios: ['test_premium_path_high_avg'],
+        },
+        else_standard_path: {
+          covered: true,
+          status: 'complete',
+          scenarios: ['test_standard_path_all_products'],
+        },
+      },
+      metadata: {
+        total_branches: 2,
+        covered_branches: 2,
+      },
+    }),
+  );
+
+  try {
+    const result = checkTestReview('', {
+      vars: {
+        run_path: runPath,
+        target_table: 'silver.IfElseTarget',
+        min_covered_branches: 2,
+      },
+    });
+
+    assert.equal(result.pass, true, result.reason);
+  } finally {
+    fs.rmSync(tmp, { recursive: true, force: true });
+  }
+});
+
+test('check-test-review accepts branch_coverage array review shape', () => {
+  const tmp = fs.mkdtempSync(path.join(os.tmpdir(), 'test-review-'));
+  const runPath = path.relative(repoRoot, tmp);
+  const reviewDir = path.join(tmp, 'test-review-results');
+  fs.mkdirSync(reviewDir, { recursive: true });
+
+  fs.writeFileSync(
+    path.join(reviewDir, 'silver.ifelsetarget.json'),
+    JSON.stringify({
+      item_id: 'silver.ifelsetarget',
+      verdict: 'approved',
+      coverage_assessment: 'complete',
+      branch_coverage: [
+        { branch_id: 'if_premium_path', status: 'covered' },
+        { branch_id: 'else_standard_path', status: 'covered' },
+      ],
+    }),
+  );
+
+  try {
+    const result = checkTestReview('', {
+      vars: {
+        run_path: runPath,
+        target_table: 'silver.IfElseTarget',
+        min_covered_branches: 2,
+      },
+    });
+
+    assert.equal(result.pass, true, result.reason);
+  } finally {
+    fs.rmSync(tmp, { recursive: true, force: true });
+  }
+});
+
 test('check-test-review accepts command review branch coverage summary shape', () => {
   const tmp = fs.mkdtempSync(path.join(os.tmpdir(), 'test-review-'));
   const runPath = path.relative(repoRoot, tmp);
@@ -162,6 +314,49 @@ test('check-test-review accepts command review branch coverage summary shape', (
   }
 });
 
+test('check-test-review accepts checklist details branch review shape', () => {
+  const tmp = fs.mkdtempSync(path.join(os.tmpdir(), 'test-review-'));
+  const runPath = path.relative(repoRoot, tmp);
+  const reviewDir = path.join(tmp, 'test-review-results');
+  fs.mkdirSync(reviewDir, { recursive: true });
+
+  fs.writeFileSync(
+    path.join(reviewDir, 'silver.ifelsetarget.json'),
+    JSON.stringify({
+      item_id: 'silver.ifelsetarget',
+      status: 'passed',
+      checks: [
+        {
+          check_id: 'branch_coverage',
+          status: 'passed',
+          details: {
+            total_branches: 2,
+            covered_branches: 2,
+            branches: [
+              { id: 'if_premium_path', status: 'covered' },
+              { id: 'else_standard_path', status: 'covered' },
+            ],
+          },
+        },
+      ],
+    }),
+  );
+
+  try {
+    const result = checkTestReview('', {
+      vars: {
+        run_path: runPath,
+        target_table: 'silver.IfElseTarget',
+        min_covered_branches: 2,
+      },
+    });
+
+    assert.equal(result.pass, true, result.reason);
+  } finally {
+    fs.rmSync(tmp, { recursive: true, force: true });
+  }
+});
+
 test('check-test-review accepts branch_reviews shape', () => {
   const tmp = fs.mkdtempSync(path.join(os.tmpdir(), 'test-review-'));
   const runPath = path.relative(repoRoot, tmp);
@@ -177,6 +372,76 @@ test('check-test-review accepts branch_reviews shape', () => {
         { id: 'if_premium_path', status: 'covered' },
         { id: 'else_standard_path', status: 'covered' },
       ],
+    }),
+  );
+
+  try {
+    const result = checkTestReview('', {
+      vars: {
+        run_path: runPath,
+        target_table: 'silver.IfElseTarget',
+        min_covered_branches: 2,
+      },
+    });
+
+    assert.equal(result.pass, true, result.reason);
+  } finally {
+    fs.rmSync(tmp, { recursive: true, force: true });
+  }
+});
+
+test('check-test-review accepts branch reviews with approval status', () => {
+  const tmp = fs.mkdtempSync(path.join(os.tmpdir(), 'test-review-'));
+  const runPath = path.relative(repoRoot, tmp);
+  const reviewDir = path.join(tmp, 'test-review-results');
+  fs.mkdirSync(reviewDir, { recursive: true });
+
+  fs.writeFileSync(
+    path.join(reviewDir, 'silver.ifelsetarget.json'),
+    JSON.stringify({
+      item_id: 'silver.ifelsetarget',
+      review_status: 'approved',
+      branch_reviews: [
+        { branch_id: 'if_premium_path', approval_status: 'approved' },
+        { branch_id: 'else_standard_path', approval_status: 'approved' },
+      ],
+    }),
+  );
+
+  try {
+    const result = checkTestReview('', {
+      vars: {
+        run_path: runPath,
+        target_table: 'silver.IfElseTarget',
+        min_covered_branches: 2,
+      },
+    });
+
+    assert.equal(result.pass, true, result.reason);
+  } finally {
+    fs.rmSync(tmp, { recursive: true, force: true });
+  }
+});
+
+test('check-test-review accepts coverage_assessment object shape', () => {
+  const tmp = fs.mkdtempSync(path.join(os.tmpdir(), 'test-review-'));
+  const runPath = path.relative(repoRoot, tmp);
+  const reviewDir = path.join(tmp, 'test-review-results');
+  fs.mkdirSync(reviewDir, { recursive: true });
+
+  fs.writeFileSync(
+    path.join(reviewDir, 'silver.ifelsetarget.json'),
+    JSON.stringify({
+      item_id: 'silver.ifelsetarget',
+      verdict: 'approved',
+      coverage_assessment: {
+        total_branches: 2,
+        covered_branches: 2,
+        branch_details: [
+          { id: 'if_premium_path', status: 'covered' },
+          { id: 'else_standard_path', status: 'covered' },
+        ],
+      },
     }),
   );
 

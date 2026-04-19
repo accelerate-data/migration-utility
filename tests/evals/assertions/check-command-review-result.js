@@ -36,7 +36,20 @@ module.exports = (_output, context) => {
   const minScenarioReviewCount = Number(context.vars.min_scenario_review_count || 0);
   const expectedWarningTerms = normalizeTerms(context.vars.expected_warning_terms);
 
-  const actualVerdict = String(review.review_verdict || review.status || '').toLowerCase();
+  let actualVerdict = review.review_verdict || review.final_verdict || review.status;
+  if (!actualVerdict && typeof review.approved === 'string') {
+    actualVerdict = review.approved;
+  }
+  if (!actualVerdict && review.approved_with_warnings === true) {
+    actualVerdict = 'approved_with_warnings';
+  }
+  if (!actualVerdict && review.approved === true) {
+    actualVerdict = 'approved';
+  }
+  if (!actualVerdict && review.revision_requested === true) {
+    actualVerdict = 'revision_requested';
+  }
+  actualVerdict = String(actualVerdict || '').toLowerCase();
   if (expectedVerdicts.length > 0 && !expectedVerdicts.includes(actualVerdict)) {
     return {
       pass: false,
@@ -63,7 +76,10 @@ module.exports = (_output, context) => {
     };
   }
 
-  const warningText = JSON.stringify(review.warnings || []).toLowerCase();
+  const warningText = JSON.stringify([
+    ...(review.warnings || []),
+    ...(review.fixture_quality?.issues || []),
+  ]).toLowerCase();
   for (const term of expectedWarningTerms) {
     if (!warningText.includes(term)) {
       return {

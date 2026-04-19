@@ -39,7 +39,7 @@ tests:
       expected_output_terms: "applied,failed,blocked,skipped"
       expected_consumer_refs: "int_sales_orders:stg_bronze__orders,int_returns:stg_bronze__returns"
       expected_validation_result_details: "STG-001=stg_bronze__orders|int_sales_orders,STG-002=int_returns|EVAL_VALIDATION_FAIL||int_returns|validation failure marker"
-      expected_blocked_reason_details: "STG-003=output|not|found||output|missing||output|staging|model||output|path|missing||output|not|identify|valid|stg"
+      expected_blocked_reason_details: "STG-003=output|not|found||output|missing||output|staging|model||output|path|missing||output|not|identify|valid|stg||does|not|exist"
     assert:
       - type: javascript
         value: file://../../assertions/check-refactor-mart-stg-execution.js

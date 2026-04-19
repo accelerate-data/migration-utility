@@ -31,12 +31,19 @@ function parseStages(markdown) {
     stages.push({
       id: stageId,
       name: stageName,
-      status: statusMatch ? statusMatch[1].trim().toLowerCase() : '',
+      status: statusMatch ? normalizeStatus(statusMatch[1]) : '',
       body,
     });
   }
 
   return stages;
+}
+
+function normalizeStatus(value) {
+  return String(value || '')
+    .trim()
+    .replace(/^`+|`+$/g, '')
+    .toLowerCase();
 }
 
 function firstIncompleteStage(stages) {

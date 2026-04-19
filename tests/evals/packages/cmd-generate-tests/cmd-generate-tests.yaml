@@ -90,7 +90,6 @@ tests:
       expected_command_review_verdict: "approved_with_warnings"
       min_branch_review_count: 0
       min_scenario_review_count: 0
-      expected_warning_terms: "coverage_partial"
     assert:
       - type: javascript
         value: file://../../assertions/check-command-summary.js

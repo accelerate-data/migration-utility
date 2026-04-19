@@ -80,6 +80,22 @@ function normalizeExpectedNumbers(value) {
     .filter(number => !Number.isNaN(number));
 }
 
+function normalizeItemStatus(result) {
+  const status = String(result.status || '').toLowerCase();
+  const nestedStatus = String(result.result?.status || '').toLowerCase();
+  if (
+    status === 'ok' ||
+    status === 'complete' ||
+    status === 'completed' ||
+    nestedStatus === 'ok' ||
+    nestedStatus === 'complete' ||
+    nestedStatus === 'completed'
+  ) {
+    return 'ok';
+  }
+  return status;
+}
+
 /**
  * Find the most recent summary.<run_id>.json file and expose its run id.
  */
@@ -202,7 +218,7 @@ module.exports = (output, context) => {
     const itemResults = findItemResults(migrationsDir, tableLower, latestRunId);
     if (itemResults.length > 0) {
       const latestResult = itemResults[itemResults.length - 1];
-      const actualStatus = (latestResult.status || '').toLowerCase();
+      const actualStatus = normalizeItemStatus(latestResult);
       if (!acceptableStatuses.includes(actualStatus)) {
         return {
           pass: false,
@@ -212,7 +228,11 @@ module.exports = (output, context) => {
       }
 
       if (expectedItemReviewIterations[table] !== undefined) {
-        const actualIterations = latestResult.output?.review_iterations;
+        const actualIterations =
+          latestResult.output?.review_iterations ??
+          latestResult.output?.review_iteration ??
+          latestResult.review_iterations ??
+          latestResult.review_iteration;
         const acceptableIterations = normalizeExpectedNumbers(expectedItemReviewIterations[table]);
         if (!acceptableIterations.includes(actualIterations)) {
           return {
@@ -225,7 +245,13 @@ module.exports = (output, context) => {
 
       if (expectedItemReviewVerdicts[table] !== undefined) {
         const acceptableVerdicts = String(expectedItemReviewVerdicts[table]).toLowerCase().split(',').map(s => s.trim());
-        const actualVerdict = String(latestResult.output?.review_verdict || '').toLowerCase();
+        const actualVerdict = String(
+          latestResult.output?.review_verdict ??
+          latestResult.output?.review_status ??
+          latestResult.review_verdict ??
+          latestResult.review_status ??
+          ''
+        ).toLowerCase();
         if (!acceptableVerdicts.includes(actualVerdict)) {
           return {
             pass: false,

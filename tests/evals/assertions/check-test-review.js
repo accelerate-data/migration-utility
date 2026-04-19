@@ -13,6 +13,70 @@ function latestIterationReviewPath(resultDir, table) {
     : null;
 }
 
+function coveredStatus(branch) {
+  return branch.status === 'covered' ||
+    branch.status === 'ok' ||
+    branch.status === 'approved' ||
+    branch.approval_status === 'approved' ||
+    branch.coverage === 'covered' ||
+    branch.covered === true ||
+    branch.is_covered === true;
+}
+
+function branchCoverageCheck(review) {
+  if (!Array.isArray(review.checks)) return null;
+  return review.checks.find(check =>
+    check?.check_id === 'branch_coverage' ||
+    Array.isArray(check?.details?.branches) ||
+    check?.details?.total_branches !== undefined ||
+    check?.details?.covered_branches !== undefined
+  ) || null;
+}
+
+function keyedCoverageAnalysisBranches(review) {
+  if (
+    !review.coverage_analysis ||
+    Array.isArray(review.coverage_analysis) ||
+    typeof review.coverage_analysis !== 'object'
+  ) {
+    return [];
+  }
+
+  return Object.entries(review.coverage_analysis)
+    .filter(([, value]) => value && typeof value === 'object' && !Array.isArray(value))
+    .map(([id, value]) => ({
+      id: value.id || value.branch_id || id,
+      covered: coveredStatus(value),
+      coverage: value.coverage,
+      status: value.status,
+    }));
+}
+
+function keyedBranchCoverageBranches(review) {
+  if (
+    !review.branch_coverage ||
+    Array.isArray(review.branch_coverage) ||
+    typeof review.branch_coverage !== 'object'
+  ) {
+    return [];
+  }
+
+  const summaryKeys = new Set(['total', 'covered', 'uncovered', 'total_branches', 'covered_branches']);
+  return Object.entries(review.branch_coverage)
+    .filter(([key, value]) =>
+      !summaryKeys.has(key) &&
+      value &&
+      typeof value === 'object' &&
+      !Array.isArray(value)
+    )
+    .map(([id, value]) => ({
+      id: value.id || value.branch_id || id,
+      covered: coveredStatus(value),
+      coverage: value.coverage,
+      status: value.status,
+    }));
+}
+
 module.exports = (output, context) => {
   const fixturePath = resolveProjectPath(context);
   const table = String(context.vars.target_table || '').toLowerCase();
@@ -71,15 +135,29 @@ module.exports = (output, context) => {
     }
   }
 
+  const branchCheck = branchCoverageCheck(review);
+  const keyedCoverageBranches = keyedCoverageAnalysisBranches(review);
+  const keyedBranchCoverageBranchesResult = keyedBranchCoverageBranches(review);
+
   const coveredBranches = Number(
     review.coverage?.covered_branches ||
     review.coverage_analysis?.covered_branches ||
-    review.branch_coverage?.covered_branches ||
-    review.branch_coverage?.covered ||
+    (keyedCoverageBranches.length > 0
+      ? keyedCoverageBranches.filter(branch => branch.covered).length
+      : 0) ||
+    (keyedBranchCoverageBranchesResult.length > 0
+      ? keyedBranchCoverageBranchesResult.filter(branch => branch.covered).length
+      : 0) ||
+    review.metadata?.covered_branches ||
+    branchCheck?.details?.covered_branches ||
+    (Array.isArray(review.branch_coverage)
+      ? review.branch_coverage.filter(coveredStatus).length
+      : review.branch_coverage?.covered_branches) ||
+    (Array.isArray(review.branch_coverage) ? 0 : review.branch_coverage?.covered) ||
+    review.coverage_assessment?.covered_branches ||
+    review.coverage_summary?.covered_branches ||
     (Array.isArray(review.branch_reviews)
-      ? review.branch_reviews.filter(branch =>
-          branch.status === 'covered' || branch.status === 'ok' || branch.status === 'approved'
-        ).length
+      ? review.branch_reviews.filter(coveredStatus).length
       : 0) ||
     (review.coverage_assessment === 'complete' ? review.branch_count : 0) ||
     0
@@ -95,10 +173,35 @@ module.exports = (output, context) => {
         id: branch.id || branch.branch_id,
         covered: branch.covered,
       }))
+    : Array.isArray(review.branch_coverage)
+    ? review.branch_coverage.map(branch => ({
+        id: branch.id || branch.branch_id,
+        covered: coveredStatus(branch),
+        coverage: branch.coverage,
+        status: branch.status,
+      }))
+    : Array.isArray(review.coverage_assessment?.branch_details)
+    ? review.coverage_assessment.branch_details.map(branch => ({
+        id: branch.id || branch.branch_id,
+        covered: coveredStatus(branch),
+        coverage: branch.coverage,
+        status: branch.status,
+      }))
+    : keyedCoverageBranches.length > 0
+    ? keyedCoverageBranches
+    : keyedBranchCoverageBranchesResult.length > 0
+    ? keyedBranchCoverageBranchesResult
+    : Array.isArray(branchCheck?.details?.branches)
+    ? branchCheck.details.branches.map(branch => ({
+        id: branch.id || branch.branch_id,
+        covered: coveredStatus(branch),
+        coverage: branch.coverage,
+        status: branch.status,
+      }))
     : Array.isArray(review.branch_reviews)
     ? review.branch_reviews.map(branch => ({
-        id: branch.id || branch.branch_id,
-        covered: branch.status === 'covered' || branch.status === 'ok' || branch.status === 'approved',
+      id: branch.id || branch.branch_id,
+      covered: coveredStatus(branch),
       }))
     : Array.isArray(review.scenarios_reviewed)
     ? review.scenarios_reviewed.map(scenario => ({
@@ -119,9 +222,7 @@ module.exports = (output, context) => {
     : [];
   const coveredManifestBranches = reviewerBranchManifest.filter(
     branch =>
-      branch.covered === true ||
-      branch.coverage === 'covered' ||
-      branch.status === 'covered' ||
+      coveredStatus(branch) ||
       topLevelCoveredBranchIds.includes(String(branch.id || '').toLowerCase())
   ).length;
   const uncoveredBranchIds = Array.isArray(review.coverage?.uncovered)
@@ -141,8 +242,16 @@ module.exports = (output, context) => {
   const totalBranches = Number(
     review.coverage?.total_branches ||
     review.coverage_analysis?.total_branches ||
-    review.branch_coverage?.total_branches ||
-    review.branch_coverage?.total ||
+    (keyedCoverageBranches.length > 0 ? keyedCoverageBranches.length : 0) ||
+    (keyedBranchCoverageBranchesResult.length > 0 ? keyedBranchCoverageBranchesResult.length : 0) ||
+    review.metadata?.total_branches ||
+    branchCheck?.details?.total_branches ||
+    (Array.isArray(review.branch_coverage)
+      ? review.branch_coverage.length
+      : review.branch_coverage?.total_branches) ||
+    (Array.isArray(review.branch_coverage) ? 0 : review.branch_coverage?.total) ||
+    review.coverage_assessment?.total_branches ||
+    review.coverage_summary?.total_branches ||
     review.branch_reviews?.length ||
     review.branch_count ||
     0

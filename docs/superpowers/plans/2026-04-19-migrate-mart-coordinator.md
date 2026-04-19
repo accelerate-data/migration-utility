@@ -924,7 +924,7 @@ markdownlint docs/design/migrate-mart-coordinator/README.md docs/superpowers/pla
 
 ## Final Integration And Verification
 
-- [ ] **Step 1: Integrate workstreams in order**
+- [x] **Step 1: Integrate workstreams in order**
 
   Merge workstream branches into the integration branch in this order:
 
@@ -936,13 +936,17 @@ markdownlint docs/design/migrate-mart-coordinator/README.md docs/superpowers/pla
   feature/migrate-mart-evals-docs
   ```
 
-- [ ] **Step 2: Run focused unit tests**
+  Evidence: workstream commits are integrated on `feature/migrate-mart-coordinator`.
+
+- [x] **Step 2: Run focused unit tests**
 
   ```bash
   cd lib && uv run pytest ../tests/unit/worktree_script ../tests/unit/repo_structure -v
   ```
 
-- [ ] **Step 3: Run command evals**
+  Evidence: `56 passed in 26.36s`.
+
+- [x] **Step 3: Run command evals**
 
   ```bash
   cd tests/evals && npm run eval:cmd-scope
@@ -955,17 +959,30 @@ markdownlint docs/design/migrate-mart-coordinator/README.md docs/superpowers/pla
   cd tests/evals && npm run eval:cmd-migrate-mart
   ```
 
-- [ ] **Step 4: Run smoke eval**
+  Evidence:
+
+  - `npm run eval:cmd-generate-tests`: `eval-Cxo-2026-04-19T16:19:31`, 7 passed.
+  - `npm run eval:cmd-refactor`: `eval-6NB-2026-04-19T16:27:17`, 5 passed.
+  - `npm run eval:cmd-generate-model`: full run had one provider idle timeout; the failed `update-join` case passed in isolated rerun `eval-76X-2026-04-19T20:11:25`.
+  - `npm run eval:cmd-refactor-mart`: `eval-gpq-2026-04-19T22:29:08`, 5 passed.
+  - `npm run eval:cmd-migrate-mart-plan`: `eval-T7w-2026-04-19T22:31:01`, 5 passed.
+  - `npm run eval:cmd-migrate-mart`: `eval-IKZ-2026-04-19T22:35:54`, 2 passed.
+
+- [x] **Step 4: Run smoke eval**
 
   ```bash
   cd tests/evals && npm run eval:smoke
   ```
 
-- [ ] **Step 5: Run markdownlint**
+  Evidence: `npm run eval:smoke` completed with all visible package smoke evals passing; final evals `eval-tVf-2026-04-19T23:10:10` and `eval-x9v-2026-04-19T23:11:29` each passed 1/1.
+
+- [x] **Step 5: Run markdownlint**
 
   ```bash
   markdownlint commands/*.md docs/design/migrate-mart-coordinator/README.md docs/superpowers/plans/2026-04-19-migrate-mart-coordinator.md docs/wiki/Home.md docs/wiki/Command-Reference.md docs/wiki/Git-Workflow.md docs/wiki/Installation-and-Prerequisites.md
   ```
+
+  Evidence: command completed with no output.
 
 - [ ] **Step 6: Final subagent review**
 
@@ -974,6 +991,8 @@ markdownlint docs/design/migrate-mart-coordinator/README.md docs/superpowers/pla
   ```text
   Review the implementation against docs/design/migrate-mart-coordinator/README.md and docs/superpowers/plans/2026-04-19-migrate-mart-coordinator.md. Focus on missing plan requirements, unsafe git/PR behavior, resume gaps, and command/eval drift. Return findings by severity with file references.
   ```
+
+  Status: review was dispatched but did not complete before this checkpoint; rerun before final branch completion.
 
 - [ ] **Step 7: Prepare development branch completion**
 

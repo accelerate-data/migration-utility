@@ -32,6 +32,8 @@ Validate only:
 Prefer the command or scope listed in `Validation:` when executable. Do not
 broaden validation to unrelated dbt assets.
 
+For candidates with a clear rewrite instruction, write or update the declared output before validation. If scoped validation fails, preserve the attempted output rewrite and mark the candidate `failed`; do not leave the output unchanged and record `failed` as a pre-edit status.
+
 ## Status Writeback
 
 Update only the selected candidate section.

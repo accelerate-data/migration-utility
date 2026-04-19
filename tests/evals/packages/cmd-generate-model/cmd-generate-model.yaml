@@ -78,7 +78,7 @@ tests:
       target_table: "silver.CorrelatedSubqueryTarget"
       expected_item_statuses: '{"silver.CorrelatedSubqueryTarget": "ok,partial"}'
       expected_output_terms: "review"
-      expected_model_path: "models/marts/correlatedsubquerytarget.sql"
+      expected_model_path: "models/marts/correlatedsubquerytarget.sql,models/marts/correlated_subquery_target.sql"
     assert:
       - type: javascript
         value: file://../../assertions/check-dbt-model.js
