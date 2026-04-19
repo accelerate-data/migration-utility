@@ -6,6 +6,7 @@ import json
 from pathlib import Path
 from unittest.mock import MagicMock, patch
 
+from shared.target_setup_support import seed_commands, seed_export, seed_rendering, seed_specs
 from shared.target_setup_support.seeds import (
     DbtSeedResult,
     SeedExportResult,
@@ -123,6 +124,17 @@ def test_seeds_support_module_exports_seed_helpers() -> None:
     assert callable(materialize_seed_tables)
 
 
+def test_seed_support_is_split_by_responsibility() -> None:
+    assert seed_specs.SeedTableSpec is SeedTableSpec
+    assert callable(seed_specs.load_seed_table_specs)
+    assert callable(seed_rendering.render_seed_csv)
+    assert callable(seed_rendering.render_seeds_yml)
+    assert seed_export.SeedExportResult is SeedExportResult
+    assert callable(seed_export.export_seed_tables)
+    assert seed_commands.DbtSeedResult is DbtSeedResult
+    assert callable(seed_commands.materialize_seed_tables)
+
+
 def _write_project(project_root: Path) -> None:
     project_root.mkdir()
     (project_root / "manifest.json").write_text(
@@ -164,7 +176,7 @@ def test_export_seed_tables_writes_seed_csv_and_yaml(tmp_path: Path) -> None:
     adapter = MagicMock()
     adapter.read_table_rows.return_value = (["id", "name"], [(1, "Retail")])
 
-    with patch("shared.target_setup_support.seeds.get_dbops") as mock_get_dbops:
+    with patch("shared.target_setup_support.seed_export.get_dbops") as mock_get_dbops:
         mock_get_dbops.return_value.from_role.return_value = adapter
         result = export_seed_tables(project_root)
 
@@ -184,7 +196,7 @@ def test_export_seed_tables_writes_seed_csv_from_source_table(tmp_path: Path) ->
         [(1, "Retail"), (2, "Partner, Channel"), (3, None)],
     )
 
-    with patch("shared.target_setup_support.seeds.get_dbops") as mock_get_dbops:
+    with patch("shared.target_setup_support.seed_export.get_dbops") as mock_get_dbops:
         mock_get_dbops.return_value.from_role.return_value = adapter
         result = export_seed_tables(project_root)
 
@@ -238,7 +250,7 @@ def test_export_seed_tables_uses_target_sql_type_in_seed_yml(tmp_path: Path) -> 
     adapter = MagicMock()
     adapter.read_table_rows.return_value = (["id"], [(1,)])
 
-    with patch("shared.target_setup_support.seeds.get_dbops") as mock_get_dbops:
+    with patch("shared.target_setup_support.seed_export.get_dbops") as mock_get_dbops:
         mock_get_dbops.return_value.from_role.return_value = adapter
         export_seed_tables(project_root)
 
@@ -262,7 +274,7 @@ def test_export_seed_tables_preserves_oracle_source_schema_case(tmp_path: Path) 
         [(1, "USD")],
     )
 
-    with patch("shared.target_setup_support.seeds.get_dbops") as mock_get_dbops:
+    with patch("shared.target_setup_support.seed_export.get_dbops") as mock_get_dbops:
         mock_get_dbops.return_value.from_role.return_value = adapter
         result = export_seed_tables(project_root)
 
@@ -283,7 +295,7 @@ def test_export_seed_tables_reports_no_written_paths_when_content_unchanged(tmp_
         [(1, "Retail")],
     )
 
-    with patch("shared.target_setup_support.seeds.get_dbops") as mock_get_dbops:
+    with patch("shared.target_setup_support.seed_export.get_dbops") as mock_get_dbops:
         mock_get_dbops.return_value.from_role.return_value = adapter
         first = export_seed_tables(project_root)
         second = export_seed_tables(project_root)
@@ -299,7 +311,7 @@ def test_materialize_seed_tables_runs_dbt_seed(tmp_path: Path) -> None:
     (project_root / "dbt").mkdir()
     completed = MagicMock(returncode=0, stdout="seeded", stderr="")
 
-    with patch("shared.target_setup_support.seeds.subprocess.run", return_value=completed) as mock_run:
+    with patch("shared.target_setup_support.seed_commands.subprocess.run", return_value=completed) as mock_run:
         result = materialize_seed_tables(project_root, ["dbt/seeds/customertype.csv"])
 
     expected_cmd = [
@@ -321,7 +333,7 @@ def test_materialize_seed_tables_runs_dbt_seed(tmp_path: Path) -> None:
 
 def test_materialize_seed_tables_skips_when_no_seed_files(tmp_path: Path) -> None:
     project_root = _make_sql_server_project(tmp_path)
-    with patch("shared.target_setup_support.seeds.subprocess.run") as mock_run:
+    with patch("shared.target_setup_support.seed_commands.subprocess.run") as mock_run:
         result = materialize_seed_tables(project_root, [])
 
     mock_run.assert_not_called()
@@ -331,7 +343,7 @@ def test_materialize_seed_tables_skips_when_no_seed_files(tmp_path: Path) -> Non
 
 def test_materialize_seed_tables_skips_when_only_seed_properties_file(tmp_path: Path) -> None:
     project_root = _make_sql_server_project(tmp_path)
-    with patch("shared.target_setup_support.seeds.subprocess.run") as mock_run:
+    with patch("shared.target_setup_support.seed_commands.subprocess.run") as mock_run:
         result = materialize_seed_tables(project_root, ["dbt/seeds/_seeds.yml"])
 
     mock_run.assert_not_called()
@@ -346,7 +358,7 @@ def test_materialize_seed_tables_reports_packaged_runtime_when_dbt_missing(
     (project_root / "dbt").mkdir(exist_ok=True)
 
     with patch(
-        "shared.target_setup_support.seeds.subprocess.run",
+        "shared.target_setup_support.seed_commands.subprocess.run",
         side_effect=FileNotFoundError("dbt"),
     ):
         try:
