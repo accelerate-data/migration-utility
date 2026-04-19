@@ -61,12 +61,12 @@ The generated plan must include these top-level sections in order:
 
 | Field | Value |
 |---|---|
+| Agent | `migrate-mart-coordinator-<slug>` |
 | Branch | `feature/migrate-mart-<slug>` |
+| Worktree name | `migrate-mart-<slug>` |
+| Worktree path | `../worktrees/feature/migrate-mart-<slug>` |
 | Base branch | `<default-branch>` |
-| Worktree name | `<slug>` |
-| Worktree path | `<worktree-path>` |
-| PR | `<none until /migrate-mart>` |
-| Status | `planned` |
+| Status | `pending` |
 
 ### Source Replication
 
@@ -115,8 +115,8 @@ The generated plan must include these top-level sections in order:
 ### Stage 040: Profile
 
 - Agent: `profile-tables`
-- Slash command: `/profile-tables <schema.table> [schema.table ...]`
-- Invocation: `/profile-tables <schema.table> [schema.table ...]`
+- Slash command: `/profile-tables <migrate-mart-plan-file> <stage-id> <worktree-name> <base-branch> <objects...>`
+- Invocation: `/profile-tables <migrate-mart-plan-file> <stage-id> <worktree-name> <base-branch> <objects...>`
 - Branch: `feature/migrate-mart-<slug>`
 - Base branch: `<default-branch>`
 - Worktree name: `<slug>`
@@ -151,8 +151,8 @@ The generated plan must include these top-level sections in order:
 ### Stage 070: Generate Tests
 
 - Agent: `generate-tests`
-- Slash command: `/generate-tests <schema.table> [schema.table ...]`
-- Invocation: `/generate-tests <schema.table> [schema.table ...]`
+- Slash command: `/generate-tests <migrate-mart-plan-file> <stage-id> <worktree-name> <base-branch> <objects...>`
+- Invocation: `/generate-tests <migrate-mart-plan-file> <stage-id> <worktree-name> <base-branch> <objects...>`
 - Branch: `feature/migrate-mart-<slug>`
 - Base branch: `<default-branch>`
 - Worktree name: `<slug>`
@@ -163,8 +163,8 @@ The generated plan must include these top-level sections in order:
 ### Stage 080: Refactor Query
 
 - Agent: `refactor-query`
-- Slash command: `/refactor-query <schema.table> [schema.table ...]`
-- Invocation: `/refactor-query <schema.table> [schema.table ...]`
+- Slash command: `/refactor-query <migrate-mart-plan-file> <stage-id> <worktree-name> <base-branch> <objects...>`
+- Invocation: `/refactor-query <migrate-mart-plan-file> <stage-id> <worktree-name> <base-branch> <objects...>`
 - Branch: `feature/migrate-mart-<slug>`
 - Base branch: `<default-branch>`
 - Worktree name: `<slug>`
@@ -187,8 +187,8 @@ The generated plan must include these top-level sections in order:
 ### Stage 100: Generate Model
 
 - Agent: `generate-model`
-- Slash command: `/generate-model <schema.table> [schema.table ...]`
-- Invocation: `/generate-model <schema.table> [schema.table ...]`
+- Slash command: `/generate-model <migrate-mart-plan-file> <stage-id> <worktree-name> <base-branch> <objects...>`
+- Invocation: `/generate-model <migrate-mart-plan-file> <stage-id> <worktree-name> <base-branch> <objects...>`
 - Branch: `feature/migrate-mart-<slug>`
 - Base branch: `<default-branch>`
 - Worktree name: `<slug>`
