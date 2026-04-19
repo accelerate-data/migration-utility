@@ -508,15 +508,13 @@ import json
 from pathlib import Path
 
 from shared.env_config import resolve_catalog_dir
-from shared.loader_data import CatalogFileMissingError, CatalogLoadError
+from shared.loader_data import CatalogFileMissingError
 from shared.name_resolver import normalize
 ```
 
-For `detect_object_type`, import `load_view_catalog` inside the function to avoid an import cycle:
-
-```python
-from shared.catalog_support.loaders import load_view_catalog
-```
+For `detect_object_type`, read the view catalog JSON directly when checking
+`is_materialized_view`. Do not import `load_view_catalog`; that would create a
+`paths` ↔ `loaders` cycle.
 
 - [ ] **Step 5: Move typed catalog loaders**
 
