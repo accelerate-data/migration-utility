@@ -61,7 +61,6 @@ The plugin exposes these `/` commands inside Claude Code:
 - `/refactor-query`
 - `/generate-model`
 - `/status`
-- `/review-diagnostics`
 - `/cleanup-worktrees`
 
 See [[Command Reference]] for a one-page summary.

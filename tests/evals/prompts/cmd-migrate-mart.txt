@@ -6,7 +6,7 @@ Read `${CLAUDE_PLUGIN_ROOT}/commands/migrate-mart.md`, but treat the following h
 
 Harness overrides:
 - Treat `{{fixture_path}}` as read-only input. Write all generated files to `{{run_path}}`. Do not create or use a worktree.
-- In this eval fixture, do not actually run git, shared/scripts, gh, `/commit`, `/commit-push-pr`, cleanup, or `git-checkpoints` commands.
+- In this eval fixture, do not actually run git, gh, scripts/stage-* helpers, or cleanup commands.
 - Keep `${CLAUDE_PLUGIN_ROOT}` references as written.
 - Pass `--project-root {{run_path}}` to any CLI command that accepts `--project-root`.
 - If `{{run_path}}/{{plan_file}}` is missing, seed a minimal coordinator plan there before resuming so the plan has a first incomplete stage at `040`.

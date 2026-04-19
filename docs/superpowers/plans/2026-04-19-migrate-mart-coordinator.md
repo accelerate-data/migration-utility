@@ -4,7 +4,7 @@
 
 **Goal:** Add a customer-facing whole-scope `/migrate-mart-plan` and `/migrate-mart` workflow that plans, resumes, and coordinates mart migration through deterministic worktrees and stage PRs.
 
-**Architecture:** Introduce shared plugin scripts under `shared/scripts/` for deterministic worktree, PR, merge, and cleanup behavior. Update existing stage slash commands to use those helpers, remove human PR prompts, and support positional coordinator mode. Add planner/coordinator slash commands that use a Markdown operational plan under `docs/migration-plans/<slug>/README.md` as the source of truth.
+**Architecture:** Introduce shared plugin scripts under `scripts/` for deterministic worktree, PR, merge, and cleanup behavior. Update existing stage slash commands to use those helpers, remove human PR prompts, and support positional coordinator mode. Add planner/coordinator slash commands that use a Markdown operational plan under `docs/migration-plans/<slug>/README.md` as the source of truth.
 
 **Tech Stack:** Claude Code plugin command Markdown, shell helper scripts, existing `ad-migration` Python CLI, GitHub CLI, pytest shell-script tests, Promptfoo command evals.
 
@@ -59,11 +59,11 @@ markdownlint docs/design/migrate-mart-coordinator/README.md docs/superpowers/pla
 
 ### Workstream A: Shared Plugin Scripts
 
-- Create: `shared/scripts/worktree.sh`
-- Create: `shared/scripts/stage-pr.sh`
-- Create: `shared/scripts/stage-pr-merge.sh`
-- Create: `shared/scripts/stage-cleanup.sh`
-- Create: `shared/scripts/README.md`
+- Create: `scripts/stage-worktree.sh`
+- Create: `scripts/stage-pr.sh`
+- Create: `scripts/stage-pr-merge.sh`
+- Create: `scripts/stage-cleanup.sh`
+- Create: `scripts/README.md`
 - Modify: `tests/unit/worktree_script/test_worktree_script.py`
 - Create: `tests/unit/worktree_script/test_stage_pr_script.py`
 - Create: `tests/unit/worktree_script/test_stage_pr_merge_script.py`
@@ -78,7 +78,7 @@ markdownlint docs/design/migrate-mart-coordinator/README.md docs/superpowers/pla
 - Modify: `commands/refactor-query.md`
 - Modify: `commands/generate-model.md`
 - Modify: `commands/refactor-mart.md`
-- Modify: `commands/commit-push-pr.md`
+- Delete: `commands/commit-push-pr.md`
 
 ### Workstream C: Planner Command
 
@@ -125,8 +125,8 @@ markdownlint docs/design/migrate-mart-coordinator/README.md docs/superpowers/pla
 
 **Files:**
 
-- Create: `shared/scripts/worktree.sh`
-- Create: `shared/scripts/README.md`
+- Create: `scripts/stage-worktree.sh`
+- Create: `scripts/README.md`
 - Modify: `tests/unit/worktree_script/test_worktree_script.py`
 - Modify: `tests/unit/repo_structure/test_root_plugin_layout.py`
 
@@ -174,15 +174,15 @@ markdownlint docs/design/migrate-mart-coordinator/README.md docs/superpowers/pla
   cd lib && uv run pytest ../tests/unit/worktree_script/test_worktree_script.py -v
   ```
 
-  Expected: failures because `shared/scripts/worktree.sh` does not exist and the old helper accepts only one argument.
+  Expected: failures because `scripts/stage-worktree.sh` does not exist and the old helper accepts only one argument.
 
-- [x] **Step 3: Implement `shared/scripts/worktree.sh`**
+- [x] **Step 3: Implement `scripts/stage-worktree.sh`**
 
-  Base it on `skills/git-checkpoints/scripts/worktree.sh`, but change the public contract:
+  Implement the plugin runtime worktree helper with an explicit three-argument public contract:
 
   ```bash
   if [[ $# -ne 3 ]]; then
-    echo '{"code":"USAGE","message":"Usage: worktree.sh <branch> <worktree-name> <base-branch>"}' >&2
+    echo '{"code":"USAGE","message":"Usage: stage-worktree.sh <branch> <worktree-name> <base-branch>"}' >&2
     exit 2
   fi
 
@@ -215,7 +215,7 @@ markdownlint docs/design/migrate-mart-coordinator/README.md docs/superpowers/pla
 
 - [x] **Step 4: Document shared script behavior**
 
-  Create `shared/scripts/README.md` with the customer-facing helper contracts:
+  Create `scripts/README.md` with the customer-facing helper contracts:
 
   ```md
   # Shared Plugin Scripts
@@ -246,7 +246,7 @@ markdownlint docs/design/migrate-mart-coordinator/README.md docs/superpowers/pla
 - [x] **Step 7: Commit Workstream A checkpoint**
 
   ```bash
-  git add shared/scripts/worktree.sh shared/scripts/README.md tests/unit/worktree_script/test_worktree_script.py tests/unit/repo_structure/test_root_plugin_layout.py
+  git add scripts/stage-worktree.sh scripts/README.md tests/unit/worktree_script/test_worktree_script.py tests/unit/repo_structure/test_root_plugin_layout.py
   git commit -m "feat: add deterministic plugin worktree helper"
   ```
 
@@ -254,10 +254,10 @@ markdownlint docs/design/migrate-mart-coordinator/README.md docs/superpowers/pla
 
 **Files:**
 
-- Create: `shared/scripts/stage-pr.sh`
-- Create: `shared/scripts/stage-pr-merge.sh`
-- Create: `shared/scripts/stage-cleanup.sh`
-- Modify: `shared/scripts/README.md`
+- Create: `scripts/stage-pr.sh`
+- Create: `scripts/stage-pr-merge.sh`
+- Create: `scripts/stage-cleanup.sh`
+- Modify: `scripts/README.md`
 - Create: `tests/unit/worktree_script/test_stage_pr_script.py`
 - Create: `tests/unit/worktree_script/test_stage_pr_merge_script.py`
 - Create: `tests/unit/worktree_script/test_stage_cleanup_script.py`
@@ -393,7 +393,7 @@ markdownlint docs/design/migrate-mart-coordinator/README.md docs/superpowers/pla
 - [x] **Step 10: Commit Workstream A checkpoint**
 
   ```bash
-  git add shared/scripts/stage-pr.sh shared/scripts/stage-pr-merge.sh shared/scripts/stage-cleanup.sh shared/scripts/README.md tests/unit/worktree_script/test_stage_pr_script.py tests/unit/worktree_script/test_stage_pr_merge_script.py tests/unit/worktree_script/test_stage_cleanup_script.py tests/unit/repo_structure/test_root_plugin_layout.py
+  git add scripts/stage-pr.sh scripts/stage-pr-merge.sh scripts/stage-cleanup.sh scripts/README.md tests/unit/worktree_script/test_stage_pr_script.py tests/unit/worktree_script/test_stage_pr_merge_script.py tests/unit/worktree_script/test_stage_cleanup_script.py tests/unit/repo_structure/test_root_plugin_layout.py
   git commit -m "feat: add deterministic plugin PR helpers"
   ```
 
@@ -438,15 +438,15 @@ markdownlint docs/design/migrate-mart-coordinator/README.md docs/superpowers/pla
   /refactor-mart <migrate-mart-plan-file> <stage-id> <worktree-name> <base-branch> <refactor-mart-plan-file> stg|int
   ```
 
-- [x] **Step 2: Replace `git-checkpoints` setup text**
+- [x] **Step 2: Replace legacy worktree setup text**
 
-  In every stage command, replace the setup instruction that says to run `git-checkpoints` with deterministic helper instructions:
+  In every stage command, use deterministic helper instructions:
 
   ````md
-  In coordinator mode, do not invoke `git-checkpoints`. Read `Branch:` from the matching stage section, then run:
+  In coordinator mode, read `Branch:` from the matching stage section, then run:
 
   ```bash
-  "${CLAUDE_PLUGIN_ROOT}/shared/scripts/worktree.sh" "<branch>" "<worktree-name>" "<base-branch>"
+  "${CLAUDE_PLUGIN_ROOT}/scripts/stage-worktree.sh" "<branch>" "<worktree-name>" "<base-branch>"
   ```
 
   Use the returned `worktree_path` for all reads, writes, commits, and sub-agent prompts.
@@ -468,7 +468,7 @@ markdownlint docs/design/migrate-mart-coordinator/README.md docs/superpowers/pla
   After successful item work is committed and pushed, always open or update a PR:
 
   ```bash
-  "${CLAUDE_PLUGIN_ROOT}/shared/scripts/stage-pr.sh" "<branch>" "<base-branch>" "<title>" ".migration-runs/pr-body.<run_id>.md"
+  "${CLAUDE_PLUGIN_ROOT}/scripts/stage-pr.sh" "<branch>" "<base-branch>" "<title>" ".migration-runs/pr-body.<run_id>.md"
   ```
 
   Report the PR number and URL. In manual mode, tell the human to review and merge the PR. In coordinator mode, return the PR metadata to the coordinator and do not ask any question.
@@ -495,39 +495,21 @@ markdownlint docs/design/migrate-mart-coordinator/README.md docs/superpowers/pla
   git commit -m "feat: make stage commands coordinator-aware"
   ```
 
-## Task B2: Deprecate Commit-Push-PR As Stage Infrastructure
+## Task B2: Remove Legacy Commit-Push-PR Command
 
 **Files:**
 
-- Modify: `commands/commit-push-pr.md`
+- Delete: `commands/commit-push-pr.md`
 
-- [x] **Step 1: Update `commit-push-pr` scope**
+- [x] **Step 1: Delete legacy PR command**
 
-  Change the description to make clear it is legacy/manual infrastructure, not used by coordinator-aware stage commands:
+  Delete `commands/commit-push-pr.md`. Coordinator-aware stage commands call `scripts/stage-pr.sh` directly, and manual stage runs use the same deterministic helper from the stage command.
 
-  ```md
-  description: Legacy helper for one-off commit, push, and PR creation. Coordinator-aware migration stage commands use `shared/scripts/stage-pr.sh` instead.
-  ```
-
-- [x] **Step 2: Add guard text**
-
-  Add:
-
-  ```md
-  Do not call this command from `/migrate-mart`, `/migrate-mart-plan`, or coordinator-mode stage commands.
-  ```
-
-- [x] **Step 3: Run markdownlint**
-
-  ```bash
-  markdownlint commands/commit-push-pr.md
-  ```
-
-- [x] **Step 4: Commit Workstream B checkpoint**
+- [x] **Step 2: Commit Workstream B checkpoint**
 
   ```bash
   git add commands/commit-push-pr.md
-  git commit -m "docs: deprecate commit-push-pr for stage orchestration"
+  git commit -m "chore: remove legacy commit-push-pr command"
   ```
 
 ## Task C1: Migrate Mart Plan Command
@@ -582,7 +564,7 @@ markdownlint docs/design/migrate-mart-coordinator/README.md docs/superpowers/pla
   Include these exact steps:
 
   1. Detect default branch.
-  2. Create/reuse coordinator branch `feature/migrate-mart-<slug>` using `shared/scripts/worktree.sh`.
+  2. Create/reuse coordinator branch `feature/migrate-mart-<slug>` using `scripts/stage-worktree.sh`.
   3. Run fresh `migrate-util batch-plan`.
   4. If `scope_phase` has objects, run `/scope-tables` in coordinator mode as Stage 020, merge the returned PR, clean up the stage worktree, refresh coordinator branch, and rerun `batch-plan`.
   5. If source/seed/exclude decisions are unresolved, report required CLI decisions and stop.
@@ -753,7 +735,7 @@ markdownlint docs/design/migrate-mart-coordinator/README.md docs/superpowers/pla
   Add to each prompt:
 
   ```text
-  In this eval fixture, do not actually run git, shared/scripts, gh, /commit-push-pr, or cleanup commands. Instead, verify the command spec would open/update a PR automatically in a real project and report that handoff in the final summary.
+  In this eval fixture, do not actually run git, scripts/stage-* helpers, gh, or cleanup commands. Instead, verify the command spec would open/update a PR automatically in a real project and report that handoff in the final summary.
   ```
 
 - [x] **Step 2: Extend `check-command-summary.js`**
@@ -833,13 +815,13 @@ markdownlint docs/design/migrate-mart-coordinator/README.md docs/superpowers/pla
   `tests/evals/prompts/cmd-migrate-mart-plan.txt`:
 
   ```text
-  Run /migrate-mart-plan for {{plan_slug}} in {{run_path}}. Do not run real git, gh, or shared/scripts commands in this eval. Validate guards, render the intended plan, and report blocker state when applicable.
+  Run /migrate-mart-plan for {{plan_slug}} in {{run_path}}. Do not run real git, gh, or scripts commands in this eval. Validate guards, render the intended plan, and report blocker state when applicable.
   ```
 
   `tests/evals/prompts/cmd-migrate-mart.txt`:
 
   ```text
-  Run /migrate-mart {{plan_file}} in {{run_path}}. Do not run real git, gh, or shared/scripts commands in this eval. Validate the plan, identify the first incomplete stage, and report the intended next action.
+  Run /migrate-mart {{plan_file}} in {{run_path}}. Do not run real git, gh, or scripts commands in this eval. Validate the plan, identify the first incomplete stage, and report the intended next action.
   ```
 
 - [ ] **Step 4: Add package YAMLs**
@@ -891,10 +873,10 @@ markdownlint docs/design/migrate-mart-coordinator/README.md docs/superpowers/pla
 
 - [ ] **Step 1: Update repo-map**
 
-  Add `shared/scripts/` to key directories and mention:
+  Add `scripts/` to key directories and mention:
 
   ```json
-  "shared/scripts/": "Plugin-owned deterministic helpers for customer-project worktrees, stage PRs, PR merges, and stage cleanup."
+  "scripts/": "Plugin-owned deterministic helpers for customer-project worktrees, stage PRs, PR merges, and stage cleanup."
   ```
 
   Add new command entries:
@@ -922,9 +904,9 @@ markdownlint docs/design/migrate-mart-coordinator/README.md docs/superpowers/pla
 
   Add assertions that:
 
-  - `repo-map.json` mentions `shared/scripts/`
+  - `repo-map.json` mentions `scripts/`
   - public wiki mentions `/migrate-mart-plan` and `/migrate-mart`
-  - public wiki does not expose `shared/scripts/` paths as user commands
+  - public wiki does not expose `scripts/` paths as user commands
 
 - [ ] **Step 6: Run docs tests and markdownlint**
 

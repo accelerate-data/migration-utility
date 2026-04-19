@@ -1,4 +1,4 @@
-"""Tests for the shared plugin worktree helper."""
+"""Tests for the plugin stage worktree helper."""
 
 from __future__ import annotations
 
@@ -10,7 +10,7 @@ from pathlib import Path
 
 
 REPO_ROOT = Path(__file__).resolve().parents[3]
-SCRIPT_PATH = REPO_ROOT / "shared" / "scripts" / "worktree.sh"
+SCRIPT_PATH = REPO_ROOT / "scripts" / "stage-worktree.sh"
 
 
 def _write_executable(path: Path, body: str) -> None:
@@ -207,7 +207,7 @@ def test_worktree_script_reports_usage_error_on_wrong_arity(tmp_path: Path) -> N
     assert result.returncode == 2
     payload = json.loads(result.stderr.strip())
     assert payload["code"] == "USAGE"
-    assert payload["contract"] == "worktree.sh <branch> <worktree-name> <base-branch>"
+    assert payload["contract"] == "stage-worktree.sh <branch> <worktree-name> <base-branch>"
     assert payload["retry_command"] == str(SCRIPT_PATH)
     assert payload["suggested_fix"] == (
         "Call the helper with exactly three arguments: <branch> <worktree-name> <base-branch>."

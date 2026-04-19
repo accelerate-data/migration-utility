@@ -9,23 +9,17 @@ Example:
 - Branch: `feature/vu-354-scaffold-tauri-app-with-full-frontend-stack`
 - Worktree path: `../worktrees/feature/vu-354-scaffold-tauri-app-with-full-frontend-stack`
 
-Create or attach a worktree with the repo-root helper:
+Create or attach a maintainer development worktree with the repo-root helper:
 
 ```bash
 ./scripts/worktree.sh <branch-name>
 ```
 
-The helper creates or attaches the worktree at `../worktrees/<branch-name>` and then bootstraps it:
+The helper owns maintainer worktree setup and may change its bootstrap behavior over time.
 
-1. Symlinks `.env` from the main repo root
-2. Runs `direnv allow` when available
-3. Runs `uv sync --extra dev` in `lib/`
-4. Verifies `pyodbc`, `oracledb`, and the dbt adapters import from the worktree venv
-5. Runs `npm ci --no-audit --no-fund` in `tests/evals/` when `package-lock.json` exists, otherwise falls back to `npm install --no-audit --no-fund`
-
-It fails fast if a required setup step breaks so the worktree is not left half-configured. When the
-branch is already checked out in a different worktree, it exits with structured JSON on stderr that
-identifies the existing checkout path.
+Do not use `scripts/stage-worktree.sh` for maintainer development worktrees. That script is bundled
+as part of the plugin runtime and is called by customer-project slash commands with explicit branch,
+worktree, and base-branch inputs.
 
 ## PR Format
 

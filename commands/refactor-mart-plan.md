@@ -31,9 +31,13 @@ Use `TaskCreate` and `TaskUpdate` to show live progress. Create one task per sel
 2. Generate a run slug:
    - Single target: `refactor-mart-plan-<schema>-<name>` in lowercase with dots replaced by hyphens.
    - Multiple targets: choose a concise domain slug, such as `refactor-mart-plan-sales`, in lowercase hyphen-separated form.
-3. Run the `git-checkpoints` skill with the run slug as the argument.
-   - If it returns the default branch name, use the current repository root as the working directory.
-   - Otherwise, use the returned worktree path for all reads and plan writes.
+3. Derive a stable branch name from the run slug, resolve the remote default branch, and call:
+
+   ```bash
+   "${CLAUDE_PLUGIN_ROOT}/scripts/stage-worktree.sh" "<branch>" "<run-slug>" "<default-branch>"
+   ```
+
+   Use the returned worktree path for all reads and plan writes.
 4. Generate a plan filename under `docs/design/`:
    - Single target:
      `docs/design/refactor-mart-<schema>-<name>-plan.md`

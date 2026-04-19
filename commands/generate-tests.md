@@ -53,11 +53,11 @@ Use `TaskCreate` and `TaskUpdate` to show live progress. At the start of Step 2,
    - **Single object (1 item):** use the object FQN directly — `generate-tests-<schema>-<name>` (lowercase, dots → hyphens). No LLM reasoning needed.
    - **Multiple objects (2+):** reason about the conversation context — what is the user trying to accomplish with this batch? Generate a short, descriptive slug that captures the intent (e.g. `generate-tests-customer-tables`, `generate-tests-silver-facts`). The full slug (including the `generate-tests-` prefix) must be lowercase, hyphen-separated, and at most 40 characters.
 2. Use the `## Arguments` contract above to determine whether this is manual mode or coordinator mode.
-3. Use `${CLAUDE_PLUGIN_ROOT}/shared/scripts/worktree.sh` for setup instead of `git-checkpoints`.
+3. Use `${CLAUDE_PLUGIN_ROOT}/scripts/stage-worktree.sh` for deterministic worktree setup.
    - Coordinator mode: read `Branch:`, `Worktree name:`, and `Base branch:` from the matching stage section, then run:
 
      ```bash
-     "${CLAUDE_PLUGIN_ROOT}/shared/scripts/worktree.sh" "<branch>" "<worktree-name>" "<base-branch>"
+     "${CLAUDE_PLUGIN_ROOT}/scripts/stage-worktree.sh" "<branch>" "<worktree-name>" "<base-branch>"
      ```
 
      Use the returned `worktree_path` for all reads, writes, commits, and sub-agent prompts.
@@ -156,7 +156,7 @@ If the item final status is not `error`, stage `test-specs/<item_id>.json`, crea
 5. After successful item work is committed and pushed, always open or update a PR:
 
    ```bash
-   "${CLAUDE_PLUGIN_ROOT}/shared/scripts/stage-pr.sh" "<branch>" "<base-branch>" "<title>" ".migration-runs/pr-body.<run_id>.md"
+   "${CLAUDE_PLUGIN_ROOT}/scripts/stage-pr.sh" "<branch>" "<base-branch>" "<title>" ".migration-runs/pr-body.<run_id>.md"
    ```
 
    Report the PR number and URL. In manual mode, tell the human to review and merge the PR. In coordinator mode, return the PR metadata to the coordinator and do not ask any question.

@@ -1,38 +1,66 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-if [[ $# -ne 1 ]]; then
-  echo "Usage: $0 <branch-name>" >&2
-  exit 1
+# Plugin runtime helper for customer-project migration stages.
+# Slash commands call this from the customer project root with explicit
+# branch, worktree name, and base branch. Maintainers creating development
+# worktrees for this repository should use scripts/worktree.sh instead.
+
+usage_failure() {
+  local actual_argv0="$1"
+
+  SCRIPT_PATH="$actual_argv0" python3 - <<'PY' >&2
+import json
+import os
+
+payload = {
+    "code": "USAGE",
+    "step": "argument_validation",
+    "message": "Incorrect worktree helper usage.",
+    "contract": "stage-worktree.sh <branch> <worktree-name> <base-branch>",
+    "retry_command": os.environ["SCRIPT_PATH"],
+    "suggested_fix": "Call the helper with exactly three arguments: <branch> <worktree-name> <base-branch>.",
+    "can_retry": False,
+}
+print(json.dumps(payload))
+PY
+  exit 2
+}
+
+if [[ $# -ne 3 ]]; then
+  usage_failure "$0"
 fi
 
 branch="$1"
-
-script_dir="$(cd "$(dirname "$0")" && pwd)"
-repo_root="$(cd "$script_dir/../../.." && pwd)"
-worktree_base="${WORKTREE_BASE_DIR:-$repo_root/../worktrees}"
-worktree_path="$worktree_base/$branch"
+worktree_name="$2"
+base_branch="$3"
+repo_root="$(pwd)"
+plugin_root="${CLAUDE_PLUGIN_ROOT:-}"
+script_path="$0"
+worktree_base=""
+worktree_path=""
 
 retry_command() {
-  printf '%s %s' "$0" "$branch"
+  printf '%s %s %s %s' "$script_path" "$branch" "$worktree_name" "$base_branch"
 }
 
-fail_json() {
+json_failure() {
   local code="$1"
   local step="$2"
   local message="$3"
   local can_retry="$4"
   local suggested_fix="$5"
   local existing_worktree_path="${6:-}"
-  local retry_cmd="${7:-$(retry_command)}"
 
   BRANCH="$branch" \
+  BASE_BRANCH="$base_branch" \
+  WORKTREE_NAME="$worktree_name" \
   REQUESTED_WORKTREE_PATH="$worktree_path" \
   CODE="$code" \
   STEP="$step" \
   MESSAGE="$message" \
   CAN_RETRY="$can_retry" \
-  RETRY_COMMAND="$retry_cmd" \
+  RETRY_COMMAND="$(retry_command)" \
   SUGGESTED_FIX="$suggested_fix" \
   EXISTING_WORKTREE_PATH="$existing_worktree_path" \
   python3 - <<'PY' >&2
@@ -44,6 +72,8 @@ payload = {
     "step": os.environ["STEP"],
     "message": os.environ["MESSAGE"],
     "branch": os.environ["BRANCH"],
+    "base_branch": os.environ["BASE_BRANCH"],
+    "worktree_name": os.environ["WORKTREE_NAME"],
     "requested_worktree_path": os.environ["REQUESTED_WORKTREE_PATH"],
     "can_retry": os.environ["CAN_RETRY"].lower() == "true",
     "retry_command": os.environ["RETRY_COMMAND"],
@@ -55,6 +85,57 @@ if existing:
 print(json.dumps(payload))
 PY
   exit 1
+}
+
+json_success() {
+  local reused="$1"
+  local worktree_path_value="$2"
+  local existing_worktree_path="${3:-}"
+
+  BRANCH="$branch" \
+  BASE_BRANCH="$base_branch" \
+  WORKTREE_NAME="$worktree_name" \
+  WORKTREE_PATH="$worktree_path_value" \
+  REUSED="$reused" \
+  EXISTING_WORKTREE_PATH="$existing_worktree_path" \
+  python3 - <<'PY'
+import json
+import os
+
+payload = {
+    "status": "ready",
+    "branch": os.environ["BRANCH"],
+    "base_branch": os.environ["BASE_BRANCH"],
+    "worktree_name": os.environ["WORKTREE_NAME"],
+    "worktree_path": os.environ["WORKTREE_PATH"],
+    "reused": os.environ["REUSED"].lower() == "true",
+}
+existing = os.environ.get("EXISTING_WORKTREE_PATH")
+if existing:
+    payload["existing_worktree_path"] = existing
+print(json.dumps(payload))
+PY
+}
+
+resolve_repo_root() {
+  local resolved_root=""
+
+  if ! resolved_root="$(git rev-parse --show-toplevel)"; then
+    worktree_base="${WORKTREE_BASE_DIR:-$repo_root/../worktrees}"
+    worktree_path="$worktree_base/$branch"
+    json_failure \
+      "WORKTREE_REPO_ROOT_NOT_FOUND" \
+      "git_rev_parse" \
+      "Could not resolve the repository root from git." \
+      "false" \
+      "Run the helper from inside the customer project repository."
+  fi
+
+  repo_root="$resolved_root"
+  plugin_root="${CLAUDE_PLUGIN_ROOT:-$repo_root}"
+  script_path="$plugin_root/scripts/stage-worktree.sh"
+  worktree_base="${WORKTREE_BASE_DIR:-$repo_root/../worktrees}"
+  worktree_path="$worktree_base/$branch"
 }
 
 run_in_dir() {
@@ -74,7 +155,42 @@ run_step() {
   shift 4
 
   if ! "$@"; then
-    fail_json "$code" "$step" "$message" "true" "$suggested_fix"
+    json_failure "$code" "$step" "$message" "true" "$suggested_fix"
+  fi
+}
+
+ensure_clean_worktree() {
+  local target_path="$1"
+  local status_output=""
+
+  if [[ ! -d "$target_path" ]]; then
+    json_failure \
+      "WORKTREE_STALE_WORKTREE_REFERENCE" \
+      "stale_worktree" \
+      "Git reports an attached worktree, but the path is missing." \
+      "false" \
+      "Run 'git worktree prune' to clear stale metadata or recreate the worktree before rerunning the helper." \
+      "$target_path"
+  fi
+
+  if ! status_output="$(git -C "$target_path" status --porcelain)"; then
+    json_failure \
+      "WORKTREE_STATUS_CHECK_FAILED" \
+      "dirty_state" \
+      "Could not inspect the worktree state." \
+      "false" \
+      "Resolve the git worktree state before rerunning the helper." \
+      "$target_path"
+  fi
+
+  if [[ -n "$status_output" ]]; then
+    json_failure \
+      "WORKTREE_DIRTY_STATE_DETECTED" \
+      "dirty_state" \
+      "The worktree has uncommitted changes." \
+      "false" \
+      "Commit, stash, or discard the changes before rerunning the helper." \
+      "$target_path"
   fi
 }
 
@@ -184,6 +300,7 @@ main() {
   local checked_out_path=""
   local branch_exists=false
 
+  resolve_repo_root
   mkdir -p "$(dirname "$worktree_path")"
 
   if git show-ref --verify --quiet "refs/heads/$branch"; then
@@ -192,32 +309,39 @@ main() {
 
   checked_out_path="$(existing_branch_worktree "$branch")"
   if [[ -n "$checked_out_path" && "$checked_out_path" != "$worktree_path" ]]; then
-    fail_json \
-      "WORKTREE_BRANCH_ALREADY_CHECKED_OUT" \
-      "branch_conflict" \
-      "Branch is already checked out in another worktree." \
-      "false" \
-      "Use the existing worktree or remove it before requesting a new worktree for this branch." \
-      "$checked_out_path" \
-      ""
+    ensure_clean_worktree "$checked_out_path"
+    echo "worktree: branch already attached at $checked_out_path; reusing existing worktree"
+    json_success "true" "$checked_out_path" "$checked_out_path"
+    return
   fi
 
   if [[ -n "$checked_out_path" ]]; then
+    ensure_clean_worktree "$worktree_path"
     echo "worktree: branch already attached at $worktree_path; rerunning bootstrap"
     bootstrap_worktree
-    echo "worktree: ready $worktree_path"
+    json_success "true" "$worktree_path" "$worktree_path"
     return
   fi
 
   if $branch_exists; then
-    git worktree add "$worktree_path" "$branch"
+    run_step \
+      "WORKTREE_ADD_FAILED" \
+      "git_worktree_add" \
+      "git worktree add failed for the requested branch." \
+      "Ensure the branch exists and the requested worktree path is available, then rerun the helper." \
+      git worktree add "$worktree_path" "$branch"
   else
-    git worktree add -b "$branch" "$worktree_path" HEAD
+    run_step \
+      "WORKTREE_CREATE_FAILED" \
+      "git_worktree_create" \
+      "git worktree create failed for the requested branch." \
+      "Ensure the base branch exists and the requested branch name is valid, then rerun the helper." \
+      git worktree add -b "$branch" "$worktree_path" "$base_branch"
   fi
   echo "worktree: created worktree at $worktree_path"
 
   bootstrap_worktree
-  echo "worktree: ready $worktree_path"
+  json_success "false" "$worktree_path"
 }
 
 main

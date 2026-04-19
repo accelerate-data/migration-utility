@@ -41,14 +41,6 @@ def test_wiki_does_not_document_removed_test_spec_yaml_artifacts() -> None:
     assert "dbt-ready YAML test artifacts" not in text
 
 
-def test_wiki_lists_user_invocable_diagnostics_command() -> None:
-    command_reference = (WIKI_DIR / "Command-Reference.md").read_text(encoding="utf-8")
-    home = (WIKI_DIR / "Home.md").read_text(encoding="utf-8")
-
-    assert "/review-diagnostics" in command_reference
-    assert "/review-diagnostics" in home
-
-
 def test_wiki_uses_public_workflow_language_not_internal_skills() -> None:
     text = _wiki_text().lower()
 

@@ -57,11 +57,11 @@ Never apply unapproved candidates. Never edit candidates outside the selected mo
 1. Generate run slug `refactor-mart-<mode>-<plan-stem>`.
 2. Generate a run ID in the form `<epoch_ms>-<random_8hex>` (for example `1743868200123-a1b2c3d4`). Use it as the suffix for every artifact written by this run, including `.migration-runs/pr-body.<run_id>.md`.
 3. Use the `## Arguments` contract above to determine whether this is manual mode or coordinator mode. Do not infer coordinator mode from `$0` alone; the full positional shape must match exactly.
-4. Use `${CLAUDE_PLUGIN_ROOT}/shared/scripts/worktree.sh` for setup instead of `git-checkpoints`.
+4. Use `${CLAUDE_PLUGIN_ROOT}/scripts/stage-worktree.sh` for deterministic worktree setup.
    - Coordinator mode: read `Branch:`, `Worktree name:`, and `Base branch:` from the matching stage section in the migrate-mart plan, then run:
 
      ```bash
-     "${CLAUDE_PLUGIN_ROOT}/shared/scripts/worktree.sh" "<branch>" "<worktree-name>" "<base-branch>"
+     "${CLAUDE_PLUGIN_ROOT}/scripts/stage-worktree.sh" "<branch>" "<worktree-name>" "<base-branch>"
      ```
 
      Use the returned `worktree_path` for all reads, writes, commits, and prompts.
@@ -127,7 +127,7 @@ List blocked candidate IDs with dependency or metadata reasons. List failed cand
 After successful candidate work is committed and pushed, always open or update a PR:
 
 ```bash
-"${CLAUDE_PLUGIN_ROOT}/shared/scripts/stage-pr.sh" "<branch>" "<base-branch>" "<title>" ".migration-runs/pr-body.<run_id>.md"
+"${CLAUDE_PLUGIN_ROOT}/scripts/stage-pr.sh" "<branch>" "<base-branch>" "<title>" ".migration-runs/pr-body.<run_id>.md"
 ```
 
 Report the PR number and URL. In manual mode, tell the human to review and merge the PR. In coordinator mode, return the PR metadata to the coordinator and do not ask any question.

@@ -1,11 +1,25 @@
-# Shared Scripts
+# Scripts
 
-Deterministic helper scripts used by the coordinator workflow.
+This directory contains both maintainer-only repository helpers and plugin runtime helpers.
 
-## Worktree Helper
+- `worktree.sh` is for maintainers working on this repository. It creates contributor
+  development worktrees for `migration-utility`.
+- `stage-worktree.sh`, `stage-pr.sh`, `stage-pr-merge.sh`, and `stage-cleanup.sh` are
+  plugin runtime helpers. Slash commands call them from a customer project root through
+  `${CLAUDE_PLUGIN_ROOT}/scripts/...`.
+
+## Maintainer Worktree Helper
 
 ```bash
-worktree.sh <branch> <worktree-name> <base-branch>
+worktree.sh <branch-name>
+```
+
+Creates or attaches a maintainer development worktree for this repository.
+
+## Stage Worktree Helper
+
+```bash
+stage-worktree.sh <branch> <worktree-name> <base-branch>
 ```
 
 Creates or reuses a git worktree for the requested branch, bootstraps the worktree environment,

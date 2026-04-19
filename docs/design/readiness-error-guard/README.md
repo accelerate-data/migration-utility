@@ -24,4 +24,4 @@ The guard is diagnostic-code agnostic. `TYPE_MAPPING_UNSUPPORTED` from target ty
 
 ## Remediation
 
-Users resolve blocked objects through `/review-diagnostics <schema.object>`. Errors are not accepted through reviewed-warning artifacts; the diagnostic remains active until the underlying catalog error is fixed or removed by the owning workflow.
+Users resolve blocked objects through the reviewing-diagnostics workflow. Errors are not accepted through reviewed-warning artifacts; the diagnostic remains active until the underlying catalog error is fixed or removed by the owning workflow.

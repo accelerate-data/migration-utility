@@ -10,7 +10,7 @@ from pathlib import Path
 
 
 REPO_ROOT = Path(__file__).resolve().parents[3]
-SCRIPT_PATH = REPO_ROOT / "shared" / "scripts" / "stage-pr-merge.sh"
+SCRIPT_PATH = REPO_ROOT / "scripts" / "stage-pr-merge.sh"
 
 
 def _write_executable(path: Path, body: str) -> None:

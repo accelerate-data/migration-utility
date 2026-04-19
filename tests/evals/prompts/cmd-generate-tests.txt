@@ -6,7 +6,7 @@ Read `${CLAUDE_PLUGIN_ROOT}/commands/generate-tests.md`, but treat the following
 
 Harness overrides:
 - Treat `{{fixture_path}}` as read-only input. Write all generated files to `{{run_path}}`. Do not create or use a worktree.
-- In this eval fixture, do not actually run git, shared/scripts, gh, `/commit`, `/commit-push-pr`, cleanup, or `git-checkpoints` commands.
+- In this eval fixture, do not actually run git, gh, scripts/stage-* helpers, or cleanup commands.
 - The final answer must end with a handoff block using these exact labels:
   `PR: simulated-generate-tests`
   `Branch: simulated-generate-tests`

@@ -179,7 +179,8 @@ def test_migrate_mart_plan_uses_stage_specific_worktrees_and_handoff() -> None:
     )
 
     expected_snippets = [
-        "This command does not open the final coordinator PR. `/migrate-mart` is the paired follow-on command that executes the approved plan and owns that PR lifecycle.",
+        "This command opens or updates the planning PR for the generated plan branch, then stops.",
+        "It does not execute migration stages and does not open the final coordinator PR.",
         "- Slash command: `/scope-tables <plan-file> 020 020-scope-<slug> feature/migrate-mart-<slug> <scope-targets>`",
         "- Invocation: `/scope-tables <plan-file> 020 020-scope-<slug> feature/migrate-mart-<slug> <scope-targets>`",
         "- Branch: `feature/migrate-mart-<slug>/040-profile-<slug>`",
@@ -188,7 +189,7 @@ def test_migrate_mart_plan_uses_stage_specific_worktrees_and_handoff() -> None:
         "- Branch: `feature/migrate-mart-<slug>/120-refactor-mart-higher-<slug>`",
         "- Worktree name: `120-refactor-mart-higher-<slug>`",
         "- Worktree path: `../worktrees/feature/migrate-mart-<slug>/120-refactor-mart-higher-<slug>`",
-        "`/migrate-mart-plan` writes the plan and stops; `/migrate-mart` is the paired execution command that consumes the approved plan and handles the final PR.",
+        "`/migrate-mart-plan` writes the plan, opens the planning PR, and stops;",
     ]
 
     for snippet in expected_snippets:

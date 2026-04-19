@@ -328,7 +328,7 @@ Harness overrides:
 - Final-answer summaries are not sufficient. The authoritative markdown plan file is `{{run_path}}/{{plan_file}}` and it must be updated in place.
 - Do not create, copy, or update a duplicate plan file outside `{{run_path}}/{{plan_file}}`.
 - Do not create or use a worktree.
-- Do not run git commands, `/commit`, `/commit-push-pr`, or `git-checkpoints`.
+- Do not run git commands.
 - Do not spawn sub-agents for this eval.
 - Do not run dbt. Simulate validation by inspecting whether every model required by each candidate's validation scope exists in the run project after rewiring.
 - If a model named in `Validation:` exists but contains `EVAL_VALIDATION_FAIL`, treat validation as failed.

@@ -2,18 +2,18 @@
 name: migrate-mart-plan
 description: Whole-scope mart migration planner. Validates readiness, scopes when needed, enforces catalog ownership resolution, and writes a resumable Markdown operational plan.
 user-invocable: true
-argument-hint: "<slug>"
+argument-hint: "[slug]"
 ---
 
 # Migrate Mart Plan
 
 Plan the full mart migration workflow for one slug and write the coordinator plan under `docs/migration-plans/<slug>/README.md`.
 
-This command does not open the final coordinator PR. `/migrate-mart` is the paired follow-on command that executes the approved plan and owns that PR lifecycle.
+This command opens or updates the planning PR for the generated plan branch, then stops. It does not execute migration stages and does not open the final coordinator PR. `/migrate-mart` is the paired follow-on command that executes the approved plan and owns the final coordinator PR lifecycle.
 
 ## Guards
 
-- `$0` must be a lowercase hyphen-separated slug. If missing, fail with `SLUG_REQUIRED`.
+- `$0` may be a lowercase hyphen-separated slug. If missing, generate a slug from the project directory name, lowercased and normalized to hyphen-separated words. If the generated slug is empty, use `mart-migration`.
 - `manifest.json` must exist. If missing, fail with `MANIFEST_NOT_FOUND`.
 - `runtime.source`, `runtime.target`, and `runtime.sandbox` must be present in `manifest.json`.
 - Source, target, and sandbox must be reachable through existing CLI checks.
@@ -22,20 +22,28 @@ This command does not open the final coordinator PR. `/migrate-mart` is the pair
 
 ## Pipeline
 
-1. Detect default branch.
-2. Create or reuse the coordinator branch `feature/migrate-mart-<slug>` using `${CLAUDE_PLUGIN_ROOT}/shared/scripts/worktree.sh`.
+1. Resolve the slug from `$0` or generate one from the project directory name.
+2. Detect default branch.
+3. Create or reuse the coordinator branch `feature/migrate-mart-<slug>` using `${CLAUDE_PLUGIN_ROOT}/scripts/stage-worktree.sh`.
    - Run:
 
      ```bash
-     "${CLAUDE_PLUGIN_ROOT}/shared/scripts/worktree.sh" "feature/migrate-mart-<slug>" "<slug>" "<default-branch>"
+     "${CLAUDE_PLUGIN_ROOT}/scripts/stage-worktree.sh" "feature/migrate-mart-<slug>" "<slug>" "<default-branch>"
      ```
 
    - Use the returned `worktree_path` for all reads, writes, commits, and plan updates.
-3. Run fresh `migrate-util batch-plan`.
-4. If `scope_phase` has objects, run `/scope-tables` in coordinator mode as Stage 020, merge the returned PR, clean up the stage worktree, refresh coordinator branch, and rerun `batch-plan`.
-5. If source/seed/exclude decisions are unresolved, report required CLI decisions and stop.
-6. Write `docs/migration-plans/<slug>/README.md`.
-7. Commit the plan on the coordinator branch and hand off to `/migrate-mart` when the plan is ready for execution. Planning never opens or updates the final coordinator PR.
+4. Run fresh `migrate-util batch-plan`.
+5. If `scope_phase` has objects, run `/scope-tables` in coordinator mode as Stage 020, merge the returned PR, clean up the stage worktree, refresh coordinator branch, and rerun `batch-plan`.
+6. If source/seed/exclude decisions are unresolved, report required CLI decisions and stop.
+7. Write `docs/migration-plans/<slug>/README.md`.
+8. Commit the plan and any planning catalog changes on the coordinator branch.
+9. Open or update the planning PR from `feature/migrate-mart-<slug>` to the default branch:
+
+   ```bash
+   "${CLAUDE_PLUGIN_ROOT}/scripts/stage-pr.sh" "feature/migrate-mart-<slug>" "<default-branch>" "Plan mart migration: <slug>" ".migration-runs/pr-body.<run_id>.md"
+   ```
+
+10. Report the planning PR URL and tell the human to review, merge, and clean up the planning worktree before running `/migrate-mart <plan-file>`. Planning never opens or updates the final coordinator PR.
 
 ## Plan Template
 
@@ -232,9 +240,9 @@ The generated plan must include these top-level sections in order:
 - PR: `<none until /migrate-mart>`
 - Status: `planned`
 
-The final coordinator PR is created or updated only by `/migrate-mart`.
-`/migrate-mart-plan` writes the plan and stops; `/migrate-mart` is the paired execution command that consumes the approved plan and handles the final PR.
+The planning PR is created or updated only by `/migrate-mart-plan`. The final coordinator PR is created or updated only by `/migrate-mart`.
+`/migrate-mart-plan` writes the plan, opens the planning PR, and stops; `/migrate-mart` is the paired execution command that consumes the approved plan and handles the final PR.
 
 ## Summary
 
-When planning succeeds, report the plan path, note the `/migrate-mart` handoff, and stop without opening the final coordinator PR.
+When planning succeeds, report the plan path, planning PR URL, and `/migrate-mart` handoff, then stop without opening the final coordinator PR.

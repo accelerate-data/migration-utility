@@ -112,7 +112,8 @@ Update stale entries in the same commit that introduced the structural change.
 - **PR title format:** `VU-XXX: short description`
 - **PR body link:** `Fixes VU-XXX`
 - **Worktrees:** `../worktrees/<branchName>` relative to repo root. Full rules: `.claude/rules/git-workflow.md`.
-- **Worktree creation:** Use `./scripts/worktree.sh <branch-name>` as the canonical contributor and maintainer workflow for creating or attaching a repo worktree and bootstrapping it. Do not use raw `git worktree add` unless you are debugging the wrapper itself.
+- **Worktree creation:** Use `./scripts/worktree.sh <branch-name>` as the canonical maintainer workflow for creating or attaching a repo worktree and bootstrapping it. Do not use raw `git worktree add` unless you are debugging the wrapper itself.
+- **Worktree script distinction:** `scripts/worktree.sh` is the maintainer development helper. `scripts/stage-worktree.sh` and the other `scripts/stage-*` helpers are plugin runtime helpers used by customer-project slash commands.
 
 ## MCP Servers
 

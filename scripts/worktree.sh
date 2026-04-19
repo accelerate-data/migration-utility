@@ -1,6 +1,11 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
+# Maintainer helper for this repository only.
+# Use this from the migration-utility repo root to create contributor
+# development worktrees. Customer-facing plugin commands must use
+# scripts/stage-worktree.sh instead.
+
 if [[ $# -ne 1 ]]; then
   echo "Usage: $0 <branch-name>" >&2
   exit 1

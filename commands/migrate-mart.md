@@ -20,7 +20,7 @@ Execute an approved migrate-mart plan by resuming the first incomplete executabl
 ## Setup
 
 1. Read the plan file and attach to the coordinator worktree using the coordinator Branch, Worktree name, and Base branch from the `## Coordinator` section.
-2. Use `${CLAUDE_PLUGIN_ROOT}/shared/scripts/worktree.sh` for that attachment instead of ad hoc git worktree setup. Use the returned `worktree_path` for all reads, writes, commits, prompts, and plan updates.
+2. Use `${CLAUDE_PLUGIN_ROOT}/scripts/stage-worktree.sh` for that attachment instead of ad hoc git worktree setup. Use the returned `worktree_path` for all reads, writes, commits, prompts, and plan updates.
 3. Scan stage sections in numeric order.
 4. Pick the first stage with `Status` not in `complete`, `skipped`, or `superseded`.
 
@@ -55,7 +55,7 @@ Execute an approved migrate-mart plan by resuming the first incomplete executabl
 
 When all stages are complete, open or update the final coordinator PR from the coordinator branch to the remote default branch. Do not merge the final coordinator PR. Report the URL for human review.
 
-Use `shared/scripts/stage-pr.sh` for the PR handoff and keep the coordinator branch pointed at the remote default branch as the PR base.
+Use `scripts/stage-pr.sh` for the PR handoff and keep the coordinator branch pointed at the remote default branch as the PR base.
 
 ## Summary
 
