@@ -13,14 +13,7 @@ If information is mainly operational or contributor-facing, put it in `docs/refe
 
 ## Design Index
 
-- [Skill Contract](skill-contract/README.md) — per-table processing rules for each pipeline stage (scoping, profiler, test-generator, test-reviewer, model-generator, code-reviewer)
-- [T-SQL Parse Classification](tsql-parse-classification/README.md) — exhaustive pattern list, deterministic (sqlglot) vs Claude-assisted routing
-- [CLI Design](cli-design/README.md) — framework choice, registered commands, I/O contract, exit codes, and testability pattern
 - [DB Operations API](db-operations-api/README.md) — manifest runtime contract, adapter interfaces, orchestration boundaries, and MigrationTest fixture rules
-- [Eval Harness](eval-harness/README.md) — Promptfoo-based non-interactive testing for agents and skills against the MigrationTest schema
-- [Command Design](command-design/README.md) — plugin command lifecycle, sub-agent spawning, run log structure, and relationship to skills
-- [Coverage Matrix](coverage-matrix/README.md) — statement-by-statement coverage by phase and by test layer
-- [Catalog Enrichment Diagnostics](catalog-enrich/README.md) — exhaustive warning/error scenarios for view, function, and procedure catalog entries
 - [Init ad-migration Prereqs](init-ad-migration-prereqs/README.md) — separates MCP startup readiness from live connection readiness and assigns repo-wide vs machine-local env ownership
 - [Homebrew CLI Publishing](homebrew-cli-publishing/README.md) — public CLI packaging split, Homebrew tap scope, and init-driven install contract for macOS
 - [Reset Migration Global Mode](reset-migration-global/README.md) — full-project migration-state reset that preserves init scaffolding and requires destructive confirmation

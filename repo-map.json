@@ -40,7 +40,7 @@
         ".github/workflows/release-cli.yml",
         ".github/workflows/sync-wiki.yml"
       ],
-      "notes": "ci.yml: Python unused-import/local lint plus repo-map audit on PRs. release-cli.yml: tagged GitHub release for ad-migration-shared and ad-migration-cli artifacts plus Homebrew tap formula update."
+      "notes": "ci.yml: Python unused-import/local lint, repo-map audit on PRs, docs/design index audit, and public-surface docs/wiki audit; Markdown-only changes are not ignored. release-cli.yml: tagged GitHub release for ad-migration-shared and ad-migration-cli artifacts plus Homebrew tap formula update."
     }
   ],
   "test_frameworks": [
@@ -121,7 +121,7 @@
     },
     "scripts": {
       "path": "scripts/",
-      "description": "Developer scripts: contributor-setup.sh (canonical contributor maintainer bootstrap and readiness check with fix/show modes plus structured JSON summary), publish-sqlserver-image.sh (build + push SQL Server Docker image with pre-baked KimballFixture data files; MigrationTest stays a schema-level runtime materialization concern), demo-warehouse/ (cross-dialect Kimball demo warehouse fixture for demos, parity checks, and image builds)."
+      "description": "Developer scripts: contributor-setup.sh (canonical contributor maintainer bootstrap and readiness check with fix/show modes plus structured JSON summary), check_design_index.py (docs/design index drift audit), check_public_surface_docs.py (PR audit requiring docs/wiki updates when public CLI, slash-command, or skill surfaces are added), publish-sqlserver-image.sh (build + push SQL Server Docker image with pre-baked KimballFixture data files; MigrationTest stays a schema-level runtime materialization concern), demo-warehouse/ (cross-dialect Kimball demo warehouse fixture for demos, parity checks, and image builds)."
     },
     "docker_sqlserver": {
       "path": "docker/sqlserver/",
@@ -212,6 +212,8 @@
     "test_harness_compare_sql": "cd packages/ad-migration-internal && uv run test-harness compare-sql --sql-a-file <extracted.sql> --sql-b-file <refactored.sql> --spec <spec-path>",
     "contributor_setup_fix": "./scripts/contributor-setup.sh",
     "contributor_setup_show": "./scripts/contributor-setup.sh show",
+    "check_design_index": "python scripts/check_design_index.py",
+    "check_public_surface_docs": "python scripts/check_public_surface_docs.py --base <base_sha> --head <head_sha>",
     "profile_view_context": "cd packages/ad-migration-internal && uv run profile view-context --view <view_fqn>",
     "setup_ddl_write_partial_manifest": "cd packages/ad-migration-internal && uv run setup-ddl write-partial-manifest --project-root . --technology <technology> --target-technology <technology> --prereqs-json <json>",
     "lint_md": "markdownlint <file>",
