@@ -83,23 +83,23 @@ Create `.migration-runs/` first if it does not already exist.
 {"item_id": "<fqn>", "status": "ok", "output": {"skipped": true, "reason": "is_seed", "message": "<fqn> is marked as a dbt seed -- no migration needed. Use `ad-migration add-seed-table` to manage seed tables."}}
 ```
 
-**Idempotency check:** For each non-source, non-seed item, read `catalog/tables/<fqn>.json`. If `generate.status == "ok"` and the user did not explicitly request a rerun, skip fresh generation but still carry the item into Stage 2 review using the existing written artifacts. Write a skip result:
+**Idempotency check:** For each non-source, non-seed item, read `catalog/tables/<fqn>.json`. If `generate.status == "ok"` and the user did not explicitly request a rerun, skip fresh generation but still carry the item into Stage 2 review using the existing written artifacts. Write a reuse result:
 
 ```json
-{"item_id": "<fqn>", "status": "ok", "output": {"skipped": true, "reason": "model_already_generated"}}
+{"item_id": "<fqn>", "status": "ok", "output": {"reused_existing": true, "reason": "model_already_generated"}}
 ```
 
-This skip means "reuse existing artifacts for review," not "bypass the quality gate."
+This reuse means "reuse existing artifacts for review," not "bypass the quality gate."
 
 **Prompt:** Read [references/generation-agent-prompt.md](references/generation-agent-prompt.md). Substitute `<schema.table>`, `<working-directory>`, and `<run_id>` before dispatching.
 
-Launch one sub-agent per item in parallel for items that still need fresh generation. Items that passed the idempotency check above write the skip result immediately and carry forward to Stage 2. Each sub-agent follows the generation-agent-prompt and writes its item result JSON. Items with `output.skipped == true` still participate in Stage 2 review using the existing artifacts.
+Launch one sub-agent per item in parallel for items that still need fresh generation. Items that passed the idempotency check above write the reuse result immediately and carry forward to Stage 2. Each sub-agent follows the generation-agent-prompt and writes its item result JSON. Items with `output.skipped == true` are summary-only workflow-exempt source or seed entries and do not enter Stage 2.
 
 ### Step 3 — Stage 2: Review
 
 For each item, read `.migration-runs/<item_id>.<run_id>.json` from Stage 1. If `status` is `error` or `output.skipped == true`, skip review for that item and carry it forward to Stage 3 only when it is not a skip artifact. Skip artifacts remain summary-only.
 
-If a Stage 1 idempotency-skip item's review returns `error` because persisted artifacts are missing or stale, invoke `/generating-model <item_id>` once to rebuild them, then retry review.
+If a Stage 1 idempotency-reuse item's review returns `error` because persisted artifacts are missing or stale, invoke `/generating-model <item_id>` once to rebuild them, then retry review.
 
 **Prompt:** Read [references/review-agent-prompt.md](references/review-agent-prompt.md). Substitute `<schema.table>`, `<working-directory>`, and `<run_id>` before dispatching.
 
