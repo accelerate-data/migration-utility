@@ -123,6 +123,7 @@ Responsibility split:
 - Create: `lib/shared/loader_io_support/manifest.py`
 - Create: `lib/shared/loader_io_support/directory.py`
 - Create: `lib/shared/loader_io_support/indexing.py`
+- Create: `lib/shared/loader_io_support/load.py`
 - Modify: `lib/shared/loader_io.py`
 - Test: `tests/unit/loader_io/test_loader_io.py`
 - Test: `tests/unit/loader_parse/test_loader_parse.py`
@@ -132,6 +133,7 @@ Responsibility split:
 - `manifest.py`: manifest read/write/clear sandbox helpers.
 - `directory.py`: SQL file loading, delimiter map, DDL directory loading.
 - `indexing.py`: per-object file writing, catalog indexing, catalog loading.
+- `load.py`: top-level DDL loading orchestration.
 - `loader_io.py`: compatibility barrel.
 
 ### Task 5: Integration Metadata and Verification
@@ -872,6 +874,7 @@ git commit -m "refactor: split common diagnostics checks"
 - Create: `lib/shared/loader_io_support/manifest.py`
 - Create: `lib/shared/loader_io_support/directory.py`
 - Create: `lib/shared/loader_io_support/indexing.py`
+- Create: `lib/shared/loader_io_support/load.py`
 - Modify: `lib/shared/loader_io.py`
 - Test: `tests/unit/loader_io/test_loader_io.py`
 
@@ -946,7 +949,6 @@ Move these exact complete objects from `lib/shared/loader_io.py`:
 - `_DELIMITER_MAP`
 - `_load_file`
 - `load_directory`
-- `load_ddl`
 
 Use this import block:
 
@@ -994,7 +996,32 @@ from shared.loader_io_support.directory import load_directory
 from shared.name_resolver import normalize
 ```
 
-- [ ] **Step 7: Convert `loader_io.py` to compatibility barrel**
+- [ ] **Step 7: Move DDL loading orchestration**
+
+Create `lib/shared/loader_io_support/load.py`.
+
+Move this exact complete function definition from `lib/shared/loader_io.py`:
+
+- `load_ddl`
+
+Use this import block:
+
+```python
+from __future__ import annotations
+
+import logging
+from pathlib import Path
+
+from shared.env_config import resolve_catalog_dir
+from shared.loader_data import CatalogNotFoundError, DdlCatalog
+from shared.loader_io_support.directory import load_directory
+from shared.loader_io_support.indexing import load_catalog
+from shared.loader_io_support.manifest import read_manifest
+
+logger = logging.getLogger(__name__)
+```
+
+- [ ] **Step 8: Convert `loader_io.py` to compatibility barrel**
 
 Replace moved function bodies in `lib/shared/loader_io.py` with:
 
@@ -1003,8 +1030,9 @@ Replace moved function bodies in `lib/shared/loader_io.py` with:
 
 from __future__ import annotations
 
-from shared.loader_io_support.directory import _load_file, load_ddl, load_directory
+from shared.loader_io_support.directory import _load_file, load_directory
 from shared.loader_io_support.indexing import _write_per_object_files, index_directory, load_catalog
+from shared.loader_io_support.load import load_ddl
 from shared.loader_io_support.manifest import (
     _require_manifest_file,
     clear_manifest_sandbox,
@@ -1026,7 +1054,7 @@ __all__ = [
 ]
 ```
 
-- [ ] **Step 8: Run focused loader tests**
+- [ ] **Step 9: Run focused loader tests**
 
 Run:
 
@@ -1036,7 +1064,7 @@ cd lib && uv run pytest ../tests/unit/loader_io ../tests/unit/loader_parse -q
 
 Expected: all loader tests pass.
 
-- [ ] **Step 9: Commit Task 4**
+- [ ] **Step 10: Commit Task 4**
 
 Run:
 
@@ -1047,6 +1075,7 @@ git add \
   lib/shared/loader_io_support/manifest.py \
   lib/shared/loader_io_support/directory.py \
   lib/shared/loader_io_support/indexing.py \
+  lib/shared/loader_io_support/load.py \
   tests/unit/loader_io/test_loader_io.py
 git commit -m "refactor: split loader io support modules"
 ```
@@ -1067,7 +1096,7 @@ In the `modules.shared_python.description` string, add these durable structural 
 profile.py (profiling CLI/barrel for table/view context and write commands), profile_support/ (seed profile helpers, table context assembly, view context assembly, and profile writeback)
 catalog.py (catalog compatibility barrel), catalog_support/ (paths, typed loaders, merge helpers, reference-shape helpers, and catalog writers)
 diagnostics/common.py (cross-dialect diagnostic registration facade), diagnostics/common_support/ (object checks, reference checks, graph helpers, dependency checks)
-loader_io.py (DDL I/O compatibility barrel), loader_io_support/ (manifest helpers, DDL directory loading, catalog indexing/loading)
+loader_io.py (DDL I/O compatibility barrel), loader_io_support/ (manifest helpers, DDL directory loading, catalog indexing/loading, load orchestration)
 ```
 
 Keep the description concise. Do not add line counts.

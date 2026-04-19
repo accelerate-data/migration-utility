@@ -16,7 +16,6 @@ from shared.loader_io_support.directory import (  # noqa: F401
     _DELIMITER_MAP,
     _SEMICOLON_RE,
     _load_file,
-    load_ddl,
     load_directory,
 )
 from shared.loader_io_support.indexing import (  # noqa: F401
@@ -25,6 +24,7 @@ from shared.loader_io_support.indexing import (  # noqa: F401
     index_directory,
     load_catalog,
 )
+from shared.loader_io_support.load import load_ddl  # noqa: F401
 from shared.loader_io_support.manifest import (  # noqa: F401
     _require_manifest_file,
     clear_manifest_sandbox,

@@ -4,7 +4,7 @@ import json
 from pathlib import Path
 
 from shared.env_config import resolve_catalog_dir
-from shared.loader_data import CatalogFileMissingError, CatalogLoadError
+from shared.loader_data import CatalogFileMissingError
 from shared.name_resolver import normalize
 
 
@@ -62,13 +62,12 @@ def detect_object_type(project_root: Path, fqn: str) -> str | None:
     if bucket == "tables":
         return "table"
     if bucket == "views":
-        from shared.catalog_support.loaders import load_view_catalog
-
+        view_path = resolve_catalog_dir(project_root) / "views" / f"{norm}.json"
         try:
-            cat = load_view_catalog(project_root, norm)
-            if cat and cat.is_materialized_view:
+            data = json.loads(view_path.read_text(encoding="utf-8"))
+            if data.get("is_materialized_view"):
                 return "mv"
-        except (json.JSONDecodeError, OSError, CatalogLoadError):
+        except (json.JSONDecodeError, OSError, UnicodeDecodeError):
             pass
         return "view"
     return None

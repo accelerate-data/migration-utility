@@ -7,7 +7,7 @@ import re
 from pathlib import Path
 
 from shared.env_config import resolve_ddl_dir
-from shared.loader_data import CatalogNotFoundError, DdlCatalog, DdlEntry, DdlParseError
+from shared.loader_data import DdlCatalog, DdlEntry, DdlParseError
 from shared.loader_io_support.manifest import read_manifest
 from shared.loader_parse import (
     GO_RE,
@@ -16,7 +16,6 @@ from shared.loader_parse import (
     parse_block,
     split_blocks,
 )
-from shared.env_config import resolve_catalog_dir
 from shared.name_resolver import normalize
 from sqlglot import exp
 
@@ -101,35 +100,3 @@ def load_directory(project_root: Path | str, dialect: str = "tsql") -> DdlCatalo
     for sql_file in sorted(ddl_dir.glob("*.sql")):
         _load_file(sql_file, catalog, dialect=dialect, delimiter_re=delimiter_re)
     return catalog
-
-
-def load_ddl(project_root: Path) -> tuple[DdlCatalog, str]:
-    """Load a DdlCatalog and dialect from a project root directory.
-
-    Requires a ``catalog/`` directory (from setup-ddl) containing per-object
-    JSON files. Raises ``CatalogNotFoundError`` if the directory is missing or
-    empty.
-
-    Two loading strategies:
-
-    1. **Pre-built index** — if ``catalog.json`` exists (written by
-       ``index_directory``), loads from that flat reference index.  This is
-       faster but does not include sqlglot AST data.
-    2. **Live parse** — parses ``.sql`` DDL files directly via sqlglot.
-
-    The ``catalog/`` directory guard ensures we don't silently use a stale
-    ``catalog.json`` from a different project state.
-    """
-
-    manifest = read_manifest(project_root)
-    dialect = manifest.get("dialect", "tsql")
-    catalog_dir = resolve_catalog_dir(project_root)
-    if not catalog_dir.is_dir() or not any(catalog_dir.rglob("*.json")):
-        logger.error("event=load_ddl operation=check_catalog project_root=%s reason=no_catalog_directory", project_root)
-        raise CatalogNotFoundError(project_root)
-    catalog_json = project_root / "catalog.json"
-    if catalog_json.exists():
-        from shared.loader_io_support.indexing import load_catalog
-
-        return load_catalog(project_root), dialect
-    return load_directory(project_root, dialect=dialect), dialect

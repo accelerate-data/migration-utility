@@ -16,6 +16,17 @@ def test_loader_io_support_exports_manifest_reader(tmp_path: Path) -> None:
     assert read_manifest(tmp_path)["dialect"] == "tsql"
 
 
+def test_loader_io_support_exports_loader_boundaries() -> None:
+    from shared.loader_io_support.directory import load_directory
+    from shared.loader_io_support.indexing import index_directory, load_catalog
+    from shared.loader_io_support.load import load_ddl
+
+    assert load_directory.__name__ == "load_directory"
+    assert index_directory.__name__ == "index_directory"
+    assert load_catalog.__name__ == "load_catalog"
+    assert load_ddl.__name__ == "load_ddl"
+
+
 def test_read_manifest_defaults_dialect_when_missing(tmp_path: Path) -> None:
     (tmp_path / "manifest.json").write_text(
         json.dumps({"technology": "sql_server"}),
