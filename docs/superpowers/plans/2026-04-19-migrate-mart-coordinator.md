@@ -130,7 +130,7 @@ markdownlint docs/design/migrate-mart-coordinator/README.md docs/superpowers/pla
 - Modify: `tests/unit/worktree_script/test_worktree_script.py`
 - Modify: `tests/unit/repo_structure/test_root_plugin_layout.py`
 
-- [ ] **Step 1: Update failing tests for the new shared worktree contract**
+- [x] **Step 1: Update failing tests for the new shared worktree contract**
 
   Change `tests/unit/worktree_script/test_worktree_script.py` so `SCRIPT_PATH` targets the new plugin shared script:
 
@@ -168,7 +168,7 @@ markdownlint docs/design/migrate-mart-coordinator/README.md docs/superpowers/pla
   assert payload["reused"] is True
   ```
 
-- [ ] **Step 2: Run the focused tests and verify they fail**
+- [x] **Step 2: Run the focused tests and verify they fail**
 
   ```bash
   cd lib && uv run pytest ../tests/unit/worktree_script/test_worktree_script.py -v
@@ -176,7 +176,7 @@ markdownlint docs/design/migrate-mart-coordinator/README.md docs/superpowers/pla
 
   Expected: failures because `shared/scripts/worktree.sh` does not exist and the old helper accepts only one argument.
 
-- [ ] **Step 3: Implement `shared/scripts/worktree.sh`**
+- [x] **Step 3: Implement `shared/scripts/worktree.sh`**
 
   Base it on `skills/git-checkpoints/scripts/worktree.sh`, but change the public contract:
 
@@ -213,7 +213,7 @@ markdownlint docs/design/migrate-mart-coordinator/README.md docs/superpowers/pla
 
   Preserve bootstrap behavior from the current helper: `.env` symlink, optional `direnv allow`, `uv sync --extra dev`, `pyodbc/oracledb` verification, and eval npm bootstrap.
 
-- [ ] **Step 4: Document shared script behavior**
+- [x] **Step 4: Document shared script behavior**
 
   Create `shared/scripts/README.md` with the customer-facing helper contracts:
 
@@ -228,7 +228,7 @@ markdownlint docs/design/migrate-mart-coordinator/README.md docs/superpowers/pla
   - `stage-cleanup.sh <branch> <worktree-path>`
   ```
 
-- [ ] **Step 5: Add repo-structure test coverage**
+- [x] **Step 5: Add repo-structure test coverage**
 
   In `tests/unit/repo_structure/test_root_plugin_layout.py`, assert these paths exist:
 
@@ -237,13 +237,13 @@ markdownlint docs/design/migrate-mart-coordinator/README.md docs/superpowers/pla
   assert (repo_root / "shared" / "scripts" / "README.md").exists()
   ```
 
-- [ ] **Step 6: Run focused tests and verify they pass**
+- [x] **Step 6: Run focused tests and verify they pass**
 
   ```bash
   cd lib && uv run pytest ../tests/unit/worktree_script/test_worktree_script.py ../tests/unit/repo_structure/test_root_plugin_layout.py -v
   ```
 
-- [ ] **Step 7: Commit Workstream A checkpoint**
+- [x] **Step 7: Commit Workstream A checkpoint**
 
   ```bash
   git add shared/scripts/worktree.sh shared/scripts/README.md tests/unit/worktree_script/test_worktree_script.py tests/unit/repo_structure/test_root_plugin_layout.py
