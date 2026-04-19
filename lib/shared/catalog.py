@@ -20,11 +20,18 @@ Proc/view/function files carry ``references`` (outbound references from the DMF)
 
 from __future__ import annotations
 
+from shared.catalog_models import (
+    FunctionCatalog,
+    ProcedureCatalog,
+    TableCatalog,
+    ViewCatalog,
+)
 from shared.catalog_preservation import (
     restore_enriched_fields as restore_enriched_fields,
     snapshot_enriched_fields as snapshot_enriched_fields,
 )
 from shared.catalog_support.loaders import (
+    _load_catalog_file,
     load_function_catalog,
     load_proc_catalog,
     load_table_catalog,
@@ -50,3 +57,7 @@ from shared.catalog_support.writers import (
     write_table_catalog,
     write_view_catalog,
 )
+from shared.dmf_processing import empty_scoped
+from shared.env_config import resolve_catalog_dir
+from shared.loader_data import CatalogFileMissingError, CatalogLoadError
+from shared.name_resolver import fqn_parts, normalize
