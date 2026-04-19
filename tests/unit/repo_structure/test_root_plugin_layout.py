@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import stat
 from pathlib import Path
 
 
@@ -22,7 +23,14 @@ def test_root_plugin_layout_matches_the_desired_structure() -> None:
     assert (REPO_ROOT / "commands").is_dir()
     assert (REPO_ROOT / "skills").is_dir()
     assert (REPO_ROOT / "shared" / "scripts" / "worktree.sh").is_file()
+    assert (REPO_ROOT / "shared" / "scripts" / "stage-pr.sh").is_file()
+    assert (REPO_ROOT / "shared" / "scripts" / "stage-pr-merge.sh").is_file()
+    assert (REPO_ROOT / "shared" / "scripts" / "stage-cleanup.sh").is_file()
     assert (REPO_ROOT / "shared" / "scripts" / "README.md").is_file()
+    assert (REPO_ROOT / "shared" / "scripts" / "worktree.sh").stat().st_mode & stat.S_IXUSR
+    assert (REPO_ROOT / "shared" / "scripts" / "stage-pr.sh").stat().st_mode & stat.S_IXUSR
+    assert (REPO_ROOT / "shared" / "scripts" / "stage-pr-merge.sh").stat().st_mode & stat.S_IXUSR
+    assert (REPO_ROOT / "shared" / "scripts" / "stage-cleanup.sh").stat().st_mode & stat.S_IXUSR
     assert (REPO_ROOT / "lib" / "pyproject.toml").is_file()
     assert (REPO_ROOT / "mcp" / "ddl" / "server.py").is_file()
 
