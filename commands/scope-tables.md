@@ -69,7 +69,7 @@ Use `TaskCreate` and `TaskUpdate` to show live progress. At the start of Step 2,
 
 Create `.migration-runs/` first if it does not already exist.
 
-**Workflow-exempt source check:** For each item, read `catalog/tables/<fqn>.json` before any scoping work. If the catalog marks the table as a source, do not invoke `/analyzing-table` for that item. Write this skip result to `.migration-runs/<schema.item>.<run_id>.json` and continue to the next item:
+**Workflow-exempt source check:** For each item, read `catalog/tables/<fqn>.json` before any scoping work. If the catalog marks the table as a source, do not invoke `/analyzing-table` for that item. Write this skip result to `.migration-runs/<schema.item>.<run_id>.json` and continue to the next item. This skip artifact is summary-only; it does not enter later staging, commit, or push steps:
 
 ```json
 {"item_id": "<fqn>", "object_type": "table", "status": "ok", "catalog_path": "catalog/tables/<item_id>.json", "output": {"skipped": true, "reason": "is_source", "message": "<fqn> is marked as a dbt source -- no migration needed. Use `ad-migration add-source-table` to manage source tables."}, "warnings": [], "errors": []}
@@ -87,7 +87,7 @@ git checkout -- catalog/<object_type>s/<item_id>.json
 
 Ignore errors from `git checkout` (the file may not have been modified).
 
-If the item status is not `error`, stage `catalog/<object_type>s/<item_id>.json`, create a checkpoint commit, and push the current branch.
+If the item status is not `error` and `output.skipped != true`, stage `catalog/<object_type>s/<item_id>.json`, create a checkpoint commit, and push the current branch.
 
 Then continue to Step 3.
 
@@ -100,7 +100,8 @@ Write the item result JSON to .migration-runs/<schema.item>.<run_id>.json.
 
 After writing the result:
 - If status == "error": run `git checkout -- catalog/<object_type>s/<item_id>.json` (ignore errors).
-- If status != "error": stage `catalog/<object_type>s/<item_id>.json`, create a checkpoint commit, and push the current branch.
+- If status != "error" and `output.skipped != true`: stage `catalog/<object_type>s/<item_id>.json`, create a checkpoint commit, and push the current branch.
+- If `output.skipped == true`: do not stage, commit, or push catalog changes; keep the result summary-only.
 
 On failure before writing a result, write result with status: "error" and error details, then revert as above.
 Return the item result JSON.

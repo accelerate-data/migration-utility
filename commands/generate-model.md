@@ -73,7 +73,7 @@ Use `TaskCreate` and `TaskUpdate` to show live progress. At the start of Step 2,
 
 Create `.migration-runs/` first if it does not already exist.
 
-**Workflow-exempt source and seed check:** For each item, read `catalog/tables/<fqn>.json` before any idempotency check or model generation. If the catalog marks the table as a source or seed, do not invoke `/generating-model` for that item. Write one of these skip results to `.migration-runs/<schema.table>.<run_id>.json` and continue to the next item:
+**Workflow-exempt source and seed check:** For each item, read `catalog/tables/<fqn>.json` before any idempotency check or model generation. If the catalog marks the table as a source or seed, do not invoke `/generating-model` for that item. Write one of these skip results to `.migration-runs/<schema.table>.<run_id>.json` and continue to the next item. These skip artifacts are summary-only; they do not enter review, unit-test setup, unit-test repair, or commit/revert stages.
 
 ```json
 {"item_id": "<fqn>", "status": "ok", "output": {"skipped": true, "reason": "is_source", "message": "<fqn> is marked as a dbt source -- no migration needed. Use `ad-migration add-source-table` to manage source tables."}}
@@ -97,7 +97,7 @@ Launch one sub-agent per item in parallel for items that still need fresh genera
 
 ### Step 3 — Stage 2: Review
 
-For each item, read `.migration-runs/<item_id>.<run_id>.json` from Stage 1. If `status` is `error`, skip review for that item and carry it forward to Stage 3. For each remaining item, run the review flow for that item, including items whose Stage 1 result has `output.skipped == true`.
+For each item, read `.migration-runs/<item_id>.<run_id>.json` from Stage 1. If `status` is `error` or `output.skipped == true`, skip review for that item and carry it forward to Stage 3 only when it is not a skip artifact. Skip artifacts remain summary-only.
 
 If a Stage 1 idempotency-skip item's review returns `error` because persisted artifacts are missing or stale, invoke `/generating-model <item_id>` once to rebuild them, then retry review.
 
@@ -107,7 +107,7 @@ Launch one review sub-agent per eligible item in parallel. Each sub-agent follow
 
 ### Step 4 — Stage 3: Unit-test setup
 
-Read each item result from `.migration-runs/<item_id>.<run_id>.json`. Collect the subset of items where `output.generated.model_yaml.has_unit_tests` is `true` and `status` is not `error`. If none, skip this stage and proceed to Step 5.
+Read each item result from `.migration-runs/<item_id>.<run_id>.json`. Collect the subset of items where `output.generated.model_yaml.has_unit_tests` is `true`, `status` is not `error`, and `output.skipped != true`. If none, skip this stage and proceed to Step 5.
 
 **Prompt:** Read [references/unit-test-setup-agent-prompt.md](references/unit-test-setup-agent-prompt.md). Substitute `<model_names>` (space-separated `model_name` values for the collected items), `<working-directory>`, and `<run_id>` before dispatching.
 
@@ -117,7 +117,7 @@ Dispatch one setup sub-agent for the entire collected list.
 
 Before dispatching repair agents, read `.migration-runs/unit-test-setup.<run_id>.json`. If `status` is `error`, skip repair for all unit-test items: update each item result with `status: "partial"` and a `DBT_TEST_FAILED` warning (reason: parent materialisation failed), then proceed to commit/revert.
 
-For each item where `output.generated.model_yaml.has_unit_tests` is `true` and `status` is not `error`:
+For each item where `output.generated.model_yaml.has_unit_tests` is `true`, `status` is not `error`, and `output.skipped != true`:
 
 **Prompt:** Read [references/unit-test-repair-agent-prompt.md](references/unit-test-repair-agent-prompt.md). Substitute `<schema.table>`, `<model_name>`, `<working-directory>`, and `<run_id>` before dispatching.
 
@@ -127,7 +127,7 @@ Launch one repair sub-agent per eligible item in parallel. Each sub-agent follow
 
 Derive `<model_name>` from item_id.
 
-If the item final status is `error`, revert any files the skill may have partially written:
+If the item final status is `error`, revert any files the skill may have partially written. Skip artifacts do not reach this step:
 
 ```bash
 git checkout -- dbt/models/marts/<model_name>.sql
@@ -143,7 +143,7 @@ git checkout -- dbt/snapshots/<snapshot_name>.sql
 
 Use `rm -f` instead of `git checkout` for newly created files with no prior version.
 
-If the item final status is not `error`, stage the generated dbt files, create a checkpoint commit, and push the current branch.
+If the item final status is not `error` and `output.skipped != true`, stage the generated dbt files, create a checkpoint commit, and push the current branch.
 
 ### Step 6 — Summarize
 

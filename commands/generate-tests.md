@@ -69,7 +69,7 @@ Use `TaskCreate` and `TaskUpdate` to show live progress. At the start of Step 2,
 
 Create `.migration-runs/` first if it does not already exist.
 
-**Workflow-exempt source and seed check:** For each item, read `catalog/tables/<fqn>.json` before any scenario generation. If the catalog marks the table as a source or seed, do not invoke `/generating-tests` for that item. Write one of these skip results to `.migration-runs/<schema.table>.<run_id>.json` and continue to the next item:
+**Workflow-exempt source and seed check:** For each item, read `catalog/tables/<fqn>.json` before any scenario generation. If the catalog marks the table as a source or seed, do not invoke `/generating-tests` for that item. Write one of these skip results to `.migration-runs/<schema.table>.<run_id>.json` and continue to the next item. These skip artifacts are summary-only; they do not enter review, capture, or commit stages.
 
 ```json
 {"item_id": "<fqn>", "status": "ok", "output": {"skipped": true, "reason": "is_source", "message": "<fqn> is marked as a dbt source -- no migration needed. Use `ad-migration add-source-table` to manage source tables."}}

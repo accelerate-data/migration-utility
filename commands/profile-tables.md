@@ -65,7 +65,7 @@ Use `TaskCreate` and `TaskUpdate` to show live progress. At the start of Step 2,
 
 ### Step 2 — Route and run per item
 
-Create `.migration-runs/` first if it does not already exist.
+Create `.migration-runs/` first if it does not already exist. Source/seed skip artifacts are summary-only; they do not enter later profiling commit stages.
 
 **Workflow-exempt source and seed check:** For each item, read `catalog/tables/<fqn>.json` before any profiling work. If the catalog marks the table as a source or seed, do not invoke `/profiling-table` for that item. Write one of these skip results to `.migration-runs/<schema.item>.<run_id>.json` and continue to the next item:
 
@@ -91,7 +91,7 @@ git checkout -- catalog/tables/<item_id>.json  # or catalog/views/<item_id>.json
 
 Ignore errors from `git checkout` (the file may not have been modified).
 
-If the item status is not `error`, stage the affected catalog path, create a checkpoint commit, and push the current branch.
+If the item status is not `error` and `output.skipped != true`, stage the affected catalog path, create a checkpoint commit, and push the current branch.
 
 Then continue to Step 3.
 
@@ -106,7 +106,8 @@ Create `.migration-runs/` first if it does not already exist.
 
 After writing the result:
 - If status == "error": run `git checkout -- catalog/tables/<item_id>.json` or `catalog/views/<item_id>.json` (ignore errors).
-- If status != "error": stage the appropriate catalog path, create a checkpoint commit, and push the current branch.
+- If status != "error" and `output.skipped != true`: stage the appropriate catalog path, create a checkpoint commit, and push the current branch.
+- If `output.skipped == true`: do not stage, commit, or push catalog changes; keep the result summary-only.
 
 On failure before writing a result, write result with status: "error" and error details, then revert as above.
 Return the item result JSON.
