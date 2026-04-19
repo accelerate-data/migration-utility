@@ -24,7 +24,19 @@ Coordinator mode:
 ```
 
 In Claude Code slash commands, `$0` is the first user-supplied argument.
-Coordinator mode is active only when `$0` is a Markdown plan path.
+Manual mode is active only when the positional arguments are exactly:
+
+- `$0 = <refactor-mart-plan-file>`
+- `$1 = stg|int`
+
+Coordinator mode is active only when the positional arguments are exactly:
+
+- `$0 = <migrate-mart-plan-file>`
+- `$1 = <stage-id>`
+- `$2 = <worktree-name>`
+- `$3 = <base-branch>`
+- `$4 = <refactor-mart-plan-file>`
+- `$5 = stg|int`
 
 Modes:
 
@@ -43,8 +55,9 @@ Never apply unapproved candidates. Never edit candidates outside the selected mo
 ## Setup
 
 1. Generate run slug `refactor-mart-<mode>-<plan-stem>`.
-2. Use the `## Arguments` contract above to determine whether this is manual mode or coordinator mode.
-3. Use `${CLAUDE_PLUGIN_ROOT}/shared/scripts/worktree.sh` for setup instead of `git-checkpoints`.
+2. Generate a run ID in the form `<epoch_ms>-<random_8hex>` (for example `1743868200123-a1b2c3d4`). Use it as the suffix for every artifact written by this run, including `.migration-runs/pr-body.<run_id>.md`.
+3. Use the `## Arguments` contract above to determine whether this is manual mode or coordinator mode. Do not infer coordinator mode from `$0` alone; the full positional shape must match exactly.
+4. Use `${CLAUDE_PLUGIN_ROOT}/shared/scripts/worktree.sh` for setup instead of `git-checkpoints`.
    - Coordinator mode: read `Branch:`, `Worktree name:`, and `Base branch:` from the matching stage section in the migrate-mart plan, then run:
 
      ```bash
@@ -53,8 +66,8 @@ Never apply unapproved candidates. Never edit candidates outside the selected mo
 
      Use the returned `worktree_path` for all reads, writes, commits, and prompts.
    - Manual mode: derive a stable branch name from the run slug, resolve the remote default branch, and call the same helper with those explicit values.
-4. In coordinator mode, own only the matching `## Stage <stage-id>` checklist in `<migrate-mart-plan-file>`. After each stage substep or candidate result, update only that checklist, then commit the plan update together with the artifact or catalog change that caused it.
-5. Read the coordinator stage metadata from `$0` and the nested refactor-mart plan file from `$4` in that working directory.
+5. In coordinator mode, own only the matching `## Stage <stage-id>` checklist in `<migrate-mart-plan-file>`. After each stage substep or candidate result, update only that checklist, then commit the plan update together with the artifact or catalog change that caused it.
+6. Read the coordinator stage metadata from `$0` and the nested refactor-mart plan file from `$4` in that working directory.
 
 ## Candidate Selection
 
