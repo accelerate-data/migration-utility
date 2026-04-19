@@ -166,6 +166,28 @@ def test_maintainer_docs_use_the_internal_project_path() -> None:
     assert "macOS-only" in init_text or "supported only on macOS" in init_text
 
 
+def test_migrate_mart_plan_uses_stage_specific_worktrees_and_handoff() -> None:
+    migrate_mart_plan_text = (REPO_ROOT / "commands/migrate-mart-plan.md").read_text(
+        encoding="utf-8"
+    )
+
+    expected_snippets = [
+        "This command does not open the final coordinator PR. `/migrate-mart` is the paired follow-on command that executes the approved plan and owns that PR lifecycle.",
+        "- Slash command: `/scope-tables <plan-file> 020 020-scope-<slug> feature/migrate-mart-<slug> <scope-targets>`",
+        "- Invocation: `/scope-tables <plan-file> 020 020-scope-<slug> feature/migrate-mart-<slug> <scope-targets>`",
+        "- Branch: `feature/migrate-mart-<slug>/040-profile-<slug>`",
+        "- Worktree name: `040-profile-<slug>`",
+        "- Worktree path: `../worktrees/feature/migrate-mart-<slug>/040-profile-<slug>`",
+        "- Branch: `feature/migrate-mart-<slug>/120-refactor-mart-higher-<slug>`",
+        "- Worktree name: `120-refactor-mart-higher-<slug>`",
+        "- Worktree path: `../worktrees/feature/migrate-mart-<slug>/120-refactor-mart-higher-<slug>`",
+        "`/migrate-mart-plan` writes the plan and stops; `/migrate-mart` is the paired execution command that consumes the approved plan and handles the final PR.",
+    ]
+
+    for snippet in expected_snippets:
+        assert snippet in migrate_mart_plan_text
+
+
 def test_init_command_runs_public_driver_doctor_and_keeps_internal_checks() -> None:
     init_text = (REPO_ROOT / "commands/init-ad-migration.md").read_text(encoding="utf-8")
     public_doctor = "ad-migration doctor drivers --project-root . --json"
