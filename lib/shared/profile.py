@@ -23,7 +23,7 @@ from typing import Optional
 import typer
 from pydantic import ValidationError
 
-from shared.catalog_models import TableProfileSection, ViewProfileSection
+from shared.catalog_models import ReferencesBucket, TableCatalog, TableProfileSection, ViewProfileSection
 from shared.cli_utils import emit
 from shared.env_config import resolve_project_root
 from shared.loader import (
@@ -33,6 +33,20 @@ from shared.loader import (
     DdlParseError,
 )
 from shared.name_resolver import normalize
+from shared.output_models.discover import SqlElement
+from shared.output_models.profile import (
+    CatalogSignals,
+    EnrichedInScopeRef,
+    EnrichedScopedRefList,
+    OutOfScopeRef,
+    ProfileColumnDef,
+    ProfileContext,
+    RelatedProcedure,
+    ViewColumnDef,
+    ViewProfileContext,
+    ViewReferencedBy,
+    ViewReferences,
+)
 from shared.profile_support import (
     build_seed_profile,
     derive_table_profile_status,
@@ -47,7 +61,21 @@ logger = logging.getLogger(__name__)
 app = typer.Typer(add_completion=False, pretty_exceptions_enable=False)
 
 __all__ = [
+    "CatalogSignals",
+    "EnrichedInScopeRef",
+    "EnrichedScopedRefList",
+    "OutOfScopeRef",
+    "ProfileColumnDef",
+    "ProfileContext",
+    "ReferencesBucket",
+    "RelatedProcedure",
+    "SqlElement",
+    "TableCatalog",
     "TableProfileSection",
+    "ViewColumnDef",
+    "ViewProfileContext",
+    "ViewReferencedBy",
+    "ViewReferences",
     "ViewProfileSection",
     "app",
     "build_seed_profile",

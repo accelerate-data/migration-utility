@@ -16,6 +16,30 @@ from tests.unit.profile.helpers import _PROFILE_FIXTURES, _make_writable_copy
 _cli_runner = CliRunner()
 
 
+def test_profile_facade_reexports_context_model_types() -> None:
+    from shared.profile import (
+        CatalogSignals,
+        ProfileColumnDef,
+        ProfileContext,
+        ReferencesBucket,
+        RelatedProcedure,
+        SqlElement,
+        TableCatalog,
+        ViewProfileContext,
+        ViewReferences,
+    )
+
+    assert CatalogSignals.__name__ == "CatalogSignals"
+    assert ProfileColumnDef.__name__ == "ProfileColumnDef"
+    assert ProfileContext.__name__ == "ProfileContext"
+    assert ReferencesBucket.__name__ == "ReferencesBucket"
+    assert RelatedProcedure.__name__ == "RelatedProcedure"
+    assert SqlElement.__name__ == "SqlElement"
+    assert TableCatalog.__name__ == "TableCatalog"
+    assert ViewProfileContext.__name__ == "ViewProfileContext"
+    assert ViewReferences.__name__ == "ViewReferences"
+
+
 def test_context_rich_catalog_all_signals_present() -> None:
     """Context with rich catalog returns all catalog signals."""
     result = profile.run_context(
