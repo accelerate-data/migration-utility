@@ -128,13 +128,13 @@ def test_packaging_contract_matches_the_split_distribution_layout(tmp_path: Path
     assert "scripts" not in shared["project"]
 
     assert public["project"]["name"] == "ad-migration-cli"
-    assert public["project"]["dependencies"] == ["ad-migration-shared[export,oracle]==0.1.0"]
+    assert public["project"]["dependencies"] == ["ad-migration-shared[export,oracle,sql-server]==0.1.0"]
     assert public["project"]["scripts"] == {
         "ad-migration": "ad_migration_cli.main:app",
     }
 
     assert internal["project"]["name"] == "ad-migration-internal"
-    assert internal["project"]["dependencies"] == ["ad-migration-shared[export,oracle]==0.1.0"]
+    assert internal["project"]["dependencies"] == ["ad-migration-shared[export,oracle,sql-server]==0.1.0"]
     assert "ad-migration" not in internal["project"].get("scripts", {})
     assert internal["project"]["scripts"] == {
         "catalog-enrich": "ad_migration_internal.entrypoints:catalog_enrich_app",
@@ -198,4 +198,9 @@ def test_packaging_contract_matches_the_split_distribution_layout(tmp_path: Path
     assert {
         (driver["driver_module"], driver["importable"])
         for driver in doctor_payload["drivers"]
-    } == {("oracledb", True), ("pyodbc", True)}
+    } == {
+        ("dbt.adapters.oracle", True),
+        ("dbt.adapters.sqlserver", True),
+        ("oracledb", True),
+        ("pyodbc", True),
+    }
