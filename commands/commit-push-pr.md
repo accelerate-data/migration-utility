@@ -1,6 +1,6 @@
 ---
 name: commit-push-pr
-description: Commit, push, and open a PR. Derives title from step and tables context.
+description: Legacy helper for one-off commit, push, and PR creation. Coordinator-aware migration stage commands use shared/scripts/stage-pr.sh instead.
 user-invocable: false
 argument-hint: "[<step> <tables>] [files]"
 ---
