@@ -1,33 +1,19 @@
 import json
 import os
-from pathlib import Path
 from unittest.mock import MagicMock, patch
 
 from typer.testing import CliRunner
 
-import shared.cli.error_handler as _err_mod
 from shared.cli.main import app
 from shared.cli.setup_sandbox_cmd import _write_sandbox_connection_to_manifest
 from shared.output_models.sandbox import (
     ErrorEntry,
-    SandboxDownOutput,
     SandboxStatusOutput,
     SandboxUpOutput,
 )
+from tests.unit.cli.helpers import _patch_pyodbc_programming, _write_sandbox_manifest
 
 runner = CliRunner()
-
-
-def _write_manifest(tmp_path: Path, with_sandbox: bool = False) -> None:
-    manifest = {
-        "schema_version": "1",
-        "technology": "sql_server",
-        "runtime": {"source": {"technology": "sql_server", "dialect": "tsql", "connection": {}}},
-        "extraction": {"schemas": ["silver"]},
-    }
-    if with_sandbox:
-        manifest["runtime"]["sandbox"] = {"technology": "sql_server", "dialect": "tsql", "connection": {}}
-    (tmp_path / "manifest.json").write_text(json.dumps(manifest), encoding="utf-8")
 
 
 _SANDBOX_UP_OUT = SandboxUpOutput(
@@ -38,11 +24,9 @@ _SANDBOX_UP_OUT = SandboxUpOutput(
     procedures_cloned=["silver.usp_load"],
     errors=[],
 )
-_SANDBOX_DOWN_OUT = SandboxDownOutput(sandbox_database="SBX_ABC123000000", status="ok")
-
 
 def test_setup_sandbox_runs_sandbox_up(tmp_path):
-    _write_manifest(tmp_path)
+    _write_sandbox_manifest(tmp_path)
     manifest = {
         "runtime": {
             "sandbox": {
@@ -75,9 +59,8 @@ def test_setup_sandbox_runs_sandbox_up(tmp_path):
     assert "git commit" not in result.output
     assert "git push" not in result.output
 
-
 def test_setup_sandbox_reuses_existing_canonical_sandbox(tmp_path):
-    _write_manifest(tmp_path, with_sandbox=True)
+    _write_sandbox_manifest(tmp_path, with_sandbox=True)
     manifest = {
         "runtime": {
             "sandbox": {
@@ -116,9 +99,8 @@ def test_setup_sandbox_reuses_existing_canonical_sandbox(tmp_path):
     mock_write_sandbox.assert_called_once_with(tmp_path, "SBX_000000000001")
     assert "already exists" in result.output
 
-
 def test_setup_sandbox_repairs_existing_empty_canonical_sandbox(tmp_path):
-    _write_manifest(tmp_path, with_sandbox=True)
+    _write_sandbox_manifest(tmp_path, with_sandbox=True)
     manifest = {
         "runtime": {
             "sandbox": {
@@ -165,9 +147,8 @@ def test_setup_sandbox_repairs_existing_empty_canonical_sandbox(tmp_path):
     mock_write_sandbox.assert_called_once_with(tmp_path, "SBX_000000000001")
     assert "repairing" in result.output
 
-
 def test_setup_sandbox_reuses_existing_oracle_sandbox_schema(tmp_path):
-    _write_manifest(tmp_path, with_sandbox=True)
+    _write_sandbox_manifest(tmp_path, with_sandbox=True)
     manifest = {
         "runtime": {
             "sandbox": {
@@ -205,9 +186,8 @@ def test_setup_sandbox_reuses_existing_oracle_sandbox_schema(tmp_path):
     mock_backend.sandbox_up.assert_not_called()
     mock_write_sandbox.assert_called_once_with(tmp_path, "SBX_000000000001")
 
-
 def test_setup_sandbox_surfaces_status_errors_without_provisioning(tmp_path):
-    _write_manifest(tmp_path, with_sandbox=True)
+    _write_sandbox_manifest(tmp_path, with_sandbox=True)
     manifest = {
         "runtime": {
             "sandbox": {
@@ -250,9 +230,8 @@ def test_setup_sandbox_surfaces_status_errors_without_provisioning(tmp_path):
     mock_write_sandbox.assert_not_called()
     assert manifest_path.read_bytes() == before
 
-
 def test_setup_sandbox_creates_new_when_canonical_sandbox_not_found(tmp_path):
-    _write_manifest(tmp_path, with_sandbox=True)
+    _write_sandbox_manifest(tmp_path, with_sandbox=True)
     manifest = {
         "runtime": {
             "sandbox": {
@@ -288,7 +267,6 @@ def test_setup_sandbox_creates_new_when_canonical_sandbox_not_found(tmp_path):
     mock_backend.sandbox_up.assert_called_once_with(schemas=["silver"])
     mock_write_sandbox.assert_called_once_with(tmp_path, "SBX_ABC123000000")
 
-
 def test_build_sql_server_sandbox_connection_omits_driver(monkeypatch):
     from shared.cli.setup_sandbox_cmd import _build_sandbox_connection_manifest
 
@@ -315,7 +293,6 @@ def test_build_sql_server_sandbox_connection_omits_driver(monkeypatch):
     assert connection["password_env"] == "SANDBOX_MSSQL_PASSWORD"
     assert "driver" not in connection
 
-
 def test_write_sandbox_connection_preserves_existing_canonical_name_and_ignores_legacy(tmp_path, monkeypatch):
     manifest = {
         "runtime": {
@@ -339,81 +316,6 @@ def test_write_sandbox_connection_preserves_existing_canonical_name_and_ignores_
     assert connection["host"] == "127.0.0.1"
     assert "driver" not in connection
     assert updated["sandbox"]["database"] == "SBX_LEGACY000000"
-
-
-def test_teardown_sandbox_requires_confirmation(tmp_path):
-    _write_manifest(tmp_path, with_sandbox=True)
-
-    with (
-        patch("shared.cli.teardown_sandbox_cmd._load_manifest", return_value={"runtime": {"sandbox": {}}}),
-        patch("shared.cli.teardown_sandbox_cmd._get_sandbox_name", return_value="SBX_ABC123000000"),
-    ):
-        # User enters 'n' at the prompt
-        result = runner.invoke(app, ["teardown-sandbox", "--project-root", str(tmp_path)], input="n\n")
-
-    assert result.exit_code == 0
-    assert "Review and commit the repo changes before continuing" not in result.output
-
-
-def test_teardown_sandbox_yes_flag_skips_prompt(tmp_path):
-    _write_manifest(tmp_path, with_sandbox=True)
-    mock_backend = MagicMock()
-    mock_backend.sandbox_down.return_value = _SANDBOX_DOWN_OUT
-
-    with (
-        patch("shared.cli.teardown_sandbox_cmd._load_manifest", return_value={}),
-        patch("shared.cli.teardown_sandbox_cmd._create_backend", return_value=mock_backend),
-        patch("shared.cli.teardown_sandbox_cmd._get_sandbox_name", return_value="SBX_ABC123000000"),
-    ):
-        result = runner.invoke(app, ["teardown-sandbox", "--yes", "--project-root", str(tmp_path)])
-
-    assert result.exit_code == 0
-    mock_backend.sandbox_down.assert_called_once_with("SBX_ABC123000000")
-    assert "Updated repo state" in result.output
-    assert "manifest.json" in result.output
-    assert "Review and commit the repo changes before continuing" in result.output
-    assert "git add" not in result.output
-    assert "git commit" not in result.output
-    assert "git push" not in result.output
-
-
-def test_teardown_sandbox_no_sandbox_exits_1(tmp_path):
-    with (
-        patch("shared.cli.teardown_sandbox_cmd._load_manifest", return_value={}),
-        patch("shared.cli.teardown_sandbox_cmd._get_sandbox_name", return_value=None),
-    ):
-        result = runner.invoke(app, ["teardown-sandbox", "--yes", "--project-root", str(tmp_path)])
-
-    assert result.exit_code == 1
-    assert "Review and commit the repo changes before continuing" not in result.output
-
-
-def test_teardown_sandbox_error_exits_nonzero(tmp_path):
-    from shared.output_models.sandbox import SandboxDownOutput
-    error_out = SandboxDownOutput(sandbox_database="SBX_ABC123000000", status="error")
-    mock_backend = MagicMock()
-    mock_backend.sandbox_down.return_value = error_out
-
-    with (
-        patch("shared.cli.teardown_sandbox_cmd._load_manifest", return_value={}),
-        patch("shared.cli.teardown_sandbox_cmd._create_backend", return_value=mock_backend),
-        patch("shared.cli.teardown_sandbox_cmd._get_sandbox_name", return_value="SBX_ABC123000000"),
-    ):
-        result = runner.invoke(app, ["teardown-sandbox", "--yes", "--project-root", str(tmp_path)])
-
-    assert result.exit_code == 1
-
-
-def _patch_pyodbc_programming():
-    class _FakePyodbcProgramming(Exception): pass
-    return _FakePyodbcProgramming, patch.multiple(
-        _err_mod,
-        _PYODBC_PROGRAMMING_ERROR=_FakePyodbcProgramming,
-        _PYODBC_INTERFACE_ERROR=None,
-        _PYODBC_OPERATIONAL_ERROR=None,
-        _PYODBC_ERROR=_FakePyodbcProgramming,
-    )
-
 
 def test_setup_sandbox_shows_clean_error_on_db_failure(tmp_path):
     _FakePyodbcProgramming, driver_patch = _patch_pyodbc_programming()
@@ -443,7 +345,6 @@ def test_setup_sandbox_shows_clean_error_on_db_failure(tmp_path):
     assert result.exit_code == 2
     assert "Hint:" in result.output
     assert "Review and commit the repo changes before continuing" not in result.output
-
 
 def test_setup_sandbox_mentions_restart_when_source_env_exists_in_dotenv(tmp_path):
     manifest = {
@@ -489,9 +390,8 @@ def test_setup_sandbox_mentions_restart_when_source_env_exists_in_dotenv(tmp_pat
     assert "defined in .env" in result.output
     assert "direnv" in result.output
 
-
 def test_setup_sandbox_mentions_restart_when_sandbox_env_check_finds_dotenv_value(tmp_path):
-    _write_manifest(tmp_path)
+    _write_sandbox_manifest(tmp_path)
     manifest = {
         "runtime": {
             "sandbox": {
@@ -523,10 +423,9 @@ def test_setup_sandbox_mentions_restart_when_sandbox_env_check_finds_dotenv_valu
     assert "defined in .env" in result.output
     assert "direnv" in result.output
 
-
 def test_setup_sandbox_calls_require_sandbox_vars(tmp_path):
     """setup-sandbox must call require_sandbox_vars with the sandbox technology."""
-    _write_manifest(tmp_path)
+    _write_sandbox_manifest(tmp_path)
     manifest = {
         "runtime": {
             "sandbox": {
@@ -553,10 +452,9 @@ def test_setup_sandbox_calls_require_sandbox_vars(tmp_path):
     assert result.exit_code == 0, result.output
     mock_require.assert_called_once_with("sql_server", tmp_path)
 
-
 def test_setup_sandbox_writes_connection_to_manifest(tmp_path):
     """setup-sandbox writes refreshed connection metadata after successful provisioning."""
-    _write_manifest(tmp_path)
+    _write_sandbox_manifest(tmp_path)
     manifest = {
         "runtime": {
             "sandbox": {
@@ -583,10 +481,9 @@ def test_setup_sandbox_writes_connection_to_manifest(tmp_path):
     assert result.exit_code == 0, result.output
     mock_write.assert_called_once()
 
-
 def test_setup_sandbox_exits_1_when_sandbox_role_missing(tmp_path):
     """setup-sandbox exits 1 if manifest has no runtime.sandbox technology."""
-    _write_manifest(tmp_path)
+    _write_sandbox_manifest(tmp_path)
 
     with (
         patch("shared.cli.setup_sandbox_cmd._load_manifest", return_value={}),
@@ -595,20 +492,3 @@ def test_setup_sandbox_exits_1_when_sandbox_role_missing(tmp_path):
         result = runner.invoke(app, ["setup-sandbox", "--yes", "--project-root", str(tmp_path)])
 
     assert result.exit_code == 1
-
-
-def test_teardown_sandbox_shows_clean_error_on_db_failure(tmp_path):
-    _FakePyodbcProgramming, driver_patch = _patch_pyodbc_programming()
-    mock_backend = MagicMock()
-    mock_backend.sandbox_down.side_effect = _FakePyodbcProgramming("login failed")
-
-    with (
-        driver_patch,
-        patch("shared.cli.teardown_sandbox_cmd._load_manifest", return_value={}),
-        patch("shared.cli.teardown_sandbox_cmd._create_backend", return_value=mock_backend),
-        patch("shared.cli.teardown_sandbox_cmd._get_sandbox_name", return_value="SBX_ABC000000000"),
-    ):
-        result = runner.invoke(app, ["teardown-sandbox", "--yes", "--project-root", str(tmp_path)])
-
-    assert result.exit_code == 2
-    assert "Hint:" in result.output
