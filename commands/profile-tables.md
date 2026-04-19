@@ -11,6 +11,22 @@ argument-hint: "<schema.table_or_view> [schema.table_or_view ...]"
 
 Produce migration profiles for each table, view, or materialized view. Launches one sub-agent per item in parallel using `/profiling-table` (which auto-detects table vs view).
 
+## Arguments
+
+Manual mode:
+
+```text
+/profile-tables <object> [object ...]
+```
+
+Coordinator mode:
+
+```text
+/profile-tables <plan-file> <stage-id> <worktree-name> <base-branch> <object> [object ...]
+```
+
+Coordinator mode is active only when `$0` is a Markdown plan path.
+
 ## Guards
 
 - `manifest.json` must exist. If missing, fail all items with `MANIFEST_NOT_FOUND`.
@@ -33,13 +49,7 @@ Use `TaskCreate` and `TaskUpdate` to show live progress. At the start of Step 2,
 1. Generate run slug:
    - **Single object (1 item):** use the object FQN directly — `profile-<schema>-<name>` (lowercase, dots → hyphens). No LLM reasoning needed.
    - **Multiple objects (2+):** reason about the conversation context — what is the user trying to accomplish with this batch? Generate a short, descriptive slug that captures the intent (e.g. `profile-customer-dims`, `profile-order-pipeline`). The full slug (including the `profile-` prefix) must be lowercase, hyphen-separated, and at most 40 characters.
-2. Coordinator mode only happens when `$0` is a Markdown plan path. In coordinator mode, parse the invocation as:
-
-   ```text
-   /profile-tables <plan-file> <stage-id> <worktree-name> <base-branch> <object> [object ...]
-   ```
-
-   Read the matching `## Stage <stage-id>` checklist from `<plan-file>`. Use `$1` as the stage ID, `$2` as the worktree name, `$3` as the base branch, and `$4...` as the object arguments.
+2. Use the `## Arguments` contract above to determine whether this is manual mode or coordinator mode.
 3. Use `${CLAUDE_PLUGIN_ROOT}/shared/scripts/worktree.sh` for setup instead of `git-checkpoints`.
    - Coordinator mode: read `Branch:`, `Worktree name:`, and `Base branch:` from the matching stage section, then run:
 
