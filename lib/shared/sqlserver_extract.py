@@ -223,6 +223,23 @@ def _proc_params_sql(schemas: list[str]) -> str:
     )
 
 
+def _view_columns_sql(schemas: list[str]) -> str:
+    in_clause = _schema_clause(schemas)
+    return (
+        f"SELECT SCHEMA_NAME(v.schema_id) AS schema_name, "
+        f"       v.name AS view_name, "
+        f"       c.name AS column_name, c.column_id, "
+        f"       tp.name AS type_name, c.max_length, c.precision, c.scale, "
+        f"       c.is_nullable "
+        f"FROM sys.views v "
+        f"JOIN sys.columns c ON c.object_id = v.object_id "
+        f"JOIN sys.types tp ON tp.user_type_id = c.user_type_id "
+        f"WHERE v.is_ms_shipped = 0 "
+        f"  AND SCHEMA_NAME(v.schema_id) IN ({in_clause}) "
+        f"ORDER BY schema_name, view_name, c.column_id"
+    )
+
+
 def _indexed_views_sql(schemas: list[str]) -> str:
     in_clause = _schema_clause(schemas)
     return (
@@ -251,6 +268,7 @@ def _sqlserver_query_specs() -> tuple[_SqlServerQuerySpec, ...]:
         _SqlServerQuerySpec("object_types.json", _object_types_sql),
         _SqlServerQuerySpec("definitions.json", _definitions_sql),
         _SqlServerQuerySpec("proc_params.json", _proc_params_sql),
+        _SqlServerQuerySpec("view_columns.json", _view_columns_sql),
         _SqlServerQuerySpec("indexed_views.json", _indexed_views_sql, row_transform=_indexed_view_fqns),
     )
 

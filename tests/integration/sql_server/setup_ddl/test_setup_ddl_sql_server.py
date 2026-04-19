@@ -124,6 +124,30 @@ class TestExtractSqlServerIntegration:
         data = json.loads(proc_path.read_text())
         assert "mode" in data, f"Procedure catalog missing 'mode' field: {data.keys()}"
 
+    def test_view_catalog_has_columns(self, tmp_path):
+        _ensure_sql_server_fixture_materialized()
+        write_source_target_sandbox_manifest(tmp_path, source_technology="sql_server")
+        result = _run_cli([
+            "extract",
+            "--database", SQL_SERVER_FIXTURE_DATABASE,
+            "--schemas", SQL_SERVER_FIXTURE_SCHEMA,
+            "--project-root", str(tmp_path),
+        ], timeout=120)
+        assert result.returncode == 0, result.stderr
+
+        views_dir = tmp_path / "catalog" / "views"
+        if not views_dir.is_dir():
+            pytest.skip(f"No views in {SQL_SERVER_FIXTURE_DATABASE}.{SQL_SERVER_FIXTURE_SCHEMA}")
+        view_files = list(views_dir.glob("*.json"))
+        if not view_files:
+            pytest.skip(f"No view catalog files produced for {SQL_SERVER_FIXTURE_SCHEMA}")
+        data = json.loads(view_files[0].read_text())
+        assert data.get("columns")
+        for column in data["columns"]:
+            assert "name" in column
+            assert "sql_type" in column
+            assert "is_nullable" in column
+
     def test_enriched_fields_preserved_on_reextract(self, tmp_path):
         _ensure_sql_server_fixture_materialized()
         write_source_target_sandbox_manifest(tmp_path, source_technology="sql_server")
