@@ -18,7 +18,14 @@ Never apply unapproved candidates. Never edit candidates outside the selected mo
 
 ## Guards
 
-- Parse exactly two positional arguments: `<plan-file>` and `stg|int`.
+- Manual mode parses exactly two positional arguments: `<plan-file>` and `stg|int`.
+- Coordinator mode only happens when `$0` is a Markdown plan path. In coordinator mode, parse the invocation as:
+
+  ```text
+  /refactor-mart <migrate-mart-plan-file> <stage-id> <worktree-name> <base-branch> <refactor-mart-plan-file> stg|int
+  ```
+
+  Use `$0` as the migrate-mart plan file, `$1` as the stage ID, `$2` as the worktree name, `$3` as the base branch, `$4` as the refactor-mart plan file, and `$5` as `stg|int`.
 - If the plan file is missing, fail with `PLAN_NOT_FOUND`.
 - If mode is not `stg` or `int`, fail with `INVALID_MODE`.
 - If `manifest.json` is missing, fail with `MANIFEST_NOT_FOUND`.
@@ -27,10 +34,17 @@ Never apply unapproved candidates. Never edit candidates outside the selected mo
 ## Setup
 
 1. Generate run slug `refactor-mart-<mode>-<plan-stem>`.
-2. Run `git-checkpoints` with the run slug.
-3. Use the returned worktree path for reads, writes, commits, and plan updates.
-   If it returns the default branch name, use the current repository root.
-4. Read the plan in that working directory.
+2. Use `${CLAUDE_PLUGIN_ROOT}/shared/scripts/worktree.sh` for setup instead of `git-checkpoints`.
+   - Coordinator mode: read `Branch:`, `Worktree name:`, and `Base branch:` from the matching stage section in the migrate-mart plan, then run:
+
+     ```bash
+     "${CLAUDE_PLUGIN_ROOT}/shared/scripts/worktree.sh" "<branch>" "<worktree-name>" "<base-branch>"
+     ```
+
+     Use the returned `worktree_path` for all reads, writes, commits, and prompts.
+   - Manual mode: derive a stable branch name from the run slug, resolve the remote default branch, and call the same helper with those explicit values.
+3. In coordinator mode, own only the matching `## Stage <stage-id>` checklist in `<migrate-mart-plan-file>`. After each stage substep or candidate result, update only that checklist, then commit the plan update together with the artifact or catalog change that caused it.
+4. Read the refactor-mart plan file from `$4` in that working directory.
 
 ## Candidate Selection
 
@@ -86,3 +100,11 @@ skipped: <n>
 ```
 
 List blocked candidate IDs with dependency or metadata reasons. List failed candidate IDs with validation summaries. Skipped means approved candidates not selected for the current mode plus unapproved candidates in the current wave; blocked candidates are not skipped.
+
+After successful candidate work is committed and pushed, always open or update a PR:
+
+```bash
+"${CLAUDE_PLUGIN_ROOT}/shared/scripts/stage-pr.sh" "<branch>" "<base-branch>" "<title>" ".migration-runs/pr-body.<run_id>.md"
+```
+
+Report the PR number and URL. In manual mode, tell the human to review and merge the PR. In coordinator mode, return the PR metadata to the coordinator and do not ask any question.
