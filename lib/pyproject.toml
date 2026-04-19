@@ -12,9 +12,17 @@ dependencies = [
 ]
 
 [project.optional-dependencies]
-dev = ["pytest>=9.0.3", "jsonschema>=4.18", "pyodbc>=5.0", "oracledb>=2.0"]
+dev = [
+    "pytest>=9.0.3",
+    "jsonschema>=4.18",
+    "pyodbc>=5.0",
+    "oracledb>=2.0",
+    "dbt-sqlserver>=1.9,<2",
+    "dbt-oracle>=1.10,<2",
+]
 export = ["pyodbc>=5.0"]
-oracle = ["oracledb>=2.0"]
+sql-server = ["pyodbc>=5.0", "dbt-sqlserver>=1.9,<2"]
+oracle = ["oracledb>=2.0", "dbt-oracle>=1.10,<2"]
 
 [build-system]
 requires = ["hatchling"]
