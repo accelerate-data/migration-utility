@@ -67,7 +67,7 @@ Never apply unapproved candidates. Never edit candidates outside the selected mo
      Use the returned `worktree_path` for all reads, writes, commits, and prompts.
    - Manual mode: derive a stable branch name from the run slug, resolve the remote default branch, and call the same helper with those explicit values.
 5. In coordinator mode, own only the matching `## Stage <stage-id>` checklist in `<migrate-mart-plan-file>`. After each stage substep or candidate result, update only that checklist, then commit the plan update together with the artifact or catalog change that caused it.
-6. Read the coordinator stage metadata from `$0` and the nested refactor-mart plan file from `$4` in that working directory.
+6. Coordinator mode: read the coordinator stage metadata from `$0` and the nested refactor-mart plan file from `$4` in that working directory. Manual mode: read the refactor-mart plan file from `$0`.
 
 ## Candidate Selection
 

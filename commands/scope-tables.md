@@ -67,6 +67,14 @@ Use `TaskCreate` and `TaskUpdate` to show live progress. At the start of Step 2,
 
 ### Step 2 — Run skill per item
 
+Create `.migration-runs/` first if it does not already exist.
+
+**Workflow-exempt source check:** For each item, read `catalog/tables/<fqn>.json` before any scoping work. If the catalog marks the table as a source, do not invoke `/analyzing-table` for that item. Write this skip result to `.migration-runs/<schema.item>.<run_id>.json` and continue to the next item:
+
+```json
+{"item_id": "<fqn>", "object_type": "table", "status": "ok", "catalog_path": "catalog/tables/<item_id>.json", "output": {"skipped": true, "reason": "is_source", "message": "<fqn> is marked as a dbt source -- no migration needed. Use `ad-migration add-source-table` to manage source tables."}, "warnings": [], "errors": []}
+```
+
 **Single-item path (1 item):** Run `/analyzing-table` directly in the current conversation — do not launch a sub-agent. The skill auto-detects table vs view from catalog presence.
 
 After the skill completes, write the item result JSON (see Item Result Schema) to `.migration-runs/<schema.item>.<run_id>.json`.

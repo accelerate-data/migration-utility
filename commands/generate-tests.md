@@ -69,6 +69,16 @@ Use `TaskCreate` and `TaskUpdate` to show live progress. At the start of Step 2,
 
 Create `.migration-runs/` first if it does not already exist.
 
+**Workflow-exempt source and seed check:** For each item, read `catalog/tables/<fqn>.json` before any scenario generation. If the catalog marks the table as a source or seed, do not invoke `/generating-tests` for that item. Write one of these skip results to `.migration-runs/<schema.table>.<run_id>.json` and continue to the next item:
+
+```json
+{"item_id": "<fqn>", "status": "ok", "output": {"skipped": true, "reason": "is_source", "message": "<fqn> is marked as a dbt source -- no migration needed. Use `ad-migration add-source-table` to manage source tables."}}
+```
+
+```json
+{"item_id": "<fqn>", "status": "ok", "output": {"skipped": true, "reason": "is_seed", "message": "<fqn> is marked as a dbt seed -- no migration needed. Use `ad-migration add-seed-table` to manage seed tables."}}
+```
+
 **Single-table path (1 table):** Run `/generating-tests` directly in the current conversation — do not launch a sub-agent. After the skill completes, write the item result JSON (see Item Result Schema) to `.migration-runs/<schema.table>.<run_id>.json`. Then continue to Step 3.
 
 **Multi-table path (2+ tables):** Launch one sub-agent per table in parallel. Each sub-agent receives this prompt:
@@ -86,7 +96,7 @@ The skill writes `test-specs/<item_id>.json` with branch manifest and fixtures b
 
 ### Step 3 — Review scenarios
 
-For each item, read `.migration-runs/<item_id>.<run_id>.json` from Step 2. If `status` is `error`, skip the item. For each remaining item, invoke `/reviewing-tests <item_id> --iteration 1`.
+For each item, read `.migration-runs/<item_id>.<run_id>.json` from Step 2. If `status` is `error` or `output.skipped == true`, skip the item. For each remaining item, invoke `/reviewing-tests <item_id> --iteration 1`.
 
 Parse the returned TestReviewResult JSON:
 
@@ -98,7 +108,7 @@ Parse the returned TestReviewResult JSON:
 
 ### Step 4 — Capture ground truth
 
-For each item with approved scenarios:
+For each item with approved scenarios and `output.skipped != true`:
 
 ```bash
 uv run --project "${CLAUDE_PLUGIN_ROOT}/packages/ad-migration-internal" test-harness execute-spec \
@@ -114,7 +124,7 @@ If `execute-spec` exits non-zero or individual scenarios fail:
 
 ### Step 5 — Commit test spec
 
-For each item with `status: "ok"` or `status: "partial"` (i.e., ground truth was captured):
+For each item with `status: "ok"` or `status: "partial"` and `output.skipped != true` (i.e., ground truth was captured):
 
 If the item final status is `error`, revert any partially written files:
 

@@ -32,9 +32,9 @@ Coordinator mode is active only when `$0` is a Markdown plan path.
 
 - `manifest.json` must exist. If missing, fail all items with `MANIFEST_NOT_FOUND`.
 - For each FQN argument:
-  - if `catalog/tables/<fqn>.json` has `"is_seed": true`, skip that table and print:
+  - if `catalog/tables/<fqn>.json` has `"is_seed": true`, skip that table, write the workflow-exempt skip result described in Step 2, and print:
     > `<fqn>` is marked as a dbt seed -- no migration needed. Use `ad-migration add-seed-table` to manage seed tables.
-  - if `catalog/tables/<fqn>.json` has `"is_source": true`, skip that table and print:
+  - if `catalog/tables/<fqn>.json` has `"is_source": true`, skip that table, write the workflow-exempt skip result described in Step 2, and print:
     > `<fqn>` is marked as a dbt source -- no migration needed. Use `ad-migration add-source-table` to manage source tables.
 
 Per-item readiness is checked by the skill via `migrate-util ready`.
@@ -64,6 +64,18 @@ Use `TaskCreate` and `TaskUpdate` to show live progress. At the start of Step 2,
 5. Generate a run ID in the form `<epoch_ms>-<random_8hex>` (for example `1743868200123-a1b2c3d4`). All run artifacts use this as the filename suffix.
 
 ### Step 2 — Route and run per item
+
+Create `.migration-runs/` first if it does not already exist.
+
+**Workflow-exempt source and seed check:** For each item, read `catalog/tables/<fqn>.json` before any profiling work. If the catalog marks the table as a source or seed, do not invoke `/profiling-table` for that item. Write one of these skip results to `.migration-runs/<schema.item>.<run_id>.json` and continue to the next item:
+
+```json
+{"item_id": "<fqn>", "status": "ok", "catalog_path": "catalog/tables/<item_id>.json", "output": {"skipped": true, "reason": "is_source", "message": "<fqn> is marked as a dbt source -- no migration needed. Use `ad-migration add-source-table` to manage source tables."}, "warnings": [], "errors": []}
+```
+
+```json
+{"item_id": "<fqn>", "status": "ok", "catalog_path": "catalog/tables/<item_id>.json", "output": {"skipped": true, "reason": "is_seed", "message": "<fqn> is marked as a dbt seed -- no migration needed. Use `ad-migration add-seed-table` to manage seed tables."}, "warnings": [], "errors": []}
+```
 
 **Single-item path (1 item):** Run `/profiling-table` directly in the current conversation — do not launch a sub-agent. The skill auto-detects table vs view from catalog presence. Set `catalog_path` in the item result accordingly (`catalog/views/` or `catalog/tables/`).
 
