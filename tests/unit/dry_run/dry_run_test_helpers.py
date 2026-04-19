@@ -17,6 +17,16 @@ _cli_runner = CliRunner()
 
 _TESTS_DIR = Path(__file__).parent
 _FIXTURES = _TESTS_DIR / "fixtures"
+_GIT_ENV = {
+    "GIT_AUTHOR_NAME": "test",
+    "GIT_AUTHOR_EMAIL": "t@t",
+    "GIT_COMMITTER_NAME": "test",
+    "GIT_COMMITTER_EMAIL": "t@t",
+    "HOME": str(Path.home()),
+    "GIT_CONFIG_COUNT": "1",
+    "GIT_CONFIG_KEY_0": "commit.gpgsign",
+    "GIT_CONFIG_VALUE_0": "false",
+}
 
 def _make_project(
     *,
@@ -40,7 +50,7 @@ def _make_project(
     subprocess.run(
         ["git", "commit", "--allow-empty", "-m", "init"],
         cwd=dst, capture_output=True, check=True,
-        env={"GIT_AUTHOR_NAME": "test", "GIT_AUTHOR_EMAIL": "t@t", "GIT_COMMITTER_NAME": "test", "GIT_COMMITTER_EMAIL": "t@t", "HOME": str(Path.home())},
+        env=_GIT_ENV,
     )
     return tmp, dst
 
@@ -92,7 +102,7 @@ def _make_bare_project() -> tuple[tempfile.TemporaryDirectory, Path]:
     subprocess.run(
         ["git", "commit", "--allow-empty", "-m", "init"],
         cwd=dst, capture_output=True, check=True,
-        env={"GIT_AUTHOR_NAME": "test", "GIT_AUTHOR_EMAIL": "t@t", "GIT_COMMITTER_NAME": "test", "GIT_COMMITTER_EMAIL": "t@t", "HOME": str(Path.home())},
+        env=_GIT_ENV,
     )
     return tmp, dst
 
@@ -174,12 +184,6 @@ def _add_source_table(root: Path, schema: str, name: str) -> None:
     (root / "catalog" / "tables" / f"{norm}.json").write_text(
         json.dumps(cat), encoding="utf-8",
     )
-
-_GIT_ENV = {
-    "GIT_AUTHOR_NAME": "test", "GIT_AUTHOR_EMAIL": "t@t",
-    "GIT_COMMITTER_NAME": "test", "GIT_COMMITTER_EMAIL": "t@t",
-    "HOME": str(Path.home()),
-}
 
 def _make_exclude_project(tmp_path: Path) -> Path:
     """Create a minimal project with one table and one view for exclude tests."""

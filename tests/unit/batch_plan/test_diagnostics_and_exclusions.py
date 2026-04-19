@@ -10,7 +10,9 @@ import json
 from pathlib import Path
 
 
-from shared.batch_plan import build_batch_plan
+from shared.batch_plan import _BatchPlanInputs, build_batch_plan
+from shared.batch_plan_support.diagnostics import _collect_catalog_diagnostics
+from shared.batch_plan_support.inventory import _CatalogInventory
 from shared.pipeline_status import (
     _compute_diagnostic_stage_flags,
     collect_object_diagnostics,
@@ -201,6 +203,46 @@ class TestReviewedWarnings:
 
         assert result.catalog_diagnostics.total_errors == 1
         assert result.catalog_diagnostics.errors[0].code == "PARSE_ERROR"
+
+    def test_collect_catalog_diagnostics_partitions_support_module(self, tmp_path: Path) -> None:
+        (tmp_path / "catalog" / "tables").mkdir(parents=True)
+        (tmp_path / "manifest.json").write_text(
+            json.dumps({"schema_version": "1.0", "technology": "sql_server"}),
+            encoding="utf-8",
+        )
+        warning = {"code": "PARSE_ERROR", "message": "parse warning", "severity": "warning"}
+        (tmp_path / "catalog" / "tables" / "dim.dim_address.json").write_text(
+            json.dumps(
+                {
+                    "schema": "dim",
+                    "name": "dim_address",
+                    "warnings": [warning],
+                    "scoping": {"status": "no_writer_found"},
+                },
+            ),
+            encoding="utf-8",
+        )
+        inputs = _BatchPlanInputs(
+            inv=_CatalogInventory(table_fqns=["dim.dim_address"]),
+            obj_type_map={"dim.dim_address": "table"},
+            statuses={"dim.dim_address": "n_a"},
+            dbt_status={"dim.dim_address": False},
+            obj_diagnostics={"dim.dim_address": [warning]},
+            raw_deps={"dim.dim_address": set()},
+            scope_phase=[],
+            profile_phase=[],
+            migrate_candidates=[],
+            completed_objects=[],
+            n_a_objects=["dim.dim_address"],
+            blocking={},
+        )
+
+        errors, warnings, resolved_counts, hidden = _collect_catalog_diagnostics(tmp_path, inputs)
+
+        assert errors == []
+        assert [entry.code for entry in warnings] == ["PARSE_ERROR"]
+        assert resolved_counts == {"dim.dim_address": 0}
+        assert hidden == 0
 
 
 # ── Excluded objects tests ────────────────────────────────────────────────────

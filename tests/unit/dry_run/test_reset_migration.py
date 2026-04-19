@@ -390,7 +390,7 @@ def test_run_reset_migration_all_preserve_catalog_write_failure_preserves_paths(
     def fail_write_json(path: Path, data: dict[str, object]) -> None:
         raise OSError(f"cannot write {path}")
 
-    monkeypatch.setattr("shared.dry_run_support.reset.write_json", fail_write_json)
+    monkeypatch.setattr("shared.dry_run_support.reset_preserve_catalog.write_json", fail_write_json)
 
     with pytest.raises(OSError):
         dry_run.run_reset_migration(dst, "all", [], preserve_catalog=True)
@@ -414,7 +414,7 @@ def test_run_reset_migration_all_preserve_catalog_second_write_failure_rolls_bac
     first_path = dst / "catalog" / "tables" / "silver.dimcustomer.json"
     original_first = json.loads(first_path.read_text(encoding="utf-8"))
 
-    import shared.dry_run_support.reset as reset_module
+    import shared.dry_run_support.reset_preserve_catalog as reset_module
 
     original_write_json = reset_module.write_json
     calls = 0
@@ -448,7 +448,7 @@ def test_run_reset_migration_all_preserve_catalog_delete_failure_rolls_back_cata
     first_path = dst / "catalog" / "tables" / "silver.dimcustomer.json"
     original_first = json.loads(first_path.read_text(encoding="utf-8"))
 
-    import shared.dry_run_support.reset as reset_module
+    import shared.dry_run_support.reset_preserve_catalog as reset_module
 
     def fail_move(src: str, dst: str) -> str:
         raise OSError(f"cannot stage {src} to {dst}")
@@ -476,7 +476,7 @@ def test_run_reset_migration_all_preserve_catalog_second_delete_failure_restores
     first_path = dst / "catalog" / "tables" / "silver.dimcustomer.json"
     original_first = json.loads(first_path.read_text(encoding="utf-8"))
 
-    import shared.dry_run_support.reset as reset_module
+    import shared.dry_run_support.reset_preserve_catalog as reset_module
 
     original_move = reset_module.shutil.move
     calls = 0

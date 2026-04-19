@@ -2,636 +2,59 @@
 
 from __future__ import annotations
 
-import json
-import logging
-import os
-import subprocess
-from csv import writer as csv_writer
-from dataclasses import dataclass
-from io import StringIO
 from pathlib import Path
 
-import yaml
-
-from shared.dbops import ColumnSpec, get_dbops
 from shared.generate_sources import write_sources_yml
-from shared.name_resolver import model_name_from_table, normalize
 from shared.output_models.generate_sources import GenerateSourcesOutput
 from shared.output_models.target_setup import SetupTargetOutput
-from shared.db_connect import SQL_SERVER_ODBC_DRIVER
-from shared.runtime_config import dialect_for_technology, get_runtime_role
-from shared.runtime_config_models import RuntimeConnection, RuntimeRole, RuntimeSchemas
-from shared.setup_ddl_support.manifest import read_manifest_strict
-
-logger = logging.getLogger(__name__)
-
-_TARGET_ENV_MAPS: dict[str, dict[str, str]] = {
-    "sql_server": {
-        "host": "TARGET_MSSQL_HOST",
-        "port": "TARGET_MSSQL_PORT",
-        "database": "TARGET_MSSQL_DB",
-        "user": "TARGET_MSSQL_USER",
-        "password_env": "TARGET_MSSQL_PASSWORD",
-    },
-    "oracle": {
-        "host": "TARGET_ORACLE_HOST",
-        "port": "TARGET_ORACLE_PORT",
-        "service": "TARGET_ORACLE_SERVICE",
-        "user": "TARGET_ORACLE_USER",
-        "password_env": "TARGET_ORACLE_PASSWORD",
-    },
-}
-
-
-def write_target_runtime_from_env(
-    project_root: Path,
-    technology: str,
-    source_schema: str = "bronze",
-) -> RuntimeRole:
-    """Read TARGET_* env vars and write runtime.target to manifest.json.
-
-    Returns the RuntimeRole written. Raises ValueError if manifest is missing.
-    """
-    if technology not in _TARGET_ENV_MAPS:
-        raise ValueError(
-            f"Unknown target technology '{technology}'. "
-            f"Supported: {list(_TARGET_ENV_MAPS)}"
-        )
-
-    manifest_path = project_root / "manifest.json"
-    if not manifest_path.exists():
-        raise ValueError(f"manifest.json not found at {manifest_path}. Run setup-source first.")
-
-    env_map = _TARGET_ENV_MAPS[technology]
-    connection_kwargs: dict[str, str] = {}
-    for field, env_var in env_map.items():
-        if field == "password_env":
-            # Store the env var name itself — not the secret value.
-            connection_kwargs["password_env"] = env_var
-        else:
-            value = os.environ.get(env_var, "")
-            if value:
-                connection_kwargs[field] = value
-
-    role = RuntimeRole(
-        technology=technology,
-        dialect=dialect_for_technology(technology),
-        connection=RuntimeConnection(**connection_kwargs),
-        schemas=RuntimeSchemas(source=source_schema, marts=None),
-    )
-
-    manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
-    if "runtime" not in manifest or not isinstance(manifest["runtime"], dict):
-        manifest["runtime"] = {}
-    manifest["runtime"]["target"] = role.model_dump(mode="json", exclude_none=True)
-    manifest_path.write_text(json.dumps(manifest, indent=2), encoding="utf-8")
-
-    logger.info(
-        "event=write_target_runtime status=success component=target_setup technology=%s source_schema=%s",
-        technology,
-        source_schema,
-    )
-
-    return role
-
-
-@dataclass(frozen=True)
-class TargetTableSpec:
-    """One source-backed table that should exist on the target."""
-
-    logical_schema: str
-    physical_schema: str
-    table_name: str
-    columns: list[ColumnSpec]
-
-    @property
-    def fqn(self) -> str:
-        return f"{self.physical_schema}.{self.table_name}"
-
-
-@dataclass(frozen=True)
-class TargetApplyResult:
-    """Outcome of applying source-backed target tables."""
-
-    physical_schema: str
-    desired_tables: list[str]
-    created_tables: list[str]
-    existing_tables: list[str]
-
-
-@dataclass(frozen=True)
-class SeedColumnSpec:
-    """One documented column for a dbt seed."""
-
-    name: str
-    data_type: str | None = None
-
-
-@dataclass(frozen=True)
-class SeedTableSpec:
-    """One catalog seed table that should be exported as a dbt seed CSV."""
-
-    logical_schema: str
-    table_name: str
-    columns: list[SeedColumnSpec]
-
-    @property
-    def fqn(self) -> str:
-        return normalize(f"{self.logical_schema}.{self.table_name}")
-
-    @property
-    def seed_name(self) -> str:
-        return model_name_from_table(self.fqn)
-
-
-@dataclass(frozen=True)
-class SeedExportResult:
-    """Outcome of exporting dbt seed CSV files from source tables."""
-
-    files: list[str]
-    csv_files: list[str]
-    row_counts: dict[str, int]
-    written_paths: list[str]
-
-
-@dataclass(frozen=True)
-class DbtSeedResult:
-    """Outcome of invoking dbt seed for exported seed CSV files."""
-
-    ran: bool
-    command: list[str]
-
-
-@dataclass(frozen=True)
-class DbtCommandResult:
-    """Outcome of invoking a dbt validation command."""
-
-    ran: bool
-    command: list[str]
-
-
-def _catalog_has_completed_generate(path: Path) -> bool:
-    try:
-        payload = json.loads(path.read_text(encoding="utf-8"))
-    except (json.JSONDecodeError, OSError, UnicodeDecodeError):
-        return False
-    generate = payload.get("generate")
-    return isinstance(generate, dict) and generate.get("status") == "ok"
-
-
-def ensure_setup_target_can_rerun(project_root: Path) -> None:
-    """Fail fast when downstream generated models already exist."""
-    completed: list[str] = []
-    catalog_dir = project_root / "catalog"
-    for bucket in ("tables", "views"):
-        bucket_dir = catalog_dir / bucket
-        if not bucket_dir.is_dir():
-            continue
-        for catalog_path in sorted(bucket_dir.glob("*.json")):
-            if _catalog_has_completed_generate(catalog_path):
-                completed.append(catalog_path.stem)
-
-    if not completed:
-        logger.info("event=setup_target_rerun_guard status=ok generated_models=0")
-        return
-
-    preview = ", ".join(completed[:5])
-    suffix = "" if len(completed) <= 5 else f", and {len(completed) - 5} more"
-    logger.error(
-        "event=setup_target_rerun_guard status=blocked generated_models=%d",
-        len(completed),
-    )
-    raise ValueError(
-        "setup-target cannot rerun after downstream dbt models have been generated. "
-        "Run `ad-migration reset all --preserve-catalog`, then run "
-        f"`ad-migration setup-target` again. Existing generated objects: {preview}{suffix}"
-    )
-
-
-def _require_target_role(project_root: Path) -> RuntimeRole:
-    manifest = read_manifest_strict(project_root)
-    target_role = get_runtime_role(manifest, "target")
-    if target_role is None:
-        raise ValueError("manifest.json is missing runtime.target. Run /setup-target first.")
-    return target_role
-
-
-def _require_source_role(project_root: Path) -> RuntimeRole:
-    manifest = read_manifest_strict(project_root)
-    source_role = get_runtime_role(manifest, "source")
-    if source_role is None:
-        raise ValueError("manifest.json is missing runtime.source. Run /setup-source first.")
-    return source_role
-
-
-def get_target_source_schema(project_root: Path, default: str = "bronze") -> str:
-    """Return the configured target source schema, defaulting to bronze."""
-    target_role = _require_target_role(project_root)
-    if target_role.schemas is None or not target_role.schemas.source:
-        return default
-    return target_role.schemas.source
-
-
-def _dbt_profile_name(project_root: Path) -> str:
-    return project_root.name.replace("-", "_") or "migration_target"
-
-
-def _dbt_adapter_type(technology: str) -> str:
-    adapters = {
-        "sql_server": "sqlserver",
-        "oracle": "oracle",
-    }
-    if technology not in adapters:
-        raise ValueError(f"Unknown technology: {technology}")
-    return adapters[technology]
-
-
-def _render_profiles_yml(profile_name: str, target_role: RuntimeRole, target_source_schema: str) -> str:
-    technology = target_role.technology
-    adapter_type = _dbt_adapter_type(technology)
-    connection = target_role.connection
-    if technology == "sql_server":
-        password_env = connection.password_env
-        if not password_env:
-            raise ValueError("runtime.target.connection.password_env is required for SQL Server target setup")
-        driver = SQL_SERVER_ODBC_DRIVER
-        user = connection.user or "sa"
-        host = connection.host or "localhost"
-        port = connection.port or "1433"
-        database = connection.database or "MigrationTarget"
-        return (
-            f"{profile_name}:\n"
-            "  target: dev\n"
-            "  outputs:\n"
-            "    dev:\n"
-            f"      type: {adapter_type}\n"
-            f"      driver: \"{driver}\"\n"
-            f"      server: \"{host}\"\n"
-            f"      port: {int(port)}\n"
-            f"      database: \"{database}\"\n"
-            f"      user: \"{user}\"\n"
-            f"      password: \"{{{{ env_var('{password_env}') }}}}\"\n"
-            f"      schema: \"{target_source_schema}\"\n"
-            "      trust_cert: true\n"
-            "      threads: 4\n"
-        )
-    if technology == "oracle":
-        password_env = connection.password_env
-        if not password_env:
-            raise ValueError("runtime.target.connection.password_env is required for Oracle target setup")
-        user = connection.user or "system"
-        host = connection.host or "localhost"
-        port = connection.port or "1521"
-        service = connection.service or "FREEPDB1"
-        return (
-            f"{profile_name}:\n"
-            "  target: dev\n"
-            "  outputs:\n"
-            "    dev:\n"
-            f"      type: {adapter_type}\n"
-            f"      host: \"{host}\"\n"
-            f"      port: {int(port)}\n"
-            f"      service: \"{service}\"\n"
-            f"      user: \"{user}\"\n"
-            f"      password: \"{{{{ env_var('{password_env}') }}}}\"\n"
-            f"      schema: \"{target_source_schema}\"\n"
-            "      threads: 4\n"
-        )
-    raise ValueError(f"Unsupported target technology: {technology}")
-
-
-def _render_dbt_project_yml(profile_name: str) -> str:
-    return (
-        f"name: \"{profile_name}\"\n"
-        "version: \"1.0.0\"\n"
-        "config-version: 2\n\n"
-        f"profile: \"{profile_name}\"\n\n"
-        "model-paths: [\"models\"]\n"
-        "snapshot-paths: [\"snapshots\"]\n"
-        "seed-paths: [\"seeds\"]\n"
-        "macro-paths: [\"macros\"]\n"
-        "test-paths: [\"tests\"]\n"
-        "target-path: \"target\"\n"
-        "clean-targets: [\"target\"]\n"
-        "\n"
-        "models:\n"
-        f"  {profile_name}:\n"
-        "    staging:\n"
-        "      +materialized: view\n"
-        "    intermediate:\n"
-        "      +materialized: ephemeral\n"
-        "    marts:\n"
-        "      +materialized: table\n"
-    )
-
-
-def scaffold_target_project(project_root: Path) -> list[str]:
-    """Create or preserve the minimal dbt scaffold needed by setup-target."""
-    target_role = _require_target_role(project_root)
-    profile_name = _dbt_profile_name(project_root)
-    target_source_schema = get_target_source_schema(project_root)
-    dbt_root = project_root / "dbt"
-    created_or_updated: list[str] = []
-
-    for relative_dir in (
-        "models/staging",
-        "models/intermediate",
-        "models/marts",
-        "macros",
-        "seeds",
-        "snapshots",
-        "tests",
-    ):
-        (dbt_root / relative_dir).mkdir(parents=True, exist_ok=True)
-
-    dbt_project_path = dbt_root / "dbt_project.yml"
-    desired_project = _render_dbt_project_yml(profile_name)
-    if not dbt_project_path.exists() or dbt_project_path.read_text(encoding="utf-8") != desired_project:
-        dbt_project_path.write_text(desired_project, encoding="utf-8")
-        created_or_updated.append(str(dbt_project_path.relative_to(project_root)))
-
-    profiles_path = dbt_root / "profiles.yml"
-    desired_profiles = _render_profiles_yml(profile_name, target_role, target_source_schema)
-    if not profiles_path.exists() or profiles_path.read_text(encoding="utf-8") != desired_profiles:
-        profiles_path.write_text(desired_profiles, encoding="utf-8")
-        created_or_updated.append(str(profiles_path.relative_to(project_root)))
-
-    return created_or_updated
-
-
-def _load_source_table_specs(project_root: Path, *, include_fallback_columns: bool = True) -> list[TargetTableSpec]:
-    target_schema = get_target_source_schema(project_root)
-    tables_dir = project_root / "catalog" / "tables"
-    if not tables_dir.is_dir():
-        return []
-
-    specs: list[TargetTableSpec] = []
-    for table_file in sorted(tables_dir.glob("*.json")):
-        payload = json.loads(table_file.read_text(encoding="utf-8"))
-        if payload.get("excluded") or payload.get("is_source") is not True:
-            continue
-        logical_schema = str(payload.get("schema", ""))
-        table_name = str(payload.get("name", ""))
-        if not logical_schema or not table_name:
-            continue
-        columns = []
-        for column in payload.get("columns", []):
-            source_type = (
-                column.get("sql_type")
-                or column.get("data_type")
-                or column.get("type")
-                or "VARCHAR"
-            )
-            columns.append(
-                ColumnSpec(
-                    name=column["name"],
-                    source_type=str(source_type),
-                    nullable=bool(column.get("is_nullable", True)),
-                )
-            )
-        if include_fallback_columns and not columns:
-            columns.append(ColumnSpec(name="id", source_type="BIGINT", nullable=False))
-        specs.append(
-            TargetTableSpec(
-                logical_schema=logical_schema,
-                physical_schema=target_schema,
-                table_name=table_name,
-                columns=columns,
-            )
-        )
-    return specs
-
-
-def load_target_source_table_specs(
-    project_root: Path,
-    *,
-    include_fallback_columns: bool = True,
-) -> list[TargetTableSpec]:
-    """Return confirmed source tables mapped to the configured target source schema."""
-    return _load_source_table_specs(
-        project_root,
-        include_fallback_columns=include_fallback_columns,
-    )
-
-
-def _load_seed_table_specs(project_root: Path) -> list[SeedTableSpec]:
-    tables_dir = project_root / "catalog" / "tables"
-    if not tables_dir.is_dir():
-        return []
-
-    specs: list[SeedTableSpec] = []
-    seen_seed_names: dict[str, str] = {}
-    for table_file in sorted(tables_dir.glob("*.json")):
-        payload = json.loads(table_file.read_text(encoding="utf-8"))
-        if payload.get("excluded") or payload.get("is_seed") is not True:
-            continue
-        logical_schema = str(payload.get("schema", ""))
-        table_name = str(payload.get("name", ""))
-        if not logical_schema or not table_name:
-            continue
-        fqn = normalize(f"{logical_schema}.{table_name}")
-        seed_name = model_name_from_table(fqn)
-        if existing_fqn := seen_seed_names.get(seed_name):
-            raise ValueError(
-                f"Seed table {fqn!r} maps to dbt seed name {seed_name!r}, "
-                f"which is already used by {existing_fqn!r}."
-            )
-        seen_seed_names[seed_name] = fqn
-        columns = []
-        for column in payload.get("columns", []):
-            if not isinstance(column, dict) or not column.get("name"):
-                continue
-            data_type = (
-                column.get("sql_type")
-                or column.get("data_type")
-                or column.get("type")
-            )
-            columns.append(
-                SeedColumnSpec(
-                    name=str(column["name"]),
-                    data_type=str(data_type) if data_type else None,
-                )
-            )
-        specs.append(
-            SeedTableSpec(
-                logical_schema=logical_schema,
-                table_name=table_name,
-                columns=columns,
-            )
-        )
-    return specs
-
-
-def _render_seed_csv(columns: list[str], rows: list[tuple[object, ...]]) -> str:
-    buffer = StringIO()
-    writer = csv_writer(buffer, lineterminator="\n")
-    writer.writerow(columns)
-    writer.writerows(rows)
-    return buffer.getvalue()
-
-
-def _render_seeds_yml(seed_specs: list[SeedTableSpec]) -> str:
-    seeds = []
-    for spec in seed_specs:
-        columns = []
-        for column in spec.columns:
-            entry = {"name": column.name}
-            if column.data_type:
-                entry["data_type"] = column.data_type
-            columns.append(entry)
-        seed_entry: dict[str, object] = {"name": spec.seed_name}
-        if columns:
-            seed_entry["columns"] = columns
-        seeds.append(seed_entry)
-
-    return yaml.dump(
-        {"version": 2, "seeds": seeds},
-        default_flow_style=False,
-        sort_keys=False,
-        allow_unicode=True,
-    )
-
-
-def export_seed_tables(project_root: Path) -> SeedExportResult:
-    """Export confirmed seed catalog tables from source DB into dbt seed CSVs."""
-    seed_specs = _load_seed_table_specs(project_root)
-    if not seed_specs:
-        return SeedExportResult(files=[], csv_files=[], row_counts={}, written_paths=[])
-
-    source_role = _require_source_role(project_root)
-    adapter = get_dbops(source_role.technology).from_role(
-        source_role,
-        project_root=project_root,
-    )
-    dbt_root = project_root / "dbt"
-    seeds_dir = dbt_root / "seeds"
-    seeds_dir.mkdir(parents=True, exist_ok=True)
-
-    files: list[str] = []
-    csv_files: list[str] = []
-    written_paths: list[str] = []
-    row_counts: dict[str, int] = {}
-    for spec in seed_specs:
-        columns, rows = adapter.read_table_rows(
-            spec.logical_schema,
-            spec.table_name,
-            [column.name for column in spec.columns],
-        )
-        seed_path = seeds_dir / f"{spec.seed_name}.csv"
-        content = _render_seed_csv(columns, rows)
-        relative_path = str(seed_path.relative_to(project_root))
-        if not seed_path.exists() or seed_path.read_text(encoding="utf-8") != content:
-            seed_path.write_text(content, encoding="utf-8")
-            written_paths.append(relative_path)
-        files.append(relative_path)
-        csv_files.append(relative_path)
-        row_counts[spec.fqn] = len(rows)
-        logger.info(
-            "event=export_seed_table component=target_setup table=%s seed_file=%s rows=%d status=success",
-            spec.fqn,
-            relative_path,
-            len(rows),
-        )
-
-    seeds_yml_path = seeds_dir / "_seeds.yml"
-    seeds_yml_content = _render_seeds_yml(seed_specs)
-    seeds_yml_relative_path = str(seeds_yml_path.relative_to(project_root))
-    if not seeds_yml_path.exists() or seeds_yml_path.read_text(encoding="utf-8") != seeds_yml_content:
-        seeds_yml_path.write_text(seeds_yml_content, encoding="utf-8")
-        written_paths.append(seeds_yml_relative_path)
-    files.append(seeds_yml_relative_path)
-
-    return SeedExportResult(files=files, csv_files=csv_files, row_counts=row_counts, written_paths=written_paths)
-
-
-def materialize_seed_tables(project_root: Path, seed_files: list[str]) -> DbtSeedResult:
-    """Run dbt seed so exported seed CSVs are materialized in the target schema."""
-    seed_csv_files = [seed_file for seed_file in seed_files if seed_file.endswith(".csv")]
-    if not seed_csv_files:
-        return DbtSeedResult(ran=False, command=[])
-
-    dbt_root = project_root / "dbt"
-    command = [
-        "dbt",
-        "seed",
-        "--project-dir",
-        str(dbt_root),
-        "--profiles-dir",
-        str(dbt_root),
-        "--target",
-        "dev",
-    ]
-    try:
-        completed = subprocess.run(
-            command,
-            cwd=dbt_root,
-            capture_output=True,
-            text=True,
-            check=False,
-        )
-    except FileNotFoundError as exc:
-        raise ValueError("dbt executable not found on PATH; install dbt before running setup-target for seeds.") from exc
-    if completed.returncode != 0:
-        details = (completed.stderr or completed.stdout or "").strip()
-        message = "dbt seed failed while materializing seed tables"
-        if details:
-            message = f"{message}: {details}"
-        raise ValueError(message)
-
-    logger.info(
-        "event=dbt_seed_complete component=target_setup seed_files=%d status=success",
-        len(seed_csv_files),
-    )
-    return DbtSeedResult(ran=True, command=command)
-
-
-def _dbt_base_command(project_root: Path, subcommand: str) -> list[str]:
-    dbt_root = project_root / "dbt"
-    return [
-        "dbt",
-        subcommand,
-        "--project-dir",
-        str(dbt_root),
-        "--profiles-dir",
-        str(dbt_root),
-        "--target",
-        "dev",
-    ]
-
-
-def _run_dbt_validation_command(
-    project_root: Path,
-    subcommand: str,
-    selectors: list[str],
-) -> DbtCommandResult:
-    if not selectors:
-        return DbtCommandResult(ran=False, command=[])
-
-    dbt_root = project_root / "dbt"
-    command = [*_dbt_base_command(project_root, subcommand), "--select", *selectors]
-    try:
-        completed = subprocess.run(
-            command,
-            cwd=dbt_root,
-            capture_output=True,
-            text=True,
-            check=False,
-        )
-    except FileNotFoundError as exc:
-        raise ValueError("dbt executable not found on PATH; install dbt before running setup-target validation.") from exc
-    if completed.returncode != 0:
-        details = (completed.stderr or completed.stdout or "").strip()
-        message = f"dbt {subcommand} failed while validating generated staging models"
-        if details:
-            message = f"{message}: {details}"
-        raise ValueError(message)
-
-    logger.info(
-        "event=dbt_validation_complete component=target_setup command=%s selectors=%d status=success",
-        subcommand,
-        len(selectors),
-    )
-    return DbtCommandResult(ran=True, command=command)
+from shared.target_setup_support.dbt_commands import (
+    DbtCommandResult as DbtCommandResult,
+    run_dbt_validation_command,
+)
+from shared.target_setup_support.dbt_scaffold import scaffold_target_project
+from shared.target_setup_support.runtime import (
+    ensure_setup_target_can_rerun,
+    get_target_source_schema,
+    write_target_runtime_from_env as write_target_runtime_from_env,
+)
+from shared.target_setup_support.seeds import (
+    DbtSeedResult as DbtSeedResult,
+    SeedColumnSpec as SeedColumnSpec,
+    SeedExportResult as SeedExportResult,
+    SeedTableSpec as SeedTableSpec,
+    export_seed_tables,
+    materialize_seed_tables,
+)
+from shared.target_setup_support.source_tables import (
+    TargetApplyResult as TargetApplyResult,
+    TargetTableSpec as TargetTableSpec,
+    apply_target_source_tables,
+    load_target_source_table_specs as load_target_source_table_specs,
+)
+
+__all__ = [
+    "DbtCommandResult",
+    "DbtSeedResult",
+    "GenerateSourcesOutput",
+    "SeedColumnSpec",
+    "SeedExportResult",
+    "SeedTableSpec",
+    "SetupTargetOutput",
+    "TargetApplyResult",
+    "TargetTableSpec",
+    "apply_target_source_tables",
+    "ensure_setup_target_can_rerun",
+    "export_seed_tables",
+    "get_target_source_schema",
+    "load_target_source_table_specs",
+    "materialize_seed_tables",
+    "run_dbt_validation_command",
+    "run_setup_target",
+    "scaffold_target_project",
+    "write_sources_yml",
+    "write_target_runtime_from_env",
+    "write_target_sources_yml",
+]
 
 
 def write_target_sources_yml(project_root: Path) -> GenerateSourcesOutput:
@@ -640,36 +63,6 @@ def write_target_sources_yml(project_root: Path) -> GenerateSourcesOutput:
         project_root,
         source_schema_override=get_target_source_schema(project_root),
         require_staging_contract_types=True,
-    )
-
-
-def apply_target_source_tables(project_root: Path) -> TargetApplyResult:
-    """Ensure confirmed source tables exist on the configured target schema."""
-    target_role = _require_target_role(project_root)
-    target_schema = get_target_source_schema(project_root)
-    adapter = get_dbops(target_role.technology).from_role(
-        target_role,
-        project_root=project_root,
-    )
-    desired_specs = _load_source_table_specs(project_root)
-
-    adapter.ensure_source_schema(target_schema)
-    existing = adapter.list_source_tables(target_schema)
-
-    created_tables: list[str] = []
-    existing_tables: list[str] = []
-    for spec in desired_specs:
-        if spec.table_name.lower() in existing:
-            existing_tables.append(spec.fqn)
-            continue
-        adapter.create_source_table(spec.physical_schema, spec.table_name, spec.columns)
-        created_tables.append(spec.fqn)
-
-    return TargetApplyResult(
-        physical_schema=target_schema,
-        desired_tables=[spec.fqn for spec in desired_specs],
-        created_tables=created_tables,
-        existing_tables=existing_tables,
     )
 
 
@@ -687,8 +80,8 @@ def run_setup_target(project_root: Path) -> SetupTargetOutput:
     applied = apply_target_source_tables(project_root)
     generated_models = list(getattr(sources, "generated_model_names", []) or [])
     generated_source_selectors = list(getattr(sources, "generated_source_selectors", []) or [])
-    dbt_compile = _run_dbt_validation_command(project_root, "compile", generated_models)
-    dbt_build = _run_dbt_validation_command(
+    dbt_compile = run_dbt_validation_command(project_root, "compile", generated_models)
+    dbt_build = run_dbt_validation_command(
         project_root,
         "build",
         [*generated_models, *generated_source_selectors],
