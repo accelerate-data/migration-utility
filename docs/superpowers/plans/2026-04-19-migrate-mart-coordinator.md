@@ -501,7 +501,7 @@ markdownlint docs/design/migrate-mart-coordinator/README.md docs/superpowers/pla
 
 - Modify: `commands/commit-push-pr.md`
 
-- [ ] **Step 1: Update `commit-push-pr` scope**
+- [x] **Step 1: Update `commit-push-pr` scope**
 
   Change the description to make clear it is legacy/manual infrastructure, not used by coordinator-aware stage commands:
 
@@ -509,7 +509,7 @@ markdownlint docs/design/migrate-mart-coordinator/README.md docs/superpowers/pla
   description: Legacy helper for one-off commit, push, and PR creation. Coordinator-aware migration stage commands use `shared/scripts/stage-pr.sh` instead.
   ```
 
-- [ ] **Step 2: Add guard text**
+- [x] **Step 2: Add guard text**
 
   Add:
 
@@ -517,13 +517,13 @@ markdownlint docs/design/migrate-mart-coordinator/README.md docs/superpowers/pla
   Do not call this command from `/migrate-mart`, `/migrate-mart-plan`, or coordinator-mode stage commands.
   ```
 
-- [ ] **Step 3: Run markdownlint**
+- [x] **Step 3: Run markdownlint**
 
   ```bash
   markdownlint commands/commit-push-pr.md
   ```
 
-- [ ] **Step 4: Commit Workstream B checkpoint**
+- [x] **Step 4: Commit Workstream B checkpoint**
 
   ```bash
   git add commands/commit-push-pr.md
