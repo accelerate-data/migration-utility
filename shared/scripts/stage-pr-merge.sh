@@ -95,10 +95,10 @@ fi
 
 raw_pr="$1"
 base_branch="$2"
+pr_url=""
 
 if ! git rev-parse --show-toplevel >/dev/null 2>&1; then
   pr_number="0"
-  pr_url=""
   json_failure \
     "REPO_ROOT_NOT_FOUND" \
     "git_rev_parse" \
@@ -114,7 +114,12 @@ if ! pr_number="$(normalize_pr_number "$raw_pr")"; then
     "The PR reference must be a number or GitHub PR URL."
 fi
 
-pr_view_json="$(gh pr view "$pr_number" --json state,number,url,baseRefName,mergeStateStatus,statusCheckRollup)"
+if ! pr_view_json="$(gh pr view "$pr_number" --json state,number,url,baseRefName,mergeStateStatus,statusCheckRollup)"; then
+  json_failure \
+    "GH_PR_VIEW_FAILED" \
+    "gh_pr_view" \
+    "Could not read the pull request."
+fi
 pr_state="$(PR_VIEW_JSON="$pr_view_json" python3 - <<'PY'
 import json
 import os

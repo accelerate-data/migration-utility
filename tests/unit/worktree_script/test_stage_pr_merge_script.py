@@ -42,6 +42,9 @@ exit 99
 set -euo pipefail
 echo "gh $*" >> "{log_path}"
 if [[ "$1" == "pr" && "$2" == "view" ]]; then
+  if [[ "${{FAKE_GH_VIEW_EXIT:-0}}" != "0" ]]; then
+    exit "${{FAKE_GH_VIEW_EXIT}}"
+  fi
   printf '%s\\n' '{pr_json}'
   exit 0
 fi
@@ -147,3 +150,28 @@ def test_stage_pr_merge_script_blocks_when_pr_base_branch_differs(tmp_path: Path
         "pr_url": "https://github.com/example/repo/pull/103",
         "base_branch": "main",
     }
+
+
+def test_stage_pr_merge_script_reports_view_failure_as_json(tmp_path: Path) -> None:
+    """Failed PR reads should return deterministic JSON instead of aborting."""
+    env, _ = _base_env(
+        tmp_path,
+        pr_json='{"state":"OPEN","number":104,"url":"https://github.com/example/repo/pull/104","mergeStateStatus":"CLEAN","statusCheckRollup":[{"state":"SUCCESS"}]}',
+    )
+    env["FAKE_GH_VIEW_EXIT"] = "17"
+
+    result = subprocess.run(
+        [str(SCRIPT_PATH), "104", "main"],
+        cwd=REPO_ROOT,
+        capture_output=True,
+        text=True,
+        env=env,
+        check=False,
+    )
+
+    assert result.returncode != 0
+    payload = json.loads(result.stderr.strip())
+    assert payload["status"] == "failed"
+    assert payload["code"] == "GH_PR_VIEW_FAILED"
+    assert payload["pr_number"] == 104
+    assert payload["base_branch"] == "main"

@@ -89,7 +89,14 @@ if ! git rev-parse --show-toplevel >/dev/null 2>&1; then
     "$worktree_path"
 fi
 
-worktree_list="$(git worktree list --porcelain)"
+if ! worktree_list="$(git worktree list --porcelain)"; then
+  json_failure \
+    "WORKTREE_LIST_FAILED" \
+    "git_worktree_list" \
+    "Could not read the worktree list." \
+    "$branch" \
+    "$worktree_path"
+fi
 if ! printf '%s\n' "$worktree_list" | grep -Fqx "worktree $worktree_path"; then
   worktree_present="0"
 else

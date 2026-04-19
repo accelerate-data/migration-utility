@@ -47,6 +47,9 @@ exit 99
 set -euo pipefail
 echo "gh $*" >> "{log_path}"
 if [[ "$1" == "pr" && "$2" == "list" ]]; then
+  if [[ "${{FAKE_GH_LIST_EXIT:-0}}" != "0" ]]; then
+    exit "${{FAKE_GH_LIST_EXIT}}"
+  fi
   cat "{pr_view_path}"
   exit 0
 fi
@@ -164,6 +167,30 @@ def test_stage_pr_script_reports_push_failure_as_json(tmp_path: Path) -> None:
     assert payload["branch"] == "feature/migrate-mart/081-pr"
     assert payload["base_branch"] == "main"
     assert payload["code"] == "GIT_PUSH_FAILED"
+
+
+def test_stage_pr_script_reports_pr_list_failure_as_json(tmp_path: Path) -> None:
+    """Failed PR lookups should return deterministic JSON instead of aborting."""
+    env, _ = _base_env(tmp_path)
+    env["FAKE_GH_LIST_EXIT"] = "19"
+    body_file = tmp_path / "body.md"
+    body_file.write_text("body text\n", encoding="utf-8")
+
+    result = subprocess.run(
+        [str(SCRIPT_PATH), "feature/migrate-mart/082-pr", "main", "Stage PR", str(body_file)],
+        cwd=REPO_ROOT,
+        capture_output=True,
+        text=True,
+        env=env,
+        check=False,
+    )
+
+    assert result.returncode != 0
+    payload = json.loads(result.stderr.strip())
+    assert payload["status"] == "failed"
+    assert payload["code"] == "GH_PR_LIST_FAILED"
+    assert payload["branch"] == "feature/migrate-mart/082-pr"
+    assert payload["base_branch"] == "main"
 
 
 def test_stage_pr_script_updates_existing_pr_when_requested_base_changes(tmp_path: Path) -> None:

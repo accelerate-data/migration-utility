@@ -133,7 +133,16 @@ if ! git push --force-with-lease --set-upstream origin "$branch"; then
     "$body_file"
 fi
 
-existing_pr_json="$(gh pr list --head "$branch" --json number,url --limit 1)"
+if ! existing_pr_json="$(gh pr list --head "$branch" --json number,url --limit 1)"; then
+  json_failure \
+    "GH_PR_LIST_FAILED" \
+    "gh_pr_list" \
+    "Could not read existing pull requests." \
+    "$branch" \
+    "$base_branch" \
+    "$title" \
+    "$body_file"
+fi
 existing_pr_number="$(STAGE_PR_JSON="$existing_pr_json" python3 - <<'PY'
 import json
 import os
@@ -178,7 +187,16 @@ else
       "$title" \
       "$body_file"
   fi
-  pr_view_json="$(gh pr view "$branch" --json number,url)"
+  if ! pr_view_json="$(gh pr view "$branch" --json number,url)"; then
+    json_failure \
+      "GH_PR_VIEW_FAILED" \
+      "gh_pr_view" \
+      "Could not read the created pull request." \
+      "$branch" \
+      "$base_branch" \
+      "$title" \
+      "$body_file"
+  fi
   pr_number="$(PR_VIEW_JSON="$pr_view_json" python3 - <<'PY'
 import json
 import os

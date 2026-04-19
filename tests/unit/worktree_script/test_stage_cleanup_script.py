@@ -55,6 +55,9 @@ if [[ "$1" == "push" && "$2" == "origin" && "$3" == "--delete" ]]; then
   exit "${{FAKE_GIT_PUSH_DELETE_EXIT:-0}}"
 fi
 if [[ "$1" == "worktree" && "$2" == "list" ]]; then
+  if [[ "${{FAKE_GIT_WORKTREE_LIST_EXIT:-0}}" != "0" ]]; then
+    exit "${{FAKE_GIT_WORKTREE_LIST_EXIT}}"
+  fi
   cat "${{FAKE_GIT_WORKTREE_LIST:-/dev/null}}"
   exit 0
 fi
@@ -169,3 +172,24 @@ def test_stage_cleanup_script_fails_when_local_branch_deletion_fails(tmp_path: P
     assert payload["branch"] == "feature/migrate-mart/092-cleanup"
     assert payload["worktree_path"] == str(worktree_path)
     assert "git branch -d feature/migrate-mart/092-cleanup" in log_path.read_text(encoding="utf-8")
+
+
+def test_stage_cleanup_script_reports_worktree_list_failure_as_json(tmp_path: Path) -> None:
+    """Failed worktree list reads should return deterministic JSON instead of aborting."""
+    env, _ = _base_env(tmp_path)
+    env["FAKE_GIT_WORKTREE_LIST_EXIT"] = "23"
+
+    result = subprocess.run(
+        [str(SCRIPT_PATH), "feature/migrate-mart/093-cleanup", str(tmp_path / "worktrees" / "feature" / "migrate-mart" / "093-cleanup")],
+        cwd=REPO_ROOT,
+        capture_output=True,
+        text=True,
+        env=env,
+        check=False,
+    )
+
+    assert result.returncode != 0
+    payload = json.loads(result.stderr.strip())
+    assert payload["status"] == "failed"
+    assert payload["code"] == "WORKTREE_LIST_FAILED"
+    assert payload["branch"] == "feature/migrate-mart/093-cleanup"
