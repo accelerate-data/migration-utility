@@ -33,7 +33,17 @@ if [[ "$1" == "show-ref" ]]; then
 fi
 
 if [[ "$1" == "rev-parse" && "$2" == "--show-toplevel" ]]; then
+  if [[ "${{FAKE_GIT_FAIL_REVPARSE:-0}}" == "1" ]]; then
+    exit 1
+  fi
   pwd
+  exit 0
+fi
+
+if [[ "$1" == "-C" && "$3" == "status" && "$4" == "--porcelain" ]]; then
+  if [[ "${{FAKE_GIT_DIRTY_WORKTREE_PATH:-}}" == "$2" ]]; then
+    printf '%s\n' "${{FAKE_GIT_DIRTY_STATUS:- M dirty.sql}}"
+  fi
   exit 0
 fi
 
@@ -130,6 +140,19 @@ exit 0
     return env, log_path
 
 
+def _create_existing_worktree(path: Path) -> None:
+    """Create a minimal worktree skeleton for dirty-state tests."""
+    (path / "lib").mkdir(parents=True, exist_ok=True)
+    (path / "tests" / "evals").mkdir(parents=True, exist_ok=True)
+    (path / "lib" / "pyproject.toml").write_text("[project]\nname='x'\n", encoding="utf-8")
+    (path / "tests" / "evals" / "package.json").write_text("{}", encoding="utf-8")
+    (path / "tests" / "evals" / "package-lock.json").write_text(
+        "{\n  \"lockfileVersion\": 3\n}\n",
+        encoding="utf-8",
+    )
+    (path / ".envrc").write_text("dotenv\n", encoding="utf-8")
+
+
 def test_worktree_script_creates_new_branch_and_bootstraps(tmp_path: Path) -> None:
     """New branches should create the worktree and run bootstrap steps."""
     env, log_path = _base_env(tmp_path)
@@ -168,6 +191,30 @@ def test_worktree_script_creates_new_branch_and_bootstraps(tmp_path: Path) -> No
     }
 
 
+def test_worktree_script_reports_repo_root_resolution_failure(tmp_path: Path) -> None:
+    """Repo-root resolution failures should return deterministic JSON."""
+    env, _ = _base_env(tmp_path)
+    env["FAKE_GIT_FAIL_REVPARSE"] = "1"
+
+    result = subprocess.run(
+        [str(SCRIPT_PATH), "feature/migrate-mart/035-root-failure", "035-root-failure", "feature/migrate-mart"],
+        cwd=REPO_ROOT,
+        capture_output=True,
+        text=True,
+        env=env,
+        check=False,
+    )
+
+    assert result.returncode != 0
+    payload = json.loads(result.stderr.strip())
+    assert payload["code"] == "WORKTREE_REPO_ROOT_NOT_FOUND"
+    assert payload["branch"] == "feature/migrate-mart/035-root-failure"
+    assert payload["base_branch"] == "feature/migrate-mart"
+    assert payload["requested_worktree_path"] == str(tmp_path / "worktrees" / "feature" / "migrate-mart" / "035-root-failure")
+    assert payload["can_retry"] is False
+    assert "command not found" not in result.stderr
+
+
 def test_worktree_script_attaches_existing_branch(tmp_path: Path) -> None:
     """Existing branches not checked out elsewhere should attach to a new worktree."""
     env, log_path = _base_env(tmp_path, branch_exists=True)
@@ -186,6 +233,32 @@ def test_worktree_script_attaches_existing_branch(tmp_path: Path) -> None:
     assert f"git worktree add {expected_path} feature/migrate-mart/050-setup" in log_path.read_text(encoding="utf-8")
     payload = json.loads(result.stdout.splitlines()[-1])
     assert payload["reused"] is False
+
+
+def test_worktree_script_blocks_when_attached_worktree_is_dirty(tmp_path: Path) -> None:
+    """Attached worktrees with uncommitted changes should fail deterministically."""
+    expected_path = tmp_path / "worktrees" / "feature" / "migrate-mart" / "055-dirty"
+    worktree_list = f"worktree {expected_path}\nHEAD deadbeef\nbranch refs/heads/feature/migrate-mart/055-dirty\n\n"
+    env, log_path = _base_env(tmp_path, worktree_list_content=worktree_list, branch_exists=True)
+    env["FAKE_GIT_DIRTY_WORKTREE_PATH"] = str(expected_path)
+    _create_existing_worktree(expected_path)
+
+    result = subprocess.run(
+        [str(SCRIPT_PATH), "feature/migrate-mart/055-dirty", "055-dirty", "feature/migrate-mart"],
+        cwd=REPO_ROOT,
+        capture_output=True,
+        text=True,
+        env=env,
+        check=False,
+    )
+
+    assert result.returncode != 0
+    payload = json.loads(result.stderr.strip())
+    assert payload["code"] == "WORKTREE_DIRTY_STATE_DETECTED"
+    assert payload["existing_worktree_path"] == str(expected_path)
+    assert payload["requested_worktree_path"] == str(expected_path)
+    assert "git -C" in log_path.read_text(encoding="utf-8")
+    assert "uv sync --extra dev" not in log_path.read_text(encoding="utf-8")
 
 
 def test_worktree_script_reuses_branch_checked_out_elsewhere(tmp_path: Path) -> None:
@@ -212,6 +285,35 @@ def test_worktree_script_reuses_branch_checked_out_elsewhere(tmp_path: Path) -> 
     assert payload["existing_worktree_path"] == str(existing_path)
     assert payload["worktree_path"] == str(existing_path)
     assert "created worktree" not in result.stdout
+
+
+def test_worktree_script_blocks_when_reused_worktree_is_dirty(tmp_path: Path) -> None:
+    """Dirty existing worktrees should fail before the helper reports readiness."""
+    existing_path = tmp_path / "other" / "feature" / "migrate-mart" / "065-dirty"
+    worktree_list = (
+        f"worktree {existing_path}\nHEAD deadbeef\nbranch refs/heads/feature/migrate-mart/065-dirty\n\n"
+    )
+    env, log_path = _base_env(tmp_path, worktree_list_content=worktree_list, branch_exists=True)
+    env["FAKE_GIT_DIRTY_WORKTREE_PATH"] = str(existing_path)
+    _create_existing_worktree(existing_path)
+
+    result = subprocess.run(
+        [str(SCRIPT_PATH), "feature/migrate-mart/065-dirty", "065-dirty", "feature/migrate-mart"],
+        cwd=REPO_ROOT,
+        capture_output=True,
+        text=True,
+        env=env,
+        check=False,
+    )
+
+    assert result.returncode != 0
+    payload = json.loads(result.stderr.strip())
+    assert payload["code"] == "WORKTREE_DIRTY_STATE_DETECTED"
+    assert payload["existing_worktree_path"] == str(existing_path)
+    assert payload["requested_worktree_path"] == str(
+        tmp_path / "worktrees" / "feature" / "migrate-mart" / "065-dirty"
+    )
+    assert "uv sync --extra dev" not in log_path.read_text(encoding="utf-8")
 
 
 def test_worktree_script_fails_when_uv_sync_fails(tmp_path: Path) -> None:
