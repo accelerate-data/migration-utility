@@ -67,6 +67,11 @@ def test_repo_map_points_commands_at_the_split_projects() -> None:
         "ad_migration_add_source_table": f"cd {PUBLIC_PROJECT_PATH} && uv run ad-migration add-source-table",
     }
 
+    command_surface_entries = {
+        "migrate_mart_plan_command": "/migrate-mart-plan <slug>",
+        "migrate_mart_command": "/migrate-mart <plan-file>",
+    }
+
     internal_cli_commands = {
         "catalog_enrich": f"cd {INTERNAL_PROJECT_PATH} && uv run catalog-enrich",
         "discover_list": f"cd {INTERNAL_PROJECT_PATH} && uv run discover list",
@@ -109,6 +114,7 @@ def test_repo_map_points_commands_at_the_split_projects() -> None:
 
     assert expected_public_command_names.issubset(repo_map["commands"])
     assert expected_internal_command_names.issubset(repo_map["commands"])
+    assert command_surface_entries.items() <= repo_map["commands"].items()
     assert "init_discover_mssql_driver_override" not in repo_map["commands"]
 
     for command_name, expected_prefix in public_cli_commands.items():
@@ -126,6 +132,7 @@ def test_maintainer_docs_use_the_internal_project_path() -> None:
         "commands/refactor-query.md",
         "commands/refactor-mart-plan.md",
         "commands/migrate-mart-plan.md",
+        "commands/migrate-mart.md",
         "commands/refactor-mart.md",
         "commands/status.md",
         "skills/README.md",
@@ -186,6 +193,38 @@ def test_migrate_mart_plan_uses_stage_specific_worktrees_and_handoff() -> None:
 
     for snippet in expected_snippets:
         assert snippet in migrate_mart_plan_text
+
+
+def test_migrate_mart_command_handles_resume_and_final_pr_behavior() -> None:
+    migrate_mart_text = (REPO_ROOT / "commands/migrate-mart.md").read_text(encoding="utf-8")
+
+    expected_snippets = [
+        "name: migrate-mart",
+        "description: Execute a migrate-mart Markdown plan by resuming the first incomplete task, launching one stage subagent at a time, merging stage PRs, and updating the coordinator plan.",
+        'argument-hint: "<plan-file>"',
+        "If plan metadata is malformed or missing, mark the coordinator blocked with `PLAN_INVALID` and stop.",
+        "Pick the first stage with `Status` not in `complete`, `skipped`, or `superseded`.",
+        "existing stage worktree with incomplete work: relaunch recorded invocation",
+        "stage branch commits without PR: call `stage-pr.sh`",
+        "open PR: call `stage-pr-merge.sh`",
+        "already merged PR: mark merge complete",
+        "merged stage with remaining worktree: call `stage-cleanup.sh`",
+        "After each merge, refresh coordinator worktree, rerun `migrate-util batch-plan`, update the Markdown plan, and commit the plan update.",
+        "Launch exactly one subagent at a time.",
+        "| 040 | recorded `/profile-tables ...` invocation |",
+        "| 050 | deterministic `ad-migration setup-target` stage subagent |",
+        "| 060 | deterministic `ad-migration setup-sandbox --yes` stage subagent |",
+        "| 070 | recorded `/generate-tests ...` invocation |",
+        "| 080 | recorded `/refactor-query ...` invocation |",
+        "| 090 | recorded `ad-migration replicate-source-tables --limit <plan-limit> --yes` invocation |",
+        "| 100 | recorded `/generate-model ...` invocation |",
+        "| 110 | recorded `/refactor-mart ... stg` invocation |",
+        "| 120 | recorded `/refactor-mart ... int` invocation |",
+        "When all stages are complete, open or update the final coordinator PR from the coordinator branch to the remote default branch. Do not merge the final coordinator PR. Report the URL for human review.",
+    ]
+
+    for snippet in expected_snippets:
+        assert snippet in migrate_mart_text
 
 
 def test_init_command_runs_public_driver_doctor_and_keeps_internal_checks() -> None:
