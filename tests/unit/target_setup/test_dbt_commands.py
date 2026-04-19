@@ -77,3 +77,26 @@ def test_run_dbt_validation_command_skips_without_selectors(tmp_path: Path) -> N
 
     mock_run.assert_not_called()
     assert result == DbtCommandResult(ran=False, command=[])
+
+
+def test_run_dbt_validation_command_reports_packaged_runtime_when_dbt_missing(
+    tmp_path: Path,
+) -> None:
+    project_root = tmp_path / "project"
+    (project_root / "dbt").mkdir(parents=True)
+
+    with patch(
+        "shared.target_setup_support.dbt_commands.subprocess.run",
+        side_effect=FileNotFoundError("dbt"),
+    ):
+        try:
+            run_dbt_validation_command(project_root, "compile", ["stg_bronze__customer"])
+        except ValueError as exc:
+            message = str(exc)
+        else:
+            raise AssertionError("expected missing dbt ValueError")
+
+    assert "ad-migration doctor drivers" in message
+    assert "Homebrew formula resources" in message
+    assert "pip install" not in message
+    assert "uv pip install" not in message
