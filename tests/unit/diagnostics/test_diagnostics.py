@@ -45,6 +45,16 @@ from diagnostics_helpers import (
 )
 
 
+def test_common_support_modules_import_checks() -> None:
+    from shared.diagnostics.common_support.object_checks import check_parse_error
+    from shared.diagnostics.common_support.reference_checks import check_missing_reference
+    from shared.diagnostics.common_support.dependency_checks import check_circular_reference
+
+    assert check_parse_error.__name__ == "check_parse_error"
+    assert check_missing_reference.__name__ == "check_missing_reference"
+    assert check_circular_reference.__name__ == "check_circular_reference"
+
+
 def test_cli_unsupported_manifest_without_dialect_errors(tmp_path: Path) -> None:
     git_init(tmp_path)
     (tmp_path / "manifest.json").write_text(
