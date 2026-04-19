@@ -3,7 +3,7 @@ name = "ad-migration-cli"
 version = "0.1.0"
 requires-python = ">=3.11"
 dependencies = [
-    "ad-migration-shared[export,oracle]==0.1.0",
+    "ad-migration-shared[export,oracle,sql-server]==0.1.0",
 ]
 
 [tool.uv.sources]
