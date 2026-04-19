@@ -23,6 +23,7 @@ Coordinator mode:
 /refactor-mart <migrate-mart-plan-file> <stage-id> <worktree-name> <base-branch> <refactor-mart-plan-file> stg|int
 ```
 
+In Claude Code slash commands, `$0` is the first user-supplied argument.
 Coordinator mode is active only when `$0` is a Markdown plan path.
 
 Modes:
@@ -53,7 +54,7 @@ Never apply unapproved candidates. Never edit candidates outside the selected mo
      Use the returned `worktree_path` for all reads, writes, commits, and prompts.
    - Manual mode: derive a stable branch name from the run slug, resolve the remote default branch, and call the same helper with those explicit values.
 4. In coordinator mode, own only the matching `## Stage <stage-id>` checklist in `<migrate-mart-plan-file>`. After each stage substep or candidate result, update only that checklist, then commit the plan update together with the artifact or catalog change that caused it.
-5. Read the refactor-mart plan file from `$4` in that working directory.
+5. Read the coordinator stage metadata from `$0` and the nested refactor-mart plan file from `$4` in that working directory.
 
 ## Candidate Selection
 
@@ -117,3 +118,5 @@ After successful candidate work is committed and pushed, always open or update a
 ```
 
 Report the PR number and URL. In manual mode, tell the human to review and merge the PR. In coordinator mode, return the PR metadata to the coordinator and do not ask any question.
+
+If on a feature branch, also tell the user: "Once the PR is merged, run /cleanup-worktrees to remove the worktree and branches."

@@ -26,6 +26,7 @@ Coordinator mode:
 /refactor-query <plan-file> <stage-id> <worktree-name> <base-branch> <object> [object ...]
 ```
 
+In Claude Code slash commands, `$0` is the first user-supplied argument.
 Coordinator mode is active only when `$0` is a Markdown plan path.
 
 Use these status meanings:
