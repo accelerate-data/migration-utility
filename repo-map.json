@@ -77,7 +77,7 @@
     },
     "sandbox_backends": {
       "path": "lib/shared/sandbox/",
-      "description": "Technology-specific sandbox backends for test harness. base.py: abstract SandboxBackend interface and shared result helpers. sql_server.py and oracle.py: thin public facade classes for each dialect. sql_server_services.py and oracle_services.py: compatibility barrels plus shared low-level connection and utility helpers. *_lifecycle.py, *_execution.py, *_fixtures.py, and *_comparison.py: focused service modules that own lifecycle cloning, fixture seeding, scenario execution, SELECT execution, and SQL comparison for the public facades."
+      "description": "Technology-specific sandbox backends for test harness. base.py: abstract SandboxBackend interface and shared result helpers. sql_server.py and oracle.py: thin public facade classes for each dialect. sql_server_services.py and oracle_services.py: compatibility barrels plus shared validation and utility helpers. *_config.py: runtime-role and environment configuration loading. *_connection.py: backend connection context managers. *_clone.py: table, view, and procedure clone helpers. *_lifecycle_core.py: database, PDB, and schema create/drop helpers. *_lifecycle.py, *_execution.py, *_fixtures.py, and *_comparison.py: focused service modules that own lifecycle orchestration, fixture seeding, scenario execution, SELECT execution, and SQL comparison for the public facades."
     },
     "shared_python": {
       "path": "lib/shared/",
