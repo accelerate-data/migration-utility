@@ -7,7 +7,9 @@ argument-hint: "[<step> <tables>] [files]"
 
 # Commit, Push, and Open PR
 
-Stage specific files, commit, push, and open a pull request.
+Legacy helper for one-off commit, push, and PR creation. Coordinator-aware migration stage commands use shared/scripts/stage-pr.sh instead.
+
+Do not call this command from /migrate-mart, /migrate-mart-plan, or coordinator-mode stage commands.
 
 ## Context
 
