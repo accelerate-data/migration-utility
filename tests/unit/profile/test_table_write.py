@@ -112,6 +112,21 @@ def test_derive_view_profile_status() -> None:
 
     assert profile.derive_view_profile_status(section) == "ok"
 
+
+def test_profile_support_exports_write_helpers() -> None:
+    from shared.profile_support.writeback import derive_table_profile_status
+
+    section = profile.TableProfileSection.model_validate({
+        "classification": {
+            "resolved_kind": "dim_non_scd",
+            "source": "llm",
+            "rationale": "Dimension table.",
+        },
+        "primary_key": {"columns": ["id"], "source": "catalog"},
+    })
+
+    assert derive_table_profile_status(section) == "ok"
+
 def test_write_seed_profile_allowed_for_seed_table() -> None:
     """Seed tables can persist a seed classification profile."""
     tmp, root = _make_writable_copy()

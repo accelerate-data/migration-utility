@@ -10,6 +10,7 @@ from typer.testing import CliRunner
 from shared import profile
 from shared.loader import CatalogFileMissingError, CatalogLoadError
 from shared.output_models.profile import ProfileContext
+from shared.profile_support import table_context as profile_support_table_context
 from tests.unit.profile.helpers import _PROFILE_FIXTURES, _make_writable_copy
 
 _cli_runner = CliRunner()
@@ -209,6 +210,19 @@ def test_context_truncate_insert_proc_body() -> None:
     assert "TRUNCATE TABLE silver.DimProduct" in result.proc_body
     assert "INSERT INTO silver.DimProduct" in result.proc_body
 
+
+def test_profile_support_exports_table_context() -> None:
+    from shared.profile_support.table_context import run_context
+
+    result = run_context(
+        _PROFILE_FIXTURES,
+        "silver.FactSales",
+        "dbo.usp_load_fact_sales",
+    )
+
+    assert result.table == "silver.factsales"
+    assert result.writer == "dbo.usp_load_fact_sales"
+
 class TestContextWriterSlice:
 
     def test_run_context_uses_selected_writer_slice_without_full_proc_body(self, monkeypatch: pytest.MonkeyPatch) -> None:
@@ -225,7 +239,7 @@ class TestContextWriterSlice:
             )
             proc_path.write_text(json.dumps(proc_cat), encoding="utf-8")
             monkeypatch.setattr(
-                profile,
+                profile_support_table_context,
                 "load_ddl",
                 lambda *_args, **_kwargs: pytest.fail("selected slice context must not load full DDL"),
             )
