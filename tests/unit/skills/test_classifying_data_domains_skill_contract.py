@@ -6,7 +6,7 @@ import yaml
 
 
 REPO_ROOT = Path(__file__).resolve().parents[3]
-SKILL_PATH = REPO_ROOT / "skills" / "analyze-data-domains" / "SKILL.md"
+SKILL_PATH = REPO_ROOT / "skills" / "classifying-data-domains" / "SKILL.md"
 
 
 def _skill_text() -> str:
@@ -26,7 +26,7 @@ def _frontmatter() -> dict[str, object]:
 def test_skill_is_user_invocable_with_trigger_only_description() -> None:
     frontmatter = _frontmatter()
 
-    assert frontmatter["name"] == "analyze-data-domains"
+    assert frontmatter["name"] == "classifying-data-domains"
     assert frontmatter["user-invocable"] is True
     assert "warehouse-ddl" in str(frontmatter["argument-hint"])
     assert str(frontmatter["description"]).startswith("Use when ")
@@ -35,13 +35,17 @@ def test_skill_is_user_invocable_with_trigger_only_description() -> None:
 
 def test_skill_requires_existing_warehouse_ddl_and_does_not_accept_substitutes() -> None:
     text = _skill_text()
+    normalized = _single_line(text)
 
     assert "`warehouse-ddl/` is required" in text
+    assert "Check the filesystem for the directory before any analysis" in normalized
+    assert "Do not assume it is missing without checking the project root" in normalized
     assert "If `warehouse-ddl/` is missing" in text
     assert "Do not create `warehouse-ddl/`" in text
     assert "Do not create `warehouse-catalog/`" in text
     assert "Do not accept pasted DDL" in text
     assert "run the warehouse DDL extraction workflow first" in text
+    assert "do not run extraction or setup workflows for the user" in text
 
 
 def test_skill_persists_only_canonical_data_domain_files_on_request() -> None:
@@ -51,17 +55,21 @@ def test_skill_persists_only_canonical_data_domain_files_on_request() -> None:
     assert "`warehouse-catalog/data-domains/<slug>.json`" in text
     assert "same accepted state serializes to the same JSON" in text
     assert "no volatile timestamps" in text
+    assert "do not claim files were written unless they exist on disk" in text
     assert "`catalog/data-domains" not in text
 
 
 def test_skill_scope_is_tables_and_views_only() -> None:
     text = _skill_text()
     normalized = _single_line(text)
+    extraction_scope = text.partition("2. Extract objects from available DDL:")[2].partition(
+        "3. Classify each object by dimensional modeling role.",
+    )[0]
 
     assert "classifies only tables and views" in normalized
     assert "Do not classify procedures or functions as domain-catalog objects" in normalized
-    assert "procedures" not in text.partition("## Domain Analysis Flow")[2].partition("## Role Classification")[0]
-    assert "functions" not in text.partition("## Domain Analysis Flow")[2].partition("## Role Classification")[0]
+    assert "procedures" not in extraction_scope
+    assert "functions" not in extraction_scope
 
 
 def test_domain_file_contract_contains_only_table_and_view_objects() -> None:
@@ -69,10 +77,12 @@ def test_domain_file_contract_contains_only_table_and_view_objects() -> None:
 
     contract = text.partition("## Domain File Contract")[2].partition("## Persistence Rules")[0]
 
+    assert "`objects` may contain only these keys" in contract
     assert '"tables": ["silver.fact_sales"]' in contract
     assert '"views": ["gold.vw_sales_summary"]' in contract
     assert '"procedures"' not in contract
     assert '"functions"' not in contract
+    assert "Procedures and functions must not appear anywhere in persisted domain JSON" in contract
 
 
 def test_skill_distinguishes_table_ownership_from_view_ownership() -> None:
@@ -88,8 +98,14 @@ def test_skill_records_cross_domain_view_dependencies_and_requires_ambiguity_han
     text = _skill_text()
     normalized = _single_line(text)
 
-    assert "Record a cross-domain dependency when a view depends on a table from another domain" in normalized
+    assert '"cross-domain dependency"' in normalized
+    assert "record a cross-domain dependency when a view depends on a table from another domain" in normalized
     assert "Ambiguous table or view ownership must be returned to the human before persistence" in normalized
+    assert "recommended option first" in normalized
+    assert "pick one" in normalized
+    assert "is not an ownership decision" in normalized
+    assert "Proceed with low confidence only when evidence is weak and there is no competing plausible primary owner" in normalized
+    assert "unresolved ownership ambiguity blocks persistence" in normalized
 
 
 def test_skill_distinguishes_dimensional_role_from_functional_domain() -> None:

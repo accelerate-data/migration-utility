@@ -113,7 +113,7 @@
     },
     "tests_evals": {
       "path": "tests/evals/",
-      "description": "Promptfoo eval harness for skill and command testing against MigrationTest schema. Per-scenario fixtures live under fixtures/<package>/<scenario-slug>/; runnable configs live in packages/ plus the standalone oracle-live/ and mssql-live/ live suites, while Oracle regression fixtures live under fixtures/oracle-regression/ and are consumed by the owning package configs. analyze-data-domains covers the whole-warehouse DDL input guard and warehouse-catalog persistence boundary; planning-refactor-mart covers the /refactor-mart-plan planning workflow; applying-staging-candidate and cmd-refactor-mart cover staging-wave refactor-mart execution. cmd-migrate-mart-plan and cmd-migrate-mart cover whole-mart planning/resume orchestration. Assertions live under tests/evals/assertions/, including schema-helpers.js, check-guard-stop.js, check-refactor-mart-plan.js, and check-refactor-mart-stg-execution.js for shared path, term, plan-shape, status writeback, and no-mutation checks. No top-level Promptfoo config — use npm run eval:smoke for the curated offline pass."
+      "description": "Promptfoo eval harness for skill and command testing against MigrationTest schema. Per-scenario fixtures live under fixtures/<package>/<scenario-slug>/; runnable configs live in packages/ plus the standalone oracle-live/ and mssql-live/ live suites, while Oracle regression fixtures live under fixtures/oracle-regression/ and are consumed by the owning package configs. classifying-data-domains covers the whole-warehouse DDL input guard and warehouse-catalog persistence boundary; planning-refactor-mart covers the /refactor-mart-plan planning workflow; applying-staging-candidate and cmd-refactor-mart cover staging-wave refactor-mart execution. cmd-migrate-mart-plan and cmd-migrate-mart cover whole-mart planning/resume orchestration. Assertions live under tests/evals/assertions/, including schema-helpers.js, check-guard-stop.js, check-refactor-mart-plan.js, and check-refactor-mart-stg-execution.js for shared path, term, plan-shape, status writeback, and no-mutation checks. No top-level Promptfoo config — use npm run eval:smoke for the curated offline pass."
     },
     "tests_ddl_mcp": {
       "path": "mcp/ddl/tests/",
@@ -147,7 +147,7 @@
     "tests/unit/": "Shared-library unit pytest suite organized by module under tests/unit/<module>/.",
     "tests/integration/": "Shared-library integration pytest suite organized by backend and module under tests/integration/<technology>/<module>/.",
     "tests/integration/scoping-inputs/": "JSON fixture inputs for scoping-logic tests and regressions.",
-    "tests/evals/": "Promptfoo eval harness for skill and command testing (skill packages include listing-objects, profiling-table, generating-model, planning-refactor-mart, applying-staging-candidate, generating-tests, reviewing-tests, reviewing-model, analyzing-table, analyzing-table-readiness, analyze-data-domains; command packages include cmd-scope, cmd-profile, cmd-generate-model, cmd-generate-tests, cmd-refactor, cmd-refactor-mart, cmd-migrate-mart-plan, cmd-migrate-mart, cmd-status, cmd-reset-migration)",
+    "tests/evals/": "Promptfoo eval harness for skill and command testing (skill packages include listing-objects, profiling-table, generating-model, planning-refactor-mart, applying-staging-candidate, generating-tests, reviewing-tests, reviewing-model, analyzing-table, analyzing-table-readiness, classifying-data-domains; command packages include cmd-scope, cmd-profile, cmd-generate-model, cmd-generate-tests, cmd-refactor, cmd-refactor-mart, cmd-migrate-mart-plan, cmd-migrate-mart, cmd-status, cmd-reset-migration)",
     "mcp/ddl/tests/": "DDL MCP pytest suite split into tests/unit/ plus shared top-level backend coverage under tests/integration/<technology>/ddl_mcp/ executed from the ddl-mcp project env.",
     "mcp/ddl/ddl_mcp_support/": "Standalone support slice for the DDL MCP package: local env/path helpers, name normalization, and focused loader/parser modules copied from the shared runtime split to keep parser fixes portable while preserving the MCP dependency boundary.",
     "scripts/demo-warehouse/": "Cross-dialect Kimball DW fixture: schema DDL, baseline seed data, and delta scenarios for SQL Server, Oracle, PostgreSQL",
@@ -230,7 +230,7 @@
     "eval_reviewing_model": "cd tests/evals && npm run eval:reviewing-model",
     "eval_analyzing_table": "cd tests/evals && npm run eval:analyzing-table",
     "eval_analyzing_table_readiness": "cd tests/evals && npm run eval:analyzing-table-readiness",
-    "eval_analyze_data_domains": "cd tests/evals && npm run eval:analyze-data-domains",
+    "eval_classifying_data_domains": "cd tests/evals && npm run eval:classifying-data-domains",
     "eval_cmd_scope": "cd tests/evals && npm run eval:cmd-scope",
     "eval_cmd_profile": "cd tests/evals && npm run eval:cmd-profile",
     "eval_cmd_generate_model": "cd tests/evals && npm run eval:cmd-generate-model",

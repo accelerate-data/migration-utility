@@ -52,11 +52,15 @@ test('check-data-domain-persistence validates expected object ownership', () => 
   }
 });
 
-test('check-data-domain-persistence rejects procedure buckets', () => {
+test('check-data-domain-persistence rejects non-table-view object buckets', () => {
   const runRoot = fs.mkdtempSync(path.join(os.tmpdir(), 'domain-run-'));
   try {
     writeDomain(runRoot, 'sales', {
-      objects: { tables: ['silver.opportunities'], views: [], procedures: [] },
+      objects: {
+        tables: ['silver.opportunities'],
+        views: [],
+        supporting_objects: ['silver.load_opportunities'],
+      },
     });
 
     const result = checkDataDomainPersistence('', {
@@ -67,7 +71,7 @@ test('check-data-domain-persistence rejects procedure buckets', () => {
     });
 
     assert.equal(result.pass, false);
-    assert.match(result.reason, /procedure\/function/);
+    assert.match(result.reason, /non-table-view object buckets/);
   } finally {
     fs.rmSync(runRoot, { recursive: true, force: true });
   }
@@ -77,7 +81,7 @@ test('check-data-domain-persistence rejects routine objects in allowed buckets',
   const runRoot = fs.mkdtempSync(path.join(os.tmpdir(), 'domain-run-'));
   try {
     writeDomain(runRoot, 'sales', {
-      objects: { tables: ['silver.opportunities', 'silver.load_opportunities'], views: [] },
+      objects: { tables: ['silver.load_opportunities', 'silver.opportunities'], views: [] },
     });
 
     const result = checkDataDomainPersistence('', {
@@ -90,6 +94,85 @@ test('check-data-domain-persistence rejects routine objects in allowed buckets',
 
     assert.equal(result.pass, false);
     assert.match(result.reason, /forbidden domain object 'silver\.load_opportunities'/);
+  } finally {
+    fs.rmSync(runRoot, { recursive: true, force: true });
+  }
+});
+
+test('check-data-domain-persistence rejects unstable top-level field order', () => {
+  const runRoot = fs.mkdtempSync(path.join(os.tmpdir(), 'domain-run-'));
+  try {
+    const filePath = path.join(runRoot, 'warehouse-catalog', 'data-domains', 'sales.json');
+    fs.mkdirSync(path.dirname(filePath), { recursive: true });
+    fs.writeFileSync(
+      filePath,
+      JSON.stringify({
+        domain: 'sales',
+        schema_version: 1,
+        slug: 'sales',
+        status: 'candidate',
+        description: 'sales domain',
+        confidence: 'medium',
+        objects: { tables: [], views: [] },
+        setup_source_candidates: { schemas: [], tables: [] },
+        dependencies: { upstream_domains: [], downstream_domains: [] },
+        ambiguities: [],
+        rationale: [],
+      }, null, 2) + '\n',
+      'utf8',
+    );
+
+    const result = checkDataDomainPersistence('', {
+      vars: {
+        run_path: runRoot,
+        expected_domain_files: 'sales',
+      },
+    });
+
+    assert.equal(result.pass, false);
+    assert.match(result.reason, /unstable field order/);
+  } finally {
+    fs.rmSync(runRoot, { recursive: true, force: true });
+  }
+});
+
+test('check-data-domain-persistence rejects volatile timestamp fields', () => {
+  const runRoot = fs.mkdtempSync(path.join(os.tmpdir(), 'domain-run-'));
+  try {
+    writeDomain(runRoot, 'sales', {
+      generated_at: '2026-04-20T00:00:00Z',
+    });
+
+    const result = checkDataDomainPersistence('', {
+      vars: {
+        run_path: runRoot,
+        expected_domain_files: 'sales',
+      },
+    });
+
+    assert.equal(result.pass, false);
+    assert.match(result.reason, /volatile timestamp fields/);
+  } finally {
+    fs.rmSync(runRoot, { recursive: true, force: true });
+  }
+});
+
+test('check-data-domain-persistence rejects unsorted arrays', () => {
+  const runRoot = fs.mkdtempSync(path.join(os.tmpdir(), 'domain-run-'));
+  try {
+    writeDomain(runRoot, 'sales', {
+      objects: { tables: ['silver.z_table', 'silver.a_table'], views: [] },
+    });
+
+    const result = checkDataDomainPersistence('', {
+      vars: {
+        run_path: runRoot,
+        expected_domain_files: 'sales',
+      },
+    });
+
+    assert.equal(result.pass, false);
+    assert.match(result.reason, /unsorted array 'objects\.tables'/);
   } finally {
     fs.rmSync(runRoot, { recursive: true, force: true });
   }

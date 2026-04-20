@@ -15,6 +15,15 @@ const REQUIRED_FIELDS = [
   'ambiguities',
   'rationale',
 ];
+const VOLATILE_FIELDS = new Set([
+  'created_at',
+  'createdAt',
+  'generated_at',
+  'generatedAt',
+  'timestamp',
+  'updated_at',
+  'updatedAt',
+]);
 
 function fail(reason) {
   return { pass: false, score: 0, reason };
@@ -37,7 +46,53 @@ function listJsonFiles(root) {
 
 function hasForbiddenObjectBuckets(domain) {
   const objects = domain.objects || {};
-  return ['procedures', 'functions'].some((key) => Object.prototype.hasOwnProperty.call(objects, key));
+  return Object.keys(objects).some((key) => !['tables', 'views'].includes(key));
+}
+
+function hasVolatileField(value) {
+  if (Array.isArray(value)) {
+    return value.some(hasVolatileField);
+  }
+  if (!value || typeof value !== 'object') {
+    return false;
+  }
+
+  return Object.entries(value).some(([key, child]) => {
+    return VOLATILE_FIELDS.has(key) || hasVolatileField(child);
+  });
+}
+
+function isSortedArray(value) {
+  if (!Array.isArray(value)) {
+    return true;
+  }
+  const sorted = [...value].sort((left, right) => {
+    return String(left).localeCompare(String(right));
+  });
+  return value.every((entry, index) => entry === sorted[index]);
+}
+
+function findUnsortedArray(value, pathParts = []) {
+  if (Array.isArray(value)) {
+    if (pathParts.includes('ambiguities') || pathParts.includes('rationale')) {
+      return null;
+    }
+    if (value.some((entry) => entry && typeof entry === 'object')) {
+      return null;
+    }
+    return isSortedArray(value) ? null : pathParts.join('.');
+  }
+  if (!value || typeof value !== 'object') {
+    return null;
+  }
+
+  for (const [key, child] of Object.entries(value)) {
+    const result = findUnsortedArray(child, [...pathParts, key]);
+    if (result) {
+      return result;
+    }
+  }
+  return null;
 }
 
 function normalizeObject(value) {
@@ -98,6 +153,11 @@ module.exports = (_output, context) => {
   }
 
   for (const domain of domains) {
+    const fieldOrderError = stableTopLevelOrderError(domain);
+    if (fieldOrderError) {
+      return fail(fieldOrderError);
+    }
+
     for (const field of REQUIRED_FIELDS) {
       if (!Object.prototype.hasOwnProperty.call(domain, field)) {
         return fail(`Domain '${domain.slug || domain.domain}' is missing required field '${field}'`);
@@ -105,7 +165,16 @@ module.exports = (_output, context) => {
     }
 
     if (hasForbiddenObjectBuckets(domain)) {
-      return fail(`Domain '${domain.slug}' contains procedure/function object buckets`);
+      return fail(`Domain '${domain.slug}' contains non-table-view object buckets`);
+    }
+
+    if (hasVolatileField(domain)) {
+      return fail(`Domain '${domain.slug}' contains volatile timestamp fields`);
+    }
+
+    const unsortedArrayPath = findUnsortedArray(domain);
+    if (unsortedArrayPath) {
+      return fail(`Domain '${domain.slug}' contains unsorted array '${unsortedArrayPath}'`);
     }
 
     const forbiddenObjects = normalizeTerms(context.vars.forbidden_domain_objects);
@@ -161,3 +230,13 @@ module.exports = (_output, context) => {
     reason: `Validated persisted data-domain files: ${files.map((filePath) => path.basename(filePath)).join(', ')}`,
   };
 };
+
+function stableTopLevelOrderError(domain) {
+  const keys = Object.keys(domain);
+  for (const [index, expectedKey] of REQUIRED_FIELDS.entries()) {
+    if (keys[index] !== expectedKey) {
+      return `Domain '${domain.slug || domain.domain}' has unstable field order: expected '${expectedKey}' before '${keys[index]}'`;
+    }
+  }
+  return null;
+}
