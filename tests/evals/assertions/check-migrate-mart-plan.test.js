@@ -38,8 +38,14 @@ test('migrate-mart command docs use validation stages and prerequisite-only scop
   assert.match(sandboxValidationSection, /PR: `none`/);
   assert.doesNotMatch(sandboxValidationSection, /060-sandbox-validation-<slug>/);
 
-  assert.match(migrateCommand, /recorded target validation\/refresh invocation/);
-  assert.match(migrateCommand, /recorded sandbox validation\/refresh invocation/);
+  assert.match(
+    migrateCommand,
+    /recorded `test -f dbt\/dbt_project\.yml && ad-migration doctor drivers --project-root <worktree-path> --json` invocation/,
+  );
+  assert.match(
+    migrateCommand,
+    /recorded `uv run --project "\$\{CLAUDE_PLUGIN_ROOT\}\/packages\/ad-migration-internal" test-harness sandbox-status` invocation/,
+  );
   assert.doesNotMatch(migrateCommand, /deterministic `ad-migration setup-target` stage subagent/);
   assert.doesNotMatch(migrateCommand, /deterministic `ad-migration setup-sandbox --yes` stage subagent/);
 });

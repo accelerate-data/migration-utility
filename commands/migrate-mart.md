@@ -43,8 +43,8 @@ Execute an approved migrate-mart plan by resuming the first incomplete executabl
 | Stage | Invocation source |
 |---|---|
 | 040 | recorded `/profile-tables ...` invocation |
-| 050 | recorded target validation/refresh invocation |
-| 060 | recorded sandbox validation/refresh invocation |
+| 050 | recorded `test -f dbt/dbt_project.yml && ad-migration doctor drivers --project-root <worktree-path> --json` invocation |
+| 060 | recorded `uv run --project "${CLAUDE_PLUGIN_ROOT}/packages/ad-migration-internal" test-harness sandbox-status` invocation |
 | 070 | recorded `/generate-tests ...` invocation |
 | 080 | recorded `/refactor-query ...` invocation |
 | 090 | recorded `ad-migration replicate-source-tables --limit <plan-limit> --yes` invocation |
