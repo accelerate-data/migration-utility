@@ -171,6 +171,13 @@ module.exports = (_output, context) => {
   }
 
   const domains = files.map(readJson);
+  for (const relativePath of normalizeTerms(context.vars.forbidden_catalog_paths)) {
+    const forbiddenPath = path.join(runRoot, relativePath);
+    if (fs.existsSync(forbiddenPath)) {
+      return fail(`Forbidden catalog path was written: ${relativePath}`);
+    }
+  }
+
   const expectedFiles = normalizeTerms(context.vars.expected_domain_files);
   for (const slug of expectedFiles) {
     if (!files.some((filePath) => path.basename(filePath) === `${slug}.json`)) {

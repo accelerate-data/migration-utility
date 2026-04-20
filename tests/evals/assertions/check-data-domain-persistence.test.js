@@ -270,3 +270,25 @@ test('check-data-domain-persistence compares stable files to the canonical fixtu
     fs.rmSync(runRoot, { recursive: true, force: true });
   }
 });
+
+test('check-data-domain-persistence rejects forbidden catalog-sidecar paths', () => {
+  const runRoot = fs.mkdtempSync(path.join(os.tmpdir(), 'domain-run-'));
+  try {
+    writeDomain(runRoot, 'sales');
+    const overridesPath = path.join(runRoot, 'warehouse-catalog', 'manual-overrides.json');
+    fs.writeFileSync(overridesPath, '{}\n', 'utf8');
+
+    const result = checkDataDomainPersistence('', {
+      vars: {
+        run_path: runRoot,
+        expected_domain_files: 'sales',
+        forbidden_catalog_paths: 'warehouse-catalog/manual-overrides.json',
+      },
+    });
+
+    assert.equal(result.pass, false);
+    assert.match(result.reason, /forbidden catalog path/i);
+  } finally {
+    fs.rmSync(runRoot, { recursive: true, force: true });
+  }
+});
