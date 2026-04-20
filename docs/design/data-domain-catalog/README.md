@@ -46,14 +46,14 @@ Required stable fields:
 - `ambiguities`
 - `rationale`
 
-The `objects` section groups primary members by catalog object type:
+The `objects` section groups primary table and view members by catalog object
+type. Procedures and functions are not domain-catalog objects.
 
 ```json
 {
   "objects": {
     "tables": ["silver.fact_sales"],
-    "views": ["gold.vw_sales_summary"],
-    "procedures": ["silver.usp_load_fact_sales"]
+    "views": ["gold.vw_sales_summary"]
   }
 }
 ```
@@ -114,7 +114,7 @@ Rules:
 - field order is stable
 - volatile timestamps are not written
 - only impacted domain files are rewritten
-- each object has exactly one primary domain
+- each table or view has exactly one primary domain
 - duplicate primary assignments are conflicts that require user resolution
 
 When the user changes an object's domain assignment, the agent rewrites the impacted

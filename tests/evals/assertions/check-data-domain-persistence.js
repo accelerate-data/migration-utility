@@ -48,6 +48,13 @@ function objectSet(values) {
   return new Set((Array.isArray(values) ? values : []).map(normalizeObject));
 }
 
+function domainObjectValues(domain) {
+  return Object.values(domain.objects || {})
+    .filter(Array.isArray)
+    .flat()
+    .map(normalizeObject);
+}
+
 function parseExpectedAssignments(value) {
   return String(value || '')
     .split(';')
@@ -99,6 +106,14 @@ module.exports = (_output, context) => {
 
     if (hasForbiddenObjectBuckets(domain)) {
       return fail(`Domain '${domain.slug}' contains procedure/function object buckets`);
+    }
+
+    const forbiddenObjects = normalizeTerms(context.vars.forbidden_domain_objects);
+    const objectValues = new Set(domainObjectValues(domain));
+    for (const objectName of forbiddenObjects) {
+      if (objectValues.has(objectName)) {
+        return fail(`Domain '${domain.slug}' contains forbidden domain object '${objectName}'`);
+      }
     }
   }
 

@@ -72,3 +72,25 @@ test('check-data-domain-persistence rejects procedure buckets', () => {
     fs.rmSync(runRoot, { recursive: true, force: true });
   }
 });
+
+test('check-data-domain-persistence rejects routine objects in allowed buckets', () => {
+  const runRoot = fs.mkdtempSync(path.join(os.tmpdir(), 'domain-run-'));
+  try {
+    writeDomain(runRoot, 'sales', {
+      objects: { tables: ['silver.opportunities', 'silver.load_opportunities'], views: [] },
+    });
+
+    const result = checkDataDomainPersistence('', {
+      vars: {
+        run_path: runRoot,
+        expected_domain_files: 'sales',
+        forbidden_domain_objects: 'silver.load_opportunities,gold.opportunity_value',
+      },
+    });
+
+    assert.equal(result.pass, false);
+    assert.match(result.reason, /forbidden domain object 'silver\.load_opportunities'/);
+  } finally {
+    fs.rmSync(runRoot, { recursive: true, force: true });
+  }
+});

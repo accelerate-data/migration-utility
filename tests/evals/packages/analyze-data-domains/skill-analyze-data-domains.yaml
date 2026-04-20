@@ -67,6 +67,7 @@ tests:
       expected_domain_files: "sales,operations"
       expected_domain_objects: "sales:tables=silver.opportunities;operations:views=gold.sold_opportunities"
       expected_upstream_domains: "operations:upstream_domains=sales"
+      forbidden_domain_objects: "silver.load_opportunities,gold.opportunity_value"
     assert:
       - type: javascript
         value: file://../../assertions/check-data-domain-persistence.js
@@ -78,8 +79,7 @@ tests:
 
         `shared.opportunity_cases` could belong to either Sales or Operations.
         There is no accepted human ownership decision yet.
-      expected_any_final_output_terms: "human,decision,ownership"
       unchanged_paths: "warehouse-catalog,catalog"
     assert:
       - type: javascript
-        value: file://../../assertions/check-guard-stop.js
+        value: file://../../assertions/check-ambiguity-stop.js
