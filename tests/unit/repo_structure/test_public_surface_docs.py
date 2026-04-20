@@ -111,3 +111,12 @@ def test_public_surface_workflow_runs_checker() -> None:
     )
 
     assert "scripts/check_public_surface_docs.py" in workflow
+
+
+def test_ci_runs_version_consistency_checker() -> None:
+    workflow = (REPO_ROOT / ".github" / "workflows" / "ci.yml").read_text(
+        encoding="utf-8"
+    )
+
+    assert "version-consistency-audit:" in workflow
+    assert "scripts/check_version_consistency.py" in workflow

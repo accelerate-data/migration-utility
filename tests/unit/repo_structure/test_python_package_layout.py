@@ -292,7 +292,7 @@ def test_init_command_runs_public_driver_doctor_and_keeps_internal_checks() -> N
     assert init_text.index("## Step 2: Runtime selection") < init_text.index(
         "7. `ad-migration doctor drivers --project-root . --json`"
     )
-    assert '"ad-migration-shared[export,oracle,sql-server]==0.1.0"' in internal_pyproject
+    assert '"ad-migration-shared[export,oracle,sql-server]==0.1.2"' in internal_pyproject
     assert "uv run --project \"${CLAUDE_PLUGIN_ROOT}/packages/ad-migration-internal\" python3 -c \"import pydantic, sqlglot, typer\"" in init_text
     assert "uv run --project \"${CLAUDE_PLUGIN_ROOT}/packages/ad-migration-internal\" python3 -c \"import pyodbc\"" in init_text
     assert "uv run --project \"${CLAUDE_PLUGIN_ROOT}/packages/ad-migration-internal\" python3 -c \"import oracledb\"" in init_text

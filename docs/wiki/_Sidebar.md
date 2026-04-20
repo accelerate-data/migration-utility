@@ -40,9 +40,10 @@
 **Operations**
 
 - [[Status Dashboard]]
-- [[Git Workflow]]
+- [[Handling Diagnostic Errors and Warnings]]
 - [[Browsing the Catalog]]
 - [[Sandbox Operations]]
+- [[Git Workflow]]
 
 **Reference**
 

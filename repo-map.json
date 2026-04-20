@@ -40,7 +40,7 @@
         ".github/workflows/release-cli.yml",
         ".github/workflows/sync-wiki.yml"
       ],
-      "notes": "ci.yml: Python unused-import/local lint, repo-map audit on PRs, docs/design index audit, and public-surface docs/wiki audit; Markdown-only changes are not ignored. release-cli.yml: tagged GitHub release for ad-migration-shared and ad-migration-cli artifacts plus Homebrew tap formula update."
+      "notes": "ci.yml: Python unused-import/local lint, repo-map audit on PRs, docs/design index audit, package/plugin version consistency audit, and public-surface docs/wiki audit; Markdown-only changes are not ignored. release-cli.yml: tagged GitHub release for ad-migration-shared and ad-migration-cli artifacts plus Homebrew tap formula update."
     }
   ],
   "test_frameworks": [
@@ -121,7 +121,7 @@
     },
     "scripts": {
       "path": "scripts/",
-      "description": "Repository scripts. worktree.sh is the maintainer development helper. stage-worktree.sh, stage-pr.sh, stage-pr-merge.sh, and stage-cleanup.sh are deterministic plugin runtime helpers used from customer projects. contributor-setup.sh is the contributor readiness helper; check_design_index.py and check_public_surface_docs.py audit documentation drift; publish-sqlserver-image.sh and demo-warehouse/ support SQL Server fixtures and demos."
+      "description": "Repository scripts. worktree.sh is the maintainer development helper. stage-worktree.sh, stage-pr.sh, stage-pr-merge.sh, and stage-cleanup.sh are deterministic plugin runtime helpers used from customer projects. contributor-setup.sh is the contributor readiness helper; check_design_index.py, check_public_surface_docs.py, and check_version_consistency.py audit repository metadata drift; publish-sqlserver-image.sh and demo-warehouse/ support SQL Server fixtures and demos."
     },
     "docker_sqlserver": {
       "path": "docker/sqlserver/",
@@ -140,7 +140,7 @@
     ".claude-plugin/": "Claude Code plugin manifest at the repository root",
     "commands/": "Claude Code command specs at the repository root",
     "skills/": "Claude Code skills at the repository root",
-    "scripts/": "Repository scripts. worktree.sh is the maintainer development helper; stage-worktree.sh, stage-pr.sh, stage-pr-merge.sh, and stage-cleanup.sh are deterministic plugin runtime helpers used from customer projects.",
+    "scripts/": "Repository scripts. worktree.sh is the maintainer development helper; stage-worktree.sh, stage-pr.sh, stage-pr-merge.sh, and stage-cleanup.sh are deterministic plugin runtime helpers used from customer projects; check_version_consistency.py audits package and plugin version drift.",
     "lib/": "Python DDL analysis library (uv project, sqlglot-based)",
     "packages/": "Packaging wrappers for the public ad-migration CLI and internal plugin entrypoints.",
     "lib/shared/schemas/": "JSON Schema files for catalog, agent I/O, discover CLI output, and shared definitions",

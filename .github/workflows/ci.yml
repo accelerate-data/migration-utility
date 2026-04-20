@@ -101,6 +101,20 @@ jobs:
       - name: Check design docs index
         run: python scripts/check_design_index.py
 
+  version-consistency-audit:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v6
+
+      - name: Set up Python
+        uses: actions/setup-python@v6
+        with:
+          python-version: '3.11'
+
+      - name: Check package and plugin versions
+        run: python scripts/check_version_consistency.py
+
   public-surface-docs-audit:
     if: github.event_name == 'pull_request'
     runs-on: ubuntu-latest
