@@ -1,6 +1,6 @@
 ---
 name: migrate-mart-plan
-description: Whole-scope mart migration planner. Validates readiness, scopes when needed, enforces catalog ownership resolution, and writes a resumable Markdown operational plan.
+description: Whole-scope mart migration planner. Validates readiness, scoping completeness, catalog ownership resolution, and writes a resumable Markdown operational plan.
 user-invocable: true
 argument-hint: "[slug]"
 ---
@@ -149,11 +149,11 @@ The generated plan must include these top-level sections in order:
 - Agent: `target-validation`
 - Slash command: `n/a`
 - Invocation: `test -f dbt/dbt_project.yml && ad-migration doctor drivers --project-root <worktree-path> --json`
-- Branch: `feature/migrate-mart-<slug>/050-target-validation-<slug>`
-- Base branch: `feature/migrate-mart-<slug>`
-- Worktree name: `050-target-validation-<slug>`
-- Worktree path: `../worktrees/feature/migrate-mart-<slug>/050-target-validation-<slug>`
-- PR: `<target-validation PR>`
+- Branch: `feature/migrate-mart-<slug>`
+- Base branch: `<default-branch>`
+- Worktree name: `<slug>`
+- Worktree path: `<worktree-path>`
+- PR: `none`
 - Status: `planned`
 
 ## Stage 060: Sandbox Validation
@@ -161,11 +161,11 @@ The generated plan must include these top-level sections in order:
 - Agent: `sandbox-validation`
 - Slash command: `n/a`
 - Invocation: `uv run --project "${CLAUDE_PLUGIN_ROOT}/packages/ad-migration-internal" test-harness sandbox-status`
-- Branch: `feature/migrate-mart-<slug>/060-sandbox-validation-<slug>`
-- Base branch: `feature/migrate-mart-<slug>`
-- Worktree name: `060-sandbox-validation-<slug>`
-- Worktree path: `../worktrees/feature/migrate-mart-<slug>/060-sandbox-validation-<slug>`
-- PR: `<sandbox-validation PR>`
+- Branch: `feature/migrate-mart-<slug>`
+- Base branch: `<default-branch>`
+- Worktree name: `<slug>`
+- Worktree path: `<worktree-path>`
+- PR: `none`
 - Status: `planned`
 
 ## Stage 070: Generate Tests

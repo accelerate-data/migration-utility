@@ -36,6 +36,9 @@ module.exports = (output, context) => {
         return fail(`Missing expected blocker term '${term}'`);
       }
     }
+    if (planText.trim()) {
+      return fail(`Blocker scenario wrote a plan file: ${planPath}`);
+    }
     return {
       pass: true,
       score: 1,
@@ -82,6 +85,9 @@ module.exports = (output, context) => {
     'is_seed',
     'excluded',
     'dbt/dbt_project.yml',
+    'ad-migration doctor drivers',
+    '--project-root',
+    '--json',
     'test-harness sandbox-status',
   ];
   for (const term of requiredTerms) {
@@ -113,6 +119,7 @@ module.exports = (output, context) => {
   const forbiddenTerms = [
     '## Stage 050: Setup Target',
     '## Stage 060: Setup Sandbox',
+    'scopes when needed',
     'If `scope_phase` has objects, run `/scope-tables`',
     'deterministic `ad-migration setup-target` stage subagent',
     'deterministic `ad-migration setup-sandbox --yes` stage subagent',

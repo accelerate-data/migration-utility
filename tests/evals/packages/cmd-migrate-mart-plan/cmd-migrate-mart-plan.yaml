@@ -63,8 +63,8 @@ tests:
       fixture_path: "tests/evals/fixtures/cmd-status/status-all-summary"
       plan_slug: "scoping-required"
       plan_file: "docs/migration-plans/scoping-required/README.md"
-      scenario_guard: "Treat migrate-util batch-plan as returning non-empty scope_phase."
-      expected_blocker_terms: "scope_phase,SCOPING_REQUIRED,/scope-tables"
+      scenario_guard: "Stop as if migrate-util batch-plan returned non-empty scope_phase containing silver.dimcustomer and silver.factsales."
+      expected_blocker_terms: "scope_phase,SCOPING_REQUIRED,/scope-tables,silver.dimcustomer,silver.factsales"
 
   - description: "catalog ownership blocked — reports source seed exclude decisions"
     vars:
