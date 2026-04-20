@@ -31,8 +31,6 @@ These domains apply across all industries. Always check for these first before a
 | **Marketing** | MKT | Campaigns, promotions, channels, ad spend, lead generation, customer segments. | Fact (campaign response, spend), Dimension (campaign, channel, segment) |
 | **Geography / Location** | GEO | Physical locations: stores, warehouses, regions, territories, postal codes, countries. | Dimension (shared across many domains) |
 | **Date / Time** | DATE | Calendar and fiscal time periods. Always a conformed dimension. | Dimension (universal) |
-| **Reference / Lookup** | REF | Code-description tables, status codes, type codes, enumerations. Shared across all domains. | Reference / Lookup |
-| **Staging / ETL** | STG | ETL working tables, raw landing tables, batch control, watermarks. Not exposed to users. | Staging |
 | **Unclassified** | UNCL | Cannot be assigned with available evidence. Requires manual review. | Unknown |
 
 ---
@@ -308,7 +306,7 @@ Examples:
 
 - `DIM_CUSTOMER_PROFILE` → Customer (keyword: `CUSTOMER`)
 - `FACT_HR_HEADCOUNT` → HR (keyword: `HR`)
-- `STG_FINANCIAL_TRANSACTIONS` → Staging for Finance domain (prefix `STG_` → Staging role; keyword `FINANCIAL` → Finance secondary domain)
+- `STG_FINANCIAL_TRANSACTIONS` → Finance domain (prefix `STG_` → Staging role; keyword `FINANCIAL` → Finance domain)
 
 ### Rule 2 — Column Signals Reinforce or Override
 
@@ -318,13 +316,13 @@ If the table name is ambiguous (no domain keyword), use column-level reinforceme
 
 If Table A has a FK to Table B, and Table B has a confirmed domain assignment, Table A inherits Table B's domain as a `low`-confidence candidate. This is an inheritance suggestion only — override with name/column signals if available.
 
-### Rule 4 — Staging Tables Carry a Secondary Domain
+### Rule 4 — Staging Is a Role, Not a Functional Domain
 
-Staging tables belong to the **Staging** domain by primary role. If the table name or columns indicate a subject matter domain (e.g., `STG_CUSTOMER_EXTRACT`), add the subject matter as a secondary domain: `secondary_domains: ["Customer"]`.
+Staging tables use the Staging role. Assign their primary functional domain from subject-matter evidence in the table name, columns, schema, or dependencies. If no subject-matter owner is visible, assign `Unclassified` with low confidence.
 
-### Rule 5 — Reference Tables Are Cross-Domain
+### Rule 5 — Reference Is a Role, Not a Functional Domain
 
-Reference / Lookup tables (`LKP_`, `REF_`, `CODE_`) are by nature cross-domain. Assign them to the **Reference** domain as primary. Do not assign them to a subject-matter domain unless they exclusively serve one domain (e.g., `LKP_MEDICAL_PROCEDURE_CODE` → Reference primary, Clinical secondary).
+Reference / Lookup tables (`LKP_`, `REF_`, `CODE_`) use the Reference role. Assign their primary functional domain from business stewardship evidence such as schema, subject-matter terms, columns, or dependencies. For example, `LKP_CURRENCY` belongs to Finance when the DDL places it in finance stewardship.
 
 ### Rule 6 — Date/Time Domain Is Always Conformed
 
@@ -341,8 +339,8 @@ These table name patterns commonly appear at domain boundaries and require caref
 | `FACT_CUSTOMER_ORDERS` | Sales domain (Fact), Customer secondary |
 | `DIM_PRODUCT_PROMOTION` | Marketing domain (Dim), Product secondary |
 | `BRIDGE_ACCOUNT_HOLDER` | Customer domain (Bridge) |
-| `XREF_PATIENT_DIAGNOSIS` | Clinical domain (Bridge), Reference secondary |
-| `LKP_CURRENCY` | Reference domain, Finance secondary |
+| `XREF_PATIENT_DIAGNOSIS` | Clinical domain (Bridge) |
+| `LKP_CURRENCY` | Finance domain (Reference) |
 | `DIM_SALES_TERRITORY` | Geography domain (Dim), Sales secondary |
 | `FACT_POLICY_CLAIMS` | Claims domain (Fact), Policy secondary |
 | `AGG_MONTHLY_REVENUE_BY_CHANNEL` | Sales domain (Aggregate), Marketing secondary |

@@ -63,6 +63,8 @@ When asking the user to choose ownership, give the viable options with the recom
 
 If two or more primary owners are plausible, stop before persistence. A user instruction to "pick one", "choose the most likely", or "use your best guess" does not resolve ownership. Ask the user to choose from the options.
 
+When the user's request conflicts with this ambiguity rule, follow this skill. Do not classify, persist, or continue by guessing a primary owner.
+
 Proceed with low confidence only when evidence is weak and there is no competing plausible primary owner. Mark weak classifications with `confidence: "low"` and explain the missing evidence instead of inventing definitions.
 
 ## Domain Analysis Flow
@@ -76,7 +78,7 @@ Proceed with low confidence only when evidence is weak and there is no competing
 5. Map object and domain dependencies.
 6. Identify ambiguities and conflicts.
 7. Present a report plus one JSON object per domain.
-8. If persistence was requested and unresolved ownership ambiguity exists, stop and ask the user to choose from recommended options.
+8. If persistence was requested and unresolved ownership ambiguity exists, stop before writing files and ask the user to choose from recommended options.
 9. Persist domain files only if the user explicitly requested persistence.
 
 Use `references/22_dw_table_patterns.md` for dimensional role classification.
@@ -109,6 +111,8 @@ Every table has exactly one primary functional domain. Secondary domain tags are
 
 A view may belong to a different functional domain than its source table when it represents a domain-specific business lens. For example, an opportunities table can belong to Sales while a sold-opportunities view can belong to Operations. Multi-domain table usage does not move table ownership.
 
+Do not use dimensional roles or warehouse layers as the primary functional domain. `Staging`, `Fact`, `Dimension`, `Aggregate`, `Reference`, `ODS`, and `Unknown` are role classifications unless the DDL also shows they are the business area that owns the object's meaning. For example, `staging.stg_sales_orders` has role `Staging` and functional domain `Sales`; `finance.ref_currency_codes` has role `Reference` and functional domain `Finance`.
+
 Use this evidence order:
 
 1. explicit user-provided ownership decisions
@@ -123,6 +127,8 @@ Ambiguous table or view ownership must be returned to the human before persisten
 A user instruction to "pick one", "choose the most likely", or "use your best guess" is not an ownership decision. Present the viable owner options with the recommended option first, include evidence, and wait for the user's choice before persistence.
 
 If a user moves a table or view between domains, rewrite the impacted canonical domain files directly when persistence is requested. Do not maintain separate manual include or exclude lists.
+
+When moving a table, remove it from both `objects.tables` and `setup_source_candidates.tables` in the old domain. Add it to both lists in the new domain when it is still a setup-source candidate.
 
 ## Dependency Semantics
 
@@ -175,6 +181,8 @@ Required fields:
 - `dependencies`
 - `ambiguities`
 - `rationale`
+
+Write required fields in the order listed above.
 
 `objects` may contain only these keys:
 
@@ -230,6 +238,7 @@ Rules:
 - write complete canonical files, not patches
 - rewrite only impacted domain files
 - write `objects` with only `tables` and `views` keys
+- keep `setup_source_candidates.tables` as a subset of that domain's `objects.tables`
 - sort arrays before writing
 - keep JSON field order stable
 - write no volatile timestamps
