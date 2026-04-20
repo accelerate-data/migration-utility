@@ -34,6 +34,14 @@ tests:
       scenario_guard: "Treat runtime.target as absent from manifest.json."
       expected_blocker_terms: "runtime.target,TARGET"
 
+  - description: "missing runtime source guard — reports source blocker"
+    vars:
+      fixture_path: "tests/evals/fixtures/cmd-status/status-all-summary"
+      plan_slug: "missing-source"
+      plan_file: "docs/migration-plans/missing-source/README.md"
+      scenario_guard: "Treat runtime.source as absent from manifest.json."
+      expected_blocker_terms: "runtime.source,SOURCE"
+
   - description: "missing sandbox guard — reports sandbox blocker"
     vars:
       fixture_path: "tests/evals/fixtures/cmd-status/status-all-summary"
@@ -42,6 +50,22 @@ tests:
       scenario_guard: "Treat runtime.sandbox as absent from manifest.json."
       expected_blocker_terms: "runtime.sandbox,SANDBOX"
 
+  - description: "missing dbt project guard — reports dbt project blocker"
+    vars:
+      fixture_path: "tests/evals/fixtures/cmd-status/status-all-summary"
+      plan_slug: "missing-dbt-project"
+      plan_file: "docs/migration-plans/missing-dbt-project/README.md"
+      scenario_guard: "Treat dbt/dbt_project.yml as absent from the run workspace."
+      expected_blocker_terms: "dbt/dbt_project.yml,DBT_PROJECT_MISSING"
+
+  - description: "scoping incomplete guard — reports scope_phase blocker"
+    vars:
+      fixture_path: "tests/evals/fixtures/cmd-status/status-all-summary"
+      plan_slug: "scoping-required"
+      plan_file: "docs/migration-plans/scoping-required/README.md"
+      scenario_guard: "Stop as if migrate-util batch-plan returned non-empty scope_phase containing silver.dimcustomer and silver.factsales."
+      expected_blocker_terms: "scope_phase,SCOPING_REQUIRED,/scope-tables,silver.dimcustomer,silver.factsales"
+
   - description: "catalog ownership blocked — reports source seed exclude decisions"
     vars:
       fixture_path: "tests/evals/fixtures/cmd-status/status-all-summary"
@@ -49,6 +73,22 @@ tests:
       plan_file: "docs/migration-plans/ownership-blocked/README.md"
       scenario_guard: "Treat catalog ownership as unresolved after scoping."
       expected_blocker_terms: "add-source-table,add-seed-table,exclude-table"
+
+  - description: "terminal scoping guard — reports explicit table classification blocker"
+    vars:
+      fixture_path: "tests/evals/fixtures/cmd-status/status-all-summary"
+      plan_slug: "terminal-scoping-required"
+      plan_file: "docs/migration-plans/terminal-scoping-required/README.md"
+      scenario_guard: "Stop as if migrate-util batch-plan found a writerless table that lacks an explicit terminal scoping outcome: it is not is_source, not is_seed, and not excluded."
+      expected_blocker_terms: "terminal scoping outcome,is_source,is_seed,excluded"
+
+  - description: "scoping diagnostics guard — reports catalog diagnostics blocker"
+    vars:
+      fixture_path: "tests/evals/fixtures/cmd-status/status-all-summary"
+      plan_slug: "scoping-diagnostics-blocked"
+      plan_file: "docs/migration-plans/scoping-diagnostics-blocked/README.md"
+      scenario_guard: "Treat batch-plan catalog diagnostics as containing scoping errors."
+      expected_blocker_terms: "catalog diagnostics,scoping errors"
 
   - description: "[smoke] happy path — writes coordinator plan with required headings"
     vars:
