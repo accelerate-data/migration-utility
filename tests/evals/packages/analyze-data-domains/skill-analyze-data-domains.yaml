@@ -18,9 +18,25 @@ tests:
       fixture_path: "tests/evals/fixtures/analyze-data-domains/missing-warehouse-ddl"
       request_text: "Analyze data domains from this warehouse and persist the result."
       expected_final_output_terms: "warehouse-ddl,missing,run the warehouse ddl extraction workflow"
-      forbidden_paths: "warehouse-ddl,warehouse-catalog"
+      unchanged_paths: "warehouse-ddl,warehouse-catalog"
     assert:
       - type: javascript
-        value: file://../../assertions/check-output-terms.js
+        value: file://../../assertions/check-guard-stop.js
+  - description: "missing-warehouse-ddl rejects pasted DDL substitute"
+    vars:
+      fixture_path: "tests/evals/fixtures/analyze-data-domains/missing-warehouse-ddl"
+      request_text: |
+        Analyze data domains and persist the result.
+
+        Here is pasted DDL:
+
+        CREATE TABLE sales.fact_orders (
+          order_id integer,
+          customer_id integer,
+          order_total numeric
+        );
+      expected_final_output_terms: "warehouse-ddl,missing,pasted ddl,run the warehouse ddl extraction workflow"
+      unchanged_paths: "warehouse-ddl,warehouse-catalog"
+    assert:
       - type: javascript
-        value: file://../../assertions/check-analyze-data-domains-contract.js
+        value: file://../../assertions/check-guard-stop.js
