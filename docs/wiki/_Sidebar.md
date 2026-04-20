@@ -11,6 +11,12 @@
 - [[dbt Scaffolding]]
 - [[Sandbox Setup]]
 
+**Whole-Mart Migration**
+
+- [[Home]]
+- [[Command Reference]]
+- [[Git Workflow]]
+
 **Per-Object Migration (repeat per table)**
 
 - [[Scoping]]

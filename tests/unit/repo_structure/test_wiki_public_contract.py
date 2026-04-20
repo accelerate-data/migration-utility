@@ -45,6 +45,15 @@ def test_wiki_documents_whole_mart_commands() -> None:
     assert "final coordinator PR" in text
 
 
+def test_wiki_sidebar_surfaces_whole_mart_workflow() -> None:
+    sidebar = (WIKI_DIR / "_Sidebar.md").read_text(encoding="utf-8")
+
+    assert "**Whole-Mart Migration**" in sidebar
+    assert "- [[Home]]" in sidebar
+    assert "- [[Command Reference]]" in sidebar
+    assert "- [[Git Workflow]]" in sidebar
+
+
 def test_wiki_does_not_document_removed_test_spec_yaml_artifacts() -> None:
     text = _wiki_text()
 
