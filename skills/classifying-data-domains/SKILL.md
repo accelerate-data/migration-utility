@@ -257,3 +257,36 @@ Load these only when needed:
 |---|---|
 | `references/22_dw_table_patterns.md` | Dimensional role classification |
 | `references/21_domain_taxonomy.md` | Business-domain assignment |
+
+### Deep-dive clusters
+
+Load a cluster when the primary role is confirmed but a subtype or specific pattern requires deeper evidence.
+
+**Fact deep dives** — load when a table is Fact or Aggregate but subtype or grain is ambiguous:
+
+- `references/01_fact_table.md`
+- `references/03_grain.md`
+- `references/04_transaction_fact_table.md`
+- `references/05_periodic_snapshot_fact_table.md`
+- `references/06_accumulating_snapshot_fact_table.md`
+- `references/07_factless_fact_table.md`
+- `references/19_aggregate_tables.md`
+
+**Dimension deep dives** — load when a table is Dimension but subtype is ambiguous (SCD, conformed, junk, role-playing, etc.):
+
+- `references/02_dimension_table.md`
+- `references/08_slowly_changing_dimensions.md`
+- `references/09_surrogate_keys.md`
+- `references/10_conformed_dimensions.md`
+- `references/11_degenerate_dimension.md`
+- `references/12_junk_dimension.md`
+- `references/13_role_playing_dimension.md`
+- `references/14_minidimension.md`
+- `references/18_date_dimension.md`
+- `references/20_heterogeneous_products.md`
+
+**Structural patterns** — load when a table is Bridge, or bus/matrix architecture context is needed:
+
+- `references/15_bridge_table.md`
+- `references/16_bus_architecture.md`
+- `references/17_bus_matrix.md`
