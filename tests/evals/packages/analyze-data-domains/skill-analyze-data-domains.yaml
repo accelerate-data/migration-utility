@@ -1,0 +1,26 @@
+# yaml-language-server: $schema=https://promptfoo.dev/config-schema.json
+description: "Analyze-data-domains skill — whole-warehouse domain analysis contract"
+
+prompts:
+  - id: analyze-data-domains
+    label: analyze-data-domains
+    raw: file://../../prompts/skill-analyze-data-domains.txt
+
+extensions:
+  - file://../../scripts/run-workspace-extension.js:extensionHook
+
+providers:
+  - file://../../providers/haiku-60.yaml
+
+tests:
+  - description: "[smoke] missing-warehouse-ddl guard stops without writes"
+    vars:
+      fixture_path: "tests/evals/fixtures/analyze-data-domains/missing-warehouse-ddl"
+      request_text: "Analyze data domains from this warehouse and persist the result."
+      expected_final_output_terms: "warehouse-ddl,missing,run the warehouse ddl extraction workflow"
+      forbidden_paths: "warehouse-ddl,warehouse-catalog"
+    assert:
+      - type: javascript
+        value: file://../../assertions/check-output-terms.js
+      - type: javascript
+        value: file://../../assertions/check-analyze-data-domains-contract.js
