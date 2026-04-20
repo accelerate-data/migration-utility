@@ -51,11 +51,11 @@ module.exports = (output, context) => {
     '## Coordinator',
     '## Source Replication',
     '## Stage 010: Runtime Readiness',
-    '## Stage 020: Scope',
+    '## Stage 020: Scope Validation',
     '## Stage 030: Catalog Ownership Check',
     '## Stage 040: Profile',
-    '## Stage 050: Setup Target',
-    '## Stage 060: Setup Sandbox',
+    '## Stage 050: Target Validation',
+    '## Stage 060: Sandbox Validation',
     '## Stage 070: Generate Tests',
     '## Stage 080: Refactor Query',
     '## Stage 090: Replicate Source Tables',
@@ -76,6 +76,13 @@ module.exports = (output, context) => {
     'Worktree name',
     'Base branch',
     'Invocation:',
+    'scope_phase',
+    'terminal scoping outcome',
+    'is_source',
+    'is_seed',
+    'excluded',
+    'dbt/dbt_project.yml',
+    'test-harness sandbox-status',
   ];
   for (const term of requiredTerms) {
     if (!evidence.includes(term.toLowerCase())) {
@@ -100,6 +107,19 @@ module.exports = (output, context) => {
   for (const placeholder of forbiddenPlaceholders) {
     if (planText.toLowerCase().includes(placeholder)) {
       return fail(`Generated plan still contains placeholder '${placeholder}'`);
+    }
+  }
+
+  const forbiddenTerms = [
+    '## Stage 050: Setup Target',
+    '## Stage 060: Setup Sandbox',
+    'If `scope_phase` has objects, run `/scope-tables`',
+    'deterministic `ad-migration setup-target` stage subagent',
+    'deterministic `ad-migration setup-sandbox --yes` stage subagent',
+  ];
+  for (const term of forbiddenTerms) {
+    if (evidence.includes(term.toLowerCase())) {
+      return fail(`Forbidden stale migrate-mart-plan wording found: '${term}'`);
     }
   }
 

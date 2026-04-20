@@ -15,10 +15,16 @@ This command opens or updates the planning PR for the generated plan branch, the
 
 - `$0` may be a lowercase hyphen-separated slug. If missing, generate a slug from the project directory name, lowercased and normalized to hyphen-separated words. If the generated slug is empty, use `mart-migration`.
 - `manifest.json` must exist. If missing, fail with `MANIFEST_NOT_FOUND`.
-- `runtime.source`, `runtime.target`, and `runtime.sandbox` must be present in `manifest.json`.
+- `runtime.source`, `runtime.target`, and `runtime.sandbox` must be present in `manifest.json`. If any role is missing, fail before writing a plan and name the missing role.
 - Source, target, and sandbox must be reachable through existing CLI checks.
-- `dbt/dbt_project.yml` must exist before writing an executable plan.
-- If catalog ownership is unresolved after scoping, stop before writing an executable plan and tell the human which `ad-migration add-source-table`, `ad-migration add-seed-table`, or `ad-migration exclude-table` decisions are needed.
+- `dbt/dbt_project.yml` must exist before writing an executable plan. If missing, fail with `DBT_PROJECT_MISSING` and tell the human to run `ad-migration setup-target`.
+- `migrate-util batch-plan --project-root <worktree_path>` must report an empty `scope_phase`. If it contains objects, fail with `SCOPING_REQUIRED`, list the objects, and tell the human to run `/scope-tables` before rerunning `/migrate-mart-plan`.
+- Every catalog table and view must have a terminal scoping outcome before writing an executable plan.
+  - Table terminal outcomes are explicit: `excluded: true`, `scoping.status == "resolved"` with `selected_writer`, `scoping.status == "no_writer_found"` with `is_source: true`, or `scoping.status == "no_writer_found"` with `is_seed: true`.
+  - View and materialized-view terminal outcomes are explicit: `excluded: true` or `scoping.status == "analyzed"`.
+  - A writerless table without `is_source`, `is_seed`, or `excluded` is unresolved and must block the plan.
+- Scoping or catalog diagnostics with errors must block the plan.
+- If catalog ownership is unresolved, stop before writing an executable plan and tell the human which `ad-migration add-source-table`, `ad-migration add-seed-table`, or `ad-migration exclude-table` decisions are needed.
 
 ## Pipeline
 
@@ -33,7 +39,7 @@ This command opens or updates the planning PR for the generated plan branch, the
 
    - Use the returned `worktree_path` for all reads, writes, commits, and plan updates.
 4. Run fresh `uv run --project "${CLAUDE_PLUGIN_ROOT}/packages/ad-migration-internal" migrate-util batch-plan --project-root <worktree_path>`.
-5. If `scope_phase` has objects, run `/scope-tables` in coordinator mode as Stage 020, merge the returned PR, clean up the stage worktree, refresh coordinator branch, and rerun `batch-plan`.
+5. If `scope_phase` has objects, if any table/view lacks a terminal scoping outcome, or if scoping/catalog diagnostics contain errors, report the blocker and stop. `/migrate-mart-plan` must not run `/scope-tables`.
 6. If source/seed/exclude decisions are unresolved, report required CLI decisions and stop.
 7. Write `docs/migration-plans/<slug>/README.md`.
 8. Commit the plan and any planning catalog changes on the coordinator branch.
@@ -58,11 +64,11 @@ The generated plan must include these top-level sections in order:
 - `## Coordinator`
 - `## Source Replication`
 - `## Stage 010: Runtime Readiness`
-- `## Stage 020: Scope`
+- `## Stage 020: Scope Validation`
 - `## Stage 030: Catalog Ownership Check`
 - `## Stage 040: Profile`
-- `## Stage 050: Setup Target`
-- `## Stage 060: Setup Sandbox`
+- `## Stage 050: Target Validation`
+- `## Stage 060: Sandbox Validation`
 - `## Stage 070: Generate Tests`
 - `## Stage 080: Refactor Query`
 - `## Stage 090: Replicate Source Tables`
@@ -102,17 +108,17 @@ The generated plan must include these top-level sections in order:
 - PR: `none`
 - Status: `complete`
 
-## Stage 020: Scope
+## Stage 020: Scope Validation
 
-- Agent: `scope-tables`
-- Slash command: `/scope-tables <plan-file> 020 020-scope-<slug> feature/migrate-mart-<slug> <scope-targets>`
-- Invocation: `/scope-tables <plan-file> 020 020-scope-<slug> feature/migrate-mart-<slug> <scope-targets>`
-- Branch: `feature/migrate-mart-<slug>/020-scope-<slug>`
-- Base branch: `feature/migrate-mart-<slug>`
-- Worktree name: `020-scope-<slug>`
-- Worktree path: `../worktrees/feature/migrate-mart-<slug>/020-scope-<slug>`
+- Agent: `scope-validation`
+- Slash command: `n/a`
+- Invocation: `uv run --project "${CLAUDE_PLUGIN_ROOT}/packages/ad-migration-internal" migrate-util batch-plan --project-root <worktree-path> confirms scope_phase is empty, scoping/catalog diagnostics have no errors, table terminal scoping outcome is resolved with selected_writer or explicit is_source/is_seed/excluded, and view terminal scoping outcome is analyzed or excluded`
+- Branch: `feature/migrate-mart-<slug>`
+- Base branch: `<default-branch>`
+- Worktree name: `<slug>`
+- Worktree path: `<worktree-path>`
 - PR: `none`
-- Status: `complete` or `skipped`
+- Status: `complete`
 
 ## Stage 030: Catalog Ownership Check
 
@@ -138,28 +144,28 @@ The generated plan must include these top-level sections in order:
 - PR: `<profile PR>`
 - Status: `planned`
 
-## Stage 050: Setup Target
+## Stage 050: Target Validation
 
-- Agent: `setup-target`
-- Slash command: `ad-migration setup-target`
-- Invocation: `ad-migration setup-target`
-- Branch: `feature/migrate-mart-<slug>/050-setup-target-<slug>`
+- Agent: `target-validation`
+- Slash command: `n/a`
+- Invocation: `test -f dbt/dbt_project.yml && ad-migration doctor drivers --project-root <worktree-path> --json`
+- Branch: `feature/migrate-mart-<slug>/050-target-validation-<slug>`
 - Base branch: `feature/migrate-mart-<slug>`
-- Worktree name: `050-setup-target-<slug>`
-- Worktree path: `../worktrees/feature/migrate-mart-<slug>/050-setup-target-<slug>`
-- PR: `<setup-target PR>`
+- Worktree name: `050-target-validation-<slug>`
+- Worktree path: `../worktrees/feature/migrate-mart-<slug>/050-target-validation-<slug>`
+- PR: `<target-validation PR>`
 - Status: `planned`
 
-## Stage 060: Setup Sandbox
+## Stage 060: Sandbox Validation
 
-- Agent: `setup-sandbox`
-- Slash command: `ad-migration setup-sandbox --yes`
-- Invocation: `ad-migration setup-sandbox --yes`
-- Branch: `feature/migrate-mart-<slug>/060-setup-sandbox-<slug>`
+- Agent: `sandbox-validation`
+- Slash command: `n/a`
+- Invocation: `uv run --project "${CLAUDE_PLUGIN_ROOT}/packages/ad-migration-internal" test-harness sandbox-status`
+- Branch: `feature/migrate-mart-<slug>/060-sandbox-validation-<slug>`
 - Base branch: `feature/migrate-mart-<slug>`
-- Worktree name: `060-setup-sandbox-<slug>`
-- Worktree path: `../worktrees/feature/migrate-mart-<slug>/060-setup-sandbox-<slug>`
-- PR: `<setup-sandbox PR>`
+- Worktree name: `060-sandbox-validation-<slug>`
+- Worktree path: `../worktrees/feature/migrate-mart-<slug>/060-sandbox-validation-<slug>`
+- PR: `<sandbox-validation PR>`
 - Status: `planned`
 
 ## Stage 070: Generate Tests
