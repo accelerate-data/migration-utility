@@ -50,7 +50,7 @@ On Linux and WSL, install the GitHub release wheel artifacts into Python 3.11+. 
 | Command | Purpose |
 |---|---|
 | `ad-migration setup-source` | Extract DDL and build the local catalog from a live source database |
-| `ad-migration setup-target` | Scaffold the dbt project and generate staging source metadata |
+| `ad-migration setup-target` | Scaffold the dbt project, generate staging source metadata, and validate source-facing dbt artifacts |
 | `ad-migration setup-sandbox` | Create the active sandbox execution endpoint |
 | `ad-migration teardown-sandbox` | Drop the sandbox endpoint and clear sandbox metadata |
 

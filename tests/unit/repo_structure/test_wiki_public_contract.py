@@ -109,6 +109,32 @@ def test_wiki_documents_diagnostic_review_workflow() -> None:
     assert "/reviewing-diagnostics" in command_reference
 
 
+def test_wiki_documents_target_setup_and_model_validation_boundaries() -> None:
+    page = (WIKI_DIR / "Target-Setup.md").read_text(encoding="utf-8")
+    sidebar = (WIKI_DIR / "_Sidebar.md").read_text(encoding="utf-8")
+    model_generation = (WIKI_DIR / "Model-Generation.md").read_text(
+        encoding="utf-8"
+    )
+    quickstart = (WIKI_DIR / "Quickstart.md").read_text(encoding="utf-8")
+
+    assert "# Target Setup" in page
+    assert "`ad-migration setup-target`" in page
+    assert "runs `dbt seed`" in page
+    assert "runs `dbt compile`" in page
+    assert "runs `dbt build`" in page
+    assert "excludes dbt unit tests from that build" in page
+    assert "does not run a broad `dbt build`" in page
+    assert "runs scoped dbt unit tests" in page
+    assert "`dbt run --empty`" not in page
+    assert "- [[Target Setup]]" in sidebar
+
+    assert "does not run a broad `dbt build`" in model_generation
+    assert "materialize direct parents with an empty run" in model_generation
+    assert "run scoped dbt unit tests" in model_generation
+    assert "runs `dbt build`" not in quickstart
+    assert "runs scoped dbt unit tests" in quickstart
+
+
 def test_wiki_does_not_document_removed_test_spec_yaml_artifacts() -> None:
     text = _wiki_text()
 
