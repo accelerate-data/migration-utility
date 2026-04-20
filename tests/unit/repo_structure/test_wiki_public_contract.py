@@ -36,12 +36,25 @@ def test_wiki_uses_public_command_names_after_rename() -> None:
 def test_wiki_documents_whole_mart_commands() -> None:
     home = (WIKI_DIR / "Home.md").read_text(encoding="utf-8")
     command_reference = (WIKI_DIR / "Command-Reference.md").read_text(encoding="utf-8")
+    whole_mart = (WIKI_DIR / "Whole-Mart-Migration.md").read_text(
+        encoding="utf-8"
+    )
     text = _wiki_text()
 
-    assert "/migrate-mart-plan" in home
-    assert "/migrate-mart" in home
+    assert "[[Whole-Mart Migration]]" in home
+    assert "## Flow" in whole_mart
+    assert "`ad-migration setup-source`" in whole_mart
+    assert "`/scope-tables`" in whole_mart
+    assert "`ad-migration setup-target`" in whole_mart
+    assert "`ad-migration setup-sandbox`" in whole_mart
+    assert "`/migrate-mart-plan`" in whole_mart
+    assert "`/migrate-mart <plan-file>`" in whole_mart
+    assert "[[Command Migrate Mart Plan]]" in whole_mart
+    assert "[[Command Migrate Mart]]" in whole_mart
     assert "/migrate-mart-plan" in command_reference
     assert "/migrate-mart" in command_reference
+    assert "[`/migrate-mart-plan`](Command-Migrate-Mart-Plan)" in command_reference
+    assert "[`/migrate-mart`](Command-Migrate-Mart)" in command_reference
     assert "final coordinator PR" in text
 
 
@@ -49,9 +62,31 @@ def test_wiki_sidebar_surfaces_whole_mart_workflow() -> None:
     sidebar = (WIKI_DIR / "_Sidebar.md").read_text(encoding="utf-8")
 
     assert "**Whole-Mart Migration**" in sidebar
-    assert "- [[Home]]" in sidebar
-    assert "- [[Command Reference]]" in sidebar
-    assert "- [[Git Workflow]]" in sidebar
+    assert "- [[Whole-Mart Migration]]" in sidebar
+    assert "- [[Command Migrate Mart Plan]]" in sidebar
+    assert "- [[Command Migrate Mart]]" in sidebar
+
+
+def test_wiki_documents_whole_mart_command_pages() -> None:
+    plan_page = (WIKI_DIR / "Command-Migrate-Mart-Plan.md").read_text(
+        encoding="utf-8"
+    )
+    execute_page = (WIKI_DIR / "Command-Migrate-Mart.md").read_text(
+        encoding="utf-8"
+    )
+
+    assert "# Command: /migrate-mart-plan" in plan_page
+    assert "## Gates" in plan_page
+    assert "`runtime.source`" in plan_page
+    assert "`runtime.target`" in plan_page
+    assert "`runtime.sandbox`" in plan_page
+    assert "`dbt/dbt_project.yml`" in plan_page
+    assert "source, seed, and excluded" in plan_page
+
+    assert "# Command: /migrate-mart" in execute_page
+    assert "## Failure recovery" in execute_page
+    assert "first incomplete stage" in execute_page
+    assert "final coordinator PR" in execute_page
 
 
 def test_wiki_does_not_document_removed_test_spec_yaml_artifacts() -> None:

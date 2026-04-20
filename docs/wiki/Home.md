@@ -32,15 +32,7 @@ The workflow has three layers:
 
 ### Whole-mart migration
 
-```text
-/migrate-mart-plan
-  -> review source, seed, and excluded tables
-  -> /migrate-mart
-```
-
-`/migrate-mart-plan` verifies source, target, and sandbox readiness, scopes the requested mart, writes a resumable Markdown plan, opens the planning PR, and stops for human review. Use the `ad-migration` CLI to classify source, seed, and excluded tables, then rerun `/migrate-mart-plan` if the catalog changes.
-
-`/migrate-mart` resumes the first incomplete plan stage, runs one stage at a time, merges each stage PR into the coordinator branch, updates the plan, and opens the final coordinator PR for human review.
+For the end-to-end mart workflow, see [[Whole-Mart Migration]].
 
 ### Per-object migration
 

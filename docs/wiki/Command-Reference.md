@@ -14,8 +14,8 @@ Plugin commands run inside Claude Code and handle LLM-driven pipeline stages.
 
 | Command | Purpose |
 |---|---|
-| `/migrate-mart-plan` | Build or refresh the whole-mart migration plan, open the planning PR, and stop for source, seed, and exclusion review |
-| `/migrate-mart` | Execute the first incomplete whole-mart plan stage, merging stage PRs into the coordinator branch and leaving the final PR for review |
+| [`/migrate-mart-plan`](Command-Migrate-Mart-Plan) | Build or refresh the whole-mart migration plan, open the planning PR, and stop for source, seed, and exclusion review |
+| [`/migrate-mart`](Command-Migrate-Mart) | Execute the first incomplete whole-mart plan stage, merging stage PRs into the coordinator branch and leaving the final PR for review |
 | `/scope-tables` | Resolve writers for tables or analyze views |
 | `/profile-tables` | Write migration profiles for tables, views, or MVs |
 | `/generate-tests` | Generate and review test scenarios, then capture ground truth |
