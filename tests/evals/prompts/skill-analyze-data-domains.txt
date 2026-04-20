@@ -5,4 +5,4 @@ Read the skill at `{{repo_root}}/skills/analyze-data-domains/SKILL.md`.
 User request:
 {{request_text}}
 
-Use `{{run_path}}` as the project root. Before applying the `warehouse-ddl/` guard, inspect `{{run_path}}/warehouse-ddl` directly and treat that as the project-root `warehouse-ddl/` directory. If the skill says a required input is missing, stop and report the missing prerequisite. If the request asks to persist output, write only files allowed by the skill.
+Use `{{run_path}}` as the project root. Resolve project-root-relative skill paths, including `warehouse-ddl/`, under `{{run_path}}`. If the skill says a required input is missing, stop and report the missing prerequisite. If the request asks to persist output, write only files allowed by the skill.

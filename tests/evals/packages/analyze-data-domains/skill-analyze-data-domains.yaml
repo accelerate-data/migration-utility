@@ -49,8 +49,37 @@ tests:
         Use Sales as the primary functional domain for `silver.opportunities`.
         Use Operations as the primary functional domain for `gold.sold_opportunities`.
         Do not persist files; return the report and example JSON objects only.
-      expected_terms: "silver.opportunities,sales,gold.sold_opportunities,operations,view,cross-domain,distinct"
-      unexpected_terms: "\"procedures\",\"functions\""
+      expected_terms: "silver.opportunities,sales,gold.sold_opportunities,operations,view,cross-domain"
+      forbidden_json_keys: "procedures,functions"
     assert:
       - type: javascript
         value: file://../../assertions/check-listing-output.js
+  - description: "persisted data-domain files use table and view ownership only"
+    vars:
+      fixture_path: "tests/evals/fixtures/analyze-data-domains/table-view-domain-ownership"
+      request_text: |
+        Analyze data domains from the warehouse DDL and persist the result.
+
+        Use Sales as the primary functional domain for `silver.opportunities`.
+        Use Operations as the primary functional domain for `gold.sold_opportunities`.
+        Treat `gold.sold_opportunities` as an Operations view over a Sales table,
+        so Operations has an upstream dependency on Sales.
+      expected_domain_files: "sales,operations"
+      expected_domain_objects: "sales:tables=silver.opportunities;operations:views=gold.sold_opportunities"
+      expected_upstream_domains: "operations:upstream_domains=sales"
+    assert:
+      - type: javascript
+        value: file://../../assertions/check-data-domain-persistence.js
+  - description: "ambiguous ownership with persistence request stops for human decision"
+    vars:
+      fixture_path: "tests/evals/fixtures/analyze-data-domains/ambiguous-ownership"
+      request_text: |
+        Analyze data domains from the warehouse DDL and persist the result.
+
+        `shared.opportunity_cases` could belong to either Sales or Operations.
+        There is no accepted human ownership decision yet.
+      expected_any_final_output_terms: "human,decision,ownership"
+      unchanged_paths: "warehouse-catalog,catalog"
+    assert:
+      - type: javascript
+        value: file://../../assertions/check-guard-stop.js

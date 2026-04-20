@@ -4,6 +4,7 @@
 //   run_path,
 //   fixture_path,
 //   expected_final_output_terms?,
+//   expected_any_final_output_terms?,
 //   unchanged_paths?,          -- comma-separated paths relative to project root
 //   unchanged_catalog_object?, -- object FQN whose catalog JSON should be unchanged except errors[]
 //   expect_only_gitkeep_dirs?  -- comma-separated directories relative to project root
@@ -103,6 +104,11 @@ module.exports = (output, context) => {
     if (!outputStr.includes(term)) {
       return fail(`Expected output term '${term}' not found in final response`);
     }
+  }
+
+  const anyTerms = normalizeTerms(context.vars.expected_any_final_output_terms);
+  if (anyTerms.length > 0 && !anyTerms.some((term) => outputStr.includes(term))) {
+    return fail(`Expected at least one output term not found in final response: ${anyTerms.join(', ')}`);
   }
 
   for (const relativePath of normalizeTerms(context.vars.unchanged_paths)) {
