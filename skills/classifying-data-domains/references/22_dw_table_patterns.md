@@ -1,6 +1,5 @@
 # DW Table Patterns Reference
 
-Used by Step 2 of the table-domain-classifier skill.
 Contains the full pattern library and decision tree for classifying a table's dimensional modeling role.
 
 ---
