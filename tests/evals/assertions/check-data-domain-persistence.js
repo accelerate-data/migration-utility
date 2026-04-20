@@ -44,6 +44,14 @@ function listJsonFiles(root) {
     .sort();
 }
 
+function relativeJsonBasenames(files) {
+  return files.map((filePath) => path.basename(filePath)).sort();
+}
+
+function canonicalJson(value) {
+  return JSON.stringify(value, null, 2) + '\n';
+}
+
 function hasForbiddenObjectBuckets(domain) {
   const objects = domain.objects || {};
   return Object.keys(objects).some((key) => !['tables', 'views'].includes(key));
@@ -110,6 +118,20 @@ function domainObjectValues(domain) {
     .map(normalizeObject);
 }
 
+function duplicatePrimaryOwnership(domains) {
+  const owners = new Map();
+  for (const domain of domains) {
+    for (const objectName of domainObjectValues(domain)) {
+      const previous = owners.get(objectName);
+      if (previous) {
+        return { objectName, previous, next: domain.slug };
+      }
+      owners.set(objectName, domain.slug);
+    }
+  }
+  return null;
+}
+
 function parseExpectedAssignments(value) {
   return String(value || '')
     .split(';')
@@ -133,6 +155,10 @@ function domainBySlug(domains, slug) {
 module.exports = (_output, context) => {
   const repoRoot = path.resolve(__dirname, '..', '..', '..');
   const runRoot = path.resolve(repoRoot, resolveProjectPath(context));
+  const fixtureRoot = path.resolve(
+    repoRoot,
+    context.vars.canonical_fixture_path || context.vars.fixture_path || '',
+  );
   const catalogRoot = path.join(runRoot, 'warehouse-catalog', 'data-domains');
   const files = listJsonFiles(catalogRoot);
 
@@ -149,6 +175,14 @@ module.exports = (_output, context) => {
   for (const slug of expectedFiles) {
     if (!files.some((filePath) => path.basename(filePath) === `${slug}.json`)) {
       return fail(`Expected data-domain file '${slug}.json' was not written`);
+    }
+  }
+  if (expectedFiles.length > 0) {
+    const expectedBasenames = expectedFiles.map((slug) => `${slug}.json`).sort();
+    const actualBasenames = relativeJsonBasenames(files);
+    const unexpected = actualBasenames.filter((fileName) => !expectedBasenames.includes(fileName));
+    if (unexpected.length > 0) {
+      return fail(`Unexpected data-domain files: ${unexpected.join(', ')}`);
     }
   }
 
@@ -168,6 +202,13 @@ module.exports = (_output, context) => {
       return fail(`Domain '${domain.slug}' contains non-table-view object buckets`);
     }
 
+    if (!Array.isArray(domain.objects?.tables)) {
+      return fail(`Domain '${domain.slug}' is missing required objects.tables bucket`);
+    }
+    if (!Array.isArray(domain.objects?.views)) {
+      return fail(`Domain '${domain.slug}' is missing required objects.views bucket`);
+    }
+
     if (hasVolatileField(domain)) {
       return fail(`Domain '${domain.slug}' contains volatile timestamp fields`);
     }
@@ -183,6 +224,30 @@ module.exports = (_output, context) => {
       if (objectValues.has(objectName)) {
         return fail(`Domain '${domain.slug}' contains forbidden domain object '${objectName}'`);
       }
+    }
+  }
+
+  const duplicate = duplicatePrimaryOwnership(domains);
+  if (duplicate) {
+    return fail(
+      `Object '${duplicate.objectName}' has multiple primary domains: '${duplicate.previous}' and '${duplicate.next}'`,
+    );
+  }
+
+  for (const slug of normalizeTerms(context.vars.stable_domain_files_from_fixture)) {
+    const fixtureFile = path.join(fixtureRoot, 'warehouse-catalog', 'data-domains', `${slug}.json`);
+    const runFile = path.join(catalogRoot, `${slug}.json`);
+    if (!fs.existsSync(fixtureFile)) {
+      return fail(`Canonical fixture data-domain file '${slug}.json' was not found`);
+    }
+    if (!fs.existsSync(runFile)) {
+      return fail(`Run data-domain file '${slug}.json' was not written`);
+    }
+
+    const fixtureDomain = readJson(fixtureFile);
+    const runDomain = readJson(runFile);
+    if (canonicalJson(runDomain) !== canonicalJson(fixtureDomain)) {
+      return fail(`Data-domain file '${slug}.json' changed from canonical fixture`);
     }
   }
 
