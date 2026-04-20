@@ -13,9 +13,9 @@
 
 **Whole-Mart Migration**
 
-- [[Home]]
-- [[Command Reference]]
-- [[Git Workflow]]
+- [[Whole-Mart Migration]]
+- [[Command Migrate Mart Plan]]
+- [[Command Migrate Mart]]
 
 **Per-Object Migration (repeat per table)**
 
