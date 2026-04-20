@@ -29,8 +29,7 @@ Validate only:
 - the changed `int` or `mart` output model; and
 - additional existing models required by the candidate section.
 
-Prefer the command or scope listed in `Validation:` when executable. Do not
-broaden validation to unrelated dbt assets.
+Prefer the command or scope listed in `Validation:` when executable. Do not broaden validation to unrelated dbt assets.
 
 For candidates with a clear rewrite instruction, write or update the declared output before validation. If scoped validation fails, preserve the attempted output rewrite and mark the candidate `failed`; do not leave the output unchanged and record `failed` as a pre-edit status.
 

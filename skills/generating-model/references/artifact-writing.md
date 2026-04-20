@@ -10,10 +10,7 @@ Use the migration CLIs as the write boundary. Do not write final SQL/YAML files 
 - Snapshot YAML merges into `snapshots/_snapshots__models.yml`.
 - Ordinary migrated targets must never be written under `models/staging/`. Staging is reserved for source wrappers created by setup-target.
 
-Use `ref('stg_bronze__<entity>')` for confirmed source dependencies and
-`ref('<seed_name>')` for seed dependencies. If a confirmed staging wrapper is
-missing, stop with `GENERATION_FAILED`; do not fall back to direct
-`source('bronze', ...)`.
+Use `ref('stg_bronze__<entity>')` for confirmed source dependencies and `ref('<seed_name>')` for seed dependencies. If a confirmed staging wrapper is missing, stop with `GENERATION_FAILED`; do not fall back to direct `source('bronze', ...)`.
 
 ## Render Unit Tests
 
