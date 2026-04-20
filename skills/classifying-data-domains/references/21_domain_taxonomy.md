@@ -1,6 +1,5 @@
 # Domain Taxonomy Reference
 
-Used by Step 3 of the table-domain-classifier skill.
 Contains canonical domain definitions, keyword lists, and industry-specific variants.
 
 ---
