@@ -1,7 +1,7 @@
 {
   "name": "ad-migration",
   "description": "Migrate stored procedures to dbt models. Provides commands for scoping, profiling, test generation, and model generation across the full migration pipeline.",
-  "version": "1.0.0",
+  "version": "0.1.2",
   "license": "Elastic-2.0",
   "author": {
     "name": "Accelerate Data",

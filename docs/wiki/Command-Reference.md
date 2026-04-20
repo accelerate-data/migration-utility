@@ -21,6 +21,7 @@ Plugin commands run inside Claude Code and handle LLM-driven pipeline stages.
 | `/generate-tests` | Generate and review test scenarios, then capture ground truth |
 | `/refactor-query` | Persist proof-backed import/logical/final refactors |
 | `/generate-model` | Generate dbt artifacts from approved refactors and tests |
+| `/reviewing-diagnostics` | Review status diagnostics for one table and fix or record table-specific outcomes |
 | `/status` | Show current readiness and the next best action |
 
 ### Repository maintenance

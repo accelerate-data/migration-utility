@@ -89,6 +89,26 @@ def test_wiki_documents_whole_mart_command_pages() -> None:
     assert "final coordinator PR" in execute_page
 
 
+def test_wiki_documents_diagnostic_review_workflow() -> None:
+    page = (WIKI_DIR / "Handling-Diagnostic-Errors-and-Warnings.md").read_text(
+        encoding="utf-8"
+    )
+    sidebar = (WIKI_DIR / "_Sidebar.md").read_text(encoding="utf-8")
+    status = (WIKI_DIR / "Status-Dashboard.md").read_text(encoding="utf-8")
+    command_reference = (WIKI_DIR / "Command-Reference.md").read_text(
+        encoding="utf-8"
+    )
+
+    assert "# Handling Diagnostic Errors and Warnings" in page
+    assert "Review diagnostics for silver.DimCustomer" in page
+    assert "`/reviewing-diagnostics <schema.table>`" in page
+    assert "`catalog/diagnostic-reviews.json`" in page
+    assert "It does not suppress errors by default." in page
+    assert "[[Handling Diagnostic Errors and Warnings]]" in sidebar
+    assert "[[Handling Diagnostic Errors and Warnings]]" in status
+    assert "/reviewing-diagnostics" in command_reference
+
+
 def test_wiki_does_not_document_removed_test_spec_yaml_artifacts() -> None:
     text = _wiki_text()
 

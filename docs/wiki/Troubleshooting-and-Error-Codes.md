@@ -85,6 +85,7 @@ When in doubt, run:
 
 - [[Quickstart]]
 - [[Status Dashboard]]
+- [[Handling Diagnostic Errors and Warnings]]
 - [[Scoping]]
 - [[Profiling]]
 - [[Test Generation]]

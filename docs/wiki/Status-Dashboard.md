@@ -42,6 +42,8 @@ Typical statuses are:
 
 For one object, `/status <fqn>` shows the per-stage breakdown and the first failing or pending guard with the recommended command to fix it.
 
+If the output shows table errors or warnings, review them one object at a time. See [[Handling Diagnostic Errors and Warnings]].
+
 ## Source-table behavior
 
 The command distinguishes three cases:

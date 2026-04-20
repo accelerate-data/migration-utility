@@ -4,7 +4,7 @@ requires-python = ">=3.11"
 
 [[package]]
 name = "ad-migration-internal"
-version = "0.1.0"
+version = "0.1.2"
 source = { editable = "." }
 dependencies = [
     { name = "ad-migration-shared", extra = ["export", "oracle", "sql-server"] },
@@ -15,7 +15,7 @@ requires-dist = [{ name = "ad-migration-shared", extras = ["export", "oracle", "
 
 [[package]]
 name = "ad-migration-shared"
-version = "0.1.0"
+version = "0.1.2"
 source = { directory = "../../lib" }
 dependencies = [
     { name = "jsonschema" },
