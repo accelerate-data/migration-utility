@@ -1,0 +1,8 @@
+You are running in a warehouse-analysis project with canonical fixture input at {{fixture_path}} and writable run workspace at {{run_path}}.
+
+Read the skill at `{{repo_root}}/skills/analyze-data-domains/SKILL.md`.
+
+User request:
+{{request_text}}
+
+Use `{{run_path}}` as the project root. If the skill says a required input is missing, stop and report the missing prerequisite. If the request asks to persist output, write only files allowed by the skill.
