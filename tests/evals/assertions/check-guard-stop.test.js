@@ -71,3 +71,20 @@ test('check-guard-stop fails when guarded artifacts are mutated', () => {
     fs.rmSync(runRoot, { recursive: true, force: true });
   }
 });
+
+test('check-guard-stop accepts any-of output terms', () => {
+  const runRoot = fs.mkdtempSync(path.join(os.tmpdir(), 'guard-run-'));
+
+  try {
+    const result = checkGuardStop('Requires an ownership decision before continuing', {
+      vars: {
+        run_path: runRoot,
+        expected_any_final_output_terms: 'human,decision',
+      },
+    });
+
+    assert.equal(result.pass, true);
+  } finally {
+    fs.rmSync(runRoot, { recursive: true, force: true });
+  }
+});

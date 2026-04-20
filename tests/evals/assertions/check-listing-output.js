@@ -4,6 +4,7 @@ module.exports = (output, context) => {
   const text = String(output || '').toLowerCase();
   const expectedTerms = normalizeTerms(context.vars.expected_terms);
   const unexpectedTerms = normalizeTerms(context.vars.unexpected_terms);
+  const forbiddenJsonKeys = normalizeTerms(context.vars.forbidden_json_keys);
 
   for (const term of expectedTerms) {
     if (!text.includes(term)) {
@@ -21,6 +22,17 @@ module.exports = (output, context) => {
         pass: false,
         score: 0,
         reason: `Output included unexpected term '${term}'`
+      };
+    }
+  }
+
+  for (const key of forbiddenJsonKeys) {
+    const escapedKey = key.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+    if (new RegExp(`"${escapedKey}"\\s*:`).test(text)) {
+      return {
+        pass: false,
+        score: 0,
+        reason: `Output included forbidden JSON key '${key}'`
       };
     }
   }

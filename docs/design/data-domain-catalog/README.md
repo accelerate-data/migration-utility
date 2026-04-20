@@ -1,6 +1,6 @@
 # Data Domain Catalog
 
-`analyze-data-domains` is a user-facing planning skill for breaking a warehouse into
+`classifying-data-domains` is a user-facing planning skill for breaking a warehouse into
 migration-ready business domains before `setup-source`, `/scope`, and mart migration
 workflows.
 
@@ -46,14 +46,14 @@ Required stable fields:
 - `ambiguities`
 - `rationale`
 
-The `objects` section groups primary members by catalog object type:
+The `objects` section groups primary table and view members by catalog object
+type. Procedures and functions are not domain-catalog objects.
 
 ```json
 {
   "objects": {
     "tables": ["silver.fact_sales"],
-    "views": ["gold.vw_sales_summary"],
-    "procedures": ["silver.usp_load_fact_sales"]
+    "views": ["gold.vw_sales_summary"]
   }
 }
 ```
@@ -80,7 +80,7 @@ catalog/procedures/
 catalog/functions/
 ```
 
-`analyze-data-domains` consumes only `warehouse-ddl/` and writes only to
+`classifying-data-domains` consumes only `warehouse-ddl/` and writes only to
 `warehouse-catalog/` when persistence is requested.
 
 The one-domain migration pipeline consumes `ddl/` and `catalog/`. It must not write
@@ -88,7 +88,7 @@ domain decomposition state.
 
 ## Input Guard
 
-`warehouse-ddl/` is mandatory. `analyze-data-domains` must check for it before
+`warehouse-ddl/` is mandatory. `classifying-data-domains` must check for it before
 analysis.
 
 If `warehouse-ddl/` is missing:
@@ -114,7 +114,7 @@ Rules:
 - field order is stable
 - volatile timestamps are not written
 - only impacted domain files are rewritten
-- each object has exactly one primary domain
+- each table or view has exactly one primary domain
 - duplicate primary assignments are conflicts that require user resolution
 
 When the user changes an object's domain assignment, the agent rewrites the impacted
@@ -131,7 +131,7 @@ before this domain can be migrated. Downstream domains depend on this domain.
 
 ## Skill Boundary
 
-`analyze-data-domains` may explain or persist domain files when requested, but it
+`classifying-data-domains` may explain or persist domain files when requested, but it
 does not run extraction, mutate setup-source configuration, or start migration
 commands.
 
