@@ -198,6 +198,30 @@ test('check-data-domain-persistence rejects unexpected extra domain files', () =
   }
 });
 
+test('check-data-domain-persistence rejects unexpected warehouse-catalog side artifacts', () => {
+  const runRoot = fs.mkdtempSync(path.join(os.tmpdir(), 'domain-run-'));
+  try {
+    writeDomain(runRoot, 'sales');
+    fs.writeFileSync(
+      path.join(runRoot, 'warehouse-catalog', 'summary.json'),
+      '{}\n',
+      'utf8',
+    );
+
+    const result = checkDataDomainPersistence('', {
+      vars: {
+        run_path: runRoot,
+        expected_domain_files: 'sales',
+      },
+    });
+
+    assert.equal(result.pass, false);
+    assert.match(result.reason, /unexpected warehouse-catalog artifact/i);
+  } finally {
+    fs.rmSync(runRoot, { recursive: true, force: true });
+  }
+});
+
 test('check-data-domain-persistence rejects duplicate primary object ownership across domains', () => {
   const runRoot = fs.mkdtempSync(path.join(os.tmpdir(), 'domain-run-'));
   try {
@@ -217,6 +241,39 @@ test('check-data-domain-persistence rejects duplicate primary object ownership a
 
     assert.equal(result.pass, false);
     assert.match(result.reason, /multiple primary domains/);
+  } finally {
+    fs.rmSync(runRoot, { recursive: true, force: true });
+  }
+});
+
+test('check-data-domain-persistence rejects stale setup-source table candidates', () => {
+  const runRoot = fs.mkdtempSync(path.join(os.tmpdir(), 'domain-run-'));
+  try {
+    writeDomain(runRoot, 'sales', {
+      objects: { tables: [], views: [] },
+      setup_source_candidates: {
+        schemas: ['shared'],
+        tables: ['shared.opportunity_cases'],
+      },
+    });
+    writeDomain(runRoot, 'operations', {
+      objects: { tables: ['shared.opportunity_cases'], views: [] },
+      setup_source_candidates: {
+        schemas: ['shared'],
+        tables: ['shared.opportunity_cases'],
+      },
+    });
+
+    const result = checkDataDomainPersistence('', {
+      vars: {
+        run_path: runRoot,
+        expected_domain_files: 'sales,operations',
+        expected_domain_objects: 'operations:tables=shared.opportunity_cases',
+      },
+    });
+
+    assert.equal(result.pass, false);
+    assert.match(result.reason, /stale setup-source candidate/i);
   } finally {
     fs.rmSync(runRoot, { recursive: true, force: true });
   }

@@ -10,7 +10,7 @@ test('check-ambiguity-stop requires human ownership decision wording', () => {
   const runRoot = fs.mkdtempSync(path.join(os.tmpdir(), 'ambiguity-run-'));
   try {
     const result = checkAmbiguityStop(
-      'This ownership is ambiguous. Options are Sales or Operations. Sales comes first based on the opportunity terms, but you need to make the ownership decision before persistence.',
+      'This ownership is ambiguous. Options are Sales or Operations. Recommended: Sales, based on the opportunity terms, but you need to make the ownership decision before persistence.',
       {
         vars: {
           run_path: runRoot,
@@ -41,7 +41,7 @@ test('check-ambiguity-stop accepts explicit choose wording for ownership decisio
   const runRoot = fs.mkdtempSync(path.join(os.tmpdir(), 'ambiguity-run-'));
   try {
     const result = checkAmbiguityStop(
-      'This ownership is ambiguous. Which domain should own shared.opportunity_cases? Option A: Sales. Option B: Operations. Please choose the primary domain before persistence.',
+      'This ownership is ambiguous. Recommended: Sales. Which domain should own shared.opportunity_cases? Option A: Sales. Option B: Operations. Please choose the primary domain before persistence.',
       {
         vars: {
           run_path: runRoot,
@@ -61,7 +61,7 @@ test('check-ambiguity-stop accepts explicit confirmation wording for ownership c
   const runRoot = fs.mkdtempSync(path.join(os.tmpdir(), 'ambiguity-run-'));
   try {
     const result = checkAmbiguityStop(
-      'This table has competing ownership. Which domain should own shared.opportunity_cases? 1. Sales recommended. 2. Operations. Please confirm your choice before persistence.',
+      'This table has competing ownership. Recommended: Sales. Which domain should own shared.opportunity_cases? 1. Sales. 2. Operations. Please confirm your choice before persistence.',
       {
         vars: {
           run_path: runRoot,
@@ -81,7 +81,7 @@ test('check-ambiguity-stop accepts own wording for ownership choices', () => {
   const runRoot = fs.mkdtempSync(path.join(os.tmpdir(), 'ambiguity-run-'));
   try {
     const result = checkAmbiguityStop(
-      'Which domain should own shared.opportunity_cases? 1. Sales recommended. 2. Operations. Choose Sales or Operations before persistence.',
+      'Recommended: Sales. Which domain should own shared.opportunity_cases? 1. Sales. 2. Operations. Choose Sales or Operations before persistence.',
       {
         vars: {
           run_path: runRoot,
@@ -97,7 +97,47 @@ test('check-ambiguity-stop accepts own wording for ownership choices', () => {
   }
 });
 
-test('check-ambiguity-stop requires recommended ownership option first', () => {
+test('check-ambiguity-stop accepts which-domain ownership question', () => {
+  const runRoot = fs.mkdtempSync(path.join(os.tmpdir(), 'ambiguity-run-'));
+  try {
+    const result = checkAmbiguityStop(
+      'Per the skill guidelines, I cannot guess ownership when multiple plausible primary domains exist. Recommended: Sales. Which domain should own shared.opportunity_cases: Sales or Operations?',
+      {
+        vars: {
+          run_path: runRoot,
+          expected_ownership_options: 'sales,operations',
+          unchanged_paths: 'warehouse-catalog',
+        },
+      },
+    );
+
+    assert.equal(result.pass, true);
+  } finally {
+    fs.rmSync(runRoot, { recursive: true, force: true });
+  }
+});
+
+test('check-ambiguity-stop accepts option followed by recommended marker', () => {
+  const runRoot = fs.mkdtempSync(path.join(os.tmpdir(), 'ambiguity-run-'));
+  try {
+    const result = checkAmbiguityStop(
+      'This ownership is ambiguous. Choose which domain should own this bridge: 1. Sales (Recommended) 2. Operations. Which domain should be the primary owner?',
+      {
+        vars: {
+          run_path: runRoot,
+          expected_ownership_options: 'sales,operations',
+          unchanged_paths: 'warehouse-catalog',
+        },
+      },
+    );
+
+    assert.equal(result.pass, true);
+  } finally {
+    fs.rmSync(runRoot, { recursive: true, force: true });
+  }
+});
+
+test('check-ambiguity-stop requires recommended ownership option', () => {
   const result = checkAmbiguityStop(
     'This ownership is ambiguous. Options are Operations or Sales. You need to make the ownership decision before persistence.',
     {
@@ -109,7 +149,7 @@ test('check-ambiguity-stop requires recommended ownership option first', () => {
   );
 
   assert.equal(result.pass, false);
-  assert.match(result.reason, /recommended ownership option 'sales'/);
+  assert.match(result.reason, /recommend ownership option 'sales'/);
 });
 
 test('check-ambiguity-stop requires expected ownership options', () => {

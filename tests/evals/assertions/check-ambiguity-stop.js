@@ -15,7 +15,8 @@ module.exports = (output, context) => {
     text.includes('resolve') ||
     text.includes('choose') ||
     text.includes('choice') ||
-    text.includes('confirm');
+    text.includes('confirm') ||
+    text.includes('which domain should own');
   const hasHuman = text.includes('human') ||
     text.includes('user') ||
     text.includes('you') ||
@@ -33,15 +34,19 @@ module.exports = (output, context) => {
       return fail(`Expected response to include ownership option '${option}'`);
     }
   }
-  if (optionIndexes.length > 1) {
-    const [recommendedOption, recommendedIndex] = optionIndexes[0];
-    for (const [option, index] of optionIndexes.slice(1)) {
-      if (index < recommendedIndex) {
-        return fail(
-          `Expected recommended ownership option '${recommendedOption}' to appear before '${option}'`,
-        );
-      }
-    }
+  const recommendedOption = options[0];
+  const recommendedBeforeOption = new RegExp(
+    `recommend(?:ed|ation)?[^.\\n]{0,120}${recommendedOption}`,
+  );
+  const optionBeforeRecommended = new RegExp(
+    `${recommendedOption}[^.\\n]{0,80}recommend(?:ed|ation)?`,
+  );
+  if (
+    recommendedOption &&
+    !recommendedBeforeOption.test(text) &&
+    !optionBeforeRecommended.test(text)
+  ) {
+    return fail(`Expected response to recommend ownership option '${recommendedOption}'`);
   }
 
   return checkGuardStop(output, context);

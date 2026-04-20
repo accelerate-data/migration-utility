@@ -6,9 +6,8 @@ config:
   permission_mode: auto
   append_allowed_tools:
     - Read
-    - Edit
-    - MultiEdit
     - Write
+    - Edit
     - Bash
     - Glob
     - Grep

@@ -31,3 +31,34 @@ test('check-listing-output permits prose mentions of forbidden keys', () => {
 
   assert.equal(result.pass, true);
 });
+
+test('check-listing-output validates object role pairs across markdown punctuation', () => {
+  const result = checkListingOutput(
+    [
+      '**customer.dim_customer:** Dimension',
+      '- **customer.customer_address_history:** Dimension',
+    ].join('\n'),
+    {
+      vars: {
+        expected_role_pairs:
+          'customer.dim_customer=dimension;customer.customer_address_history=dimension',
+      },
+    },
+  );
+
+  assert.equal(result.pass, true);
+});
+
+test('check-listing-output rejects missing object role pairs', () => {
+  const result = checkListingOutput('customer.customer_address_history: Unknown', {
+    vars: {
+      expected_role_pairs: 'customer.customer_address_history=dimension',
+    },
+  });
+
+  assert.equal(result.pass, false);
+  assert.match(
+    result.reason,
+    /Expected role 'dimension' for 'customer\.customer_address_history'/,
+  );
+});

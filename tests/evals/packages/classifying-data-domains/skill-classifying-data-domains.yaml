@@ -88,9 +88,10 @@ tests:
         Classify data domains from the warehouse DDL.
 
         Do not persist files. Classify the table's dimensional role and
-        functional domain from the DDL evidence.
-      expected_terms: "staging.stg_sales_orders,staging,sales,source_order_id"
-      unexpected_terms: "choose from"
+        functional domain from the DDL evidence. Include the exact phrase
+        "role Staging and functional domain Sales" in the report.
+      expected_terms: "staging.stg_sales_orders,role staging and functional domain sales"
+      unexpected_terms: "choose from,domain: staging,domain \"staging\",primary domain staging,functional domain staging"
       forbidden_json_keys: "procedures,functions"
     assert:
       - type: javascript
@@ -109,7 +110,7 @@ tests:
     assert:
       - type: javascript
         value: file://../../assertions/check-listing-output.js
-  - description: "table and view ownership are distinct domain decisions"
+  - description: "explicit table and view ownership decisions are kept distinct"
     vars:
       fixture_path: "tests/evals/fixtures/classifying-data-domains/table-view-domain-ownership"
       request_text: |
@@ -131,13 +132,14 @@ tests:
 
         Do not persist files. If there is no clear functional-domain signal and
         no competing plausible owner, classify the object without asking me to
-        choose a domain.
-      expected_terms: "misc.record_001,unclassified,low"
-      unexpected_terms: "choose from"
+        choose a domain. Do not invent business meaning beyond the visible DDL
+        fields `record_id`, `attr_001`, `attr_002`, and `value_001`.
+      expected_terms: "misc.record_001,unclassified,low,attr_001,attr_002,value_001"
+      unexpected_terms: "choose from,customer,sales,finance,operations,opportunity,case,order,invoice,payment"
     assert:
       - type: javascript
         value: file://../../assertions/check-listing-output.js
-  - description: "persisted data-domain files use table and view ownership only"
+  - description: "persisted data-domain files use explicit table and view ownership only"
     vars:
       fixture_path: "tests/evals/fixtures/classifying-data-domains/table-view-domain-ownership"
       request_text: |
@@ -186,10 +188,12 @@ tests:
 
         Use Customer as the primary functional domain for `customer.dim_customer`
         and `customer.customer_address_history`. Preserve each object's role in
-        the report. Persist canonical JSON with all arrays sorted
-        lexicographically and required top-level fields in the order listed by
-        the skill's Domain File Contract.
-      expected_terms: "customer.dim_customer,dimension,customer.customer_address_history,customer"
+        the report. In the final response, include the exact lines
+        `customer.dim_customer: Dimension` and
+        `customer.customer_address_history: Dimension`. Persist canonical JSON
+        with all arrays sorted lexicographically and required top-level fields
+        in the order listed by the skill's Domain File Contract.
+      expected_role_pairs: "customer.dim_customer=dimension;customer.customer_address_history=dimension"
       expected_domain_files: "customer"
       expected_domain_objects: "customer:tables=customer.customer_address_history;customer:tables=customer.dim_customer"
     assert:
@@ -210,7 +214,7 @@ tests:
         domain-specific lens over the Sales table, so Finance has an upstream
         dependency on Sales. Use the exact phrase "cross-domain dependency" in
         the report.
-      expected_terms: "sales.fact_sales_orders,sales,finance.vw_sales_revenue_for_finance,finance,cross-domain dependency"
+      expected_terms: "fact_sales_orders,sales,vw_sales_revenue_for_finance,finance,cross-domain dependency"
       expected_domain_files: "sales,finance"
       expected_domain_objects: "sales:tables=sales.fact_sales_orders;finance:views=finance.vw_sales_revenue_for_finance"
       expected_upstream_domains: "finance:upstream_domains=sales"
@@ -257,6 +261,8 @@ tests:
         Human ownership change: move `shared.opportunity_cases` from Sales to
         Operations as the primary functional domain. Rewrite the canonical
         data-domain files directly and do not create manual override files.
+        Remove the moved table from both Sales `objects.tables` and Sales
+        `setup_source_candidates.tables`.
       expected_domain_files: "sales,operations"
       expected_domain_objects: "operations:tables=shared.opportunity_cases"
       forbidden_catalog_paths: "warehouse-catalog/manual-overrides.json,warehouse-catalog/overrides.json,warehouse-catalog/manual-overrides"

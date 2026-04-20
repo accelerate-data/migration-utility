@@ -44,6 +44,22 @@ function listJsonFiles(root) {
     .sort();
 }
 
+function listFilesRecursive(root) {
+  if (!fs.existsSync(root)) {
+    return [];
+  }
+
+  return fs.readdirSync(root, { withFileTypes: true })
+    .flatMap((entry) => {
+      const entryPath = path.join(root, entry.name);
+      if (entry.isDirectory()) {
+        return listFilesRecursive(entryPath);
+      }
+      return entry.isFile() ? [entryPath] : [];
+    })
+    .sort();
+}
+
 function relativeJsonBasenames(files) {
   return files.map((filePath) => path.basename(filePath)).sort();
 }
@@ -118,6 +134,17 @@ function domainObjectValues(domain) {
     .map(normalizeObject);
 }
 
+function staleSetupSourceCandidate(domain) {
+  const objectTables = objectSet(domain.objects?.tables);
+  for (const table of domain.setup_source_candidates?.tables || []) {
+    const normalizedTable = normalizeObject(table);
+    if (normalizedTable && !objectTables.has(normalizedTable)) {
+      return normalizedTable;
+    }
+  }
+  return null;
+}
+
 function duplicatePrimaryOwnership(domains) {
   const owners = new Map();
   for (const domain of domains) {
@@ -178,6 +205,17 @@ module.exports = (_output, context) => {
     }
   }
 
+  const warehouseCatalogRoot = path.join(runRoot, 'warehouse-catalog');
+  const allowedRoot = path.join(warehouseCatalogRoot, 'data-domains');
+  for (const artifactPath of listFilesRecursive(warehouseCatalogRoot)) {
+    const parent = path.dirname(artifactPath);
+    if (parent !== allowedRoot || !artifactPath.endsWith('.json')) {
+      return fail(
+        `Unexpected warehouse-catalog artifact '${path.relative(runRoot, artifactPath)}'`,
+      );
+    }
+  }
+
   const expectedFiles = normalizeTerms(context.vars.expected_domain_files);
   for (const slug of expectedFiles) {
     if (!files.some((filePath) => path.basename(filePath) === `${slug}.json`)) {
@@ -214,6 +252,13 @@ module.exports = (_output, context) => {
     }
     if (!Array.isArray(domain.objects?.views)) {
       return fail(`Domain '${domain.slug}' is missing required objects.views bucket`);
+    }
+
+    const staleCandidate = staleSetupSourceCandidate(domain);
+    if (staleCandidate) {
+      return fail(
+        `Domain '${domain.slug}' contains stale setup-source candidate '${staleCandidate}'`,
+      );
     }
 
     if (hasVolatileField(domain)) {

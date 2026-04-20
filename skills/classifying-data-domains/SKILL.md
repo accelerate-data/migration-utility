@@ -128,6 +128,8 @@ A user instruction to "pick one", "choose the most likely", or "use your best gu
 
 If a user moves a table or view between domains, rewrite the impacted canonical domain files directly when persistence is requested. Do not maintain separate manual include or exclude lists.
 
+When moving a table, remove it from both `objects.tables` and `setup_source_candidates.tables` in the old domain. Add it to both lists in the new domain when it is still a setup-source candidate.
+
 ## Dependency Semantics
 
 If object A references B, A depends on B. B is upstream of A and must be available before A for load planning.
@@ -236,6 +238,7 @@ Rules:
 - write complete canonical files, not patches
 - rewrite only impacted domain files
 - write `objects` with only `tables` and `views` keys
+- keep `setup_source_candidates.tables` as a subset of that domain's `objects.tables`
 - sort arrays before writing
 - keep JSON field order stable
 - write no volatile timestamps
