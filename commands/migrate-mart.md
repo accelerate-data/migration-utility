@@ -21,8 +21,9 @@ Execute an approved migrate-mart plan by resuming the first incomplete executabl
 
 1. Read the plan file and attach to the coordinator worktree using the coordinator Branch, Worktree name, and Base branch from the `## Coordinator` section.
 2. Use `${CLAUDE_PLUGIN_ROOT}/scripts/stage-worktree.sh` for that attachment instead of ad hoc git worktree setup. Use the returned `worktree_path` for all reads, writes, commits, prompts, and plan updates.
-3. Scan stage sections in numeric order.
-4. Pick the first stage with `Status` not in `complete`, `skipped`, or `superseded`.
+3. Verify pre-execution stages 010, 020, and 030 have stable `complete`, `skipped`, or `superseded` status. If any is incomplete, mark the coordinator blocked with `PLAN_INVALID` and stop.
+4. Scan executable stage sections 040 through 120 in numeric order.
+5. Pick the first executable stage with `Status` not in `complete`, `skipped`, or `superseded`.
 
 ## Resume Algorithm
 
@@ -33,7 +34,7 @@ Execute an approved migrate-mart plan by resuming the first incomplete executabl
    - open PR: call `stage-pr-merge.sh`
    - already merged PR: mark merge complete
    - merged stage with remaining worktree: call `stage-cleanup.sh`
-3. After each merge, refresh coordinator worktree, rerun `migrate-util batch-plan`, update the Markdown plan, and commit the plan update.
+3. After each merge, refresh coordinator worktree, rerun `uv run --project "${CLAUDE_PLUGIN_ROOT}/packages/ad-migration-internal" migrate-util batch-plan --project-root <worktree_path>`, update the Markdown plan, and commit the plan update.
 4. Launch exactly one subagent at a time.
 5. Continue scanning numeric stage order after each completed merge so the next incomplete stage becomes the next resume target.
 
@@ -54,6 +55,8 @@ Execute an approved migrate-mart plan by resuming the first incomplete executabl
 ## Final Coordinator PR
 
 When all stages are complete, open or update the final coordinator PR from the coordinator branch to the remote default branch. Do not merge the final coordinator PR. Report the URL for human review.
+
+When stages 040 through 120 are complete, update Stage 130 and open or update the final coordinator PR.
 
 Use `scripts/stage-pr.sh` for the PR handoff and keep the coordinator branch pointed at the remote default branch as the PR base.
 

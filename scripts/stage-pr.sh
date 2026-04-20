@@ -122,7 +122,7 @@ fi
 
 normalize_repo_root
 
-if ! git push --force-with-lease --set-upstream origin "$branch"; then
+if ! git push --set-upstream origin "$branch"; then
   json_failure \
     "GIT_PUSH_FAILED" \
     "git_push" \

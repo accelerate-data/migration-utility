@@ -241,6 +241,8 @@
     "eval_applying_staging_candidate": "cd tests/evals && npm run eval:applying-staging-candidate",
     "eval_cmd_refactor": "cd tests/evals && npm run eval:cmd-refactor",
     "eval_cmd_refactor_mart": "cd tests/evals && npm run eval:cmd-refactor-mart",
+    "eval_cmd_migrate_mart_plan": "cd tests/evals && npm run eval:cmd-migrate-mart-plan",
+    "eval_cmd_migrate_mart": "cd tests/evals && npm run eval:cmd-migrate-mart",
     "eval_oracle_live": "cd tests/evals && npm run eval:oracle-live",
     "eval_mssql_live": "cd tests/evals && npm run eval:mssql-live"
   },

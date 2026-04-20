@@ -52,7 +52,16 @@ module.exports = (output, context) => {
     '## Source Replication',
     '## Stage 010: Runtime Readiness',
     '## Stage 020: Scope',
+    '## Stage 030: Catalog Ownership Check',
     '## Stage 040: Profile',
+    '## Stage 050: Setup Target',
+    '## Stage 060: Setup Sandbox',
+    '## Stage 070: Generate Tests',
+    '## Stage 080: Refactor Query',
+    '## Stage 090: Replicate Source Tables',
+    '## Stage 100: Generate Model',
+    '## Stage 110: Refactor Mart Staging',
+    '## Stage 120: Refactor Mart Higher',
     '## Stage 130: Final Status',
   ];
   for (const heading of requiredHeadings) {
@@ -80,6 +89,18 @@ module.exports = (output, context) => {
 
   if (!/worktree path[:\s|`]+\.{2}\/worktrees\/feature\/migrate-mart-/i.test(evidence)) {
     return fail('Coordinator worktree path metadata was not written');
+  }
+
+  const forbiddenPlaceholders = [
+    '<stage-id>',
+    '<worktree-name>',
+    '<base-branch>',
+    '<migrate-mart-plan-file>',
+  ];
+  for (const placeholder of forbiddenPlaceholders) {
+    if (planText.toLowerCase().includes(placeholder)) {
+      return fail(`Generated plan still contains placeholder '${placeholder}'`);
+    }
   }
 
   return {

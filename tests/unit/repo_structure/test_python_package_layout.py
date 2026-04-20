@@ -190,6 +190,16 @@ def test_migrate_mart_plan_uses_stage_specific_worktrees_and_handoff() -> None:
     expected_snippets = [
         "This command opens or updates the planning PR for the generated plan branch, then stops.",
         "It does not execute migration stages and does not open the final coordinator PR.",
+        '"${CLAUDE_PLUGIN_ROOT}/scripts/stage-worktree.sh" "feature/migrate-mart-<slug>" "migrate-mart-<slug>" "<default-branch>"',
+        'uv run --project "${CLAUDE_PLUGIN_ROOT}/packages/ad-migration-internal" migrate-util batch-plan --project-root <worktree_path>',
+        "Do not write angle-bracket placeholders into executable stage metadata.",
+        "## Coordinator",
+        "## Stage 010: Runtime Readiness",
+        "- Status: `complete`",
+        "## Stage 020: Scope",
+        "- Status: `complete` or `skipped`",
+        "## Stage 030: Catalog Ownership Check",
+        "- Status: `complete`",
         "- Slash command: `/scope-tables <plan-file> 020 020-scope-<slug> feature/migrate-mart-<slug> <scope-targets>`",
         "- Invocation: `/scope-tables <plan-file> 020 020-scope-<slug> feature/migrate-mart-<slug> <scope-targets>`",
         "- Branch: `feature/migrate-mart-<slug>/040-profile-<slug>`",
@@ -204,6 +214,9 @@ def test_migrate_mart_plan_uses_stage_specific_worktrees_and_handoff() -> None:
     for snippet in expected_snippets:
         assert snippet in migrate_mart_plan_text
 
+    assert "### Coordinator" not in migrate_mart_plan_text
+    assert "### Stage 010: Runtime Readiness" not in migrate_mart_plan_text
+
 
 def test_migrate_mart_command_handles_resume_and_final_pr_behavior() -> None:
     migrate_mart_text = (REPO_ROOT / "commands/migrate-mart.md").read_text(encoding="utf-8")
@@ -213,13 +226,14 @@ def test_migrate_mart_command_handles_resume_and_final_pr_behavior() -> None:
         "description: Execute a migrate-mart Markdown plan by resuming the first incomplete task, launching one stage subagent at a time, merging stage PRs, and updating the coordinator plan.",
         'argument-hint: "<plan-file>"',
         "If plan metadata is malformed or missing, mark the coordinator blocked with `PLAN_INVALID` and stop.",
-        "Pick the first stage with `Status` not in `complete`, `skipped`, or `superseded`.",
+        "Verify pre-execution stages 010, 020, and 030 have stable `complete`, `skipped`, or `superseded` status.",
+        "Pick the first executable stage with `Status` not in `complete`, `skipped`, or `superseded`.",
         "existing stage worktree with incomplete work: relaunch recorded invocation",
         "stage branch commits without PR: call `stage-pr.sh`",
         "open PR: call `stage-pr-merge.sh`",
         "already merged PR: mark merge complete",
         "merged stage with remaining worktree: call `stage-cleanup.sh`",
-        "After each merge, refresh coordinator worktree, rerun `migrate-util batch-plan`, update the Markdown plan, and commit the plan update.",
+        'After each merge, refresh coordinator worktree, rerun `uv run --project "${CLAUDE_PLUGIN_ROOT}/packages/ad-migration-internal" migrate-util batch-plan --project-root <worktree_path>`, update the Markdown plan, and commit the plan update.',
         "Launch exactly one subagent at a time.",
         "| 040 | recorded `/profile-tables ...` invocation |",
         "| 050 | deterministic `ad-migration setup-target` stage subagent |",
@@ -230,11 +244,40 @@ def test_migrate_mart_command_handles_resume_and_final_pr_behavior() -> None:
         "| 100 | recorded `/generate-model ...` invocation |",
         "| 110 | recorded `/refactor-mart ... stg` invocation |",
         "| 120 | recorded `/refactor-mart ... int` invocation |",
+        "Scan executable stage sections 040 through 120 in numeric order.",
         "When all stages are complete, open or update the final coordinator PR from the coordinator branch to the remote default branch. Do not merge the final coordinator PR. Report the URL for human review.",
+        "When stages 040 through 120 are complete, update Stage 130 and open or update the final coordinator PR.",
     ]
 
     for snippet in expected_snippets:
         assert snippet in migrate_mart_text
+
+
+def test_eval_smoke_includes_migrate_mart_command_packages() -> None:
+    package_json = json.loads(
+        (REPO_ROOT / "tests/evals/package.json").read_text(encoding="utf-8")
+    )
+    smoke_script = package_json["scripts"]["eval:smoke"]
+
+    expected_snippets = [
+        "-c packages/cmd-migrate-mart-plan/cmd-migrate-mart-plan.yaml",
+        "-c packages/cmd-migrate-mart/cmd-migrate-mart.yaml",
+    ]
+
+    for snippet in expected_snippets:
+        assert snippet in smoke_script
+
+
+def test_repo_map_includes_migrate_mart_eval_commands() -> None:
+    repo_map = json.loads((REPO_ROOT / "repo-map.json").read_text(encoding="utf-8"))
+
+    expected_commands = {
+        "eval_cmd_migrate_mart_plan": "cd tests/evals && npm run eval:cmd-migrate-mart-plan",
+        "eval_cmd_migrate_mart": "cd tests/evals && npm run eval:cmd-migrate-mart",
+    }
+
+    for command_name, command_value in expected_commands.items():
+        assert repo_map["commands"][command_name] == command_value
 
 
 def test_init_command_runs_public_driver_doctor_and_keeps_internal_checks() -> None:

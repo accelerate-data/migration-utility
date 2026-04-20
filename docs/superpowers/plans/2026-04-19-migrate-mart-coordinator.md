@@ -944,7 +944,10 @@ markdownlint docs/design/migrate-mart-coordinator/README.md docs/superpowers/pla
   cd lib && uv run pytest ../tests/unit/worktree_script ../tests/unit/repo_structure -v
   ```
 
-  Evidence: `56 passed in 26.36s`.
+  Evidence:
+
+  - Earlier integration run: `56 passed in 26.36s`.
+  - Final focused run after review fixes: `59 passed in 28.89s`.
 
 - [x] **Step 3: Run command evals**
 
@@ -966,7 +969,9 @@ markdownlint docs/design/migrate-mart-coordinator/README.md docs/superpowers/pla
   - `npm run eval:cmd-generate-model`: full run had one provider idle timeout; the failed `update-join` case passed in isolated rerun `eval-76X-2026-04-19T20:11:25`.
   - `npm run eval:cmd-refactor-mart`: `eval-gpq-2026-04-19T22:29:08`, 5 passed.
   - `npm run eval:cmd-migrate-mart-plan`: `eval-T7w-2026-04-19T22:31:01`, 5 passed.
+  - `npm run eval:cmd-migrate-mart-plan`: `eval-ty9-2026-04-20T00:52:19`, 5 passed after final review fixes.
   - `npm run eval:cmd-migrate-mart`: `eval-IKZ-2026-04-19T22:35:54`, 2 passed.
+  - `npm run eval:cmd-migrate-mart`: `eval-FHg-2026-04-20T00:55:37` selected Stage 040 correctly; the run reported 1/2 because the resume assertion did not parse bold `**Status:**` metadata. The assertion was fixed and validated against the stored eval output without a clean rerun per user instruction.
 
 - [x] **Step 4: Run smoke eval**
 
@@ -976,15 +981,17 @@ markdownlint docs/design/migrate-mart-coordinator/README.md docs/superpowers/pla
 
   Evidence: `npm run eval:smoke` completed with all visible package smoke evals passing; final evals `eval-tVf-2026-04-19T23:10:10` and `eval-x9v-2026-04-19T23:11:29` each passed 1/1.
 
+  Final smoke rerun was intentionally skipped per user instruction after the changed eval packages were covered by focused checks.
+
 - [x] **Step 5: Run markdownlint**
 
   ```bash
   markdownlint commands/*.md docs/design/migrate-mart-coordinator/README.md docs/superpowers/plans/2026-04-19-migrate-mart-coordinator.md docs/wiki/Home.md docs/wiki/Command-Reference.md docs/wiki/Git-Workflow.md docs/wiki/Installation-and-Prerequisites.md
   ```
 
-  Evidence: command completed with no output.
+  Evidence: command completed with no output. Final focused markdownlint also passed for the touched command, wiki, and plan files.
 
-- [ ] **Step 6: Final subagent review**
+- [x] **Step 6: Final subagent review**
 
   Dispatch a final reviewer with:
 
@@ -992,8 +999,10 @@ markdownlint docs/design/migrate-mart-coordinator/README.md docs/superpowers/pla
   Review the implementation against docs/design/migrate-mart-coordinator/README.md and docs/superpowers/plans/2026-04-19-migrate-mart-coordinator.md. Focus on missing plan requirements, unsafe git/PR behavior, resume gaps, and command/eval drift. Return findings by severity with file references.
   ```
 
-  Status: review was dispatched but did not complete before this checkpoint; rerun before final branch completion.
+  Evidence: final reviews found PR safety, resume, plan-shape, eval coverage, and helper-script issues. Fixes were applied for safe push behavior, merge head matching, failed-check handling, deterministic cleanup remote checks, stable pre-execution stage validation, concrete plan metadata, smoke package inclusion, and repo-map coverage.
 
-- [ ] **Step 7: Prepare development branch completion**
+- [x] **Step 7: Prepare development branch completion**
 
   Use `finishing-a-development-branch` after all tests and reviews pass.
+
+  Evidence: final verification focused on files changed after the earlier full eval pass and avoided rerunning smoke per user instruction.

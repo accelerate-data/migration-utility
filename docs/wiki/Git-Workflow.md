@@ -31,8 +31,7 @@ Batch commands do not write migration output directly on the default branch. The
 | Interactive workflow | Your current branch | You manage manually |
 | Single-item stage command | `feature/<command>-<schema>-<name>` | Command |
 | Multi-item stage command | `feature/<short-run-slug>` | Command |
-| Whole-mart planning | `feature/migrate-mart-<slug>-plan` | `/migrate-mart-plan` |
-| Whole-mart coordinator | `feature/migrate-mart-<slug>` | `/migrate-mart` |
+| Whole-mart planning and coordinator | `feature/migrate-mart-<slug>` | `/migrate-mart-plan`, then `/migrate-mart` |
 | Whole-mart stage | `feature/migrate-mart-<slug>/<stage-id>-<stage-name>-<slug>` | `/migrate-mart` |
 
 Single-object interactive workflows (`/analyzing-table`, `/profiling-table`, etc.) do not create branches. You work on whatever branch you are already on.

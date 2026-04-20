@@ -40,10 +40,10 @@ if [[ "$1" == "show-ref" && "$2" == "--verify" && "$3" == "--quiet" ]]; then
     refs/heads/*)
       exit "${{FAKE_GIT_LOCAL_REF_EXISTS:-0}}"
       ;;
-    refs/remotes/origin/*)
-      exit "${{FAKE_GIT_REMOTE_REF_EXISTS:-0}}"
-      ;;
   esac
+fi
+if [[ "$1" == "ls-remote" && "$2" == "--exit-code" && "$3" == "origin" ]]; then
+  exit "${{FAKE_GIT_REMOTE_REF_EXISTS:-0}}"
 fi
 if [[ "$1" == "branch" && "$2" == "-d" ]]; then
   exit "${{FAKE_GIT_BRANCH_DELETE_EXIT:-0}}"
@@ -102,7 +102,7 @@ def test_stage_cleanup_script_removes_worktree_and_branch(tmp_path: Path) -> Non
         "git worktree list --porcelain",
         f"git worktree remove {worktree_path}",
         "git show-ref --verify --quiet refs/heads/feature/migrate-mart/090-cleanup",
-        "git show-ref --verify --quiet refs/remotes/origin/feature/migrate-mart/090-cleanup",
+        "git ls-remote --exit-code origin feature/migrate-mart/090-cleanup",
         "git branch -d feature/migrate-mart/090-cleanup",
         "git push origin --delete feature/migrate-mart/090-cleanup",
     ]
@@ -142,7 +142,7 @@ def test_stage_cleanup_script_handles_relative_worktree_path(tmp_path: Path) -> 
         "git worktree list --porcelain",
         f"git worktree remove {worktree_path}",
         "git show-ref --verify --quiet refs/heads/feature/migrate-mart/095-cleanup",
-        "git show-ref --verify --quiet refs/remotes/origin/feature/migrate-mart/095-cleanup",
+        "git ls-remote --exit-code origin feature/migrate-mart/095-cleanup",
         "git branch -d feature/migrate-mart/095-cleanup",
         "git push origin --delete feature/migrate-mart/095-cleanup",
     ]
@@ -173,7 +173,7 @@ def test_stage_cleanup_script_is_idempotent_when_already_clean(tmp_path: Path) -
         "git rev-parse --show-toplevel",
         "git worktree list --porcelain",
         "git show-ref --verify --quiet refs/heads/feature/migrate-mart/091-cleanup",
-        "git show-ref --verify --quiet refs/remotes/origin/feature/migrate-mart/091-cleanup",
+        "git ls-remote --exit-code origin feature/migrate-mart/091-cleanup",
     ]
     payload = json.loads(result.stdout.strip())
     assert payload == {

@@ -80,7 +80,7 @@ def test_stage_pr_merge_script_reports_checks_pending_before_merge(tmp_path: Pat
     assert result.returncode == 0
     assert log_path.read_text(encoding="utf-8").splitlines() == [
         "git rev-parse --show-toplevel",
-        'gh pr view 101 --json state,number,url,baseRefName,isDraft,mergeStateStatus,statusCheckRollup',
+        'gh pr view 101 --json state,number,url,baseRefName,isDraft,mergeStateStatus,statusCheckRollup,headRefOid',
     ]
     payload = json.loads(result.stdout.strip())
     assert payload == {
@@ -91,11 +91,41 @@ def test_stage_pr_merge_script_reports_checks_pending_before_merge(tmp_path: Pat
     }
 
 
-def test_stage_pr_merge_script_merges_clean_pr(tmp_path: Path) -> None:
-    """A clean PR should merge non-force and return a merged status."""
+def test_stage_pr_merge_script_reports_failed_conclusion_before_merge(tmp_path: Path) -> None:
+    """Completed check runs with failing conclusions should block merge."""
     env, log_path = _base_env(
         tmp_path,
-        pr_json='{"state":"OPEN","number":102,"url":"https://github.com/example/repo/pull/102","mergeStateStatus":"CLEAN","statusCheckRollup":[{"state":"SUCCESS"}]}',
+        pr_json='{"state":"OPEN","number":111,"url":"https://github.com/example/repo/pull/111","mergeStateStatus":"CLEAN","statusCheckRollup":[{"status":"COMPLETED","conclusion":"FAILURE"}]}',
+    )
+
+    result = subprocess.run(
+        [str(SCRIPT_PATH), "111", "main"],
+        cwd=REPO_ROOT,
+        capture_output=True,
+        text=True,
+        env=env,
+        check=False,
+    )
+
+    assert result.returncode == 0
+    assert log_path.read_text(encoding="utf-8").splitlines() == [
+        "git rev-parse --show-toplevel",
+        'gh pr view 111 --json state,number,url,baseRefName,isDraft,mergeStateStatus,statusCheckRollup,headRefOid',
+    ]
+    payload = json.loads(result.stdout.strip())
+    assert payload == {
+        "status": "checks_failed",
+        "pr_number": 111,
+        "pr_url": "https://github.com/example/repo/pull/111",
+        "base_branch": "main",
+    }
+
+
+def test_stage_pr_merge_script_merges_checked_head_sha(tmp_path: Path) -> None:
+    """A clean PR should merge only the head SHA that was checked."""
+    env, log_path = _base_env(
+        tmp_path,
+        pr_json='{"state":"OPEN","number":102,"url":"https://github.com/example/repo/pull/102","headRefOid":"abc123","mergeStateStatus":"CLEAN","statusCheckRollup":[{"state":"SUCCESS"}]}',
     )
 
     result = subprocess.run(
@@ -110,8 +140,8 @@ def test_stage_pr_merge_script_merges_clean_pr(tmp_path: Path) -> None:
     assert result.returncode == 0
     assert log_path.read_text(encoding="utf-8").splitlines() == [
         "git rev-parse --show-toplevel",
-        "gh pr view https://github.com/example/repo/pull/102 --json state,number,url,baseRefName,isDraft,mergeStateStatus,statusCheckRollup",
-        "gh pr merge https://github.com/example/repo/pull/102 --merge --delete-branch=false",
+        "gh pr view https://github.com/example/repo/pull/102 --json state,number,url,baseRefName,isDraft,mergeStateStatus,statusCheckRollup,headRefOid",
+        "gh pr merge https://github.com/example/repo/pull/102 --merge --delete-branch=false --match-head-commit abc123",
     ]
     payload = json.loads(result.stdout.strip())
     assert payload == {
@@ -141,7 +171,7 @@ def test_stage_pr_merge_script_blocks_when_pr_base_branch_differs(tmp_path: Path
     assert result.returncode == 0
     assert log_path.read_text(encoding="utf-8").splitlines() == [
         "git rev-parse --show-toplevel",
-        'gh pr view 103 --json state,number,url,baseRefName,isDraft,mergeStateStatus,statusCheckRollup',
+        'gh pr view 103 --json state,number,url,baseRefName,isDraft,mergeStateStatus,statusCheckRollup,headRefOid',
     ]
     payload = json.loads(result.stdout.strip())
     assert payload == {
@@ -171,7 +201,7 @@ def test_stage_pr_merge_script_blocks_when_merge_state_is_non_mergeable(tmp_path
     assert result.returncode == 0
     assert log_path.read_text(encoding="utf-8").splitlines() == [
         "git rev-parse --show-toplevel",
-        'gh pr view 105 --json state,number,url,baseRefName,isDraft,mergeStateStatus,statusCheckRollup',
+        'gh pr view 105 --json state,number,url,baseRefName,isDraft,mergeStateStatus,statusCheckRollup,headRefOid',
     ]
     payload = json.loads(result.stdout.strip())
     assert payload == {
@@ -201,7 +231,7 @@ def test_stage_pr_merge_script_blocks_when_pr_is_closed(tmp_path: Path) -> None:
     assert result.returncode == 0
     assert log_path.read_text(encoding="utf-8").splitlines() == [
         "git rev-parse --show-toplevel",
-        'gh pr view 106 --json state,number,url,baseRefName,isDraft,mergeStateStatus,statusCheckRollup',
+        'gh pr view 106 --json state,number,url,baseRefName,isDraft,mergeStateStatus,statusCheckRollup,headRefOid',
     ]
     payload = json.loads(result.stdout.strip())
     assert payload == {
@@ -231,7 +261,7 @@ def test_stage_pr_merge_script_blocks_when_pr_is_draft(tmp_path: Path) -> None:
     assert result.returncode == 0
     assert log_path.read_text(encoding="utf-8").splitlines() == [
         "git rev-parse --show-toplevel",
-        'gh pr view 107 --json state,number,url,baseRefName,isDraft,mergeStateStatus,statusCheckRollup',
+        'gh pr view 107 --json state,number,url,baseRefName,isDraft,mergeStateStatus,statusCheckRollup,headRefOid',
     ]
     payload = json.loads(result.stdout.strip())
     assert payload == {
@@ -261,7 +291,7 @@ def test_stage_pr_merge_script_preserves_url_input_when_merging(tmp_path: Path) 
     assert result.returncode == 0
     assert log_path.read_text(encoding="utf-8").splitlines() == [
         "git rev-parse --show-toplevel",
-        "gh pr view https://github.com/example/fork/pull/108 --json state,number,url,baseRefName,isDraft,mergeStateStatus,statusCheckRollup",
+        "gh pr view https://github.com/example/fork/pull/108 --json state,number,url,baseRefName,isDraft,mergeStateStatus,statusCheckRollup,headRefOid",
         "gh pr merge https://github.com/example/fork/pull/108 --merge --delete-branch=false",
     ]
     payload = json.loads(result.stdout.strip())
@@ -292,7 +322,7 @@ def test_stage_pr_merge_script_accepts_query_string_url_input(tmp_path: Path) ->
     assert result.returncode == 0
     assert log_path.read_text(encoding="utf-8").splitlines() == [
         "git rev-parse --show-toplevel",
-        "gh pr view https://github.com/example/fork/pull/109?expand=1 --json state,number,url,baseRefName,isDraft,mergeStateStatus,statusCheckRollup",
+        "gh pr view https://github.com/example/fork/pull/109?expand=1 --json state,number,url,baseRefName,isDraft,mergeStateStatus,statusCheckRollup,headRefOid",
         "gh pr merge https://github.com/example/fork/pull/109?expand=1 --merge --delete-branch=false",
     ]
     payload = json.loads(result.stdout.strip())
@@ -323,7 +353,7 @@ def test_stage_pr_merge_script_accepts_fragment_url_input(tmp_path: Path) -> Non
     assert result.returncode == 0
     assert log_path.read_text(encoding="utf-8").splitlines() == [
         "git rev-parse --show-toplevel",
-        "gh pr view https://github.com/example/fork/pull/110#issuecomment-1 --json state,number,url,baseRefName,isDraft,mergeStateStatus,statusCheckRollup",
+        "gh pr view https://github.com/example/fork/pull/110#issuecomment-1 --json state,number,url,baseRefName,isDraft,mergeStateStatus,statusCheckRollup,headRefOid",
         "gh pr merge https://github.com/example/fork/pull/110#issuecomment-1 --merge --delete-branch=false",
     ]
     payload = json.loads(result.stdout.strip())

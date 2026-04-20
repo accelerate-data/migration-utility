@@ -154,7 +154,7 @@ else
   local_branch_present="0"
 fi
 
-if git show-ref --verify --quiet "refs/remotes/origin/$branch"; then
+if git ls-remote --exit-code origin "$branch" >/dev/null 2>&1; then
   remote_branch_present="1"
 else
   remote_branch_present="0"

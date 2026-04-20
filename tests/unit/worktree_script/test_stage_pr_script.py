@@ -130,7 +130,7 @@ def test_stage_pr_script_creates_pr_from_branch_and_body_file(tmp_path: Path) ->
     created_url = body_file.resolve()
     assert log_path.read_text(encoding="utf-8").splitlines() == [
         "git rev-parse --show-toplevel",
-        "git push --force-with-lease --set-upstream origin feature/migrate-mart/080-pr",
+        "git push --set-upstream origin feature/migrate-mart/080-pr",
         "gh pr list --head feature/migrate-mart/080-pr --json number,url --limit 1",
         f"gh pr create --title Stage PR --body-file {created_url} --base main --head feature/migrate-mart/080-pr",
     ]
@@ -214,7 +214,7 @@ def test_stage_pr_script_updates_existing_pr_when_requested_base_changes(tmp_pat
     body_path = body_file.resolve()
     assert log_path.read_text(encoding="utf-8").splitlines() == [
         "git rev-parse --show-toplevel",
-        "git push --force-with-lease --set-upstream origin feature/migrate-mart/080-pr",
+        "git push --set-upstream origin feature/migrate-mart/080-pr",
         "gh pr list --head feature/migrate-mart/080-pr --json number,url --limit 1",
         f"gh pr edit 101 --title Stage PR --body-file {body_path} --base release",
     ]

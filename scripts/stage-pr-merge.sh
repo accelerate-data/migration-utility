@@ -115,7 +115,7 @@ if ! pr_number="$(normalize_pr_number "$raw_pr")"; then
     "The PR reference must be a number or GitHub PR URL."
 fi
 
-if ! pr_view_json="$(gh pr view "$pr_ref" --json state,number,url,baseRefName,isDraft,mergeStateStatus,statusCheckRollup)"; then
+if ! pr_view_json="$(gh pr view "$pr_ref" --json state,number,url,baseRefName,isDraft,mergeStateStatus,statusCheckRollup,headRefOid)"; then
   json_failure \
     "GH_PR_VIEW_FAILED" \
     "gh_pr_view" \
@@ -161,6 +161,14 @@ payload = json.loads(os.environ["PR_VIEW_JSON"])
 print(payload.get("mergeStateStatus", ""))
 PY
 )"
+head_ref_oid="$(PR_VIEW_JSON="$pr_view_json" python3 - <<'PY'
+import json
+import os
+
+payload = json.loads(os.environ["PR_VIEW_JSON"])
+print(payload.get("headRefOid", ""))
+PY
+)"
 
 if [[ "$pr_state" == "MERGED" ]]; then
   json_success "already_merged"
@@ -184,10 +192,31 @@ import os
 payload = json.loads(os.environ["PR_VIEW_JSON"])
 checks = payload.get("statusCheckRollup") or []
 states = {item.get("state") for item in checks}
+statuses = {item.get("status") for item in checks}
+conclusions = {item.get("conclusion") for item in checks}
 
-if "PENDING" in states or "EXPECTED" in states or "QUEUED" in states or "IN_PROGRESS" in states:
+if (
+    "PENDING" in states
+    or "EXPECTED" in states
+    or "QUEUED" in states
+    or "IN_PROGRESS" in states
+    or "PENDING" in statuses
+    or "QUEUED" in statuses
+    or "IN_PROGRESS" in statuses
+):
     print("checks_pending")
-elif "FAILURE" in states or "ERROR" in states or "CANCELLED" in states or "TIMED_OUT" in states or "ACTION_REQUIRED" in states:
+elif (
+    "FAILURE" in states
+    or "ERROR" in states
+    or "CANCELLED" in states
+    or "TIMED_OUT" in states
+    or "ACTION_REQUIRED" in states
+    or "FAILURE" in conclusions
+    or "ERROR" in conclusions
+    or "CANCELLED" in conclusions
+    or "TIMED_OUT" in conclusions
+    or "ACTION_REQUIRED" in conclusions
+):
     print("checks_failed")
 else:
     print("")
@@ -204,7 +233,12 @@ if [[ -n "$merge_state" && "$merge_state" != "CLEAN" ]]; then
   exit 0
 fi
 
-if ! gh pr merge "$pr_ref" --merge --delete-branch=false >/dev/null; then
+merge_args=(pr merge "$pr_ref" --merge --delete-branch=false)
+if [[ -n "$head_ref_oid" ]]; then
+  merge_args+=(--match-head-commit "$head_ref_oid")
+fi
+
+if ! gh "${merge_args[@]}" >/dev/null; then
   json_failure \
     "GH_PR_MERGE_FAILED" \
     "gh_pr_merge" \

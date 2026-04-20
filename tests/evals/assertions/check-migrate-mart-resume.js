@@ -27,7 +27,7 @@ function parseStages(markdown) {
     nextMatch.lastIndex = bodyStart;
     const next = nextMatch.exec(text);
     const body = text.slice(bodyStart, next ? next.index : text.length);
-    const statusMatch = body.match(/^-+\s*Status:\s*(.+?)\s*$/im);
+    const statusMatch = body.match(/^\s*(?:[-*]\s*)?(?:\*\*)?Status(?::\*\*|:)\s*(.+?)\s*$/im);
     stages.push({
       id: stageId,
       name: stageName,

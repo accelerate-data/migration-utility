@@ -28,11 +28,11 @@ This command opens or updates the planning PR for the generated plan branch, the
    - Run:
 
      ```bash
-     "${CLAUDE_PLUGIN_ROOT}/scripts/stage-worktree.sh" "feature/migrate-mart-<slug>" "<slug>" "<default-branch>"
+     "${CLAUDE_PLUGIN_ROOT}/scripts/stage-worktree.sh" "feature/migrate-mart-<slug>" "migrate-mart-<slug>" "<default-branch>"
      ```
 
    - Use the returned `worktree_path` for all reads, writes, commits, and plan updates.
-4. Run fresh `migrate-util batch-plan`.
+4. Run fresh `uv run --project "${CLAUDE_PLUGIN_ROOT}/packages/ad-migration-internal" migrate-util batch-plan --project-root <worktree_path>`.
 5. If `scope_phase` has objects, run `/scope-tables` in coordinator mode as Stage 020, merge the returned PR, clean up the stage worktree, refresh coordinator branch, and rerun `batch-plan`.
 6. If source/seed/exclude decisions are unresolved, report required CLI decisions and stop.
 7. Write `docs/migration-plans/<slug>/README.md`.
@@ -44,6 +44,12 @@ This command opens or updates the planning PR for the generated plan branch, the
    ```
 
 10. Report the planning PR URL and tell the human to review, merge, and clean up the planning worktree before running `/migrate-mart <plan-file>`. Planning never opens or updates the final coordinator PR.
+
+## Plan Generation Requirements
+
+The generated plan must substitute concrete values for every branch, base branch, worktree name, worktree path, object list, and plan file path. Do not write angle-bracket placeholders into executable stage metadata.
+
+Use stable status tokens only: `planned`, `running`, `blocked`, `complete`, `skipped`, or `superseded`.
 
 ## Plan Template
 
@@ -65,7 +71,7 @@ The generated plan must include these top-level sections in order:
 - `## Stage 120: Refactor Mart Higher`
 - `## Stage 130: Final Status`
 
-### Coordinator
+## Coordinator
 
 | Field | Value |
 |---|---|
@@ -76,7 +82,7 @@ The generated plan must include these top-level sections in order:
 | Base branch | `<default-branch>` |
 | Status | `pending` |
 
-### Source Replication
+## Source Replication
 
 | Field | Value |
 |---|---|
@@ -84,7 +90,7 @@ The generated plan must include these top-level sections in order:
 | Command | `ad-migration replicate-source-tables --limit 10000 --yes` |
 | Status | `planned` |
 
-### Stage 010: Runtime Readiness
+## Stage 010: Runtime Readiness
 
 - Agent: `runtime-readiness`
 - Slash command: `n/a`
@@ -94,9 +100,9 @@ The generated plan must include these top-level sections in order:
 - Worktree name: `<slug>`
 - Worktree path: `<worktree-path>`
 - PR: `none`
-- Status: `planned`
+- Status: `complete`
 
-### Stage 020: Scope
+## Stage 020: Scope
 
 - Agent: `scope-tables`
 - Slash command: `/scope-tables <plan-file> 020 020-scope-<slug> feature/migrate-mart-<slug> <scope-targets>`
@@ -106,9 +112,9 @@ The generated plan must include these top-level sections in order:
 - Worktree name: `020-scope-<slug>`
 - Worktree path: `../worktrees/feature/migrate-mart-<slug>/020-scope-<slug>`
 - PR: `none`
-- Status: `planned`
+- Status: `complete` or `skipped`
 
-### Stage 030: Catalog Ownership Check
+## Stage 030: Catalog Ownership Check
 
 - Agent: `catalog-ownership-check`
 - Slash command: `n/a`
@@ -118,13 +124,13 @@ The generated plan must include these top-level sections in order:
 - Worktree name: `<slug>`
 - Worktree path: `<worktree-path>`
 - PR: `none`
-- Status: `planned`
+- Status: `complete`
 
-### Stage 040: Profile
+## Stage 040: Profile
 
 - Agent: `profile-tables`
-- Slash command: `/profile-tables <migrate-mart-plan-file> <stage-id> <worktree-name> <base-branch> <objects...>`
-- Invocation: `/profile-tables <migrate-mart-plan-file> <stage-id> <worktree-name> <base-branch> <objects...>`
+- Slash command: `/profile-tables`
+- Invocation: `/profile-tables docs/migration-plans/<slug>/README.md 040 040-profile-<slug> feature/migrate-mart-<slug> <objects...>`
 - Branch: `feature/migrate-mart-<slug>/040-profile-<slug>`
 - Base branch: `feature/migrate-mart-<slug>`
 - Worktree name: `040-profile-<slug>`
@@ -132,7 +138,7 @@ The generated plan must include these top-level sections in order:
 - PR: `<profile PR>`
 - Status: `planned`
 
-### Stage 050: Setup Target
+## Stage 050: Setup Target
 
 - Agent: `setup-target`
 - Slash command: `ad-migration setup-target`
@@ -144,7 +150,7 @@ The generated plan must include these top-level sections in order:
 - PR: `<setup-target PR>`
 - Status: `planned`
 
-### Stage 060: Setup Sandbox
+## Stage 060: Setup Sandbox
 
 - Agent: `setup-sandbox`
 - Slash command: `ad-migration setup-sandbox --yes`
@@ -156,11 +162,11 @@ The generated plan must include these top-level sections in order:
 - PR: `<setup-sandbox PR>`
 - Status: `planned`
 
-### Stage 070: Generate Tests
+## Stage 070: Generate Tests
 
 - Agent: `generate-tests`
-- Slash command: `/generate-tests <migrate-mart-plan-file> <stage-id> <worktree-name> <base-branch> <objects...>`
-- Invocation: `/generate-tests <migrate-mart-plan-file> <stage-id> <worktree-name> <base-branch> <objects...>`
+- Slash command: `/generate-tests`
+- Invocation: `/generate-tests docs/migration-plans/<slug>/README.md 070 070-generate-tests-<slug> feature/migrate-mart-<slug> <objects...>`
 - Branch: `feature/migrate-mart-<slug>/070-generate-tests-<slug>`
 - Base branch: `feature/migrate-mart-<slug>`
 - Worktree name: `070-generate-tests-<slug>`
@@ -168,11 +174,11 @@ The generated plan must include these top-level sections in order:
 - PR: `<generate-tests PR>`
 - Status: `planned`
 
-### Stage 080: Refactor Query
+## Stage 080: Refactor Query
 
 - Agent: `refactor-query`
-- Slash command: `/refactor-query <migrate-mart-plan-file> <stage-id> <worktree-name> <base-branch> <objects...>`
-- Invocation: `/refactor-query <migrate-mart-plan-file> <stage-id> <worktree-name> <base-branch> <objects...>`
+- Slash command: `/refactor-query`
+- Invocation: `/refactor-query docs/migration-plans/<slug>/README.md 080 080-refactor-query-<slug> feature/migrate-mart-<slug> <objects...>`
 - Branch: `feature/migrate-mart-<slug>/080-refactor-query-<slug>`
 - Base branch: `feature/migrate-mart-<slug>`
 - Worktree name: `080-refactor-query-<slug>`
@@ -180,7 +186,7 @@ The generated plan must include these top-level sections in order:
 - PR: `<refactor-query PR>`
 - Status: `planned`
 
-### Stage 090: Replicate Source Tables
+## Stage 090: Replicate Source Tables
 
 - Agent: `replicate-source-tables`
 - Slash command: `ad-migration replicate-source-tables --limit 10000 --yes`
@@ -192,11 +198,11 @@ The generated plan must include these top-level sections in order:
 - PR: `<replicate-source-tables PR>`
 - Status: `planned`
 
-### Stage 100: Generate Model
+## Stage 100: Generate Model
 
 - Agent: `generate-model`
-- Slash command: `/generate-model <migrate-mart-plan-file> <stage-id> <worktree-name> <base-branch> <objects...>`
-- Invocation: `/generate-model <migrate-mart-plan-file> <stage-id> <worktree-name> <base-branch> <objects...>`
+- Slash command: `/generate-model`
+- Invocation: `/generate-model docs/migration-plans/<slug>/README.md 100 100-generate-model-<slug> feature/migrate-mart-<slug> <objects...>`
 - Branch: `feature/migrate-mart-<slug>/100-generate-model-<slug>`
 - Base branch: `feature/migrate-mart-<slug>`
 - Worktree name: `100-generate-model-<slug>`
@@ -204,11 +210,11 @@ The generated plan must include these top-level sections in order:
 - PR: `<generate-model PR>`
 - Status: `planned`
 
-### Stage 110: Refactor Mart Staging
+## Stage 110: Refactor Mart Staging
 
 - Agent: `refactor-mart-staging`
-- Slash command: `/refactor-mart <migrate-mart-plan-file> <stage-id> <worktree-name> <base-branch> <refactor-mart-plan-file> stg`
-- Invocation: `/refactor-mart <migrate-mart-plan-file> <stage-id> <worktree-name> <base-branch> <refactor-mart-plan-file> stg`
+- Slash command: `/refactor-mart`
+- Invocation: `/refactor-mart docs/migration-plans/<slug>/README.md 110 110-refactor-mart-staging-<slug> feature/migrate-mart-<slug> <refactor-mart-plan-file> stg`
 - Branch: `feature/migrate-mart-<slug>/110-refactor-mart-staging-<slug>`
 - Base branch: `feature/migrate-mart-<slug>`
 - Worktree name: `110-refactor-mart-staging-<slug>`
@@ -216,11 +222,11 @@ The generated plan must include these top-level sections in order:
 - PR: `<refactor-mart-stg PR>`
 - Status: `planned`
 
-### Stage 120: Refactor Mart Higher
+## Stage 120: Refactor Mart Higher
 
 - Agent: `refactor-mart-higher`
-- Slash command: `/refactor-mart <migrate-mart-plan-file> <stage-id> <worktree-name> <base-branch> <refactor-mart-plan-file> int`
-- Invocation: `/refactor-mart <migrate-mart-plan-file> <stage-id> <worktree-name> <base-branch> <refactor-mart-plan-file> int`
+- Slash command: `/refactor-mart`
+- Invocation: `/refactor-mart docs/migration-plans/<slug>/README.md 120 120-refactor-mart-higher-<slug> feature/migrate-mart-<slug> <refactor-mart-plan-file> int`
 - Branch: `feature/migrate-mart-<slug>/120-refactor-mart-higher-<slug>`
 - Base branch: `feature/migrate-mart-<slug>`
 - Worktree name: `120-refactor-mart-higher-<slug>`
@@ -228,7 +234,7 @@ The generated plan must include these top-level sections in order:
 - PR: `<refactor-mart-int PR>`
 - Status: `planned`
 
-### Stage 130: Final Status
+## Stage 130: Final Status
 
 - Agent: `final-status`
 - Slash command: `n/a`
