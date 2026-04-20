@@ -40,3 +40,17 @@ tests:
     assert:
       - type: javascript
         value: file://../../assertions/check-guard-stop.js
+  - description: "table and view ownership are distinct domain decisions"
+    vars:
+      fixture_path: "tests/evals/fixtures/analyze-data-domains/table-view-domain-ownership"
+      request_text: |
+        Analyze data domains from the warehouse DDL.
+
+        Use Sales as the primary functional domain for `silver.opportunities`.
+        Use Operations as the primary functional domain for `gold.sold_opportunities`.
+        Do not persist files; return the report and example JSON objects only.
+      expected_terms: "silver.opportunities,sales,gold.sold_opportunities,operations,view,cross-domain,distinct"
+      unexpected_terms: "\"procedures\",\"functions\""
+    assert:
+      - type: javascript
+        value: file://../../assertions/check-listing-output.js
