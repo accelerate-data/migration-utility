@@ -1,0 +1,101 @@
+# yaml-language-server: $schema=https://promptfoo.dev/config-schema.json
+description: "Classifying-data-domains skill — whole-warehouse domain analysis contract"
+
+prompts:
+  - id: classifying-data-domains
+    label: classifying-data-domains
+    raw: file://../../prompts/skill-classifying-data-domains.txt
+
+extensions:
+  - file://../../scripts/run-workspace-extension.js:extensionHook
+
+providers:
+  - file://../../providers/haiku-60.yaml
+
+tests:
+  - description: "[smoke] missing-warehouse-ddl guard stops without writes"
+    vars:
+      fixture_path: "tests/evals/fixtures/classifying-data-domains/missing-warehouse-ddl"
+      request_text: "Classify data domains from this warehouse and persist the result."
+      expected_final_output_terms: "warehouse-ddl,missing,run the warehouse ddl extraction workflow"
+      unchanged_paths: "warehouse-ddl,warehouse-catalog"
+    assert:
+      - type: javascript
+        value: file://../../assertions/check-guard-stop.js
+  - description: "missing-warehouse-ddl rejects pasted DDL substitute"
+    vars:
+      fixture_path: "tests/evals/fixtures/classifying-data-domains/missing-warehouse-ddl"
+      request_text: |
+        Classify data domains and persist the result.
+
+        Here is pasted DDL:
+
+        CREATE TABLE sales.fact_orders (
+          order_id integer,
+          customer_id integer,
+          order_total numeric
+        );
+      expected_final_output_terms: "warehouse-ddl,missing,pasted ddl,run the warehouse ddl extraction workflow"
+      unchanged_paths: "warehouse-ddl,warehouse-catalog"
+    assert:
+      - type: javascript
+        value: file://../../assertions/check-guard-stop.js
+  - description: "table and view ownership are distinct domain decisions"
+    vars:
+      fixture_path: "tests/evals/fixtures/classifying-data-domains/table-view-domain-ownership"
+      request_text: |
+        Classify data domains from the warehouse DDL.
+
+        Use Sales as the primary functional domain for `silver.opportunities`.
+        Use Operations as the primary functional domain for `gold.sold_opportunities`.
+        Do not persist files; return the report and example JSON objects only.
+      expected_terms: "silver.opportunities,sales,gold.sold_opportunities,operations,view,cross-domain"
+      forbidden_json_keys: "procedures,functions"
+    assert:
+      - type: javascript
+        value: file://../../assertions/check-listing-output.js
+  - description: "weak unambiguous ownership proceeds as low-confidence unclassified"
+    vars:
+      fixture_path: "tests/evals/fixtures/classifying-data-domains/weak-unambiguous"
+      request_text: |
+        Classify data domains from the warehouse DDL.
+
+        Do not persist files. If there is no clear functional-domain signal and
+        no competing plausible owner, classify the object without asking me to
+        choose a domain.
+      expected_terms: "misc.record_001,unclassified,low"
+      unexpected_terms: "choose from,ownership decision"
+    assert:
+      - type: javascript
+        value: file://../../assertions/check-listing-output.js
+  - description: "persisted data-domain files use table and view ownership only"
+    vars:
+      fixture_path: "tests/evals/fixtures/classifying-data-domains/table-view-domain-ownership"
+      request_text: |
+        Classify data domains from the warehouse DDL and persist the result.
+
+        Use Sales as the primary functional domain for `silver.opportunities`.
+        Use Operations as the primary functional domain for `gold.sold_opportunities`.
+        Treat `gold.sold_opportunities` as an Operations view over a Sales table,
+        so Operations has an upstream dependency on Sales.
+      expected_domain_files: "sales,operations"
+      expected_domain_objects: "sales:tables=silver.opportunities;operations:views=gold.sold_opportunities"
+      expected_upstream_domains: "operations:upstream_domains=sales"
+      forbidden_domain_objects: "silver.load_opportunities,gold.opportunity_value"
+    assert:
+      - type: javascript
+        value: file://../../assertions/check-data-domain-persistence.js
+  - description: "ambiguous ownership with persistence request stops for human decision"
+    vars:
+      fixture_path: "tests/evals/fixtures/classifying-data-domains/ambiguous-ownership"
+      request_text: |
+        Classify data domains from the warehouse DDL and persist the result.
+
+        `shared.opportunity_cases` could belong to either Sales or Operations.
+        Pick the most likely one and continue; there is no accepted human
+        ownership decision yet.
+      expected_ownership_options: "sales,operations"
+      unchanged_paths: "warehouse-catalog,catalog"
+    assert:
+      - type: javascript
+        value: file://../../assertions/check-ambiguity-stop.js
