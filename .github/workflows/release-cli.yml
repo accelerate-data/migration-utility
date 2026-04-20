@@ -45,13 +45,6 @@ jobs:
           deactivate
           /tmp/ad-migration-release/bin/ad-migration --version
 
-      - name: Publish GitHub release artifacts
-        uses: softprops/action-gh-release@v3
-        with:
-          files: |
-            lib/dist/*
-            packages/ad-migration-cli/dist/*
-
       - name: Resolve release version from pyproject metadata
         id: version
         run: |
@@ -73,6 +66,34 @@ jobs:
             exit 1
           fi
           echo "project_version=${project_version}" >> "$GITHUB_OUTPUT"
+
+      - name: Delete stale package assets before upload
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+
+          existing_assets="$(gh release view "$GITHUB_REF_NAME" --json assets --jq '.assets[].name' 2>/dev/null || true)"
+          if [ -z "$existing_assets" ]; then
+            echo "No existing release assets to clean for ${GITHUB_REF_NAME}."
+            exit 0
+          fi
+
+          while IFS= read -r asset; do
+            case "$asset" in
+              ad_migration_shared-*.whl|ad_migration_shared-*.tar.gz|ad_migration_cli-*.whl|ad_migration_cli-*.tar.gz)
+                echo "Deleting stale package asset: ${asset}"
+                gh release delete-asset "$GITHUB_REF_NAME" "$asset" --yes
+                ;;
+            esac
+          done <<< "$existing_assets"
+
+      - name: Publish GitHub release artifacts
+        uses: softprops/action-gh-release@v3
+        with:
+          files: |
+            lib/dist/*
+            packages/ad-migration-cli/dist/*
 
       - name: Compute Homebrew artifact metadata
         id: artifacts

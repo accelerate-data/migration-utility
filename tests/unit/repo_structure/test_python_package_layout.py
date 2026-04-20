@@ -52,6 +52,26 @@ def test_release_workflow_exists() -> None:
     assert (REPO_ROOT / ".github" / "workflows" / "release-cli.yml").is_file()
 
 
+def test_release_workflow_removes_stale_package_assets_before_upload() -> None:
+    workflow = (REPO_ROOT / ".github" / "workflows" / "release-cli.yml").read_text(
+        encoding="utf-8"
+    )
+
+    cleanup_step = "Delete stale package assets before upload"
+    publish_step = "Publish GitHub release artifacts"
+    version_step = "Resolve release version from pyproject metadata"
+
+    assert version_step in workflow
+    assert cleanup_step in workflow
+    assert workflow.index(version_step) < workflow.index(publish_step)
+    assert workflow.index(cleanup_step) < workflow.index(publish_step)
+    assert "gh release delete-asset" in workflow
+    assert "ad_migration_shared-*.whl" in workflow
+    assert "ad_migration_shared-*.tar.gz" in workflow
+    assert "ad_migration_cli-*.whl" in workflow
+    assert "ad_migration_cli-*.tar.gz" in workflow
+
+
 def test_repo_map_points_commands_at_the_split_projects() -> None:
     repo_map = json.loads((REPO_ROOT / "repo-map.json").read_text(encoding="utf-8"))
 
