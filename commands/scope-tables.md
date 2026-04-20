@@ -11,6 +11,23 @@ argument-hint: "<schema.table_or_view> [schema.table_or_view ...]"
 
 Identify which procedures write to each table, or analyze SQL structure for each view or materialized view. Launches one sub-agent per item in parallel using `/analyzing-table` (which auto-detects table vs view).
 
+## Arguments
+
+Manual mode:
+
+```text
+/scope-tables <object> [object ...]
+```
+
+Coordinator mode:
+
+```text
+/scope-tables <plan-file> <stage-id> <worktree-name> <base-branch> <object> [object ...]
+```
+
+In Claude Code slash commands, `$0` is the first user-supplied argument.
+Coordinator mode is active only when `$0` is a Markdown plan path.
+
 ## Guards
 
 - `manifest.json` must exist. If missing, tell the user to run `ad-migration setup-source` first.
@@ -30,18 +47,12 @@ Use `TaskCreate` and `TaskUpdate` to show live progress. At the start of Step 2,
 1. Generate run slug:
    - **Single object (1 item):** use the object FQN directly — `scope-<schema>-<name>` (lowercase, dots → hyphens). No LLM reasoning needed.
    - **Multiple objects (2+):** reason about the conversation context — what is the user trying to accomplish with this batch? Generate a short, descriptive slug that captures the intent (e.g. `scope-order-pipeline`, `scope-customer-dims`). The full slug (including the `scope-` prefix) must be lowercase, hyphen-separated, and at most 40 characters.
-2. Coordinator mode only happens when `$0` is a Markdown plan path. In coordinator mode, parse the invocation as:
-
-   ```text
-   /scope-tables <plan-file> <stage-id> <worktree-name> <base-branch> <object> [object ...]
-   ```
-
-   Read the matching `## Stage <stage-id>` checklist from `<plan-file>`. Use `$1` as the stage ID, `$2` as the worktree name, `$3` as the base branch, and `$4...` as the object arguments.
-3. Use `${CLAUDE_PLUGIN_ROOT}/shared/scripts/worktree.sh` for setup instead of `git-checkpoints`.
+2. Use the `## Arguments` contract above to determine whether this is manual mode or coordinator mode.
+3. Use `${CLAUDE_PLUGIN_ROOT}/scripts/stage-worktree.sh` for deterministic worktree setup.
    - Coordinator mode: read `Branch:`, `Worktree name:`, and `Base branch:` from the matching stage section, then run:
 
      ```bash
-     "${CLAUDE_PLUGIN_ROOT}/shared/scripts/worktree.sh" "<branch>" "<worktree-name>" "<base-branch>"
+     "${CLAUDE_PLUGIN_ROOT}/scripts/stage-worktree.sh" "<branch>" "<worktree-name>" "<base-branch>"
      ```
 
      Use the returned `worktree_path` for all reads, writes, commits, and sub-agent prompts.
@@ -56,6 +67,14 @@ Use `TaskCreate` and `TaskUpdate` to show live progress. At the start of Step 2,
 
 ### Step 2 — Run skill per item
 
+Create `.migration-runs/` first if it does not already exist.
+
+**Workflow-exempt source check:** For each item, read `catalog/tables/<fqn>.json` before any scoping work. If the catalog marks the table as a source, do not invoke `/analyzing-table` for that item. Write this skip result to `.migration-runs/<schema.item>.<run_id>.json` and continue to the next item. This skip artifact is summary-only; it does not enter later staging, commit, or push steps:
+
+```json
+{"item_id": "<fqn>", "object_type": "table", "status": "ok", "catalog_path": "catalog/tables/<item_id>.json", "output": {"skipped": true, "reason": "is_source", "message": "<fqn> is marked as a dbt source -- no migration needed. Use `ad-migration add-source-table` to manage source tables."}, "warnings": [], "errors": []}
+```
+
 **Single-item path (1 item):** Run `/analyzing-table` directly in the current conversation — do not launch a sub-agent. The skill auto-detects table vs view from catalog presence.
 
 After the skill completes, write the item result JSON (see Item Result Schema) to `.migration-runs/<schema.item>.<run_id>.json`.
@@ -68,7 +87,7 @@ git checkout -- catalog/<object_type>s/<item_id>.json
 
 Ignore errors from `git checkout` (the file may not have been modified).
 
-If the item status is not `error`, stage `catalog/<object_type>s/<item_id>.json`, create a checkpoint commit, and push the current branch.
+If the item status is not `error` and `output.skipped != true`, stage `catalog/<object_type>s/<item_id>.json`, create a checkpoint commit, and push the current branch.
 
 Then continue to Step 3.
 
@@ -81,7 +100,8 @@ Write the item result JSON to .migration-runs/<schema.item>.<run_id>.json.
 
 After writing the result:
 - If status == "error": run `git checkout -- catalog/<object_type>s/<item_id>.json` (ignore errors).
-- If status != "error": stage `catalog/<object_type>s/<item_id>.json`, create a checkpoint commit, and push the current branch.
+- If status != "error" and `output.skipped != true`: stage `catalog/<object_type>s/<item_id>.json`, create a checkpoint commit, and push the current branch.
+- If `output.skipped == true`: do not stage, commit, or push catalog changes; keep the result summary-only.
 
 On failure before writing a result, write result with status: "error" and error details, then revert as above.
 Return the item result JSON.
@@ -108,7 +128,7 @@ Return the item result JSON.
 5. After successful item work is committed and pushed, always open or update a PR:
 
    ```bash
-   "${CLAUDE_PLUGIN_ROOT}/shared/scripts/stage-pr.sh" "<branch>" "<base-branch>" "<title>" ".migration-runs/pr-body.<run_id>.md"
+   "${CLAUDE_PLUGIN_ROOT}/scripts/stage-pr.sh" "<branch>" "<base-branch>" "<title>" ".migration-runs/pr-body.<run_id>.md"
    ```
 
    Report the PR number and URL. In manual mode, tell the human to review and merge the PR. In coordinator mode, return the PR metadata to the coordinator and do not ask any question.
@@ -149,8 +169,8 @@ Written to `.migration-runs/summary.<run_id>.json`:
 
 ```json
 {
-  "schema_version": "1.0",
-  "run_id": "<uuid>",
+    "schema_version": "1.0",
+    "run_id": "<epoch_ms>-<random_8hex>",
   "results": [
     {"item_id": "silver.dimcurrency", "status": "resolved"},
     {"item_id": "silver.dimdate", "status": "error"}

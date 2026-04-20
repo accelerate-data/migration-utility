@@ -6,7 +6,8 @@ Read `${CLAUDE_PLUGIN_ROOT}/commands/generate-model.md`, but treat the following
 
 Harness overrides:
 - Treat `{{fixture_path}}` as read-only input. Write all generated files to `{{run_path}}`. Do not create or use a worktree.
-- Do not run git commands, `/commit`, `/commit-push-pr`, or `git-checkpoints`.
+- In this eval fixture, do not actually run git, gh, scripts/stage-* helpers, or cleanup commands.
+- The final answer must include a handoff block with these exact labels: `PR:`, `Branch:`, and `Worktree:`. Use simulated values if needed, because the eval checks those labels literally.
 - Do not spawn sub-agents for this eval. Process the target tables sequentially in the current conversation.
 - Keep `${CLAUDE_PLUGIN_ROOT}` references as written.
 - Pass `--project-root {{run_path}}` to every CLI command that accepts `--project-root`.
@@ -14,5 +15,6 @@ Harness overrides:
 - If dbt compile, dbt build, dbt run --empty, or dbt test is unavailable in the eval environment, skip those steps and record the command result accordingly instead of stopping for missing tooling.
 - For unit-test setup (Stage 3): if dbt run --empty is unavailable, note the parents that would be materialised and record status "ok" in the setup result.
 - For unit-test repair (Stage 4): if dbt test is unavailable, record dbt_test_passed as false with a note that the eval environment could not execute unit tests.
+- Materialization rule: ordinary mart tables use dbt project defaults. Do not add `config(materialized='table')`; only add model-level config for exceptions such as incremental, snapshot, view, alias, or schema behavior.
 
 If one table fails, continue processing the remaining tables and then write the summary.

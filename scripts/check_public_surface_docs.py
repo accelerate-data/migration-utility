@@ -4,6 +4,7 @@
 from __future__ import annotations
 
 import argparse
+import re
 import subprocess
 import sys
 from dataclasses import dataclass
@@ -24,10 +25,11 @@ class ChangedPath:
 class PublicSurfaceDocsAudit:
     public_changes: list[str]
     wiki_changes: list[str]
+    missing_docs: dict[str, list[str]]
 
     @property
     def ok(self) -> bool:
-        return not self.public_changes or bool(self.wiki_changes)
+        return not self.missing_docs
 
 
 def _is_new_root_command(change: ChangedPath) -> bool:
@@ -70,9 +72,67 @@ def _adds_cli_registration(cli_main_patch: str) -> bool:
     return any(marker in cli_main_patch for marker in registration_markers)
 
 
+def _command_term(path: str) -> str:
+    return f"/{Path(path).stem}"
+
+
+def _skill_term(path: str) -> str:
+    return Path(path).parts[1]
+
+
+def _cli_module_term(path: str) -> str:
+    command_name = Path(path).stem.removesuffix("_cmd").replace("_", "-")
+    return f"ad-migration {command_name}"
+
+
+def _cli_registration_terms(cli_main_patch: str) -> list[str]:
+    terms: list[str] = []
+    command_patterns = (
+        (r'^\+app\.command\("([^"]+)"\)', "ad-migration {name}"),
+        (r'^\+doctor_app\.command\("([^"]+)"\)', "ad-migration doctor {name}"),
+        (r'^\+app\.add_typer\(.*?\bname="([^"]+)"', "ad-migration {name}"),
+    )
+    for line in cli_main_patch.splitlines():
+        for pattern, template in command_patterns:
+            match = re.search(pattern, line)
+            if match:
+                terms.append(template.format(name=match.group(1)))
+    return sorted(set(terms))
+
+
+def _required_terms(change: ChangedPath, cli_main_patch: str) -> list[str]:
+    if _is_new_root_command(change):
+        return [_command_term(change.path)]
+    if _is_new_public_skill(change):
+        return [_skill_term(change.path)]
+    if _is_new_cli_module(change):
+        return [_cli_module_term(change.path)]
+    if change.path == CLI_MAIN_PATH and _adds_cli_registration(cli_main_patch):
+        return _cli_registration_terms(cli_main_patch) or ["ad-migration"]
+    return []
+
+
+def _missing_docs(
+    changes: list[ChangedPath],
+    cli_main_patch: str,
+    wiki_text: str,
+) -> dict[str, list[str]]:
+    normalized_wiki = wiki_text.lower()
+    missing: dict[str, list[str]] = {}
+    for change in changes:
+        terms = _required_terms(change, cli_main_patch)
+        missing_terms = [
+            term for term in terms if term.lower() not in normalized_wiki
+        ]
+        if missing_terms:
+            missing[change.path] = missing_terms
+    return missing
+
+
 def audit_public_surface_docs(
     changes: list[ChangedPath],
     cli_main_patch: str,
+    wiki_text: str = "",
 ) -> PublicSurfaceDocsAudit:
     public_changes = [
         change.path
@@ -85,10 +145,12 @@ def audit_public_surface_docs(
         public_changes.append(CLI_MAIN_PATH)
 
     wiki_changes = [change.path for change in changes if change.path.startswith(WIKI_PREFIX)]
+    missing_docs = _missing_docs(changes, cli_main_patch, wiki_text)
 
     return PublicSurfaceDocsAudit(
         public_changes=sorted(public_changes),
         wiki_changes=sorted(wiki_changes),
+        missing_docs=dict(sorted(missing_docs.items())),
     )
 
 
@@ -115,9 +177,29 @@ def _git_diff_patch(base: str, head: str, path: str) -> str:
     )
 
 
+def _git_show_text(revision: str, path: str) -> str:
+    try:
+        return subprocess.check_output(
+            ["git", "show", f"{revision}:{path}"],
+            text=True,
+            stderr=subprocess.DEVNULL,
+        )
+    except subprocess.CalledProcessError:
+        return ""
+
+
+def _changed_wiki_text(changes: list[ChangedPath], head: str) -> str:
+    return "\n".join(
+        _git_show_text(head, change.path)
+        for change in changes
+        if change.path.startswith(WIKI_PREFIX)
+    )
+
+
 def _print_result(result: PublicSurfaceDocsAudit) -> None:
     print(f"public_changes: {result.public_changes}")
     print(f"wiki_changes: {result.wiki_changes}")
+    print(f"missing_docs: {result.missing_docs}")
 
 
 def main(argv: list[str] | None = None) -> int:
@@ -128,7 +210,8 @@ def main(argv: list[str] | None = None) -> int:
 
     changes = _git_diff_name_status(args.base, args.head)
     cli_main_patch = _git_diff_patch(args.base, args.head, CLI_MAIN_PATH)
-    result = audit_public_surface_docs(changes, cli_main_patch)
+    wiki_text = _changed_wiki_text(changes, args.head)
+    result = audit_public_surface_docs(changes, cli_main_patch, wiki_text)
     _print_result(result)
 
     if result.ok:
@@ -137,7 +220,7 @@ def main(argv: list[str] | None = None) -> int:
     print(
         "::error::Public CLI, slash-command, or skill surface changed without a docs/wiki update."
     )
-    print("Update docs/wiki so the published wiki stays aligned with public entrypoints.")
+    print("Update docs/wiki so it names each new public entrypoint.")
     return 1
 
 

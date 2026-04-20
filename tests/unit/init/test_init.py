@@ -136,7 +136,7 @@ class TestScaffoldProject:
         workflow = (tmp_path / ".claude" / "rules" / "git-workflow.md").read_text()
         assert "Worktree" in workflow
         assert "../worktrees" in workflow
-        assert "git-checkpoints" in workflow
+        assert "deterministic plugin runtime helpers" in workflow
         assert "scripts/worktree.sh" not in workflow
         assert not (tmp_path / "scripts" / "worktree.sh").exists()
 

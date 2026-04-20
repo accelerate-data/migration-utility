@@ -97,11 +97,11 @@
     },
     "migration_skills": {
       "path": "skills/",
-      "description": "Skill definitions: listing-objects/ (catalog browsing — list objects by type), analyzing-table/ (scoping — auto-detects table vs view; tables: writer discovery, procedure analysis, statement resolution; views: SQL element extraction, call tree, logic summary), generating-model/ (dbt model generation from refactored SQL, staging + mart split), planning-refactor-mart/ (planning-only mart-domain refactor candidate plan generation with markdown contract under references/plan-file-contract.md), applying-staging-candidate/ (candidate-scoped staging execution for approved refactor-mart staging candidates), applying-mart-candidates/ (internal higher-layer execution for one approved intermediate or mart candidate from a refactor-mart plan), profiling-table/ (profiling — auto-detects table vs view; tables: 6 questions including classification, PK, watermark, FKs, PII; views: stg/mart classification; references/ contains classification guides for fact_accumulating_snapshot and fact_periodic_snapshot disambiguation), generating-tests/ (single-table and view-backed test generation with fixture synthesis, write-through test_harness persistence, and mixed prompt support), reviewing-tests/ (LLM quality gate for test specs and review-result validation across table and view scenarios), reviewing-diagnostics/ (table-centric diagnostic review — inspects one table's status warnings, fixes catalog state when possible, or writes reviewed-warning artifacts), test-invariants/ (shared generator-reviewer contract for branch authority, cross-artifact consistency, and narrow repair), reviewing-model/ (dbt model review with structured feedback, stable reference codes, and acknowledgements protocol; references/ contains style guidelines), refactoring-sql/ (CTE restructuring with equivalence audit), git-checkpoints/ (git checkpoint management during long-running agent tasks). _shared/references/dialects/ contains dialect-specific references (tsql/ and oracle/) for statement classification and routine migration patterns; skills read dialect from manifest.json to select the right file."
+      "description": "Skill definitions: listing-objects/ (catalog browsing — list objects by type), analyzing-table/ (scoping — auto-detects table vs view; tables: writer discovery, procedure analysis, statement resolution; views: SQL element extraction, call tree, logic summary), generating-model/ (dbt model generation from refactored SQL, staging + mart split), planning-refactor-mart/ (planning-only mart-domain refactor candidate plan generation with markdown contract under references/plan-file-contract.md), applying-staging-candidate/ (candidate-scoped staging execution for approved refactor-mart staging candidates), applying-mart-candidates/ (internal higher-layer execution for one approved intermediate or mart candidate from a refactor-mart plan), profiling-table/ (profiling — auto-detects table vs view; tables: 6 questions including classification, PK, watermark, FKs, PII; views: stg/mart classification; references/ contains classification guides for fact_accumulating_snapshot and fact_periodic_snapshot disambiguation), generating-tests/ (single-table and view-backed test generation with fixture synthesis, write-through test_harness persistence, and mixed prompt support), reviewing-tests/ (LLM quality gate for test specs and review-result validation across table and view scenarios), reviewing-diagnostics/ (table-centric diagnostic review — inspects one table's status warnings, fixes catalog state when possible, or writes reviewed-warning artifacts), test-invariants/ (shared generator-reviewer contract for branch authority, cross-artifact consistency, and narrow repair), reviewing-model/ (dbt model review with structured feedback, stable reference codes, and acknowledgements protocol; references/ contains style guidelines), refactoring-sql/ (CTE restructuring with equivalence audit). _shared/references/dialects/ contains dialect-specific references (tsql/ and oracle/) for statement classification and routine migration patterns; skills read dialect from manifest.json to select the right file."
     },
     "migration_commands": {
       "path": "commands/",
-      "description": "Stage-specific commands (LLM-driven only): scope-tables.md, profile-tables.md, generate-model.md, generate-tests.md, refactor-query.md, refactor-mart-plan.md, refactor-mart.md, status.md, review-diagnostics.md. Deterministic setup and state-mutation commands have moved to the ad-migration CLI (lib/shared/cli/)."
+      "description": "Stage-specific commands (LLM-driven only): scope-tables.md, profile-tables.md, generate-model.md, generate-tests.md, refactor-query.md, refactor-mart-plan.md, refactor-mart.md, status.md. Whole-mart orchestration commands: migrate-mart-plan.md writes the resumable migration plan and migrate-mart.md executes it. Deterministic setup and state-mutation commands have moved to the ad-migration CLI (lib/shared/cli/)."
     },
     "tests_migration": {
       "path": "tests/unit/",
@@ -113,7 +113,7 @@
     },
     "tests_evals": {
       "path": "tests/evals/",
-      "description": "Promptfoo eval harness for skill and command testing against MigrationTest schema. Per-scenario fixtures live under fixtures/<package>/<scenario-slug>/; runnable configs live in packages/ plus the standalone oracle-live/ and mssql-live/ live suites, while Oracle regression fixtures live under fixtures/oracle-regression/ and are consumed by the owning package configs. planning-refactor-mart/ covers the /refactor-mart-plan planning workflow; applying-staging-candidate/ and cmd-refactor-mart/ cover staging-wave refactor-mart execution. Assertions live under tests/evals/assertions/, including schema-helpers.js, check-refactor-mart-plan.js, and check-refactor-mart-stg-execution.js for shared path, term, plan-shape, status writeback, and no-mutation checks. No top-level Promptfoo config — use npm run eval:smoke for the curated offline pass."
+      "description": "Promptfoo eval harness for skill and command testing against MigrationTest schema. Per-scenario fixtures live under fixtures/<package>/<scenario-slug>/; runnable configs live in packages/ plus the standalone oracle-live/ and mssql-live/ live suites, while Oracle regression fixtures live under fixtures/oracle-regression/ and are consumed by the owning package configs. planning-refactor-mart/ covers the /refactor-mart-plan planning workflow; applying-staging-candidate/ and cmd-refactor-mart/ cover staging-wave refactor-mart execution. cmd-migrate-mart-plan/ and cmd-migrate-mart/ cover whole-mart planning/resume orchestration. Assertions live under tests/evals/assertions/, including schema-helpers.js, check-refactor-mart-plan.js, and check-refactor-mart-stg-execution.js for shared path, term, plan-shape, status writeback, and no-mutation checks. No top-level Promptfoo config — use npm run eval:smoke for the curated offline pass."
     },
     "tests_ddl_mcp": {
       "path": "mcp/ddl/tests/",
@@ -121,7 +121,7 @@
     },
     "scripts": {
       "path": "scripts/",
-      "description": "Developer scripts: contributor-setup.sh (canonical contributor maintainer bootstrap and readiness check with fix/show modes plus structured JSON summary), check_design_index.py (docs/design index drift audit), check_public_surface_docs.py (PR audit requiring docs/wiki updates when public CLI, slash-command, or skill surfaces are added), publish-sqlserver-image.sh (build + push SQL Server Docker image with pre-baked KimballFixture data files; MigrationTest stays a schema-level runtime materialization concern), demo-warehouse/ (cross-dialect Kimball demo warehouse fixture for demos, parity checks, and image builds)."
+      "description": "Repository scripts. worktree.sh is the maintainer development helper. stage-worktree.sh, stage-pr.sh, stage-pr-merge.sh, and stage-cleanup.sh are deterministic plugin runtime helpers used from customer projects. contributor-setup.sh is the contributor readiness helper; check_design_index.py and check_public_surface_docs.py audit documentation drift; publish-sqlserver-image.sh and demo-warehouse/ support SQL Server fixtures and demos."
     },
     "docker_sqlserver": {
       "path": "docker/sqlserver/",
@@ -140,13 +140,14 @@
     ".claude-plugin/": "Claude Code plugin manifest at the repository root",
     "commands/": "Claude Code command specs at the repository root",
     "skills/": "Claude Code skills at the repository root",
+    "scripts/": "Repository scripts. worktree.sh is the maintainer development helper; stage-worktree.sh, stage-pr.sh, stage-pr-merge.sh, and stage-cleanup.sh are deterministic plugin runtime helpers used from customer projects.",
     "lib/": "Python DDL analysis library (uv project, sqlglot-based)",
     "packages/": "Packaging wrappers for the public ad-migration CLI and internal plugin entrypoints.",
     "lib/shared/schemas/": "JSON Schema files for catalog, agent I/O, discover CLI output, and shared definitions",
     "tests/unit/": "Shared-library unit pytest suite organized by module under tests/unit/<module>/.",
     "tests/integration/": "Shared-library integration pytest suite organized by backend and module under tests/integration/<technology>/<module>/.",
     "tests/integration/scoping-inputs/": "JSON fixture inputs for scoping-logic tests and regressions.",
-    "tests/evals/": "Promptfoo eval harness for skill and command testing (skill packages include listing-objects, profiling-table, generating-model, planning-refactor-mart, applying-staging-candidate, generating-tests, reviewing-tests, reviewing-model, analyzing-table, analyzing-table-readiness; command packages include cmd-scope, cmd-profile, cmd-generate-model, cmd-generate-tests, cmd-refactor, cmd-refactor-mart, cmd-status, cmd-reset-migration)",
+    "tests/evals/": "Promptfoo eval harness for skill and command testing (skill packages include listing-objects, profiling-table, generating-model, planning-refactor-mart, applying-staging-candidate, generating-tests, reviewing-tests, reviewing-model, analyzing-table, analyzing-table-readiness; command packages include cmd-scope, cmd-profile, cmd-generate-model, cmd-generate-tests, cmd-refactor, cmd-refactor-mart, cmd-migrate-mart-plan, cmd-migrate-mart, cmd-status, cmd-reset-migration)",
     "mcp/ddl/tests/": "DDL MCP pytest suite split into tests/unit/ plus shared top-level backend coverage under tests/integration/<technology>/ddl_mcp/ executed from the ddl-mcp project env.",
     "mcp/ddl/ddl_mcp_support/": "Standalone support slice for the DDL MCP package: local env/path helpers, name normalization, and focused loader/parser modules copied from the shared runtime split to keep parser fixes portable while preserving the MCP dependency boundary.",
     "scripts/demo-warehouse/": "Cross-dialect Kimball DW fixture: schema DDL, baseline seed data, and delta scenarios for SQL Server, Oracle, PostgreSQL",
@@ -196,6 +197,8 @@
     "refactor_write": "cd packages/ad-migration-internal && uv run refactor write --table <schema.table> --refactored-sql-file <path> --status ok|partial|error",
     "refactor_mart_plan_command": "/refactor-mart-plan <schema.table> [schema.table ...]",
     "refactor_mart_command": "/refactor-mart <plan-file> stg|int",
+    "migrate_mart_plan_command": "/migrate-mart-plan <slug>",
+    "migrate_mart_command": "/migrate-mart <plan-file>",
     "compare_sql": "cd packages/ad-migration-internal && uv run test-harness compare-sql --sql-a-file <extracted.sql> --sql-b-file <refactored.sql> --spec <spec-path>",
     "setup_ddl": "cd packages/ad-migration-internal && uv run setup-ddl <args>",
     "test_migration_python": "cd lib && uv run pytest",
@@ -238,6 +241,8 @@
     "eval_applying_staging_candidate": "cd tests/evals && npm run eval:applying-staging-candidate",
     "eval_cmd_refactor": "cd tests/evals && npm run eval:cmd-refactor",
     "eval_cmd_refactor_mart": "cd tests/evals && npm run eval:cmd-refactor-mart",
+    "eval_cmd_migrate_mart_plan": "cd tests/evals && npm run eval:cmd-migrate-mart-plan",
+    "eval_cmd_migrate_mart": "cd tests/evals && npm run eval:cmd-migrate-mart",
     "eval_oracle_live": "cd tests/evals && npm run eval:oracle-live",
     "eval_mssql_live": "cd tests/evals && npm run eval:mssql-live"
   },

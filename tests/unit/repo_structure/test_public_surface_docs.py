@@ -28,7 +28,7 @@ def _load_public_surface_checker():
     return module
 
 
-def test_public_surface_checker_accepts_wiki_update() -> None:
+def test_public_surface_checker_accepts_wiki_update_that_names_new_command() -> None:
     checker = _load_public_surface_checker()
 
     result = checker.audit_public_surface_docs(
@@ -37,10 +37,30 @@ def test_public_surface_checker_accepts_wiki_update() -> None:
             checker.ChangedPath("M", "docs/wiki/Command-Reference.md"),
         ],
         "",
+        "Use `/new-public-command` from Claude Code.",
     )
 
     assert result.ok
     assert result.public_changes == ["commands/new-public-command.md"]
+
+
+def test_public_surface_checker_rejects_unrelated_wiki_update() -> None:
+    checker = _load_public_surface_checker()
+
+    result = checker.audit_public_surface_docs(
+        [
+            checker.ChangedPath("A", "commands/new-public-command.md"),
+            checker.ChangedPath("M", "docs/wiki/Command-Reference.md"),
+        ],
+        "",
+        "This page changed, but it only documents `/existing-command`.",
+    )
+
+    assert not result.ok
+    assert result.public_changes == ["commands/new-public-command.md"]
+    assert result.missing_docs == {
+        "commands/new-public-command.md": ["/new-public-command"]
+    }
 
 
 def test_public_surface_checker_rejects_new_command_without_wiki_update() -> None:
@@ -49,10 +69,14 @@ def test_public_surface_checker_rejects_new_command_without_wiki_update() -> Non
     result = checker.audit_public_surface_docs(
         [checker.ChangedPath("A", "commands/new-public-command.md")],
         "",
+        "",
     )
 
     assert not result.ok
     assert result.public_changes == ["commands/new-public-command.md"]
+    assert result.missing_docs == {
+        "commands/new-public-command.md": ["/new-public-command"]
+    }
 
 
 def test_public_surface_checker_rejects_new_skill_without_wiki_update() -> None:
@@ -60,6 +84,7 @@ def test_public_surface_checker_rejects_new_skill_without_wiki_update() -> None:
 
     result = checker.audit_public_surface_docs(
         [checker.ChangedPath("A", "skills/new-public-skill/SKILL.md")],
+        "",
         "",
     )
 
@@ -73,6 +98,7 @@ def test_public_surface_checker_rejects_new_cli_registration_without_wiki_update
     result = checker.audit_public_surface_docs(
         [checker.ChangedPath("M", "lib/shared/cli/main.py")],
         "+app.command(\"new-command\")(new_command)\n",
+        "",
     )
 
     assert not result.ok

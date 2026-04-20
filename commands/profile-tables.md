@@ -11,13 +11,30 @@ argument-hint: "<schema.table_or_view> [schema.table_or_view ...]"
 
 Produce migration profiles for each table, view, or materialized view. Launches one sub-agent per item in parallel using `/profiling-table` (which auto-detects table vs view).
 
+## Arguments
+
+Manual mode:
+
+```text
+/profile-tables <object> [object ...]
+```
+
+Coordinator mode:
+
+```text
+/profile-tables <plan-file> <stage-id> <worktree-name> <base-branch> <object> [object ...]
+```
+
+In Claude Code slash commands, `$0` is the first user-supplied argument.
+Coordinator mode is active only when `$0` is a Markdown plan path.
+
 ## Guards
 
 - `manifest.json` must exist. If missing, fail all items with `MANIFEST_NOT_FOUND`.
 - For each FQN argument:
-  - if `catalog/tables/<fqn>.json` has `"is_seed": true`, skip that table and print:
+  - if `catalog/tables/<fqn>.json` has `"is_seed": true`, skip that table, write the workflow-exempt skip result described in Step 2, and print:
     > `<fqn>` is marked as a dbt seed -- no migration needed. Use `ad-migration add-seed-table` to manage seed tables.
-  - if `catalog/tables/<fqn>.json` has `"is_source": true`, skip that table and print:
+  - if `catalog/tables/<fqn>.json` has `"is_source": true`, skip that table, write the workflow-exempt skip result described in Step 2, and print:
     > `<fqn>` is marked as a dbt source -- no migration needed. Use `ad-migration add-source-table` to manage source tables.
 
 Per-item readiness is checked by the skill via `migrate-util ready`.
@@ -33,18 +50,12 @@ Use `TaskCreate` and `TaskUpdate` to show live progress. At the start of Step 2,
 1. Generate run slug:
    - **Single object (1 item):** use the object FQN directly — `profile-<schema>-<name>` (lowercase, dots → hyphens). No LLM reasoning needed.
    - **Multiple objects (2+):** reason about the conversation context — what is the user trying to accomplish with this batch? Generate a short, descriptive slug that captures the intent (e.g. `profile-customer-dims`, `profile-order-pipeline`). The full slug (including the `profile-` prefix) must be lowercase, hyphen-separated, and at most 40 characters.
-2. Coordinator mode only happens when `$0` is a Markdown plan path. In coordinator mode, parse the invocation as:
-
-   ```text
-   /profile-tables <plan-file> <stage-id> <worktree-name> <base-branch> <object> [object ...]
-   ```
-
-   Read the matching `## Stage <stage-id>` checklist from `<plan-file>`. Use `$1` as the stage ID, `$2` as the worktree name, `$3` as the base branch, and `$4...` as the object arguments.
-3. Use `${CLAUDE_PLUGIN_ROOT}/shared/scripts/worktree.sh` for setup instead of `git-checkpoints`.
+2. Use the `## Arguments` contract above to determine whether this is manual mode or coordinator mode.
+3. Use `${CLAUDE_PLUGIN_ROOT}/scripts/stage-worktree.sh` for deterministic worktree setup.
    - Coordinator mode: read `Branch:`, `Worktree name:`, and `Base branch:` from the matching stage section, then run:
 
      ```bash
-     "${CLAUDE_PLUGIN_ROOT}/shared/scripts/worktree.sh" "<branch>" "<worktree-name>" "<base-branch>"
+     "${CLAUDE_PLUGIN_ROOT}/scripts/stage-worktree.sh" "<branch>" "<worktree-name>" "<base-branch>"
      ```
 
      Use the returned `worktree_path` for all reads, writes, commits, and sub-agent prompts.
@@ -53,6 +64,18 @@ Use `TaskCreate` and `TaskUpdate` to show live progress. At the start of Step 2,
 5. Generate a run ID in the form `<epoch_ms>-<random_8hex>` (for example `1743868200123-a1b2c3d4`). All run artifacts use this as the filename suffix.
 
 ### Step 2 — Route and run per item
+
+Create `.migration-runs/` first if it does not already exist. Source/seed skip artifacts are summary-only; they do not enter later profiling commit stages.
+
+**Workflow-exempt source and seed check:** For each item, read `catalog/tables/<fqn>.json` before any profiling work. If the catalog marks the table as a source or seed, do not invoke `/profiling-table` for that item. Write one of these skip results to `.migration-runs/<schema.item>.<run_id>.json` and continue to the next item:
+
+```json
+{"item_id": "<fqn>", "status": "ok", "catalog_path": "catalog/tables/<item_id>.json", "output": {"skipped": true, "reason": "is_source", "message": "<fqn> is marked as a dbt source -- no migration needed. Use `ad-migration add-source-table` to manage source tables."}, "warnings": [], "errors": []}
+```
+
+```json
+{"item_id": "<fqn>", "status": "ok", "catalog_path": "catalog/tables/<item_id>.json", "output": {"skipped": true, "reason": "is_seed", "message": "<fqn> is marked as a dbt seed -- no migration needed. Use `ad-migration add-seed-table` to manage seed tables."}, "warnings": [], "errors": []}
+```
 
 **Single-item path (1 item):** Run `/profiling-table` directly in the current conversation — do not launch a sub-agent. The skill auto-detects table vs view from catalog presence. Set `catalog_path` in the item result accordingly (`catalog/views/` or `catalog/tables/`).
 
@@ -68,7 +91,7 @@ git checkout -- catalog/tables/<item_id>.json  # or catalog/views/<item_id>.json
 
 Ignore errors from `git checkout` (the file may not have been modified).
 
-If the item status is not `error`, stage the affected catalog path, create a checkpoint commit, and push the current branch.
+If the item status is not `error` and `output.skipped != true`, stage the affected catalog path, create a checkpoint commit, and push the current branch.
 
 Then continue to Step 3.
 
@@ -83,7 +106,8 @@ Create `.migration-runs/` first if it does not already exist.
 
 After writing the result:
 - If status == "error": run `git checkout -- catalog/tables/<item_id>.json` or `catalog/views/<item_id>.json` (ignore errors).
-- If status != "error": stage the appropriate catalog path, create a checkpoint commit, and push the current branch.
+- If status != "error" and `output.skipped != true`: stage the appropriate catalog path, create a checkpoint commit, and push the current branch.
+- If `output.skipped == true`: do not stage, commit, or push catalog changes; keep the result summary-only.
 
 On failure before writing a result, write result with status: "error" and error details, then revert as above.
 Return the item result JSON.
@@ -109,7 +133,7 @@ Return the item result JSON.
 5. After successful item work is committed and pushed, always open or update a PR:
 
    ```bash
-   "${CLAUDE_PLUGIN_ROOT}/shared/scripts/stage-pr.sh" "<branch>" "<base-branch>" "<title>" ".migration-runs/pr-body.<run_id>.md"
+   "${CLAUDE_PLUGIN_ROOT}/scripts/stage-pr.sh" "<branch>" "<base-branch>" "<title>" ".migration-runs/pr-body.<run_id>.md"
    ```
 
    Report the PR number and URL. In manual mode, tell the human to review and merge the PR. In coordinator mode, return the PR metadata to the coordinator and do not ask any question.

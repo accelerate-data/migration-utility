@@ -1,7 +1,7 @@
 const assert = require('node:assert/strict');
 const test = require('node:test');
 
-const { resolveProjectPath } = require('./schema-helpers');
+const { containsDelimitedTerm, resolveProjectPath } = require('./schema-helpers');
 
 test('resolveProjectPath returns run_path when it is set', () => {
   assert.equal(
@@ -24,4 +24,11 @@ test('resolveProjectPath throws when run_path is not set', () => {
     }),
     /run_path was not set/,
   );
+});
+
+test('containsDelimitedTerm requires token boundaries', () => {
+  assert.equal(containsDelimitedTerm('PR: https://example.test/1', 'PR'), true);
+  assert.equal(containsDelimitedTerm('Branch: feature/x', 'branch'), true);
+  assert.equal(containsDelimitedTerm('Worktree=/tmp/work', 'worktree'), true);
+  assert.equal(containsDelimitedTerm('prompt prepared without handoff', 'PR'), false);
 });

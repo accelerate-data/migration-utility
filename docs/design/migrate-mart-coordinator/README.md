@@ -20,23 +20,24 @@ commands, skills, and internal packages.
 checks local prerequisites, scaffolds project files, and prompts the human to fix missing
 environment configuration before rerun.
 
-## Shared Plugin Helpers
+## Script Helpers
 
-Shared git and PR helpers live in a top-level plugin shared folder:
+Maintainer and plugin runtime scripts both live in the top-level `scripts/` folder.
+The names separate their responsibilities:
 
 ```text
-shared/
-  scripts/
-    worktree.sh
-    stage-pr.sh
-    stage-pr-merge.sh
-    stage-cleanup.sh
+scripts/
+  worktree.sh          # maintainer-only development worktree helper
+  stage-worktree.sh    # plugin runtime stage worktree helper
+  stage-pr.sh
+  stage-pr-merge.sh
+  stage-cleanup.sh
 ```
 
 Stage commands call helpers through `CLAUDE_PLUGIN_ROOT`, for example:
 
 ```bash
-"${CLAUDE_PLUGIN_ROOT}/shared/scripts/worktree.sh" <branch> <worktree-name> <base-branch>
+"${CLAUDE_PLUGIN_ROOT}/scripts/stage-worktree.sh" <branch> <worktree-name> <base-branch>
 ```
 
 These helpers are deterministic scripts, not slash-command prose. They return structured JSON on
@@ -48,10 +49,10 @@ worktree-name, and base-branch inputs from the plan.
 
 ## Worktree Contract
 
-`shared/scripts/worktree.sh` creates or reuses a worktree from explicit inputs:
+`scripts/stage-worktree.sh` creates or reuses a worktree from explicit inputs:
 
 ```bash
-"${CLAUDE_PLUGIN_ROOT}/shared/scripts/worktree.sh" <branch> <worktree-name> <base-branch>
+"${CLAUDE_PLUGIN_ROOT}/scripts/stage-worktree.sh" <branch> <worktree-name> <base-branch>
 ```
 
 The script runs from the customer project root. It resolves the root with git, stores worktrees under

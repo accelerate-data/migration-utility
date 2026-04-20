@@ -12,6 +12,23 @@ argument-hint: "<schema.table> [schema.table ...]"
 
 Generate dbt models for a batch of tables. Coordinates four stages — generation, review, unit-test setup, and unit-test repair — each delegated to focused sub-agents whose prompts live in `references/`.
 
+## Arguments
+
+Manual mode:
+
+```text
+/generate-model <object> [object ...]
+```
+
+Coordinator mode:
+
+```text
+/generate-model <plan-file> <stage-id> <worktree-name> <base-branch> <object> [object ...]
+```
+
+In Claude Code slash commands, `$0` is the first user-supplied argument.
+Coordinator mode is active only when `$0` is a Markdown plan path.
+
 ## Guards
 
 - `manifest.json` must exist. If missing, fail all items with `MANIFEST_NOT_FOUND`.
@@ -39,18 +56,12 @@ Use `TaskCreate` and `TaskUpdate` to show live progress. At the start of Step 2,
 1. Generate run slug:
    - **Single object (1 item):** use the object FQN directly — `generate-model-<schema>-<name>` (lowercase, dots → hyphens). No LLM reasoning needed.
    - **Multiple objects (2+):** reason about the conversation context — what is the user trying to accomplish with this batch? Generate a short, descriptive slug that captures the intent (e.g. `generate-model-silver-dims`, `generate-model-order-facts`). The full slug (including the `generate-model-` prefix) must be lowercase, hyphen-separated, and at most 40 characters.
-2. Coordinator mode only happens when `$0` is a Markdown plan path. In coordinator mode, parse the invocation as:
-
-   ```text
-   /generate-model <plan-file> <stage-id> <worktree-name> <base-branch> <object> [object ...]
-   ```
-
-   Read the matching `## Stage <stage-id>` checklist from `<plan-file>`. Use `$1` as the stage ID, `$2` as the worktree name, `$3` as the base branch, and `$4...` as the object arguments.
-3. Use `${CLAUDE_PLUGIN_ROOT}/shared/scripts/worktree.sh` for setup instead of `git-checkpoints`.
+2. Use the `## Arguments` contract above to determine whether this is manual mode or coordinator mode.
+3. Use `${CLAUDE_PLUGIN_ROOT}/scripts/stage-worktree.sh` for deterministic worktree setup.
    - Coordinator mode: read `Branch:`, `Worktree name:`, and `Base branch:` from the matching stage section, then run:
 
      ```bash
-     "${CLAUDE_PLUGIN_ROOT}/shared/scripts/worktree.sh" "<branch>" "<worktree-name>" "<base-branch>"
+     "${CLAUDE_PLUGIN_ROOT}/scripts/stage-worktree.sh" "<branch>" "<worktree-name>" "<base-branch>"
      ```
 
      Use the returned `worktree_path` for all reads, writes, commits, and sub-agent prompts.
@@ -62,33 +73,33 @@ Use `TaskCreate` and `TaskUpdate` to show live progress. At the start of Step 2,
 
 Create `.migration-runs/` first if it does not already exist.
 
-**Workflow-exempt source and seed check:** For each item, read `catalog/tables/<fqn>.json` before any idempotency check or model generation. If the catalog marks the table as a source or seed, do not invoke `/generating-model` for that item. Write one of these skip results to `.migration-runs/<schema.table>.<run_id>.json` and continue to the next item:
+**Workflow-exempt source and seed check:** For each item, read `catalog/tables/<fqn>.json` before any idempotency check or model generation. If the catalog marks the table as a source or seed, do not invoke `/generating-model` for that item. Write one of these skip results to `.migration-runs/<schema.table>.<run_id>.json` and continue to the next item. These skip artifacts are summary-only; they do not enter review, unit-test setup, unit-test repair, or commit/revert stages.
 
 ```json
-{"item_id": "<fqn>", "status": "skipped", "output": {"skipped": true, "reason": "is_source", "message": "<fqn> is marked as a dbt source -- no migration needed. Use `ad-migration add-source-table` to manage source tables."}}
+{"item_id": "<fqn>", "status": "ok", "output": {"skipped": true, "reason": "is_source", "message": "<fqn> is marked as a dbt source -- no migration needed. Use `ad-migration add-source-table` to manage source tables."}}
 ```
 
 ```json
-{"item_id": "<fqn>", "status": "skipped", "output": {"skipped": true, "reason": "is_seed", "message": "<fqn> is marked as a dbt seed -- no migration needed. Use `ad-migration add-seed-table` to manage seed tables."}}
+{"item_id": "<fqn>", "status": "ok", "output": {"skipped": true, "reason": "is_seed", "message": "<fqn> is marked as a dbt seed -- no migration needed. Use `ad-migration add-seed-table` to manage seed tables."}}
 ```
 
-**Idempotency check:** For each non-source, non-seed item, read `catalog/tables/<fqn>.json`. If `generate.status == "ok"` and the user did not explicitly request a rerun, skip fresh generation but still carry the item into Stage 2 review using the existing written artifacts. Write a skip result:
+**Idempotency check:** For each non-source, non-seed item, read `catalog/tables/<fqn>.json`. If `generate.status == "ok"` and the user did not explicitly request a rerun, skip fresh generation but still carry the item into Stage 2 review using the existing written artifacts. Write a reuse result:
 
 ```json
-{"item_id": "<fqn>", "status": "ok", "output": {"skipped": true, "reason": "model_already_generated"}}
+{"item_id": "<fqn>", "status": "ok", "output": {"reused_existing": true, "reason": "model_already_generated"}}
 ```
 
-This skip means "reuse existing artifacts for review," not "bypass the quality gate."
+This reuse means "reuse existing artifacts for review," not "bypass the quality gate."
 
 **Prompt:** Read [references/generation-agent-prompt.md](references/generation-agent-prompt.md). Substitute `<schema.table>`, `<working-directory>`, and `<run_id>` before dispatching.
 
-Launch one sub-agent per item in parallel for items that still need fresh generation. Items that passed the idempotency check above write the skip result immediately and carry forward to Stage 2. Each sub-agent follows the generation-agent-prompt and writes its item result JSON.
+Launch one sub-agent per item in parallel for items that still need fresh generation. Items that passed the idempotency check above write the reuse result immediately and carry forward to Stage 2. Each sub-agent follows the generation-agent-prompt and writes its item result JSON. Items with `output.skipped == true` are summary-only workflow-exempt source or seed entries and do not enter Stage 2.
 
 ### Step 3 — Stage 2: Review
 
-For each item, read `.migration-runs/<item_id>.<run_id>.json` from Stage 1. If `status` is `error` or `skipped`, skip review for that item and carry it forward to Stage 3. For each remaining item, run the review flow for that item, including items whose Stage 1 result was an idempotency skip.
+For each item, read `.migration-runs/<item_id>.<run_id>.json` from Stage 1. If `status` is `error` or `output.skipped == true`, skip review for that item and carry it forward to Stage 3 only when it is not a skip artifact. Skip artifacts remain summary-only.
 
-If a Stage 1 idempotency-skip item's review returns `error` because persisted artifacts are missing or stale, invoke `/generating-model <item_id>` once to rebuild them, then retry review.
+If a Stage 1 idempotency-reuse item's review returns `error` because persisted artifacts are missing or stale, invoke `/generating-model <item_id>` once to rebuild them, then retry review.
 
 **Prompt:** Read [references/review-agent-prompt.md](references/review-agent-prompt.md). Substitute `<schema.table>`, `<working-directory>`, and `<run_id>` before dispatching.
 
@@ -96,7 +107,7 @@ Launch one review sub-agent per eligible item in parallel. Each sub-agent follow
 
 ### Step 4 — Stage 3: Unit-test setup
 
-Read each item result from `.migration-runs/<item_id>.<run_id>.json`. Collect the subset of items where `output.generated.model_yaml.has_unit_tests` is `true` and `status` is not `error`. If none, skip this stage and proceed to Step 5.
+Read each item result from `.migration-runs/<item_id>.<run_id>.json`. Collect the subset of items where `output.generated.model_yaml.has_unit_tests` is `true`, `status` is not `error`, and `output.skipped != true`. If none, skip this stage and proceed to Step 5.
 
 **Prompt:** Read [references/unit-test-setup-agent-prompt.md](references/unit-test-setup-agent-prompt.md). Substitute `<model_names>` (space-separated `model_name` values for the collected items), `<working-directory>`, and `<run_id>` before dispatching.
 
@@ -106,7 +117,7 @@ Dispatch one setup sub-agent for the entire collected list.
 
 Before dispatching repair agents, read `.migration-runs/unit-test-setup.<run_id>.json`. If `status` is `error`, skip repair for all unit-test items: update each item result with `status: "partial"` and a `DBT_TEST_FAILED` warning (reason: parent materialisation failed), then proceed to commit/revert.
 
-For each item where `output.generated.model_yaml.has_unit_tests` is `true` and `status` is not `error`:
+For each item where `output.generated.model_yaml.has_unit_tests` is `true`, `status` is not `error`, and `output.skipped != true`:
 
 **Prompt:** Read [references/unit-test-repair-agent-prompt.md](references/unit-test-repair-agent-prompt.md). Substitute `<schema.table>`, `<model_name>`, `<working-directory>`, and `<run_id>` before dispatching.
 
@@ -116,7 +127,7 @@ Launch one repair sub-agent per eligible item in parallel. Each sub-agent follow
 
 Derive `<model_name>` from item_id.
 
-If the item final status is `error`, revert any files the skill may have partially written:
+If the item final status is `error`, revert any files the skill may have partially written. Skip artifacts do not reach this step:
 
 ```bash
 git checkout -- dbt/models/marts/<model_name>.sql
@@ -132,12 +143,12 @@ git checkout -- dbt/snapshots/<snapshot_name>.sql
 
 Use `rm -f` instead of `git checkout` for newly created files with no prior version.
 
-If the item final status is not `error`, stage the generated dbt files, create a checkpoint commit, and push the current branch.
+If the item final status is not `error` and `output.skipped != true`, stage the generated dbt files, create a checkpoint commit, and push the current branch.
 
 ### Step 6 — Summarize
 
 1. Read each `.migration-runs/<schema.table>.<run_id>.json`.
-2. Write `.migration-runs/summary.<run_id>.json` with `{total, ok, partial, error, skipped}` counts and per-item status.
+2. Write `.migration-runs/summary.<run_id>.json` with `{total, ok, partial, error}` counts and per-item status.
 3. Present human-readable summary:
 
    ```text
@@ -154,7 +165,7 @@ If the item final status is not `error`, stage the generated dbt files, create a
 5. After successful item work is committed and pushed, always open or update a PR:
 
    ```bash
-   "${CLAUDE_PLUGIN_ROOT}/shared/scripts/stage-pr.sh" "<branch>" "<base-branch>" "<title>" ".migration-runs/pr-body.<run_id>.md"
+   "${CLAUDE_PLUGIN_ROOT}/scripts/stage-pr.sh" "<branch>" "<base-branch>" "<title>" ".migration-runs/pr-body.<run_id>.md"
    ```
 
    Report the PR number and URL. In manual mode, tell the human to review and merge the PR. In coordinator mode, return the PR metadata to the coordinator and do not ask any question.

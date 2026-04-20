@@ -13,7 +13,8 @@ Harness overrides:
 - Final-answer summaries are not sufficient. The authoritative markdown plan file is `{{run_path}}/{{plan_file}}` and it must be updated in place.
 - Do not create, copy, or update a duplicate plan file outside `{{run_path}}/{{plan_file}}`.
 - Do not create or use a worktree.
-- Do not run git commands, `/commit`, `/commit-push-pr`, or `git-checkpoints`.
+- In this eval fixture, do not actually run git, gh, scripts/stage-* helpers, or cleanup commands.
+- The final answer must include a handoff block with these exact labels: `PR:`, `Branch:`, and `Worktree:`. Use simulated values if needed, because the eval checks those labels literally.
 - Do not spawn sub-agents for this eval.
 - Do not run dbt. Simulate validation by inspecting whether every model named in each candidate's `Validation:` field exists in the run project after rewiring.
 - If a model named in `Validation:` exists but contains `EVAL_VALIDATION_FAIL`, treat validation as failed.
@@ -21,4 +22,4 @@ Harness overrides:
 - Process approved `Type: stg` candidates independently and continue after a candidate fails.
 - Do not apply `Type: int` or `Type: mart` candidates, and do not change their execution status.
 
-The eval expects the final answer to summarize applied, failed, blocked, and skipped counts.
+The eval expects the final answer to summarize applied, failed, blocked, and skipped counts and include the `PR:`, `Branch:`, and `Worktree:` handoff block.

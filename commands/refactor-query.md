@@ -12,6 +12,23 @@ argument-hint: "<schema.table> [schema.table ...]"
 
 Restructure stored procedure or view SQL into import/logical/final CTEs with proof-backed equivalence.
 
+## Arguments
+
+Manual mode:
+
+```text
+/refactor-query <object> [object ...]
+```
+
+Coordinator mode:
+
+```text
+/refactor-query <plan-file> <stage-id> <worktree-name> <base-branch> <object> [object ...]
+```
+
+In Claude Code slash commands, `$0` is the first user-supplied argument.
+Coordinator mode is active only when `$0` is a Markdown plan path.
+
 Use these status meanings:
 
 - `ok` — semantic review passed and executable `compare-sql` passed when compare was required
@@ -55,18 +72,12 @@ Use `TaskCreate` and `TaskUpdate` to show live progress. At the start of Step 2,
 1. Generate run slug:
    - **Single object (1 item):** use the object FQN directly — `refactor-<schema>-<name>` (lowercase, dots → hyphens). No LLM reasoning needed.
    - **Multiple objects (2+):** reason about the conversation context — what is the user trying to accomplish with this batch? Generate a short, descriptive slug that captures the intent (e.g. `refactor-silver-facts`, `refactor-customer-procs`). The full slug (including the `refactor-` prefix) must be lowercase, hyphen-separated, and at most 40 characters.
-2. Coordinator mode only happens when `$0` is a Markdown plan path. In coordinator mode, parse the invocation as:
-
-   ```text
-   /refactor-query <plan-file> <stage-id> <worktree-name> <base-branch> <object> [object ...]
-   ```
-
-   Read the matching `## Stage <stage-id>` checklist from `<plan-file>`. Use `$1` as the stage ID, `$2` as the worktree name, `$3` as the base branch, and `$4...` as the object arguments.
-3. Use `${CLAUDE_PLUGIN_ROOT}/shared/scripts/worktree.sh` for setup instead of `git-checkpoints`.
+2. Use the `## Arguments` contract above to determine whether this is manual mode or coordinator mode.
+3. Use `${CLAUDE_PLUGIN_ROOT}/scripts/stage-worktree.sh` for deterministic worktree setup.
    - Coordinator mode: read `Branch:`, `Worktree name:`, and `Base branch:` from the matching stage section, then run:
 
      ```bash
-     "${CLAUDE_PLUGIN_ROOT}/shared/scripts/worktree.sh" "<branch>" "<worktree-name>" "<base-branch>"
+     "${CLAUDE_PLUGIN_ROOT}/scripts/stage-worktree.sh" "<branch>" "<worktree-name>" "<base-branch>"
      ```
 
      Use the returned `worktree_path` for all reads, writes, commits, and sub-agent prompts.
@@ -152,7 +163,7 @@ If one table fails, continue processing the remaining tables and then write the 
 5. After successful item work is committed and pushed, always open or update a PR:
 
    ```bash
-   "${CLAUDE_PLUGIN_ROOT}/shared/scripts/stage-pr.sh" "<branch>" "<base-branch>" "<title>" ".migration-runs/pr-body.<run_id>.md"
+   "${CLAUDE_PLUGIN_ROOT}/scripts/stage-pr.sh" "<branch>" "<base-branch>" "<title>" ".migration-runs/pr-body.<run_id>.md"
    ```
 
    Report the PR number and URL. In manual mode, tell the human to review and merge the PR. In coordinator mode, return the PR metadata to the coordinator and do not ask any question.

@@ -127,7 +127,7 @@ function sectionBody(markdown, heading) {
 
 module.exports = (output, context) => {
   const projectPath = resolveProjectPath(context);
-  const fixturePath = context.vars.fixture_path;
+  const fixturePath = context.vars.canonical_fixture_path || context.vars.fixture_path;
   const planName = context.vars.plan_name;
   if (!planName) {
     return fail('plan_name var is required');

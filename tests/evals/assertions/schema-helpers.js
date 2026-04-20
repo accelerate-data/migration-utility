@@ -35,6 +35,18 @@ function normalizeTerms(value) {
     .filter(Boolean);
 }
 
+function containsDelimitedTerm(text, term) {
+  const normalizedTerm = String(term || '').trim().toLowerCase();
+  if (!normalizedTerm) {
+    return true;
+  }
+
+  const escapedTerm = normalizedTerm.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+  return new RegExp(`(^|[^a-z0-9])${escapedTerm}([^a-z0-9]|$)`).test(
+    String(text || '').toLowerCase(),
+  );
+}
+
 function resolveProjectPath(context) {
   const runPath = context?.vars?.run_path;
   if (!runPath) {
@@ -43,4 +55,9 @@ function resolveProjectPath(context) {
   return runPath;
 }
 
-module.exports = { normalizeTerms, extractJsonObject, resolveProjectPath };
+module.exports = {
+  containsDelimitedTerm,
+  normalizeTerms,
+  extractJsonObject,
+  resolveProjectPath,
+};

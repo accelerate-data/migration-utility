@@ -25,7 +25,7 @@ module.exports = (output, context) => {
   const fixturePath = resolveProjectPath(context);
   const table = context.vars.target_table;
   const requireConfig = String(context.vars.require_config || '').toLowerCase() === 'true';
-  const expectedModelPath = String(context.vars.expected_model_path || '').trim();
+  const expectedModelPaths = normalizeTerms(context.vars.expected_model_path);
   const expectedModelTerms = normalizeTerms(context.vars.expected_model_terms);
   const forbiddenModelTermsRaw = String(context.vars.forbidden_model_terms || '')
     .split(',')
@@ -130,10 +130,16 @@ module.exports = (output, context) => {
   }
 
   let modelFile = matchingFiles[0];
-  if (expectedModelPath) {
-    const expectedModelFile = path.resolve(dbtDir, expectedModelPath);
-    if (!fs.existsSync(expectedModelFile)) {
-      return { pass: false, score: 0, reason: `Expected model path '${expectedModelPath}' not found at ${expectedModelFile}` };
+  if (expectedModelPaths.length > 0) {
+    const expectedModelFile = expectedModelPaths
+      .map(modelPath => path.resolve(dbtDir, modelPath))
+      .find(candidate => fs.existsSync(candidate));
+    if (!expectedModelFile) {
+      return {
+        pass: false,
+        score: 0,
+        reason: `Expected one of model paths [${expectedModelPaths.join(', ')}] under ${dbtDir}`,
+      };
     }
     modelFile = expectedModelFile;
   } else {

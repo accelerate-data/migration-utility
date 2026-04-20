@@ -16,7 +16,7 @@ Harness overrides:
   `{{run_path}}/{{plan_file}}` and it must be updated in place.
 - Do not create, copy, or update a duplicate plan file outside `{{run_path}}/{{plan_file}}`.
 - Do not create or use a worktree.
-- Do not run git commands, `/commit`, `/commit-push-pr`, or `git-checkpoints`.
+- Do not run git commands.
 - Do not spawn sub-agents for this eval.
 - Do not run dbt. Simulate validation by inspecting whether every model named in `Validation:` exists in the run project after rewiring.
 - If a model named in `Validation:` exists but contains `EVAL_VALIDATION_FAIL`, treat validation as failed.

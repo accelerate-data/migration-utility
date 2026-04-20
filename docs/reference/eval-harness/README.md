@@ -65,7 +65,6 @@ Common runs:
 | `/generate-model` command orchestration | `npm run eval:cmd-generate-model` |
 | `/generate-tests` command orchestration | `npm run eval:cmd-generate-tests` |
 | `/status` command output | `npm run eval:cmd-status` |
-| `/commit-push-pr` failure handling | `npm run eval:cmd-commit-push-pr` |
 | Live database extraction flow | `npm run eval:oracle-live` or `npm run eval:mssql-live` |
 
 ### Narrowing to one targeted eval
@@ -99,8 +98,6 @@ The package scripts restore their fixture roots before and after each run.
 
 - most offline package scripts reset `tests/evals/fixtures/`
 - Oracle and live-DB scripts reset their package-local fixture roots
-- `eval:cmd-commit-push-pr` is text-only and does not restore fixture trees
-
 All eval scripts use `--no-cache` to force fresh LLM invocations.
 
 If you add a new fixture directory, commit or stage it before running the package script. The reset step uses `git clean`, so untracked fixture directories will be deleted.

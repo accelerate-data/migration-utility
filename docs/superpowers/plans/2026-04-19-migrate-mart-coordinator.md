@@ -4,7 +4,7 @@
 
 **Goal:** Add a customer-facing whole-scope `/migrate-mart-plan` and `/migrate-mart` workflow that plans, resumes, and coordinates mart migration through deterministic worktrees and stage PRs.
 
-**Architecture:** Introduce shared plugin scripts under `shared/scripts/` for deterministic worktree, PR, merge, and cleanup behavior. Update existing stage slash commands to use those helpers, remove human PR prompts, and support positional coordinator mode. Add planner/coordinator slash commands that use a Markdown operational plan under `docs/migration-plans/<slug>/README.md` as the source of truth.
+**Architecture:** Introduce shared plugin scripts under `scripts/` for deterministic worktree, PR, merge, and cleanup behavior. Update existing stage slash commands to use those helpers, remove human PR prompts, and support positional coordinator mode. Add planner/coordinator slash commands that use a Markdown operational plan under `docs/migration-plans/<slug>/README.md` as the source of truth.
 
 **Tech Stack:** Claude Code plugin command Markdown, shell helper scripts, existing `ad-migration` Python CLI, GitHub CLI, pytest shell-script tests, Promptfoo command evals.
 
@@ -59,11 +59,11 @@ markdownlint docs/design/migrate-mart-coordinator/README.md docs/superpowers/pla
 
 ### Workstream A: Shared Plugin Scripts
 
-- Create: `shared/scripts/worktree.sh`
-- Create: `shared/scripts/stage-pr.sh`
-- Create: `shared/scripts/stage-pr-merge.sh`
-- Create: `shared/scripts/stage-cleanup.sh`
-- Create: `shared/scripts/README.md`
+- Create: `scripts/stage-worktree.sh`
+- Create: `scripts/stage-pr.sh`
+- Create: `scripts/stage-pr-merge.sh`
+- Create: `scripts/stage-cleanup.sh`
+- Create: `scripts/README.md`
 - Modify: `tests/unit/worktree_script/test_worktree_script.py`
 - Create: `tests/unit/worktree_script/test_stage_pr_script.py`
 - Create: `tests/unit/worktree_script/test_stage_pr_merge_script.py`
@@ -78,7 +78,7 @@ markdownlint docs/design/migrate-mart-coordinator/README.md docs/superpowers/pla
 - Modify: `commands/refactor-query.md`
 - Modify: `commands/generate-model.md`
 - Modify: `commands/refactor-mart.md`
-- Modify: `commands/commit-push-pr.md`
+- Delete: `commands/commit-push-pr.md`
 
 ### Workstream C: Planner Command
 
@@ -125,12 +125,12 @@ markdownlint docs/design/migrate-mart-coordinator/README.md docs/superpowers/pla
 
 **Files:**
 
-- Create: `shared/scripts/worktree.sh`
-- Create: `shared/scripts/README.md`
+- Create: `scripts/stage-worktree.sh`
+- Create: `scripts/README.md`
 - Modify: `tests/unit/worktree_script/test_worktree_script.py`
 - Modify: `tests/unit/repo_structure/test_root_plugin_layout.py`
 
-- [ ] **Step 1: Update failing tests for the new shared worktree contract**
+- [x] **Step 1: Update failing tests for the new shared worktree contract**
 
   Change `tests/unit/worktree_script/test_worktree_script.py` so `SCRIPT_PATH` targets the new plugin shared script:
 
@@ -168,21 +168,21 @@ markdownlint docs/design/migrate-mart-coordinator/README.md docs/superpowers/pla
   assert payload["reused"] is True
   ```
 
-- [ ] **Step 2: Run the focused tests and verify they fail**
+- [x] **Step 2: Run the focused tests and verify they fail**
 
   ```bash
   cd lib && uv run pytest ../tests/unit/worktree_script/test_worktree_script.py -v
   ```
 
-  Expected: failures because `shared/scripts/worktree.sh` does not exist and the old helper accepts only one argument.
+  Expected: failures because `scripts/stage-worktree.sh` does not exist and the old helper accepts only one argument.
 
-- [ ] **Step 3: Implement `shared/scripts/worktree.sh`**
+- [x] **Step 3: Implement `scripts/stage-worktree.sh`**
 
-  Base it on `skills/git-checkpoints/scripts/worktree.sh`, but change the public contract:
+  Implement the plugin runtime worktree helper with an explicit three-argument public contract:
 
   ```bash
   if [[ $# -ne 3 ]]; then
-    echo '{"code":"USAGE","message":"Usage: worktree.sh <branch> <worktree-name> <base-branch>"}' >&2
+    echo '{"code":"USAGE","message":"Usage: stage-worktree.sh <branch> <worktree-name> <base-branch>"}' >&2
     exit 2
   fi
 
@@ -213,9 +213,9 @@ markdownlint docs/design/migrate-mart-coordinator/README.md docs/superpowers/pla
 
   Preserve bootstrap behavior from the current helper: `.env` symlink, optional `direnv allow`, `uv sync --extra dev`, `pyodbc/oracledb` verification, and eval npm bootstrap.
 
-- [ ] **Step 4: Document shared script behavior**
+- [x] **Step 4: Document shared script behavior**
 
-  Create `shared/scripts/README.md` with the customer-facing helper contracts:
+  Create `scripts/README.md` with the customer-facing helper contracts:
 
   ```md
   # Shared Plugin Scripts
@@ -228,7 +228,7 @@ markdownlint docs/design/migrate-mart-coordinator/README.md docs/superpowers/pla
   - `stage-cleanup.sh <branch> <worktree-path>`
   ```
 
-- [ ] **Step 5: Add repo-structure test coverage**
+- [x] **Step 5: Add repo-structure test coverage**
 
   In `tests/unit/repo_structure/test_root_plugin_layout.py`, assert these paths exist:
 
@@ -237,16 +237,16 @@ markdownlint docs/design/migrate-mart-coordinator/README.md docs/superpowers/pla
   assert (repo_root / "shared" / "scripts" / "README.md").exists()
   ```
 
-- [ ] **Step 6: Run focused tests and verify they pass**
+- [x] **Step 6: Run focused tests and verify they pass**
 
   ```bash
   cd lib && uv run pytest ../tests/unit/worktree_script/test_worktree_script.py ../tests/unit/repo_structure/test_root_plugin_layout.py -v
   ```
 
-- [ ] **Step 7: Commit Workstream A checkpoint**
+- [x] **Step 7: Commit Workstream A checkpoint**
 
   ```bash
-  git add shared/scripts/worktree.sh shared/scripts/README.md tests/unit/worktree_script/test_worktree_script.py tests/unit/repo_structure/test_root_plugin_layout.py
+  git add scripts/stage-worktree.sh scripts/README.md tests/unit/worktree_script/test_worktree_script.py tests/unit/repo_structure/test_root_plugin_layout.py
   git commit -m "feat: add deterministic plugin worktree helper"
   ```
 
@@ -254,16 +254,16 @@ markdownlint docs/design/migrate-mart-coordinator/README.md docs/superpowers/pla
 
 **Files:**
 
-- Create: `shared/scripts/stage-pr.sh`
-- Create: `shared/scripts/stage-pr-merge.sh`
-- Create: `shared/scripts/stage-cleanup.sh`
-- Modify: `shared/scripts/README.md`
+- Create: `scripts/stage-pr.sh`
+- Create: `scripts/stage-pr-merge.sh`
+- Create: `scripts/stage-cleanup.sh`
+- Modify: `scripts/README.md`
 - Create: `tests/unit/worktree_script/test_stage_pr_script.py`
 - Create: `tests/unit/worktree_script/test_stage_pr_merge_script.py`
 - Create: `tests/unit/worktree_script/test_stage_cleanup_script.py`
 - Modify: `tests/unit/repo_structure/test_root_plugin_layout.py`
 
-- [ ] **Step 1: Write failing tests for `stage-pr.sh`**
+- [x] **Step 1: Write failing tests for `stage-pr.sh`**
 
   Create `tests/unit/worktree_script/test_stage_pr_script.py` using the existing shell-shim style. Cover:
 
@@ -287,7 +287,7 @@ markdownlint docs/design/migrate-mart-coordinator/README.md docs/superpowers/pla
 
   The fake `gh` shim should record `gh pr list --head`, `gh pr create --base`, and `gh pr edit` calls.
 
-- [ ] **Step 2: Write failing tests for `stage-pr-merge.sh`**
+- [x] **Step 2: Write failing tests for `stage-pr-merge.sh`**
 
   Create `tests/unit/worktree_script/test_stage_pr_merge_script.py`. Cover:
 
@@ -307,7 +307,7 @@ markdownlint docs/design/migrate-mart-coordinator/README.md docs/superpowers/pla
   assert payload["status"] in {"merged", "already_merged"}
   ```
 
-- [ ] **Step 3: Write failing tests for `stage-cleanup.sh`**
+- [x] **Step 3: Write failing tests for `stage-cleanup.sh`**
 
   Create `tests/unit/worktree_script/test_stage_cleanup_script.py`. Cover idempotent cleanup:
 
@@ -319,7 +319,7 @@ markdownlint docs/design/migrate-mart-coordinator/README.md docs/superpowers/pla
       assert payload["branch"] == "feature/mart/040-profile"
   ```
 
-- [ ] **Step 4: Run tests and verify they fail**
+- [x] **Step 4: Run tests and verify they fail**
 
   ```bash
   cd lib && uv run pytest ../tests/unit/worktree_script/test_stage_pr_script.py ../tests/unit/worktree_script/test_stage_pr_merge_script.py ../tests/unit/worktree_script/test_stage_cleanup_script.py -v
@@ -327,7 +327,7 @@ markdownlint docs/design/migrate-mart-coordinator/README.md docs/superpowers/pla
 
   Expected: failures because the scripts do not exist.
 
-- [ ] **Step 5: Implement `stage-pr.sh`**
+- [x] **Step 5: Implement `stage-pr.sh`**
 
   Contract:
 
@@ -349,7 +349,7 @@ markdownlint docs/design/migrate-mart-coordinator/README.md docs/superpowers/pla
 
   Output JSON must include `status`, `branch`, `base_branch`, `pr_number`, and `pr_url`.
 
-- [ ] **Step 6: Implement `stage-pr-merge.sh`**
+- [x] **Step 6: Implement `stage-pr-merge.sh`**
 
   Contract:
 
@@ -365,7 +365,7 @@ markdownlint docs/design/migrate-mart-coordinator/README.md docs/superpowers/pla
   - Return `merge_conflict` when GitHub says the PR is not mergeable.
   - Merge with a normal non-force strategy when mergeable.
 
-- [ ] **Step 7: Implement `stage-cleanup.sh`**
+- [x] **Step 7: Implement `stage-cleanup.sh`**
 
   Contract:
 
@@ -380,20 +380,20 @@ markdownlint docs/design/migrate-mart-coordinator/README.md docs/superpowers/pla
   - Delete the remote branch when it exists.
   - Return `cleaned` or `already_clean` JSON.
 
-- [ ] **Step 8: Update repo-structure assertions**
+- [x] **Step 8: Update repo-structure assertions**
 
   In `tests/unit/repo_structure/test_root_plugin_layout.py`, assert all shared helper scripts exist and are executable.
 
-- [ ] **Step 9: Run focused tests and verify they pass**
+- [x] **Step 9: Run focused tests and verify they pass**
 
   ```bash
   cd lib && uv run pytest ../tests/unit/worktree_script ../tests/unit/repo_structure/test_root_plugin_layout.py -v
   ```
 
-- [ ] **Step 10: Commit Workstream A checkpoint**
+- [x] **Step 10: Commit Workstream A checkpoint**
 
   ```bash
-  git add shared/scripts/stage-pr.sh shared/scripts/stage-pr-merge.sh shared/scripts/stage-cleanup.sh shared/scripts/README.md tests/unit/worktree_script/test_stage_pr_script.py tests/unit/worktree_script/test_stage_pr_merge_script.py tests/unit/worktree_script/test_stage_cleanup_script.py tests/unit/repo_structure/test_root_plugin_layout.py
+  git add scripts/stage-pr.sh scripts/stage-pr-merge.sh scripts/stage-cleanup.sh scripts/README.md tests/unit/worktree_script/test_stage_pr_script.py tests/unit/worktree_script/test_stage_pr_merge_script.py tests/unit/worktree_script/test_stage_cleanup_script.py tests/unit/repo_structure/test_root_plugin_layout.py
   git commit -m "feat: add deterministic plugin PR helpers"
   ```
 
@@ -408,7 +408,7 @@ markdownlint docs/design/migrate-mart-coordinator/README.md docs/superpowers/pla
 - Modify: `commands/generate-model.md`
 - Modify: `commands/refactor-mart.md`
 
-- [ ] **Step 1: Add common coordinator-mode parsing text to each stage command**
+- [x] **Step 1: Add common coordinator-mode parsing text to each stage command**
 
   Insert an `Arguments` section near the top of each command:
 
@@ -438,15 +438,15 @@ markdownlint docs/design/migrate-mart-coordinator/README.md docs/superpowers/pla
   /refactor-mart <migrate-mart-plan-file> <stage-id> <worktree-name> <base-branch> <refactor-mart-plan-file> stg|int
   ```
 
-- [ ] **Step 2: Replace `git-checkpoints` setup text**
+- [x] **Step 2: Replace legacy worktree setup text**
 
-  In every stage command, replace the setup instruction that says to run `git-checkpoints` with deterministic helper instructions:
+  In every stage command, use deterministic helper instructions:
 
   ````md
-  In coordinator mode, do not invoke `git-checkpoints`. Read `Branch:` from the matching stage section, then run:
+  In coordinator mode, read `Branch:` from the matching stage section, then run:
 
   ```bash
-  "${CLAUDE_PLUGIN_ROOT}/shared/scripts/worktree.sh" "<branch>" "<worktree-name>" "<base-branch>"
+  "${CLAUDE_PLUGIN_ROOT}/scripts/stage-worktree.sh" "<branch>" "<worktree-name>" "<base-branch>"
   ```
 
   Use the returned `worktree_path` for all reads, writes, commits, and sub-agent prompts.
@@ -454,7 +454,7 @@ markdownlint docs/design/migrate-mart-coordinator/README.md docs/superpowers/pla
 
   Manual mode should derive a stable branch name from the existing run slug, detect the remote default branch, and call the same helper with that default branch as base.
 
-- [ ] **Step 3: Remove human PR prompts**
+- [x] **Step 3: Remove human PR prompts**
 
   In each command summary section, remove:
 
@@ -468,13 +468,13 @@ markdownlint docs/design/migrate-mart-coordinator/README.md docs/superpowers/pla
   After successful item work is committed and pushed, always open or update a PR:
 
   ```bash
-  "${CLAUDE_PLUGIN_ROOT}/shared/scripts/stage-pr.sh" "<branch>" "<base-branch>" "<title>" ".migration-runs/pr-body.<run_id>.md"
+  "${CLAUDE_PLUGIN_ROOT}/scripts/stage-pr.sh" "<branch>" "<base-branch>" "<title>" ".migration-runs/pr-body.<run_id>.md"
   ```
 
   Report the PR number and URL. In manual mode, tell the human to review and merge the PR. In coordinator mode, return the PR metadata to the coordinator and do not ask any question.
   ````
 
-- [ ] **Step 4: Add plan update ownership text**
+- [x] **Step 4: Add plan update ownership text**
 
   In coordinator mode, each command owns only its stage section in the Markdown plan while it runs:
 
@@ -482,52 +482,34 @@ markdownlint docs/design/migrate-mart-coordinator/README.md docs/superpowers/pla
   After each stage substep or item result, update only the matching `## Stage <stage-id>` checklist in `<plan-file>`, then commit the plan update with the artifact or catalog change that caused it.
   ```
 
-- [ ] **Step 5: Run markdownlint for command docs**
+- [x] **Step 5: Run markdownlint for command docs**
 
   ```bash
   markdownlint commands/scope-tables.md commands/profile-tables.md commands/generate-tests.md commands/refactor-query.md commands/generate-model.md commands/refactor-mart.md
   ```
 
-- [ ] **Step 6: Commit Workstream B checkpoint**
+- [x] **Step 6: Commit Workstream B checkpoint**
 
   ```bash
   git add commands/scope-tables.md commands/profile-tables.md commands/generate-tests.md commands/refactor-query.md commands/generate-model.md commands/refactor-mart.md
   git commit -m "feat: make stage commands coordinator-aware"
   ```
 
-## Task B2: Deprecate Commit-Push-PR As Stage Infrastructure
+## Task B2: Remove Legacy Commit-Push-PR Command
 
 **Files:**
 
-- Modify: `commands/commit-push-pr.md`
+- Delete: `commands/commit-push-pr.md`
 
-- [ ] **Step 1: Update `commit-push-pr` scope**
+- [x] **Step 1: Delete legacy PR command**
 
-  Change the description to make clear it is legacy/manual infrastructure, not used by coordinator-aware stage commands:
+  Delete `commands/commit-push-pr.md`. Coordinator-aware stage commands call `scripts/stage-pr.sh` directly, and manual stage runs use the same deterministic helper from the stage command.
 
-  ```md
-  description: Legacy helper for one-off commit, push, and PR creation. Coordinator-aware migration stage commands use `shared/scripts/stage-pr.sh` instead.
-  ```
-
-- [ ] **Step 2: Add guard text**
-
-  Add:
-
-  ```md
-  Do not call this command from `/migrate-mart`, `/migrate-mart-plan`, or coordinator-mode stage commands.
-  ```
-
-- [ ] **Step 3: Run markdownlint**
-
-  ```bash
-  markdownlint commands/commit-push-pr.md
-  ```
-
-- [ ] **Step 4: Commit Workstream B checkpoint**
+- [x] **Step 2: Commit Workstream B checkpoint**
 
   ```bash
   git add commands/commit-push-pr.md
-  git commit -m "docs: deprecate commit-push-pr for stage orchestration"
+  git commit -m "chore: remove legacy commit-push-pr command"
   ```
 
 ## Task C1: Migrate Mart Plan Command
@@ -537,11 +519,11 @@ markdownlint docs/design/migrate-mart-coordinator/README.md docs/superpowers/pla
 - Create: `commands/migrate-mart-plan.md`
 - Modify: `tests/unit/repo_structure/test_python_package_layout.py`
 
-- [ ] **Step 1: Add repo-structure failing test for new command**
+- [x] **Step 1: Add repo-structure failing test for new command**
 
   In `tests/unit/repo_structure/test_python_package_layout.py`, add `commands/migrate-mart-plan.md` to the command file expectations.
 
-- [ ] **Step 2: Run focused test and verify failure**
+- [x] **Step 2: Run focused test and verify failure**
 
   ```bash
   cd lib && uv run pytest ../tests/unit/repo_structure/test_python_package_layout.py -v
@@ -549,7 +531,7 @@ markdownlint docs/design/migrate-mart-coordinator/README.md docs/superpowers/pla
 
   Expected: failure because `commands/migrate-mart-plan.md` does not exist.
 
-- [ ] **Step 3: Create command frontmatter**
+- [x] **Step 3: Create command frontmatter**
 
   Create `commands/migrate-mart-plan.md`:
 
@@ -562,7 +544,7 @@ markdownlint docs/design/migrate-mart-coordinator/README.md docs/superpowers/pla
   ---
   ```
 
-- [ ] **Step 4: Add command guards**
+- [x] **Step 4: Add command guards**
 
   Required guard section:
 
@@ -577,19 +559,19 @@ markdownlint docs/design/migrate-mart-coordinator/README.md docs/superpowers/pla
   - If catalog ownership is unresolved after scoping, stop before writing an executable plan and tell the human which `ad-migration add-source-table`, `ad-migration add-seed-table`, or `ad-migration exclude-table` decisions are needed.
   ```
 
-- [ ] **Step 5: Add planner pipeline**
+- [x] **Step 5: Add planner pipeline**
 
   Include these exact steps:
 
   1. Detect default branch.
-  2. Create/reuse coordinator branch `feature/migrate-mart-<slug>` using `shared/scripts/worktree.sh`.
+  2. Create/reuse coordinator branch `feature/migrate-mart-<slug>` using `scripts/stage-worktree.sh`.
   3. Run fresh `migrate-util batch-plan`.
   4. If `scope_phase` has objects, run `/scope-tables` in coordinator mode as Stage 020, merge the returned PR, clean up the stage worktree, refresh coordinator branch, and rerun `batch-plan`.
   5. If source/seed/exclude decisions are unresolved, report required CLI decisions and stop.
   6. Write `docs/migration-plans/<slug>/README.md`.
   7. Commit the plan on the coordinator branch and open/update the final coordinator PR only when explicitly instructed by `/migrate-mart`, not during planning.
 
-- [ ] **Step 6: Add Markdown plan template**
+- [x] **Step 6: Add Markdown plan template**
 
   The command must write sections:
 
@@ -620,14 +602,14 @@ markdownlint docs/design/migrate-mart-coordinator/README.md docs/superpowers/pla
   - Command: `ad-migration replicate-source-tables --limit 10000 --yes`
   ```
 
-- [ ] **Step 7: Run markdownlint and repo-structure test**
+- [x] **Step 7: Run markdownlint and repo-structure test**
 
   ```bash
   markdownlint commands/migrate-mart-plan.md
   cd lib && uv run pytest ../tests/unit/repo_structure/test_python_package_layout.py -v
   ```
 
-- [ ] **Step 8: Commit Workstream C checkpoint**
+- [x] **Step 8: Commit Workstream C checkpoint**
 
   ```bash
   git add commands/migrate-mart-plan.md tests/unit/repo_structure/test_python_package_layout.py
@@ -641,17 +623,17 @@ markdownlint docs/design/migrate-mart-coordinator/README.md docs/superpowers/pla
 - Create: `commands/migrate-mart.md`
 - Modify: `tests/unit/repo_structure/test_python_package_layout.py`
 
-- [ ] **Step 1: Add repo-structure failing test**
+- [x] **Step 1: Add repo-structure failing test**
 
   Add `commands/migrate-mart.md` to command file expectations in `tests/unit/repo_structure/test_python_package_layout.py`.
 
-- [ ] **Step 2: Run focused test and verify failure**
+- [x] **Step 2: Run focused test and verify failure**
 
   ```bash
   cd lib && uv run pytest ../tests/unit/repo_structure/test_python_package_layout.py -v
   ```
 
-- [ ] **Step 3: Create command frontmatter**
+- [x] **Step 3: Create command frontmatter**
 
   ```md
   ---
@@ -662,7 +644,7 @@ markdownlint docs/design/migrate-mart-coordinator/README.md docs/superpowers/pla
   ---
   ```
 
-- [ ] **Step 4: Add coordinator guards**
+- [x] **Step 4: Add coordinator guards**
 
   Required guard section:
 
@@ -676,7 +658,7 @@ markdownlint docs/design/migrate-mart-coordinator/README.md docs/superpowers/pla
   - If plan metadata is malformed or missing, mark the coordinator blocked with `PLAN_INVALID` and stop.
   ```
 
-- [ ] **Step 5: Add resume algorithm**
+- [x] **Step 5: Add resume algorithm**
 
   Include exact behavior:
 
@@ -692,7 +674,7 @@ markdownlint docs/design/migrate-mart-coordinator/README.md docs/superpowers/pla
   5. After each merge, refresh coordinator worktree, rerun `migrate-util batch-plan`, update the Markdown plan, and commit the plan update.
   6. Launch exactly one subagent at a time.
 
-- [ ] **Step 6: Add stage execution table**
+- [x] **Step 6: Add stage execution table**
 
   The command should include this mapping:
 
@@ -710,7 +692,7 @@ markdownlint docs/design/migrate-mart-coordinator/README.md docs/superpowers/pla
   | 120 | recorded `/refactor-mart ... int` invocation |
   ```
 
-- [ ] **Step 7: Add final PR behavior**
+- [x] **Step 7: Add final PR behavior**
 
   State:
 
@@ -718,14 +700,14 @@ markdownlint docs/design/migrate-mart-coordinator/README.md docs/superpowers/pla
   When all stages are complete, open or update the final coordinator PR from the coordinator branch to the remote default branch. Do not merge the final coordinator PR. Report the URL for human review.
   ```
 
-- [ ] **Step 8: Run markdownlint and repo-structure test**
+- [x] **Step 8: Run markdownlint and repo-structure test**
 
   ```bash
   markdownlint commands/migrate-mart.md
   cd lib && uv run pytest ../tests/unit/repo_structure/test_python_package_layout.py -v
   ```
 
-- [ ] **Step 9: Commit Workstream D checkpoint**
+- [x] **Step 9: Commit Workstream D checkpoint**
 
   ```bash
   git add commands/migrate-mart.md tests/unit/repo_structure/test_python_package_layout.py
@@ -746,17 +728,17 @@ markdownlint docs/design/migrate-mart-coordinator/README.md docs/superpowers/pla
 - Modify: `tests/evals/assertions/check-command-summary.js`
 - Modify: all corresponding `tests/evals/packages/cmd-*/` YAML files.
 
-- [ ] **Step 1: Update eval prompts**
+- [x] **Step 1: Update eval prompts**
 
   Existing eval prompts tell agents not to use git/worktree/PR commands. Preserve that for fixture safety, but add an assertion target that the command spec contains automatic PR handoff language.
 
   Add to each prompt:
 
   ```text
-  In this eval fixture, do not actually run git, shared/scripts, gh, /commit-push-pr, or cleanup commands. Instead, verify the command spec would open/update a PR automatically in a real project and report that handoff in the final summary.
+  In this eval fixture, do not actually run git, scripts/stage-* helpers, gh, or cleanup commands. Instead, verify the command spec would open/update a PR automatically in a real project and report that handoff in the final summary.
   ```
 
-- [ ] **Step 2: Extend `check-command-summary.js`**
+- [x] **Step 2: Extend `check-command-summary.js`**
 
   Add optional expected terms:
 
@@ -769,7 +751,7 @@ markdownlint docs/design/migrate-mart-coordinator/README.md docs/superpowers/pla
   }
   ```
 
-- [ ] **Step 3: Update package YAML variables**
+- [x] **Step 3: Update package YAML variables**
 
   Add `expected_pr_terms` to one smoke case per command:
 
@@ -777,7 +759,7 @@ markdownlint docs/design/migrate-mart-coordinator/README.md docs/superpowers/pla
   expected_pr_terms: "PR,Branch,Worktree"
   ```
 
-- [ ] **Step 4: Run focused evals**
+- [x] **Step 4: Run focused evals**
 
   ```bash
   cd tests/evals && npm run eval:cmd-scope
@@ -788,7 +770,7 @@ markdownlint docs/design/migrate-mart-coordinator/README.md docs/superpowers/pla
   cd tests/evals && npm run eval:cmd-refactor-mart
   ```
 
-- [ ] **Step 5: Commit Workstream E checkpoint**
+- [x] **Step 5: Commit Workstream E checkpoint**
 
   ```bash
   git add tests/evals/prompts/cmd-scope.txt tests/evals/prompts/cmd-profile.txt tests/evals/prompts/cmd-generate-tests.txt tests/evals/prompts/cmd-refactor.txt tests/evals/prompts/cmd-generate-model.txt tests/evals/prompts/cmd-refactor-mart-stg.txt tests/evals/prompts/cmd-refactor-mart-int.txt tests/evals/assertions/check-command-summary.js tests/evals/packages/cmd-scope/cmd-scope.yaml tests/evals/packages/cmd-profile/cmd-profile.yaml tests/evals/packages/cmd-generate-tests/cmd-generate-tests.yaml tests/evals/packages/cmd-refactor/cmd-refactor.yaml tests/evals/packages/cmd-generate-model/cmd-generate-model.yaml tests/evals/packages/cmd-refactor-mart/cmd-refactor-mart.yaml
@@ -807,7 +789,7 @@ markdownlint docs/design/migrate-mart-coordinator/README.md docs/superpowers/pla
 - Create: `tests/evals/assertions/check-migrate-mart-resume.js`
 - Modify: `tests/evals/package.json`
 
-- [ ] **Step 1: Add plan assertion**
+- [x] **Step 1: Add plan assertion**
 
   `check-migrate-mart-plan.js` should verify output or written plan contains:
 
@@ -824,25 +806,25 @@ markdownlint docs/design/migrate-mart-coordinator/README.md docs/superpowers/pla
 
   Also verify `Row limit: 10000`, `Worktree name:`, `Base branch:`, and `Invocation:`.
 
-- [ ] **Step 2: Add coordinator resume assertion**
+- [x] **Step 2: Add coordinator resume assertion**
 
   `check-migrate-mart-resume.js` should verify the command chooses the first incomplete stage and does not accept or mention a start-stage argument.
 
-- [ ] **Step 3: Add prompt files**
+- [x] **Step 3: Add prompt files**
 
   `tests/evals/prompts/cmd-migrate-mart-plan.txt`:
 
   ```text
-  Run /migrate-mart-plan for {{plan_slug}} in {{run_path}}. Do not run real git, gh, or shared/scripts commands in this eval. Validate guards, render the intended plan, and report blocker state when applicable.
+  Run /migrate-mart-plan for {{plan_slug}} in {{run_path}}. Do not run real git, gh, or scripts commands in this eval. Validate guards, render the intended plan, and report blocker state when applicable.
   ```
 
   `tests/evals/prompts/cmd-migrate-mart.txt`:
 
   ```text
-  Run /migrate-mart {{plan_file}} in {{run_path}}. Do not run real git, gh, or shared/scripts commands in this eval. Validate the plan, identify the first incomplete stage, and report the intended next action.
+  Run /migrate-mart {{plan_file}} in {{run_path}}. Do not run real git, gh, or scripts commands in this eval. Validate the plan, identify the first incomplete stage, and report the intended next action.
   ```
 
-- [ ] **Step 4: Add package YAMLs**
+- [x] **Step 4: Add package YAMLs**
 
   Add scenarios:
 
@@ -854,7 +836,7 @@ markdownlint docs/design/migrate-mart-coordinator/README.md docs/superpowers/pla
   - malformed plan blocks coordinator
   - first incomplete stage resume
 
-- [ ] **Step 5: Add package scripts**
+- [x] **Step 5: Add package scripts**
 
   In `tests/evals/package.json`, add:
 
@@ -863,14 +845,14 @@ markdownlint docs/design/migrate-mart-coordinator/README.md docs/superpowers/pla
   "eval:cmd-migrate-mart": "promptfoo eval -c packages/cmd-migrate-mart/cmd-migrate-mart.yaml"
   ```
 
-- [ ] **Step 6: Run focused evals**
+- [x] **Step 6: Run focused evals**
 
   ```bash
   cd tests/evals && npm run eval:cmd-migrate-mart-plan
   cd tests/evals && npm run eval:cmd-migrate-mart
   ```
 
-- [ ] **Step 7: Commit Workstream E checkpoint**
+- [x] **Step 7: Commit Workstream E checkpoint**
 
   ```bash
   git add tests/evals/prompts/cmd-migrate-mart-plan.txt tests/evals/prompts/cmd-migrate-mart.txt tests/evals/packages/cmd-migrate-mart-plan/cmd-migrate-mart-plan.yaml tests/evals/packages/cmd-migrate-mart/cmd-migrate-mart.yaml tests/evals/assertions/check-migrate-mart-plan.js tests/evals/assertions/check-migrate-mart-resume.js tests/evals/package.json
@@ -889,12 +871,12 @@ markdownlint docs/design/migrate-mart-coordinator/README.md docs/superpowers/pla
 - Modify: `tests/unit/repo_structure/test_python_package_layout.py`
 - Modify: `tests/unit/repo_structure/test_wiki_public_contract.py`
 
-- [ ] **Step 1: Update repo-map**
+- [x] **Step 1: Update repo-map**
 
-  Add `shared/scripts/` to key directories and mention:
+  Add `scripts/` to key directories and mention:
 
   ```json
-  "shared/scripts/": "Plugin-owned deterministic helpers for customer-project worktrees, stage PRs, PR merges, and stage cleanup."
+  "scripts/": "Plugin-owned deterministic helpers for customer-project worktrees, stage PRs, PR merges, and stage cleanup."
   ```
 
   Add new command entries:
@@ -904,36 +886,36 @@ markdownlint docs/design/migrate-mart-coordinator/README.md docs/superpowers/pla
   "migrate_mart_command": "/migrate-mart <plan-file>"
   ```
 
-- [ ] **Step 2: Update wiki command list**
+- [x] **Step 2: Update wiki command list**
 
   In `docs/wiki/Home.md` and `docs/wiki/Command-Reference.md`, add `/migrate-mart-plan` and `/migrate-mart` as the whole-scope mart workflow.
 
   Keep internal helper paths out of public prose.
 
-- [ ] **Step 3: Update Git workflow wiki**
+- [x] **Step 3: Update Git workflow wiki**
 
   In `docs/wiki/Git-Workflow.md`, explain that stage commands now create/update PRs automatically and that `/migrate-mart` merges stage PRs into the coordinator branch, while final PR remains human-reviewed.
 
-- [ ] **Step 4: Update installation/prereq docs**
+- [x] **Step 4: Update installation/prereq docs**
 
   In `docs/wiki/Installation-and-Prerequisites.md`, update the batch command language that currently says commands ask before opening PRs.
 
-- [ ] **Step 5: Update structure tests**
+- [x] **Step 5: Update structure tests**
 
   Add assertions that:
 
-  - `repo-map.json` mentions `shared/scripts/`
+  - `repo-map.json` mentions `scripts/`
   - public wiki mentions `/migrate-mart-plan` and `/migrate-mart`
-  - public wiki does not expose `shared/scripts/` paths as user commands
+  - public wiki does not expose `scripts/` paths as user commands
 
-- [ ] **Step 6: Run docs tests and markdownlint**
+- [x] **Step 6: Run docs tests and markdownlint**
 
   ```bash
   cd lib && uv run pytest ../tests/unit/repo_structure -v
   markdownlint docs/wiki/Home.md docs/wiki/Command-Reference.md docs/wiki/Git-Workflow.md docs/wiki/Installation-and-Prerequisites.md repo-map.json
   ```
 
-- [ ] **Step 7: Commit Workstream E checkpoint**
+- [x] **Step 7: Commit Workstream E checkpoint**
 
   ```bash
   git add repo-map.json docs/wiki/Home.md docs/wiki/Command-Reference.md docs/wiki/Git-Workflow.md docs/wiki/Installation-and-Prerequisites.md tests/unit/repo_structure/test_python_package_layout.py tests/unit/repo_structure/test_wiki_public_contract.py
@@ -942,7 +924,7 @@ markdownlint docs/design/migrate-mart-coordinator/README.md docs/superpowers/pla
 
 ## Final Integration And Verification
 
-- [ ] **Step 1: Integrate workstreams in order**
+- [x] **Step 1: Integrate workstreams in order**
 
   Merge workstream branches into the integration branch in this order:
 
@@ -954,13 +936,20 @@ markdownlint docs/design/migrate-mart-coordinator/README.md docs/superpowers/pla
   feature/migrate-mart-evals-docs
   ```
 
-- [ ] **Step 2: Run focused unit tests**
+  Evidence: workstream commits are integrated on `feature/migrate-mart-coordinator`.
+
+- [x] **Step 2: Run focused unit tests**
 
   ```bash
   cd lib && uv run pytest ../tests/unit/worktree_script ../tests/unit/repo_structure -v
   ```
 
-- [ ] **Step 3: Run command evals**
+  Evidence:
+
+  - Earlier integration run: `56 passed in 26.36s`.
+  - Final focused run after review fixes: `59 passed in 28.89s`.
+
+- [x] **Step 3: Run command evals**
 
   ```bash
   cd tests/evals && npm run eval:cmd-scope
@@ -973,19 +962,36 @@ markdownlint docs/design/migrate-mart-coordinator/README.md docs/superpowers/pla
   cd tests/evals && npm run eval:cmd-migrate-mart
   ```
 
-- [ ] **Step 4: Run smoke eval**
+  Evidence:
+
+  - `npm run eval:cmd-generate-tests`: `eval-Cxo-2026-04-19T16:19:31`, 7 passed.
+  - `npm run eval:cmd-refactor`: `eval-6NB-2026-04-19T16:27:17`, 5 passed.
+  - `npm run eval:cmd-generate-model`: full run had one provider idle timeout; the failed `update-join` case passed in isolated rerun `eval-76X-2026-04-19T20:11:25`.
+  - `npm run eval:cmd-refactor-mart`: `eval-gpq-2026-04-19T22:29:08`, 5 passed.
+  - `npm run eval:cmd-migrate-mart-plan`: `eval-T7w-2026-04-19T22:31:01`, 5 passed.
+  - `npm run eval:cmd-migrate-mart-plan`: `eval-ty9-2026-04-20T00:52:19`, 5 passed after final review fixes.
+  - `npm run eval:cmd-migrate-mart`: `eval-IKZ-2026-04-19T22:35:54`, 2 passed.
+  - `npm run eval:cmd-migrate-mart`: `eval-FHg-2026-04-20T00:55:37` selected Stage 040 correctly; the run reported 1/2 because the resume assertion did not parse bold `**Status:**` metadata. The assertion was fixed and validated against the stored eval output without a clean rerun per user instruction.
+
+- [x] **Step 4: Run smoke eval**
 
   ```bash
   cd tests/evals && npm run eval:smoke
   ```
 
-- [ ] **Step 5: Run markdownlint**
+  Evidence: `npm run eval:smoke` completed with all visible package smoke evals passing; final evals `eval-tVf-2026-04-19T23:10:10` and `eval-x9v-2026-04-19T23:11:29` each passed 1/1.
+
+  Final smoke rerun was intentionally skipped per user instruction after the changed eval packages were covered by focused checks.
+
+- [x] **Step 5: Run markdownlint**
 
   ```bash
   markdownlint commands/*.md docs/design/migrate-mart-coordinator/README.md docs/superpowers/plans/2026-04-19-migrate-mart-coordinator.md docs/wiki/Home.md docs/wiki/Command-Reference.md docs/wiki/Git-Workflow.md docs/wiki/Installation-and-Prerequisites.md
   ```
 
-- [ ] **Step 6: Final subagent review**
+  Evidence: command completed with no output. Final focused markdownlint also passed for the touched command, wiki, and plan files.
+
+- [x] **Step 6: Final subagent review**
 
   Dispatch a final reviewer with:
 
@@ -993,6 +999,10 @@ markdownlint docs/design/migrate-mart-coordinator/README.md docs/superpowers/pla
   Review the implementation against docs/design/migrate-mart-coordinator/README.md and docs/superpowers/plans/2026-04-19-migrate-mart-coordinator.md. Focus on missing plan requirements, unsafe git/PR behavior, resume gaps, and command/eval drift. Return findings by severity with file references.
   ```
 
-- [ ] **Step 7: Prepare development branch completion**
+  Evidence: final reviews found PR safety, resume, plan-shape, eval coverage, and helper-script issues. Fixes were applied for safe push behavior, merge head matching, failed-check handling, deterministic cleanup remote checks, stable pre-execution stage validation, concrete plan metadata, smoke package inclusion, and repo-map coverage.
+
+- [x] **Step 7: Prepare development branch completion**
 
   Use `finishing-a-development-branch` after all tests and reviews pass.
+
+  Evidence: final verification focused on files changed after the earlier full eval pass and avoided rerunning smoke per user instruction.

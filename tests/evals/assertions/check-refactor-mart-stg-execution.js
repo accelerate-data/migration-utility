@@ -1,6 +1,10 @@
 const fs = require('fs');
 const path = require('path');
-const { normalizeTerms, resolveProjectPath } = require('./schema-helpers');
+const {
+  containsDelimitedTerm,
+  normalizeTerms,
+  resolveProjectPath,
+} = require('./schema-helpers');
 
 function fail(reason) {
   return { pass: false, score: 0, reason };
@@ -140,6 +144,11 @@ module.exports = (output, context) => {
   for (const term of normalizeTerms(context.vars.expected_output_terms)) {
     if (!outputText.includes(term)) {
       return fail(`Final output missing expected term '${term}'`);
+    }
+  }
+  for (const term of normalizeTerms(context.vars.expected_pr_terms)) {
+    if (!containsDelimitedTerm(outputText, term)) {
+      return fail(`Final output missing expected PR handoff term '${term}'`);
     }
   }
 

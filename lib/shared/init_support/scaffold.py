@@ -47,7 +47,7 @@ GIT_WORKFLOW_MD = """\
 
 Worktree base path: `{worktree_base}`
 
-Batch commands create or reuse worktrees automatically through the internal `git-checkpoints` helper.
+Batch commands create or reuse worktrees automatically through deterministic plugin runtime helpers.
 
 Commands create worktrees at `<base>/<run-slug>` where `<run-slug>` is generated from the command name and table names (e.g. `feature/scope-dimcustomer-dimproduct`).
 

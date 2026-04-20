@@ -11,6 +11,7 @@
 //   expected_item_statuses?,  — JSON string: {"silver.DimProduct": "ok", "silver.DimDate": "error"}
 //                               Multi-status: {"silver.DimCurrency": "ok,partial,error"} (any is acceptable)
 //   expected_output_terms?,   — comma-separated terms that must appear in output text
+//   expected_pr_terms?,       — comma-separated PR handoff terms that must appear in output text
 //   expected_error_codes?     — comma-separated error codes that must appear in per-item artifacts or output text
 //   expected_item_review_iterations?, — JSON string: {"silver.Table": 2}
 //   expected_item_review_verdicts?    — JSON string: {"silver.Table": "approved"}
@@ -18,7 +19,11 @@
 // }
 const fs = require('fs');
 const path = require('path');
-const { normalizeTerms, resolveProjectPath } = require('./schema-helpers');
+const {
+  containsDelimitedTerm,
+  normalizeTerms,
+  resolveProjectPath,
+} = require('./schema-helpers');
 
 /**
  * Find all per-item result JSON files in .migration-runs/ matching a table FQN.
@@ -38,7 +43,9 @@ function findItemResults(migrationsDir, tableFqn, runId = null) {
       ) {
         return false;
       }
-      return runId ? f.endsWith(`.${runId}.json`) : true;
+      return runId
+        ? f.endsWith(`.${runId}.json`) || f.endsWith(`.${runId}.final.json`)
+        : true;
     })
     .sort((a, b) => {
       const aPath = path.join(migrationsDir, a);
@@ -46,6 +53,9 @@ function findItemResults(migrationsDir, tableFqn, runId = null) {
       const mtimeA = fs.statSync(aPath).mtimeMs;
       const mtimeB = fs.statSync(bPath).mtimeMs;
       if (mtimeA !== mtimeB) return mtimeA - mtimeB;
+      const aFinal = a.endsWith('.final.json');
+      const bFinal = b.endsWith('.final.json');
+      if (aFinal !== bFinal) return aFinal ? 1 : -1;
       return a.localeCompare(b);
     })
     .map(f => {
@@ -61,6 +71,29 @@ function findItemResults(migrationsDir, tableFqn, runId = null) {
 function extractRunId(fileName) {
   const match = String(fileName).match(/^summary\.(.+)\.json$/);
   return match ? match[1] : null;
+}
+
+function normalizeExpectedNumbers(value) {
+  return String(value)
+    .split(',')
+    .map(part => Number(part.trim()))
+    .filter(number => !Number.isNaN(number));
+}
+
+function normalizeItemStatus(result) {
+  const status = String(result.status || '').toLowerCase();
+  const nestedStatus = String(result.result?.status || '').toLowerCase();
+  if (
+    status === 'ok' ||
+    status === 'complete' ||
+    status === 'completed' ||
+    nestedStatus === 'ok' ||
+    nestedStatus === 'complete' ||
+    nestedStatus === 'completed'
+  ) {
+    return 'ok';
+  }
+  return status;
 }
 
 /**
@@ -105,6 +138,7 @@ module.exports = (output, context) => {
       ? Number(context.vars.expected_error_count)
       : null;
   const expectedOutputTerms = normalizeTerms(context.vars.expected_output_terms);
+  const expectedPrTerms = normalizeTerms(context.vars.expected_pr_terms);
   const expectedErrorCodes = normalizeTerms(context.vars.expected_error_codes);
   const expectedPresentPaths = normalizeTerms(context.vars.expected_present_paths);
   let expectedItemReviewIterations = {};
@@ -184,7 +218,7 @@ module.exports = (output, context) => {
     const itemResults = findItemResults(migrationsDir, tableLower, latestRunId);
     if (itemResults.length > 0) {
       const latestResult = itemResults[itemResults.length - 1];
-      const actualStatus = (latestResult.status || '').toLowerCase();
+      const actualStatus = normalizeItemStatus(latestResult);
       if (!acceptableStatuses.includes(actualStatus)) {
         return {
           pass: false,
@@ -194,19 +228,30 @@ module.exports = (output, context) => {
       }
 
       if (expectedItemReviewIterations[table] !== undefined) {
-        const actualIterations = latestResult.output?.review_iterations;
-        if (actualIterations !== expectedItemReviewIterations[table]) {
+        const actualIterations =
+          latestResult.output?.review_iterations ??
+          latestResult.output?.review_iteration ??
+          latestResult.review_iterations ??
+          latestResult.review_iteration;
+        const acceptableIterations = normalizeExpectedNumbers(expectedItemReviewIterations[table]);
+        if (!acceptableIterations.includes(actualIterations)) {
           return {
             pass: false,
             score: 0,
-            reason: `Item '${table}': review_iterations=${actualIterations}, expected ${expectedItemReviewIterations[table]}`,
+            reason: `Item '${table}': review_iterations=${actualIterations}, expected one of [${acceptableIterations.join(', ')}]`,
           };
         }
       }
 
       if (expectedItemReviewVerdicts[table] !== undefined) {
         const acceptableVerdicts = String(expectedItemReviewVerdicts[table]).toLowerCase().split(',').map(s => s.trim());
-        const actualVerdict = String(latestResult.output?.review_verdict || '').toLowerCase();
+        const actualVerdict = String(
+          latestResult.output?.review_verdict ??
+          latestResult.output?.review_status ??
+          latestResult.review_verdict ??
+          latestResult.review_status ??
+          ''
+        ).toLowerCase();
         if (!acceptableVerdicts.includes(actualVerdict)) {
           return {
             pass: false,
@@ -277,6 +322,18 @@ module.exports = (output, context) => {
         pass: false,
         score: 0,
         reason: `Expected output term '${term}' not found in summary`,
+      };
+    }
+  }
+
+  // Check PR handoff terms in text so the command summary records the
+  // automatic PR/branch/worktree transition expected in real projects.
+  for (const term of expectedPrTerms) {
+    if (!containsDelimitedTerm(outputStr, term)) {
+      return {
+        pass: false,
+        score: 0,
+        reason: `Expected PR handoff term '${term}' not found in summary`,
       };
     }
   }

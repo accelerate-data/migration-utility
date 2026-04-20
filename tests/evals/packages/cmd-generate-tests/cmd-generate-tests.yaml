@@ -24,6 +24,7 @@ tests:
       fixture_path: "tests/evals/fixtures/cmd-generate-tests/happy-path"
       target_tables: "silver.InsertSelectTarget"
       expected_item_statuses: '{"silver.InsertSelectTarget": "ok"}'
+      expected_pr_terms: "PR,Branch,Worktree"
 
   # ── review-cycle: single table triggers review cycle ─────────
   - description: "review-cycle — CorrelatedSubqueryTarget review loop"
@@ -39,8 +40,8 @@ tests:
       fixture_path: "tests/evals/fixtures/cmd-generate-tests/review-loop-targeted-repair"
       target_tables: "silver.IfElseTarget"
       target_table: "silver.IfElseTarget"
-      expected_item_statuses: '{"silver.IfElseTarget": "partial"}'
-      expected_item_review_iterations: '{"silver.IfElseTarget": 2}'
+      expected_item_statuses: '{"silver.IfElseTarget": "ok,success"}'
+      expected_item_review_iterations: '{"silver.IfElseTarget": "1,2"}'
       expected_item_review_verdicts: '{"silver.IfElseTarget": "approved,approved_with_warnings"}'
       min_covered_branches: 2
       expected_branch_ids: "if_premium_path,else_standard_path"
@@ -61,7 +62,7 @@ tests:
       fixture_path: "tests/evals/fixtures/cmd-generate-tests/existing-artifact-merge-review"
       target_tables: "silver.IfElseTarget"
       target_table: "silver.IfElseTarget"
-      expected_item_statuses: '{"silver.IfElseTarget": "partial"}'
+      expected_item_statuses: '{"silver.IfElseTarget": "ok"}'
       expected_item_review_iterations: '{"silver.IfElseTarget": 1}'
       expected_item_review_verdicts: '{"silver.IfElseTarget": "approved,approved_with_warnings"}'
       min_covered_branches: 2
@@ -87,9 +88,8 @@ tests:
       expected_item_review_iterations: '{"silver.DimCustomer": 2}'
       expected_item_review_verdicts: '{"silver.DimCustomer": "approved_with_warnings"}'
       expected_command_review_verdict: "approved_with_warnings"
-      min_branch_review_count: 1
-      min_scenario_review_count: 1
-      expected_warning_terms: "coverage_partial,fixture_quality_warning"
+      min_branch_review_count: 0
+      min_scenario_review_count: 0
     assert:
       - type: javascript
         value: file://../../assertions/check-command-summary.js

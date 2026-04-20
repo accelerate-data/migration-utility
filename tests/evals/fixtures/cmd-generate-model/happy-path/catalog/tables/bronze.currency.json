@@ -1,0 +1,47 @@
+{
+  "schema": "bronze",
+  "name": "Currency",
+  "columns": [
+    {
+      "name": "CurrencyCode",
+      "sql_type": "NCHAR(3)",
+      "is_nullable": false,
+      "is_identity": false
+    },
+    {
+      "name": "Name",
+      "sql_type": "NVARCHAR(50)",
+      "is_nullable": false,
+      "is_identity": false
+    },
+    {
+      "name": "ModifiedDate",
+      "sql_type": "DATETIME",
+      "is_nullable": false,
+      "is_identity": false
+    }
+  ],
+  "primary_keys": [
+    "CurrencyCode"
+  ],
+  "unique_indexes": [],
+  "foreign_keys": [],
+  "auto_increment_columns": [],
+  "change_capture": null,
+  "sensitivity_classifications": [],
+  "is_seed": true,
+  "referenced_by": {
+    "procedures": {
+      "in_scope": [],
+      "out_of_scope": []
+    },
+    "views": {
+      "in_scope": [],
+      "out_of_scope": []
+    },
+    "functions": {
+      "in_scope": [],
+      "out_of_scope": []
+    }
+  }
+}

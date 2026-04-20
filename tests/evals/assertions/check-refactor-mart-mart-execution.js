@@ -1,6 +1,10 @@
 const fs = require('fs');
 const path = require('path');
-const { normalizeTerms, resolveProjectPath } = require('./schema-helpers');
+const {
+  containsDelimitedTerm,
+  normalizeTerms,
+  resolveProjectPath,
+} = require('./schema-helpers');
 
 function fail(reason) {
   return { pass: false, score: 0, reason };
@@ -210,8 +214,9 @@ module.exports = (output, context) => {
 
   const repoRoot = path.resolve(__dirname, '..', '..', '..');
   const runRoot = path.resolve(repoRoot, resolveProjectPath(context));
-  const fixtureRoot = context.vars.fixture_path
-    ? path.resolve(repoRoot, context.vars.fixture_path)
+  const fixturePath = context.vars.canonical_fixture_path || context.vars.fixture_path;
+  const fixtureRoot = fixturePath
+    ? path.resolve(repoRoot, fixturePath)
     : null;
   const planPath = path.join(runRoot, context.vars.plan_file);
   if (!fs.existsSync(planPath)) {
@@ -222,6 +227,11 @@ module.exports = (output, context) => {
   for (const term of normalizeTerms(context.vars.expected_output_terms)) {
     if (!outputText.includes(term)) {
       return fail(`Final output missing expected term '${term}'`);
+    }
+  }
+  for (const term of normalizeTerms(context.vars.expected_pr_terms)) {
+    if (!containsDelimitedTerm(outputText, term)) {
+      return fail(`Final output missing expected PR handoff term '${term}'`);
     }
   }
 
