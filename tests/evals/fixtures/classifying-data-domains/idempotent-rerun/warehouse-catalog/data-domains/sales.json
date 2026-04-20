@@ -1,0 +1,24 @@
+{
+  "schema_version": 1,
+  "domain": "Sales",
+  "slug": "sales",
+  "status": "candidate",
+  "description": "Sales order lifecycle and revenue fact tables.",
+  "confidence": "high",
+  "objects": {
+    "tables": ["sales.fact_sales_orders"],
+    "views": []
+  },
+  "setup_source_candidates": {
+    "schemas": ["sales"],
+    "tables": ["sales.fact_sales_orders"]
+  },
+  "dependencies": {
+    "upstream_domains": [],
+    "downstream_domains": []
+  },
+  "ambiguities": [],
+  "rationale": [
+    "The fact_sales_orders name, order keys, sales representative key, and net sales amount identify Sales ownership."
+  ]
+}

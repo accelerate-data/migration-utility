@@ -37,6 +37,66 @@ test('check-ambiguity-stop rejects weak ownership wording', () => {
   assert.match(result.reason, /human ownership decision/);
 });
 
+test('check-ambiguity-stop accepts explicit choose wording for ownership decisions', () => {
+  const runRoot = fs.mkdtempSync(path.join(os.tmpdir(), 'ambiguity-run-'));
+  try {
+    const result = checkAmbiguityStop(
+      'This ownership is ambiguous. Which domain should own shared.opportunity_cases? Option A: Sales. Option B: Operations. Please choose the primary domain before persistence.',
+      {
+        vars: {
+          run_path: runRoot,
+          expected_ownership_options: 'sales,operations',
+          unchanged_paths: 'warehouse-catalog',
+        },
+      },
+    );
+
+    assert.equal(result.pass, true);
+  } finally {
+    fs.rmSync(runRoot, { recursive: true, force: true });
+  }
+});
+
+test('check-ambiguity-stop accepts explicit confirmation wording for ownership choices', () => {
+  const runRoot = fs.mkdtempSync(path.join(os.tmpdir(), 'ambiguity-run-'));
+  try {
+    const result = checkAmbiguityStop(
+      'This table has competing ownership. Which domain should own shared.opportunity_cases? 1. Sales recommended. 2. Operations. Please confirm your choice before persistence.',
+      {
+        vars: {
+          run_path: runRoot,
+          expected_ownership_options: 'sales,operations',
+          unchanged_paths: 'warehouse-catalog',
+        },
+      },
+    );
+
+    assert.equal(result.pass, true);
+  } finally {
+    fs.rmSync(runRoot, { recursive: true, force: true });
+  }
+});
+
+test('check-ambiguity-stop accepts own wording for ownership choices', () => {
+  const runRoot = fs.mkdtempSync(path.join(os.tmpdir(), 'ambiguity-run-'));
+  try {
+    const result = checkAmbiguityStop(
+      'Which domain should own shared.opportunity_cases? 1. Sales recommended. 2. Operations. Choose Sales or Operations before persistence.',
+      {
+        vars: {
+          run_path: runRoot,
+          expected_ownership_options: 'sales,operations',
+          unchanged_paths: 'warehouse-catalog',
+        },
+      },
+    );
+
+    assert.equal(result.pass, true);
+  } finally {
+    fs.rmSync(runRoot, { recursive: true, force: true });
+  }
+});
+
 test('check-ambiguity-stop requires recommended ownership option first', () => {
   const result = checkAmbiguityStop(
     'This ownership is ambiguous. Options are Operations or Sales. You need to make the ownership decision before persistence.',

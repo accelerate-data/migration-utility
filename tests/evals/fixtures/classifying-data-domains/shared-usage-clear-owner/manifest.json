@@ -1,0 +1,18 @@
+{
+  "runtime": {
+    "source": {
+      "technology": "sql_server",
+      "dialect": "tsql",
+      "connection": {
+        "host": "localhost",
+        "port": "1433",
+        "database": "MigrationTest",
+        "user": "sa",
+        "password_env": "SA_PASSWORD"
+      }
+    }
+  },
+  "extraction": {
+    "schemas": ["sales", "finance"]
+  }
+}

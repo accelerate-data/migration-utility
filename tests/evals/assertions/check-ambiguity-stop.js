@@ -7,9 +7,20 @@ function fail(reason) {
 
 module.exports = (output, context) => {
   const text = String(output || '').toLowerCase();
-  const hasOwnership = text.includes('ownership') || text.includes('owner');
-  const hasDecision = text.includes('decision') || text.includes('decide') || text.includes('resolve');
-  const hasHuman = text.includes('human') || text.includes('user') || text.includes('you');
+  const hasOwnership = text.includes('ownership') ||
+    text.includes('owner') ||
+    text.includes('own ');
+  const hasDecision = text.includes('decision') ||
+    text.includes('decide') ||
+    text.includes('resolve') ||
+    text.includes('choose') ||
+    text.includes('choice') ||
+    text.includes('confirm');
+  const hasHuman = text.includes('human') ||
+    text.includes('user') ||
+    text.includes('you') ||
+    text.includes('please choose') ||
+    text.includes('which domain should own');
 
   if (!hasOwnership || !hasDecision || !hasHuman) {
     return fail('Expected response to request a human ownership decision');

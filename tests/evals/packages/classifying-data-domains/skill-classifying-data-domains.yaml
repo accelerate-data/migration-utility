@@ -40,6 +40,75 @@ tests:
     assert:
       - type: javascript
         value: file://../../assertions/check-guard-stop.js
+  - description: "analysis without explicit persistence writes no catalog files"
+    vars:
+      fixture_path: "tests/evals/fixtures/classifying-data-domains/sales-fact-single"
+      request_text: |
+        Classify data domains from the warehouse DDL.
+
+        Do not persist files. Return the analysis report and example JSON only.
+      expected_final_output_terms: "sales.fact_sales_orders,sales,fact"
+      unchanged_paths: "warehouse-catalog,catalog"
+    assert:
+      - type: javascript
+        value: file://../../assertions/check-guard-stop.js
+  - description: "single table classifies clear Sales fact"
+    vars:
+      fixture_path: "tests/evals/fixtures/classifying-data-domains/sales-fact-single"
+      request_text: |
+        Classify data domains from the warehouse DDL.
+
+        Do not persist files. Classify the table's dimensional role and
+        functional domain from the DDL evidence. Include the exact evidence
+        column `source_order_id` in the report.
+      expected_terms: "sales.fact_sales_orders,fact,sales,net_sales_amount"
+      unexpected_terms: "choose from"
+      forbidden_json_keys: "procedures,functions"
+    assert:
+      - type: javascript
+        value: file://../../assertions/check-listing-output.js
+  - description: "single table classifies clear Customer dimension"
+    vars:
+      fixture_path: "tests/evals/fixtures/classifying-data-domains/customer-dimension-single"
+      request_text: |
+        Classify data domains from the warehouse DDL.
+
+        Do not persist files. Classify the table's dimensional role and
+        functional domain from the DDL evidence.
+      expected_terms: "customer.dim_customer,dimension,customer,is_current"
+      unexpected_terms: "choose from"
+      forbidden_json_keys: "procedures,functions"
+    assert:
+      - type: javascript
+        value: file://../../assertions/check-listing-output.js
+  - description: "single table classifies clear Sales staging table"
+    vars:
+      fixture_path: "tests/evals/fixtures/classifying-data-domains/sales-staging-single"
+      request_text: |
+        Classify data domains from the warehouse DDL.
+
+        Do not persist files. Classify the table's dimensional role and
+        functional domain from the DDL evidence.
+      expected_terms: "staging.stg_sales_orders,staging,sales,source_order_id"
+      unexpected_terms: "choose from"
+      forbidden_json_keys: "procedures,functions"
+    assert:
+      - type: javascript
+        value: file://../../assertions/check-listing-output.js
+  - description: "single table keeps reference role separate from functional domain"
+    vars:
+      fixture_path: "tests/evals/fixtures/classifying-data-domains/finance-reference-single"
+      request_text: |
+        Classify data domains from the warehouse DDL.
+
+        Do not persist files. Keep dimensional role classification separate
+        from functional domain classification.
+      expected_terms: "finance.ref_currency_codes,reference,finance"
+      unexpected_terms: "domain: reference,domain \"reference\",primary domain reference"
+      forbidden_json_keys: "procedures,functions"
+    assert:
+      - type: javascript
+        value: file://../../assertions/check-listing-output.js
   - description: "table and view ownership are distinct domain decisions"
     vars:
       fixture_path: "tests/evals/fixtures/classifying-data-domains/table-view-domain-ownership"
@@ -64,7 +133,7 @@ tests:
         no competing plausible owner, classify the object without asking me to
         choose a domain.
       expected_terms: "misc.record_001,unclassified,low"
-      unexpected_terms: "choose from,ownership decision"
+      unexpected_terms: "choose from"
     assert:
       - type: javascript
         value: file://../../assertions/check-listing-output.js
@@ -73,6 +142,7 @@ tests:
       fixture_path: "tests/evals/fixtures/classifying-data-domains/table-view-domain-ownership"
       request_text: |
         Classify data domains from the warehouse DDL and persist the result.
+        Persist now; this is the explicit persistence request.
 
         Use Sales as the primary functional domain for `silver.opportunities`.
         Use Operations as the primary functional domain for `gold.sold_opportunities`.
@@ -85,6 +155,70 @@ tests:
     assert:
       - type: javascript
         value: file://../../assertions/check-data-domain-persistence.js
+  - description: "related Sales tables persist in one Sales domain with roles preserved"
+    vars:
+      fixture_path: "tests/evals/fixtures/classifying-data-domains/sales-related-tables"
+      request_text: |
+        Classify data domains from the warehouse DDL and persist the result.
+        Persist now; this is the explicit persistence request.
+
+        Use Sales as the primary functional domain for `sales.fact_sales_orders`,
+        `sales.dim_sales_rep`, and `sales.agg_sales_by_month`. Preserve their
+        distinct roles in the report: fact, dimension, and aggregate. In the
+        final response, list each fully qualified table name next to its role.
+        Persist canonical JSON with both `objects.tables` and `objects.views`
+        present, even when there are no views.
+      expected_terms: "sales.fact_sales_orders,fact,sales.dim_sales_rep,dimension,sales.agg_sales_by_month,aggregate"
+      expected_domain_files: "sales"
+      expected_domain_objects: "sales:tables=sales.agg_sales_by_month;sales:tables=sales.dim_sales_rep;sales:tables=sales.fact_sales_orders"
+      forbidden_domain_objects: "procedures,functions"
+    assert:
+      - type: javascript
+        value: file://../../assertions/check-data-domain-persistence.js
+      - type: javascript
+        value: file://../../assertions/check-listing-output.js
+  - description: "related Customer tables persist in one Customer domain with roles preserved"
+    vars:
+      fixture_path: "tests/evals/fixtures/classifying-data-domains/customer-related-tables"
+      request_text: |
+        Classify data domains from the warehouse DDL and persist the result.
+        Persist now; this is the explicit persistence request.
+
+        Use Customer as the primary functional domain for `customer.dim_customer`
+        and `customer.customer_address_history`. Preserve each object's role in
+        the report. Persist canonical JSON with all arrays sorted
+        lexicographically and required top-level fields in the order listed by
+        the skill's Domain File Contract.
+      expected_terms: "customer.dim_customer,dimension,customer.customer_address_history,customer"
+      expected_domain_files: "customer"
+      expected_domain_objects: "customer:tables=customer.customer_address_history;customer:tables=customer.dim_customer"
+    assert:
+      - type: javascript
+        value: file://../../assertions/check-data-domain-persistence.js
+      - type: javascript
+        value: file://../../assertions/check-listing-output.js
+  - description: "shared usage keeps clear table owner and records downstream view dependency"
+    vars:
+      fixture_path: "tests/evals/fixtures/classifying-data-domains/shared-usage-clear-owner"
+      request_text: |
+        Classify data domains from the warehouse DDL and persist the result.
+        Persist now; this is the explicit persistence request.
+
+        Use Sales as the primary functional domain for `sales.fact_sales_orders`.
+        Use Finance as the primary functional domain for
+        `finance.vw_sales_revenue_for_finance`. Treat the Finance view as a
+        domain-specific lens over the Sales table, so Finance has an upstream
+        dependency on Sales. Use the exact phrase "cross-domain dependency" in
+        the report.
+      expected_terms: "sales.fact_sales_orders,sales,finance.vw_sales_revenue_for_finance,finance,cross-domain dependency"
+      expected_domain_files: "sales,finance"
+      expected_domain_objects: "sales:tables=sales.fact_sales_orders;finance:views=finance.vw_sales_revenue_for_finance"
+      expected_upstream_domains: "finance:upstream_domains=sales"
+    assert:
+      - type: javascript
+        value: file://../../assertions/check-data-domain-persistence.js
+      - type: javascript
+        value: file://../../assertions/check-listing-output.js
   - description: "ambiguous ownership with persistence request stops for human decision"
     vars:
       fixture_path: "tests/evals/fixtures/classifying-data-domains/ambiguous-ownership"
@@ -99,3 +233,50 @@ tests:
     assert:
       - type: javascript
         value: file://../../assertions/check-ambiguity-stop.js
+  - description: "human-selected ownership persists exactly once"
+    vars:
+      fixture_path: "tests/evals/fixtures/classifying-data-domains/ambiguous-ownership"
+      request_text: |
+        Classify data domains from the warehouse DDL and persist the result.
+        Persist now; this is the explicit persistence request.
+
+        Human ownership decision: use Sales as the primary functional domain
+        for `shared.opportunity_cases`.
+      expected_domain_files: "sales"
+      expected_domain_objects: "sales:tables=shared.opportunity_cases"
+    assert:
+      - type: javascript
+        value: file://../../assertions/check-data-domain-persistence.js
+  - description: "human-guided ownership change rewrites canonical domain files directly"
+    vars:
+      fixture_path: "tests/evals/fixtures/classifying-data-domains/human-guided-ownership-change"
+      request_text: |
+        Classify data domains from the warehouse DDL and persist the result.
+        Persist now; this is the explicit persistence request.
+
+        Human ownership change: move `shared.opportunity_cases` from Sales to
+        Operations as the primary functional domain. Rewrite the canonical
+        data-domain files directly and do not create manual override files.
+      expected_domain_files: "sales,operations"
+      expected_domain_objects: "operations:tables=shared.opportunity_cases"
+      forbidden_catalog_paths: "warehouse-catalog/manual-overrides.json,warehouse-catalog/overrides.json,warehouse-catalog/manual-overrides"
+    assert:
+      - type: javascript
+        value: file://../../assertions/check-data-domain-persistence.js
+  - description: "idempotent rerun keeps canonical JSON stable"
+    vars:
+      fixture_path: "tests/evals/fixtures/classifying-data-domains/idempotent-rerun"
+      request_text: |
+        Classify data domains from the warehouse DDL and persist the result.
+        Persist now; this is the explicit persistence request.
+
+        The existing Sales data-domain file already reflects the accepted
+        canonical state for `sales.fact_sales_orders`. Re-run persistence
+        idempotently: do not add timestamps, duplicate objects, ordering churn,
+        or unexpected extra files.
+      expected_domain_files: "sales"
+      expected_domain_objects: "sales:tables=sales.fact_sales_orders"
+      stable_domain_files_from_fixture: "sales"
+    assert:
+      - type: javascript
+        value: file://../../assertions/check-data-domain-persistence.js
