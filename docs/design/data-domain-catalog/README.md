@@ -8,7 +8,7 @@ workflows.
 
 - Domain analysis runs in a whole-warehouse analysis repository, separate from
   one-domain migration repositories.
-- Whole-warehouse DDL snapshots live under `warehouse-ddl/`.
+- Whole-warehouse DDL snapshots are required input and live under `warehouse-ddl/`.
 - Whole-warehouse domain planning state lives under `warehouse-catalog/`.
 - Persist data-domain planning as one canonical JSON file per domain under
   `warehouse-catalog/data-domains/<slug>.json`.
@@ -18,8 +18,10 @@ workflows.
   pipeline.
 - Treat each domain file as current accepted state, not as generated output plus
   manual override layers.
+- The skill should require an existing `warehouse-ddl/` directory and stop if it is
+  missing.
 - The skill should produce a human-readable report and one machine-readable JSON
-  object per domain by default.
+  object per domain.
 - The skill should write domain files only when the user explicitly asks it to
   persist the analysis.
 - `setup-source` ingestion from domain files is a follow-on CLI capability, not part
@@ -78,11 +80,27 @@ catalog/procedures/
 catalog/functions/
 ```
 
-`analyze-data-domains` consumes `warehouse-ddl/` or user-provided DDL/table lists and
-writes only to `warehouse-catalog/` when persistence is requested.
+`analyze-data-domains` consumes only `warehouse-ddl/` and writes only to
+`warehouse-catalog/` when persistence is requested.
 
 The one-domain migration pipeline consumes `ddl/` and `catalog/`. It must not write
 domain decomposition state.
+
+## Input Guard
+
+`warehouse-ddl/` is mandatory. `analyze-data-domains` must check for it before
+analysis.
+
+If `warehouse-ddl/` is missing:
+
+- stop immediately
+- do not create `warehouse-ddl/`
+- do not create `warehouse-catalog/`
+- do not accept pasted DDL, ad hoc table lists, or ERD text as a substitute
+- tell the user to run the warehouse DDL extraction workflow first
+
+The skill may read DDL files already present under `warehouse-ddl/`, but DDL
+extraction and warehouse-DDL folder creation belong to a separate workflow.
 
 ## Idempotency
 
