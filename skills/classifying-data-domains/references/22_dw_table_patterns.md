@@ -6,6 +6,7 @@ Contains the full pattern library and decision tree for classifying a table's di
 ---
 
 ## Table of Contents
+
 1. [Role Definitions](#role-definitions)
 2. [Prefix & Suffix Pattern Library](#prefix--suffix-pattern-library)
 3. [Structural Signals (Column-Level)](#structural-signals-column-level)
@@ -33,6 +34,7 @@ Contains the full pattern library and decision tree for classifying a table's di
 ## Prefix & Suffix Pattern Library
 
 ### FACT tables — Prefix Patterns
+
 | Pattern | Confidence | Notes |
 |---|---|---|
 | `FACT_` | High | Industry standard |
@@ -43,6 +45,7 @@ Contains the full pattern library and decision tree for classifying a table's di
 | `MEASURE_` | Medium | Explicit measurement prefix |
 
 ### FACT tables — Suffix Patterns
+
 | Pattern | Confidence | Notes |
 |---|---|---|
 | `_FACT` | High | |
@@ -52,6 +55,7 @@ Contains the full pattern library and decision tree for classifying a table's di
 | `_HISTORY` | Low | Could be SCD Type 2 Dimension history or a Fact; check structure |
 
 ### DIMENSION tables — Prefix Patterns
+
 | Pattern | Confidence | Notes |
 |---|---|---|
 | `DIM_` | High | Industry standard |
@@ -59,6 +63,7 @@ Contains the full pattern library and decision tree for classifying a table's di
 | `MASTER_` | Medium | e.g., `MASTER_PRODUCT`, `MASTER_CUSTOMER` |
 
 ### DIMENSION tables — Suffix Patterns
+
 | Pattern | Confidence | Notes |
 |---|---|---|
 | `_DIM` | High | |
@@ -66,6 +71,7 @@ Contains the full pattern library and decision tree for classifying a table's di
 | `_PROFILE` | Low | Could be dimension or ODS |
 
 ### BRIDGE tables — Prefix Patterns
+
 | Pattern | Confidence | Notes |
 |---|---|---|
 | `BRG_` | High | |
@@ -75,6 +81,7 @@ Contains the full pattern library and decision tree for classifying a table's di
 | `ASSOC_` | Medium | Association table |
 
 ### AGGREGATE tables — Prefix Patterns
+
 | Pattern | Confidence | Notes |
 |---|---|---|
 | `AGG_` | High | |
@@ -85,6 +92,7 @@ Contains the full pattern library and decision tree for classifying a table's di
 | `WEEKLY_`, `MONTHLY_`, `ANNUAL_` | Medium | Time-grain prefix on an otherwise fact-like name |
 
 ### STAGING tables — Prefix Patterns
+
 | Pattern | Confidence | Notes |
 |---|---|---|
 | `STG_` | High | |
@@ -97,6 +105,7 @@ Contains the full pattern library and decision tree for classifying a table's di
 | `INBOUND_` | Medium | |
 
 ### REFERENCE / LOOKUP tables — Prefix Patterns
+
 | Pattern | Confidence | Notes |
 |---|---|---|
 | `LKP_` | High | |
@@ -107,6 +116,7 @@ Contains the full pattern library and decision tree for classifying a table's di
 | `CAT_` | Medium | Category tables |
 
 ### ODS tables — Prefix Patterns
+
 | Pattern | Confidence | Notes |
 |---|---|---|
 | `ODS_` | High | |
@@ -122,6 +132,7 @@ Contains the full pattern library and decision tree for classifying a table's di
 Apply these when prefix/suffix matching is inconclusive or when DDL is available.
 
 ### Fact Table Signals
+
 | Signal | Strength |
 |---|---|
 | ≥ 3 FK columns pointing to other tables | Strong |
@@ -132,6 +143,7 @@ Apply these when prefix/suffix matching is inconclusive or when DDL is available
 | Degenerate dimension column (transaction_number, order_number — VARCHAR, not FK) | Supporting |
 
 ### Dimension Table Signals
+
 | Signal | Strength |
 |---|---|
 | Surrogate key column: `*_KEY`, `*_SK`, `*_ID` as INT/BIGINT PK | Strong |
@@ -141,6 +153,7 @@ Apply these when prefix/suffix matching is inconclusive or when DDL is available
 | Hierarchy columns at multiple levels (e.g., `category`, `subcategory`, `department`) | Supporting |
 
 ### Bridge Table Signals
+
 | Signal | Strength |
 |---|---|
 | Exactly 2 FK columns forming composite PK | Strong |
@@ -149,6 +162,7 @@ Apply these when prefix/suffix matching is inconclusive or when DDL is available
 | Table name contains two domain nouns: `BRIDGE_ACCOUNT_CUSTOMER`, `XREF_PATIENT_DIAGNOSIS` | Supporting |
 
 ### Aggregate Table Signals
+
 | Signal | Strength |
 |---|---|
 | FK to a known Fact table in the schema | Strong |
@@ -158,6 +172,7 @@ Apply these when prefix/suffix matching is inconclusive or when DDL is available
 | `period_type`, `period_key`, `snapshot_date` columns | Supporting |
 
 ### Staging Table Signals
+
 | Signal | Strength |
 |---|---|
 | `load_timestamp`, `load_date`, `etl_batch_id`, `source_system` columns | Strong |
@@ -167,6 +182,7 @@ Apply these when prefix/suffix matching is inconclusive or when DDL is available
 | No FK constraints | Supporting |
 
 ### Reference / Lookup Table Signals
+
 | Signal | Strength |
 |---|---|
 | ≤ 5 columns | Strong |
@@ -176,6 +192,7 @@ Apply these when prefix/suffix matching is inconclusive or when DDL is available
 | Column names: `code`, `description`, `label`, `display_name` | Supporting |
 
 ### ODS Table Signals
+
 | Signal | Strength |
 |---|---|
 | Near-identical column structure to a named source system table | Strong |
@@ -187,7 +204,7 @@ Apply these when prefix/suffix matching is inconclusive or when DDL is available
 
 ## Decision Tree
 
-```
+```text
 Given a table T with name N and optional columns C:
 
 1. Does N match a Staging prefix/suffix?
@@ -232,22 +249,27 @@ Given a table T with name N and optional columns C:
 ## Edge Cases & Tie-Breaking Rules
 
 ### Snapshot tables
+
 - `*_SNAPSHOT` → classify as **Fact (Periodic Snapshot)** if it has a date FK and numeric measures.
 - If it has no numeric measures and only status/flag columns → classify as **Dimension** variant.
 
 ### History tables
+
 - `*_HISTORY`, `*_HIST` → classify as **Dimension** if it has SCD columns (`effective_date`, `is_current`).
 - Classify as **Fact** if it has multiple date FKs and numeric measures (accumulating snapshot pattern).
 
 ### Audit / Log tables
+
 - `AUDIT_*`, `*_LOG`, `*_AUDIT` → classify as **Staging** by default.
 - Reclassify as **Fact** only if they have numeric measures and explicit dimension FK columns.
 
 ### Consolidated / Combined tables
+
 - Tables that combine data from multiple domains (e.g., `FACT_CONSOLIDATED_PROFIT_LOSS`) →
   assign to the domain of the primary subject matter; add secondary domain tags for all others.
 
 ### ETL Control tables
+
 - `ETL_CONTROL_*`, `BATCH_*`, `WATERMARK_*` → classify as **Staging** (ETL metadata).
   These are never exposed to end users.
 

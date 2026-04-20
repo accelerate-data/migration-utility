@@ -10,9 +10,7 @@ argument-hint: "<schema.table>"
 
 # Reviewing Model
 
-Read-only quality gate for one generated dbt artifact set. Review written
-SQL/YAML against the source routine, approved test spec, and shared standards,
-then return exactly one `ModelReviewResult`.
+Read-only quality gate for one generated dbt artifact set. Review written SQL/YAML against the source routine, approved test spec, and shared standards, then return exactly one `ModelReviewResult`.
 
 ## Quick Reference
 
