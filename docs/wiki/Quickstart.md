@@ -76,7 +76,7 @@ Staging source metadata includes only tables explicitly marked `is_source: true`
 
 If you identify more source tables later, mark them with `ad-migration add-source-table <fqn>` and run `ad-migration setup-target` again. The command is idempotent: it will refresh staging source metadata and wrappers and create any newly required target-side source tables without redoing existing ones.
 
-See [[dbt Scaffolding]].
+Setup target also validates the generated source-facing dbt layer with seed, compile, and build checks. See [[Target Setup]].
 
 ## 5. Profile the migration targets (Claude Code)
 
@@ -124,7 +124,7 @@ See [[SQL Refactoring]].
 /generate-model silver.DimCustomer silver.FactInternetSales
 ```
 
-This generates dbt SQL and schema YAML, runs `dbt build`, applies the independent model review loop, and commits successful items.
+This generates dbt SQL and schema YAML, compiles the generated model, materializes direct parents with an empty run when unit tests need them, runs scoped dbt unit tests, applies the independent model review loop, and commits successful items.
 
 See [[Model Generation]].
 

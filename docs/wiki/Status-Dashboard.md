@@ -52,7 +52,7 @@ The command distinguishes three cases:
 - writerless but unconfirmed tables: surfaced as pending source confirmation
 - excluded tables: omitted from active migration planning and counted separately
 
-This is why `/status` is the best checkpoint before running `ad-migration setup-target`, `/generate-tests`, `/refactor-query`, or `/generate-model`.
+This is why `/status` is the best checkpoint before running `ad-migration setup-target`, `/generate-tests`, `/refactor-query`, or `/generate-model`. See [[Target Setup]] for what the target setup step validates.
 
 ## Typical use
 

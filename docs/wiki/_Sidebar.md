@@ -8,6 +8,7 @@
 
 - [[Project Init]]
 - [[DDL Extraction]]
+- [[Target Setup]]
 - [[dbt Scaffolding]]
 - [[Sandbox Setup]]
 
