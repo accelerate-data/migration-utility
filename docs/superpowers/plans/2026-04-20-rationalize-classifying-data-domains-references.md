@@ -23,13 +23,14 @@
 ### Task 1: Remove stale skill name from `22_dw_table_patterns.md`
 
 **Files:**
+
 - Modify: `skills/classifying-data-domains/references/22_dw_table_patterns.md:3`
 
 - [ ] **Step 1: Read the current file header**
 
 Open `skills/classifying-data-domains/references/22_dw_table_patterns.md`. Confirm lines 1–5 look like this:
 
-```
+```markdown
 # DW Table Patterns Reference
 
 Used by Step 2 of the table-domain-classifier skill.
@@ -64,13 +65,14 @@ git commit -m "VU-1125: remove stale table-domain-classifier reference from 22_d
 ### Task 2: Remove stale skill name from `21_domain_taxonomy.md`
 
 **Files:**
+
 - Modify: `skills/classifying-data-domains/references/21_domain_taxonomy.md:3`
 
 - [ ] **Step 1: Read the current file header**
 
 Open `skills/classifying-data-domains/references/21_domain_taxonomy.md`. Confirm lines 1–5 look like this:
 
-```
+```markdown
 # Domain Taxonomy Reference
 
 Used by Step 3 of the table-domain-classifier skill.
@@ -105,6 +107,7 @@ git commit -m "VU-1125: remove stale table-domain-classifier reference from 21_d
 ### Task 3: Add deep-dive cluster block to SKILL.md
 
 **Files:**
+
 - Modify: `skills/classifying-data-domains/SKILL.md` (end of `## Reference Files` section)
 
 - [ ] **Step 1: Read the current Reference Files section**
