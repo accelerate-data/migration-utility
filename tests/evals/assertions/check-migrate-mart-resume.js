@@ -15,7 +15,7 @@ function readIfExists(filePath) {
 
 function parseStages(markdown) {
   const text = String(markdown || '');
-  const headingPattern = /^## Stage (\d{3}):\s+(.+?)\s*$/gm;
+  const headingPattern = /^#{2,3} Stage (\d{3}):\s+(.+?)\s*$/gm;
   const stages = [];
   let match;
 
@@ -23,11 +23,11 @@ function parseStages(markdown) {
     const stageId = match[1];
     const stageName = match[2].trim();
     const bodyStart = headingPattern.lastIndex;
-    const nextMatch = /^## Stage \d{3}:\s+.+?\s*$/gm;
+    const nextMatch = /^#{2,3} Stage \d{3}:\s+.+?\s*$/gm;
     nextMatch.lastIndex = bodyStart;
     const next = nextMatch.exec(text);
     const body = text.slice(bodyStart, next ? next.index : text.length);
-    const statusMatch = body.match(/^\s*(?:[-*]\s*)?(?:\*\*)?Status(?::\*\*|:)\s*(.+?)\s*$/im);
+    const statusMatch = body.match(/^\s*(?:[-*]\s*)?(?:\*\*)?Status(?:(?::\*\*)|(?:\*\*:)|:)\s*(.+?)\s*$/im);
     stages.push({
       id: stageId,
       name: stageName,
@@ -40,10 +40,11 @@ function parseStages(markdown) {
 }
 
 function normalizeStatus(value) {
-  return String(value || '')
+  const status = String(value || '')
     .trim()
     .replace(/^`+|`+$/g, '')
     .toLowerCase();
+  return status === 'completed' ? 'complete' : status;
 }
 
 function firstIncompleteStage(stages) {

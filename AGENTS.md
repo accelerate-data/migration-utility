@@ -90,6 +90,7 @@ sentence beats a paragraph. Avoid restating what the code already makes obvious.
 - Granular commits: one concern per commit, run tests before each
 - Stage specific files — use `git add <file>` not `git add .`
 - All `.md` files must pass `markdownlint` before committing (`markdownlint <file>`)
+- Markdownlint line length (`MD013`) is intentionally disabled. Do not hard-wrap prose solely for line-length concerns; prefer readable paragraphs and only add line breaks for Markdown structure.
 - Canonical naming and error-handling conventions live in `.claude/rules/coding-conventions.md`
 - Prefer clean-break designs over backward-compatibility shims. Do not engineer for backward compatibility unless the user, issue, or design explicitly requires it.
 - When fixing a bug or review comment, also fix adjacent pre-existing defects in the same touched code path when they violate repo policy, break consistency, or would leave the requested change half-correct. Do not use "pre-existing" by itself as a reason to leave a touched policy violation in place.

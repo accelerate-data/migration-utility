@@ -1,0 +1,24 @@
+{
+  "schema_version": 1,
+  "domain": "Sales",
+  "slug": "sales",
+  "status": "candidate",
+  "description": "Sales opportunity ownership before human correction.",
+  "confidence": "medium",
+  "objects": {
+    "tables": ["shared.opportunity_cases"],
+    "views": []
+  },
+  "setup_source_candidates": {
+    "schemas": ["shared"],
+    "tables": ["shared.opportunity_cases"]
+  },
+  "dependencies": {
+    "upstream_domains": [],
+    "downstream_domains": []
+  },
+  "ambiguities": [],
+  "rationale": [
+    "Prior state placed opportunity case ownership in Sales."
+  ]
+}

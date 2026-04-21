@@ -1,0 +1,298 @@
+---
+name: classifying-data-domains
+description: >
+  Use when a monolith warehouse or lakehouse has a whole-warehouse `warehouse-ddl/` snapshot and needs tables or views grouped into business data domains with data owners for data mesh decentralization, setup-source selection, migration planning, or scope and migrate-mart inputs.
+user-invocable: true
+argument-hint: "[persist only when explicitly requested]"
+---
+
+# Classifying Data Domains
+
+Break a whole-warehouse DDL snapshot into migration-ready business domains. This skill is a planning step before `setup-source`, `/scope`, and mart migration workflows.
+
+## Scope
+
+Use this skill in a warehouse-analysis repository, not a one-domain migration repository.
+
+This skill classifies only tables and views into business data domains. Do not classify procedures or functions as domain-catalog objects.
+
+Required input:
+
+- `warehouse-ddl/` with the whole-warehouse DDL snapshot
+
+Outputs:
+
+- a human-readable domain analysis report
+- one machine-readable JSON object per domain in the response
+- optional persisted files under `warehouse-catalog/domains/<slug>.json`, only when the user explicitly asks to persist the analysis
+
+This skill does not:
+
+- create or extract the `warehouse-ddl/` snapshot
+- run setup, scoping, profiling, or migration workflows
+- classify from partial substitutes such as pasted DDL, table lists, or ERD text
+- write anything except requested domain files under `warehouse-catalog/domains/`
+
+## Project Layout
+
+Run from the warehouse-analysis project root.
+
+Read from `warehouse-ddl/`.
+
+When persistence is explicitly requested, write domain files under `warehouse-catalog/domains/`.
+
+Domain slugs are derived from domain names: lowercase, ASCII-safe, and hyphen-separated. For example, `Customer Success` becomes `customer-success`.
+
+## Input Guard
+
+`warehouse-ddl/` is required. Check that it exists as a directory before analysis.
+
+If `warehouse-ddl/` is missing:
+
+- stop immediately
+- Do not create `warehouse-ddl/`
+- tell the user to run the warehouse DDL extraction workflow first
+
+Proceed only when `warehouse-ddl/` exists.
+
+## When to Ask
+
+Ask for more input only when a required human decision is missing, such as:
+
+- which ambiguous primary domain should own a table or view
+- whether to persist the analysis after presenting the report
+- how to resolve the same table or view appearing in multiple primary domains
+
+When asking the user to choose ownership, give the viable options with the recommended option first, and explain the evidence for the recommendation.
+
+If two or more primary owners are plausible, stop before persistence. A user instruction to "pick one", "choose the most likely", or "use your best guess" does not resolve ownership. Ask the user to choose from the options.
+
+When the user's request conflicts with this ambiguity rule, follow this skill. Do not classify, persist, or continue by guessing a primary owner.
+
+Proceed with low confidence only when evidence is weak and there is no competing plausible primary owner. Mark weak classifications with `confidence: "low"` and explain the missing evidence instead of inventing definitions.
+
+For `Unclassified` or unknown-domain results, describe the missing evidence without naming domains that are absent from the DDL. Say `no visible business signal` or `no domain keywords` instead.
+
+## Domain Analysis Flow
+
+1. Inventory DDL files under `warehouse-ddl/` to find tables, views, and their dependencies.
+2. Extract objects from available DDL:
+   - tables
+   - views
+3. Classify each object by dimensional modeling role.
+4. Assign exactly one primary business domain per object.
+5. Map object and domain dependencies.
+6. Identify ambiguities and conflicts.
+7. Present a report plus one JSON object per domain.
+8. If persistence was requested and unresolved ownership ambiguity exists, stop before writing files and ask the user to choose from recommended options.
+9. Persist domain files only if the user explicitly requested persistence.
+
+Use `references/22_dw_table_patterns.md` for dimensional role classification.
+Use `references/21_domain_taxonomy.md` for business-domain assignment.
+
+Procedures and functions may be inspected only to discover table or view dependencies. They must not appear in persisted domain JSON, including as excluded, supporting, ambiguity, or unclassified object buckets.
+
+## Role Classification
+
+Dimensional role classification is separate from functional domain classification. Role answers what kind of warehouse object it is; functional domain answers which business area owns its meaning.
+
+Assign each table one role. Apply strong naming and structural evidence before weaker inference.
+
+| Role | Strong Signals |
+|---|---|
+| Staging | `STG_`, `STAGE_`, `RAW_`, `LAND_`, `SRC_`; raw source columns |
+| Fact | `FACT_`, `FCT_`; multiple foreign keys plus additive measures |
+| Aggregate | `AGG_`, `SUMM_`, `RPT_`, `ROLLUP_`; coarser-grain fact summary |
+| Dimension | `DIM_`; descriptive attributes; surrogate key; SCD columns |
+| Bridge | `BRG_`, `BRIDGE_`, `XREF_`; many-to-many relationship structure |
+| Reference | `LKP_`, `REF_`, `LOOKUP_`, `CODE_`; compact code-description table |
+| ODS | `ODS_`, `CURR_`, `CURRENT_`; source-like current-state structure |
+| Unknown | insufficient evidence |
+
+For each table or view, record role, confidence, and evidence.
+
+## Domain Assignment
+
+Every table has exactly one primary functional domain. Secondary domain tags are allowed only as descriptive metadata; they do not change primary ownership.
+
+A view may belong to a different functional domain than its source table when it represents a domain-specific business lens. For example, an opportunities table can belong to Sales while a sold-opportunities view can belong to Operations. Multi-domain table usage does not move table ownership.
+
+Do not use dimensional roles or warehouse layers as the primary functional domain. `Staging`, `Fact`, `Dimension`, `Aggregate`, `Reference`, `ODS`, and `Unknown` are role classifications unless the DDL also shows they are the business area that owns the object's meaning. For example, `staging.stg_sales_orders` has role `Staging` and functional domain `Sales`; `finance.ref_currency_codes` has role `Reference` and functional domain `Finance`.
+
+Use this evidence order:
+
+1. explicit user-provided ownership decisions
+2. table or view name signals
+3. column-name signals
+4. dependency graph position
+5. industry-specific terms from `references/21_domain_taxonomy.md`
+6. `Unclassified` with low confidence
+
+Ambiguous table or view ownership must be returned to the human before persistence. Do not persist guessed primary ownership for ambiguous tables or views.
+
+A user instruction to "pick one", "choose the most likely", or "use your best guess" is not an ownership decision. Present the viable owner options with the recommended option first, include evidence, and wait for the user's choice before persistence.
+
+If a user moves a table or view between domains, rewrite the impacted canonical domain files directly when persistence is requested. Do not maintain separate manual include or exclude lists.
+
+When moving a table, remove it from both `objects.tables` and `setup_source_candidates.tables` in the old domain. Add it to both lists in the new domain when it is still a setup-source candidate.
+
+## Dependency Semantics
+
+If object A references B, A depends on B. B is upstream of A and must be available before A for load planning.
+
+Domain dependency rules:
+
+- a domain's upstream domains must be available before that domain can be migrated
+- downstream domains depend on this domain
+- objects with no upstream dependencies belong in the first load tier
+- objects that depend only on first-tier objects belong in the next load tier
+- cross-domain dependencies must be listed explicitly using the phrase "cross-domain dependency"
+- record a cross-domain dependency when a view depends on a table from another domain
+
+Do not describe load tiers using incoming-edge wording unless the graph direction is explicitly reversed. Prefer "no upstream dependencies" for first-tier objects.
+
+## Output Report
+
+The report should include:
+
+- summary of domains found
+- object counts by domain and role
+- setup-source candidates by domain
+- upstream and downstream domain dependencies
+- cross-domain dependencies
+- ambiguous or unclassified objects
+- conflicts requiring user decisions
+- one JSON object per domain
+
+## Domain File Contract
+
+When the user explicitly asks to persist the analysis, write one file per domain:
+
+```text
+warehouse-catalog/domains/<slug>.json
+```
+
+Each file is the canonical current state for that domain.
+
+Required fields:
+
+- `schema_version`
+- `domain`
+- `slug`
+- `status`
+- `description`
+- `confidence`
+- `objects`
+- `setup_source_candidates`
+- `dependencies`
+- `ambiguities`
+- `rationale`
+
+Write required fields in the order listed above.
+
+`objects` may contain only these keys:
+
+- `tables`
+- `views`
+
+Procedures and functions must not appear anywhere in persisted domain JSON.
+
+Example:
+
+```json
+{
+  "schema_version": 1,
+  "domain": "Sales",
+  "slug": "sales",
+  "status": "candidate",
+  "description": "Revenue and order lifecycle tables.",
+  "confidence": "medium",
+  "objects": {
+    "tables": ["silver.fact_sales"],
+    "views": ["gold.vw_sales_summary"]
+  },
+  "setup_source_candidates": {
+    "schemas": ["silver", "gold"],
+    "tables": ["silver.fact_sales"]
+  },
+  "dependencies": {
+    "upstream_domains": ["Customer", "Product"],
+    "downstream_domains": ["Finance"]
+  },
+  "ambiguities": [
+    {
+      "object": "silver.transaction_log",
+      "reason": "Name suggests either staging or fact-like event data."
+    }
+  ],
+  "rationale": [
+    "Objects use sales, order, invoice, and revenue terminology."
+  ]
+}
+```
+
+## Persistence Rules
+
+Persist only when the user explicitly asks.
+
+Rules:
+
+- write only under `warehouse-catalog/domains/`
+- do not write under `catalog/`
+- do not create or populate `warehouse-ddl/`
+- do not claim files were written unless they exist on disk
+- write complete canonical files, not patches
+- rewrite only impacted domain files
+- write `objects` with only `tables` and `views` keys
+- keep `setup_source_candidates.tables` as a subset of that domain's `objects.tables`
+- sort arrays before writing
+- keep JSON field order stable
+- write no volatile timestamps
+- the same accepted state serializes to the same JSON
+- each table or view has exactly one primary domain
+- duplicate primary assignments are conflicts that require user resolution
+- unresolved ownership ambiguity blocks persistence even when the user asks the agent to pick the most likely owner
+
+If a domain becomes empty, keep the file with empty `objects` unless the user explicitly asks to remove it.
+
+## Reference Files
+
+Load these only when needed:
+
+| File | When to Load |
+|---|---|
+| `references/22_dw_table_patterns.md` | Dimensional role classification |
+| `references/21_domain_taxonomy.md` | Business-domain assignment |
+
+### Deep-dive clusters
+
+Load a cluster when the primary role is confirmed but a subtype or specific pattern requires deeper evidence.
+
+**Fact deep dives** — load when a table is Fact or Aggregate but subtype or grain is ambiguous:
+
+- `references/01_fact_table.md`
+- `references/03_grain.md`
+- `references/04_transaction_fact_table.md`
+- `references/05_periodic_snapshot_fact_table.md`
+- `references/06_accumulating_snapshot_fact_table.md`
+- `references/07_factless_fact_table.md`
+- `references/19_aggregate_tables.md`
+
+**Dimension deep dives** — load when a table is Dimension but subtype is ambiguous (SCD, conformed, junk, role-playing, etc.):
+
+- `references/02_dimension_table.md`
+- `references/08_slowly_changing_dimensions.md`
+- `references/09_surrogate_keys.md`
+- `references/10_conformed_dimensions.md`
+- `references/11_degenerate_dimension.md`
+- `references/12_junk_dimension.md`
+- `references/13_role_playing_dimension.md`
+- `references/14_minidimension.md`
+- `references/18_date_dimension.md`
+- `references/20_heterogeneous_products.md`
+
+**Structural patterns** — load when a table is Bridge, or bus/matrix architecture context is needed:
+
+- `references/15_bridge_table.md`
+- `references/16_bus_architecture.md`
+- `references/17_bus_matrix.md`

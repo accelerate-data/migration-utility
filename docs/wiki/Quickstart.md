@@ -48,6 +48,13 @@ See [[DDL Extraction]].
 
 ## 3. Resolve extracted tables before target setup (Claude Code)
 
+For a large warehouse where business ownership is unclear, first decide the
+warehouse domains before choosing the tables for this walkthrough. Ask Claude
+Code to decide data domains from the whole-warehouse DDL and persist the result,
+then use the resulting domain catalog to pick the source tables to scope.
+
+See [[Deciding Data Domains for Migration]].
+
 ```text
 /scope-tables silver.DimCustomer silver.FactInternetSales
 ```
