@@ -18,8 +18,22 @@ missing-input conclusion, check `{{run_path}}/warehouse-ddl` directly.
 
 Before reporting that `warehouse-ddl/` is missing, check whether
 `{{run_path}}/warehouse-ddl` exists. If the skill says a required input is
-missing, stop and report the missing prerequisite.
+missing, stop and report the missing prerequisite. Use the word `missing` in
+the final response.
+
+When assigning an object to an Unclassified or unknown domain because there is
+no visible business signal, do not enumerate absent example domains or invent
+candidate domains not present in the DDL evidence. Do not name absent domains
+even negatively; say `no domain keywords` or `no visible business signal`
+instead.
 
 If the request asks to persist output, actually write files under `{{run_path}}`;
-do not only describe files that would be written. Write only files allowed by
-the skill.
+do not only describe files that would be written. Do not write, edit, or delete
+anything outside `{{run_path}}`.
+
+If the request says not to persist files, or only asks for analysis, a report,
+or example JSON, do not write files and do not state that files were persisted.
+
+For persistence in this eval, write only canonical domain JSON files under
+`{{run_path}}/warehouse-catalog/data-domains/`. Do not persist report files,
+summary files, indexes, override files, or any other side artifacts.

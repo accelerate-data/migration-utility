@@ -60,8 +60,8 @@ tests:
 
         Do not persist files. Classify the table's dimensional role and
         functional domain from the DDL evidence. Include the exact evidence
-        column `source_order_id` in the report.
-      expected_terms: "sales.fact_sales_orders,fact,sales,net_sales_amount"
+        column `order_number` in the report.
+      expected_terms: "sales.fact_sales_orders,fact,sales,net_sales_amount,order_number"
       unexpected_terms: "choose from"
       forbidden_json_keys: "procedures,functions"
     assert:
