@@ -95,6 +95,29 @@ Use the domain files to decide which subset of the warehouse to migrate first.
 For each chosen domain, review its setup-source candidates and then continue
 with the normal source setup, scoping, target setup, and mart migration flow.
 
+```text
+warehouse-ddl/
+  Whole-warehouse DDL snapshot
+        |
+        v
+Decide data domains
+  Business ownership + warehouse roles
+        |
+        v
+warehouse-catalog/data-domains/
+  One JSON file per domain
+        |
+        v
+Choose migration domain
+        |
+        v
+Review setup-source candidates
+  Confirm source tables and seed tables
+        |
+        v
+setup-source -> scoping -> mart migration flow
+```
+
 If ownership changes after review, update the canonical domain files directly.
 Do not keep separate manual include or exclude lists for domain ownership.
 
