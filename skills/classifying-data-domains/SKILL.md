@@ -33,21 +33,19 @@ This skill does not:
 - classify from partial substitutes such as pasted DDL, table lists, or ERD text
 - write anything except requested domain files under `warehouse-catalog/domains/`
 
-## Project Root
+## Project Layout
 
-Use an explicitly provided project root or workspace path when the user gives one. Otherwise, use the current working directory as the warehouse-analysis project root.
+Run from the warehouse-analysis project root.
 
-Read input from `warehouse-ddl/`.
+Read from `warehouse-ddl/`.
 
-When persistence is explicitly requested, write only to `warehouse-catalog/domains/<slug>.json`.
+When persistence is explicitly requested, write domain files under `warehouse-catalog/domains/`.
 
-Do not read warehouse input from another repository or parent directory unless the user explicitly identifies it as the active project root. Do not write outside the active project root.
+Domain slugs are derived from domain names: lowercase, ASCII-safe, and hyphen-separated. For example, `Customer Success` becomes `customer-success`.
 
 ## Input Guard
 
-`warehouse-ddl/` is required. Check the filesystem for the directory under the active project root before any analysis. Do not assume it is missing without checking the concrete path.
-
-Before reporting `warehouse-ddl/` missing, verify the concrete path under the active project root with a directory check and file listing. Use a directory listing or file listing command when available. A failed glob, a relative-path miss, or an attempt to read a directory as a file is not proof that `warehouse-ddl/` is missing.
+`warehouse-ddl/` is required. Check that it exists as a directory before analysis.
 
 If `warehouse-ddl/` is missing:
 
@@ -73,7 +71,7 @@ When the user's request conflicts with this ambiguity rule, follow this skill. D
 
 Proceed with low confidence only when evidence is weak and there is no competing plausible primary owner. Mark weak classifications with `confidence: "low"` and explain the missing evidence instead of inventing definitions.
 
-For `Unclassified` or unknown-domain results, describe the missing evidence without naming absent business domains. Do not list absent example domains; say `no visible business signal` or `no domain keywords` instead.
+For `Unclassified` or unknown-domain results, describe the missing evidence without naming domains that are absent from the DDL. Say `no visible business signal` or `no domain keywords` instead.
 
 ## Domain Analysis Flow
 

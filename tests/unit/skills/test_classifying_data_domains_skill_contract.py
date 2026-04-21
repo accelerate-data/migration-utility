@@ -38,8 +38,7 @@ def test_skill_requires_existing_warehouse_ddl_and_does_not_accept_substitutes()
     normalized = _single_line(text)
 
     assert "`warehouse-ddl/` is required" in text
-    assert "Check the filesystem for the directory under the active project root before any analysis" in normalized
-    assert "Do not assume it is missing without checking the concrete path" in normalized
+    assert "Check that it exists as a directory before analysis" in normalized
     assert "If `warehouse-ddl/` is missing" in text
     assert "Do not create `warehouse-ddl/`" in text
     assert "partial substitutes such as pasted DDL" in text
@@ -50,18 +49,18 @@ def test_skill_resolves_paths_under_active_project_root() -> None:
     text = _skill_text()
     normalized = _single_line(text)
 
-    assert "## Project Root" in text
-    assert "current working directory as the warehouse-analysis project root" in normalized
-    assert "explicitly provided project root or workspace path" in normalized
-    assert "otherwise, use the current working directory" in normalized.lower()
-    assert "`warehouse-ddl/`" in text
-    assert "`warehouse-catalog/domains/<slug>.json`" in text
+    assert "## Project Layout" in text
+    assert "Run from the warehouse-analysis project root" in normalized
+    assert "Read from `warehouse-ddl/`" in text
+    assert "write domain files under `warehouse-catalog/domains/`" in normalized
+    assert "Domain slugs are derived from domain names" in normalized
+    assert "`Customer Success`" in text
+    assert "`customer-success`" in text
     assert "warehouse-catalog/data-domains" not in text
     assert "warehouse-catalog/domain-classification" not in text
-    assert "Do not write outside the active project root" in text
-    assert "Use a directory listing or file listing command" in text
-    assert "A failed glob" in text
-    assert "not proof that `warehouse-ddl/` is missing" in normalized
+    assert "explicitly provided project root" not in text
+    assert "workspace path" not in text
+    assert "A failed glob" not in text
     assert "run_path" not in text
 
 
@@ -123,7 +122,7 @@ def test_skill_records_cross_domain_view_dependencies_and_requires_ambiguity_han
     assert "is not an ownership decision" in normalized
     assert "Proceed with low confidence only when evidence is weak and there is no competing plausible primary owner" in normalized
     assert "unresolved ownership ambiguity blocks persistence" in normalized
-    assert "Do not list absent example domains" in text
+    assert "without naming domains that are absent from the DDL" in text
     assert "no visible business signal" in text
 
 
