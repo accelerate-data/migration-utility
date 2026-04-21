@@ -260,7 +260,7 @@ tests:
 
         Human ownership change: move `shared.opportunity_cases` from Sales to
         Operations as the primary functional domain. Rewrite the canonical
-        data-domain files directly and do not create manual override files.
+        domain files directly and do not create manual override files.
         Remove the moved table from both Sales `objects.tables` and Sales
         `setup_source_candidates.tables`.
       expected_domain_files: "sales,operations"
@@ -276,7 +276,7 @@ tests:
         Classify data domains from the warehouse DDL and persist the result.
         Persist now; this is the explicit persistence request.
 
-        The existing Sales data-domain file already reflects the accepted
+        The existing Sales domain file already reflects the accepted
         canonical state for `sales.fact_sales_orders`. Re-run persistence
         idempotently: do not add timestamps, duplicate objects, ordering churn,
         or unexpected extra files.

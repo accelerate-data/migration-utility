@@ -35,5 +35,5 @@ If the request says not to persist files, or only asks for analysis, a report,
 or example JSON, do not write files and do not state that files were persisted.
 
 For persistence in this eval, write only canonical domain JSON files under
-`{{run_path}}/warehouse-catalog/data-domains/`. Do not persist report files,
+`{{run_path}}/warehouse-catalog/domains/`. Do not persist report files,
 summary files, indexes, override files, or any other side artifacts.

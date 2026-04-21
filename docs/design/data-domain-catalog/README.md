@@ -6,10 +6,10 @@
 
 - Domain analysis runs in a whole-warehouse analysis repository, separate from one-domain migration repositories.
 - Whole-warehouse DDL snapshots are required input and live under `warehouse-ddl/`.
-- Whole-warehouse domain planning state lives under `warehouse-catalog/domain-classification/`.
+- Whole-warehouse domain planning state lives under `warehouse-catalog/domains/`.
 - Persist decisions, not object-inventory files. The current DDL/catalog remains the object inventory source.
 - Reports, unresolved queues, and domain summaries are generated from the decision files and current DDL/catalog. They are not canonical state.
-- Do not write compatibility domain files under `warehouse-catalog/data-domains/`.
+- Do not write compatibility domain files under legacy domain catalog paths.
 - Keep `ddl/` and `catalog/` reserved for the existing one-domain migration pipeline.
 - The skill should require an existing `warehouse-ddl/` directory and stop if it is missing.
 - The skill should write decision files only when the user explicitly asks it to persist the analysis.
@@ -19,34 +19,42 @@
 Persist exactly these decision files:
 
 ```text
-warehouse-catalog/domain-classification/
-  layer-decisions.json
-  domain-decisions.json
-  table-classification-decisions.json
-  date-dimension-decision.json
+warehouse-catalog/domains/
+  sales.json
+  finance.json
+  operations.json
 ```
 
-The three object decision files use maps keyed by fully qualified object name:
+Each domain file records the canonical accepted state for one business domain:
 
 ```json
 {
   "schema_version": 1,
-  "decisions": {
-    "gold.fact_sales": {
-      "candidates": [
-        {
-          "value": "Sales",
-          "reason": "Name and direct joins indicate the sales order lifecycle."
-        }
-      ],
-      "decision": "Sales",
-      "decision_reason": "LLM: selected Sales based on fact naming and direct dimensions."
-    }
-  }
+  "domain": "Sales",
+  "slug": "sales",
+  "status": "candidate",
+  "description": "Revenue and order lifecycle tables.",
+  "confidence": "medium",
+  "objects": {
+    "tables": ["gold.fact_sales"],
+    "views": []
+  },
+  "setup_source_candidates": {
+    "schemas": ["gold"],
+    "tables": ["gold.fact_sales"]
+  },
+  "dependencies": {
+    "upstream_domains": [],
+    "downstream_domains": []
+  },
+  "ambiguities": [],
+  "rationale": [
+    "Name and direct joins indicate the sales order lifecycle."
+  ]
 }
 ```
 
-`decision` is the accepted value. `decision_reason` is a plain string written by the LLM or copied from user instruction. Use `decision: null` when no dependable decision can be made.
+Unresolved ownership appears in `ambiguities` and blocks persistence until the user chooses a primary domain.
 
 ## Layer Decisions
 
@@ -148,7 +156,7 @@ These bands guide review. They do not replace ownership evidence.
 
 ## Generated Reports
 
-Generated reports may be printed or persisted under `warehouse-catalog/domain-classification/reports/` when requested.
+Generated reports may be printed in the response. They are derived from domain files and current DDL evidence; they are not canonical state.
 
 Reports should include:
 
@@ -166,7 +174,7 @@ Whole-warehouse analysis repositories use:
 
 ```text
 warehouse-ddl/
-warehouse-catalog/domain-classification/
+warehouse-catalog/domains/
 ```
 
 Domain migration repositories use:
@@ -179,7 +187,7 @@ catalog/procedures/
 catalog/functions/
 ```
 
-`classifying-data-domains` consumes only `warehouse-ddl/` and writes only under `warehouse-catalog/domain-classification/` when persistence is requested.
+`classifying-data-domains` consumes only `warehouse-ddl/` and writes only under `warehouse-catalog/domains/` when persistence is requested.
 
 The one-domain migration pipeline consumes `ddl/` and `catalog/`. It must not write domain decomposition state.
 
@@ -191,7 +199,6 @@ If `warehouse-ddl/` is missing:
 
 - stop immediately
 - do not create `warehouse-ddl/`
-- do not create `warehouse-catalog/`
 - do not accept pasted DDL, ad hoc table lists, or ERD text as a substitute
 - tell the user to run the warehouse DDL extraction workflow first
 
@@ -218,4 +225,4 @@ When the user changes an object's layer, domain, or table-classification decisio
 
 `classifying-data-domains` may explain or persist classification decisions when requested, but it does not run extraction, mutate setup-source configuration, or start migration commands.
 
-Future setup-source integration should read `warehouse-catalog/domain-classification/` decision files and the corresponding `warehouse-ddl/` snapshot as user-approved planning input, then create the selected domain migration repo state under `ddl/` and `catalog/`.
+Future setup-source integration should read `warehouse-catalog/domains/` decision files and the corresponding `warehouse-ddl/` snapshot as user-approved planning input, then create the selected domain migration repo state under `ddl/` and `catalog/`.

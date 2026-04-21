@@ -186,7 +186,7 @@ module.exports = (_output, context) => {
     repoRoot,
     context.vars.canonical_fixture_path || context.vars.fixture_path || '',
   );
-  const catalogRoot = path.join(runRoot, 'warehouse-catalog', 'data-domains');
+  const catalogRoot = path.join(runRoot, 'warehouse-catalog', 'domains');
   const files = listJsonFiles(catalogRoot);
 
   if (files.length === 0) {
@@ -206,7 +206,7 @@ module.exports = (_output, context) => {
   }
 
   const warehouseCatalogRoot = path.join(runRoot, 'warehouse-catalog');
-  const allowedRoot = path.join(warehouseCatalogRoot, 'data-domains');
+  const allowedRoot = path.join(warehouseCatalogRoot, 'domains');
   for (const artifactPath of listFilesRecursive(warehouseCatalogRoot)) {
     const parent = path.dirname(artifactPath);
     if (parent !== allowedRoot || !artifactPath.endsWith('.json')) {
@@ -219,7 +219,7 @@ module.exports = (_output, context) => {
   const expectedFiles = normalizeTerms(context.vars.expected_domain_files);
   for (const slug of expectedFiles) {
     if (!files.some((filePath) => path.basename(filePath) === `${slug}.json`)) {
-      return fail(`Expected data-domain file '${slug}.json' was not written`);
+      return fail(`Expected domain file '${slug}.json' was not written`);
     }
   }
   if (expectedFiles.length > 0) {
@@ -227,7 +227,7 @@ module.exports = (_output, context) => {
     const actualBasenames = relativeJsonBasenames(files);
     const unexpected = actualBasenames.filter((fileName) => !expectedBasenames.includes(fileName));
     if (unexpected.length > 0) {
-      return fail(`Unexpected data-domain files: ${unexpected.join(', ')}`);
+      return fail(`Unexpected domain files: ${unexpected.join(', ')}`);
     }
   }
 
@@ -287,19 +287,19 @@ module.exports = (_output, context) => {
   }
 
   for (const slug of normalizeTerms(context.vars.stable_domain_files_from_fixture)) {
-    const fixtureFile = path.join(fixtureRoot, 'warehouse-catalog', 'data-domains', `${slug}.json`);
+    const fixtureFile = path.join(fixtureRoot, 'warehouse-catalog', 'domains', `${slug}.json`);
     const runFile = path.join(catalogRoot, `${slug}.json`);
     if (!fs.existsSync(fixtureFile)) {
-      return fail(`Canonical fixture data-domain file '${slug}.json' was not found`);
+      return fail(`Canonical fixture domain file '${slug}.json' was not found`);
     }
     if (!fs.existsSync(runFile)) {
-      return fail(`Run data-domain file '${slug}.json' was not written`);
+      return fail(`Run domain file '${slug}.json' was not written`);
     }
 
     const fixtureDomain = readJson(fixtureFile);
     const runDomain = readJson(runFile);
     if (canonicalJson(runDomain) !== canonicalJson(fixtureDomain)) {
-      return fail(`Data-domain file '${slug}.json' changed from canonical fixture`);
+      return fail(`Domain file '${slug}.json' changed from canonical fixture`);
     }
   }
 
@@ -344,7 +344,7 @@ module.exports = (_output, context) => {
   return {
     pass: true,
     score: 1,
-    reason: `Validated persisted data-domain files: ${files.map((filePath) => path.basename(filePath)).join(', ')}`,
+    reason: `Validated persisted domain files: ${files.map((filePath) => path.basename(filePath)).join(', ')}`,
   };
 };
 

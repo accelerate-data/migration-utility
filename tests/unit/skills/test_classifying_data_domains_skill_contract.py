@@ -28,7 +28,7 @@ def test_skill_is_user_invocable_with_trigger_only_description() -> None:
 
     assert frontmatter["name"] == "classifying-data-domains"
     assert frontmatter["user-invocable"] is True
-    assert "warehouse-ddl" in str(frontmatter["argument-hint"])
+    assert "warehouse-ddl" not in str(frontmatter["argument-hint"])
     assert str(frontmatter["description"]).startswith("Use when ")
     assert "Step " not in str(frontmatter["description"])
 
@@ -42,10 +42,8 @@ def test_skill_requires_existing_warehouse_ddl_and_does_not_accept_substitutes()
     assert "Do not assume it is missing without checking the concrete path" in normalized
     assert "If `warehouse-ddl/` is missing" in text
     assert "Do not create `warehouse-ddl/`" in text
-    assert "Do not create `warehouse-catalog/`" in text
-    assert "Do not accept pasted DDL" in text
+    assert "partial substitutes such as pasted DDL" in text
     assert "run the warehouse DDL extraction workflow first" in text
-    assert "do not run extraction or setup workflows for the user" in text
 
 
 def test_skill_resolves_paths_under_active_project_root() -> None:
@@ -53,11 +51,13 @@ def test_skill_resolves_paths_under_active_project_root() -> None:
     normalized = _single_line(text)
 
     assert "## Project Root" in text
-    assert "active warehouse-analysis project root" in normalized
+    assert "current working directory as the warehouse-analysis project root" in normalized
     assert "explicitly provided project root or workspace path" in normalized
     assert "otherwise, use the current working directory" in normalized.lower()
-    assert "<project-root>/warehouse-ddl/" in text
-    assert "<project-root>/warehouse-catalog/data-domains/<slug>.json" in text
+    assert "`warehouse-ddl/`" in text
+    assert "`warehouse-catalog/domains/<slug>.json`" in text
+    assert "warehouse-catalog/data-domains" not in text
+    assert "warehouse-catalog/domain-classification" not in text
     assert "Do not write outside the active project root" in text
     assert "Use a directory listing or file listing command" in text
     assert "A failed glob" in text
@@ -69,11 +69,11 @@ def test_skill_persists_only_canonical_data_domain_files_on_request() -> None:
     text = _skill_text()
 
     assert "only when the user explicitly asks" in text
-    assert "`warehouse-catalog/data-domains/<slug>.json`" in text
+    assert "`warehouse-catalog/domains/<slug>.json`" in text
     assert "same accepted state serializes to the same JSON" in text
     assert "no volatile timestamps" in text
     assert "do not claim files were written unless they exist on disk" in text
-    assert "`catalog/data-domains" not in text
+    assert "`catalog/domains" not in text
 
 
 def test_skill_scope_is_tables_and_views_only() -> None:

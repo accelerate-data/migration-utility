@@ -66,20 +66,15 @@ The response should include:
 When you ask to persist the result, the project writes decision files:
 
 ```text
-warehouse-catalog/domain-classification/
-  layer-decisions.json
-  domain-decisions.json
-  table-classification-decisions.json
-  date-dimension-decision.json
+warehouse-catalog/domains/
+  sales.json
+  finance.json
+  operations.json
 ```
 
-Each decision stores candidates, the selected decision, and a decision reason.
-Unresolved decisions are represented with an empty decision and are surfaced in
-generated reports.
-
-Source, staging, and ETL-control objects do not receive domain decisions. ODS
-objects receive domain decisions. Silver and gold warehouse objects receive both
-domain decisions and table-classification decisions.
+Each file is the canonical accepted state for one business domain, including
+domain-owned tables and views, setup-source candidates, dependencies,
+ambiguities, and rationale.
 
 Procedures and functions can be inspected for dependency evidence, but they are
 not domain-catalog objects.
@@ -121,8 +116,8 @@ Decide data domains
   Layer + domain + table classification decisions
         |
         v
-warehouse-catalog/domain-classification/
-  Decision files keyed by object FQN
+warehouse-catalog/domains/
+  One JSON file per business domain
         |
         v
 Choose migration domain

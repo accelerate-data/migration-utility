@@ -3,7 +3,7 @@ name: classifying-data-domains
 description: >
   Use when a monolith warehouse or lakehouse has a whole-warehouse `warehouse-ddl/` snapshot and needs tables or views grouped into business data domains with data owners for data mesh decentralization, setup-source selection, migration planning, or scope and migrate-mart inputs.
 user-invocable: true
-argument-hint: "<warehouse-ddl/> [persist only when explicitly requested]"
+argument-hint: "[persist only when explicitly requested]"
 ---
 
 # Classifying Data Domains
@@ -24,35 +24,22 @@ Outputs:
 
 - a human-readable domain analysis report
 - one machine-readable JSON object per domain in the response
-- optional persisted files under `warehouse-catalog/data-domains/<slug>.json`, only when the user explicitly asks to persist the analysis
+- optional persisted files under `warehouse-catalog/domains/<slug>.json`, only when the user explicitly asks to persist the analysis
 
 This skill does not:
 
-- create or populate `warehouse-ddl/`
-- run DDL extraction
-- run extraction or setup workflows in this skill invocation
-- read `ddl/` as input
-- write `catalog/`
-- run `setup-source`, `/scope`, `/profile`, or migration commands
-- accept pasted DDL, ad hoc table lists, or ERD text as substitutes for `warehouse-ddl/`
+- create or extract the `warehouse-ddl/` snapshot
+- run setup, scoping, profiling, or migration workflows
+- classify from partial substitutes such as pasted DDL, table lists, or ERD text
+- write anything except requested domain files under `warehouse-catalog/domains/`
 
 ## Project Root
 
-Resolve all skill paths relative to the active warehouse-analysis project root.
+Use an explicitly provided project root or workspace path when the user gives one. Otherwise, use the current working directory as the warehouse-analysis project root.
 
-Use an explicitly provided project root or workspace path when the invocation includes one. Otherwise, use the current working directory.
+Read input from `warehouse-ddl/`.
 
-Read input from:
-
-```text
-<project-root>/warehouse-ddl/
-```
-
-When persistence is explicitly requested, write only to:
-
-```text
-<project-root>/warehouse-catalog/data-domains/<slug>.json
-```
+When persistence is explicitly requested, write only to `warehouse-catalog/domains/<slug>.json`.
 
 Do not read warehouse input from another repository or parent directory unless the user explicitly identifies it as the active project root. Do not write outside the active project root.
 
@@ -66,10 +53,7 @@ If `warehouse-ddl/` is missing:
 
 - stop immediately
 - Do not create `warehouse-ddl/`
-- Do not create `warehouse-catalog/`
-- Do not accept pasted DDL, ad hoc table lists, or ERD text as a substitute
 - tell the user to run the warehouse DDL extraction workflow first
-- do not run extraction or setup workflows for the user
 
 Proceed only when `warehouse-ddl/` exists.
 
@@ -187,7 +171,7 @@ The report should include:
 When the user explicitly asks to persist the analysis, write one file per domain:
 
 ```text
-warehouse-catalog/data-domains/<slug>.json
+warehouse-catalog/domains/<slug>.json
 ```
 
 Each file is the canonical current state for that domain.
@@ -255,7 +239,7 @@ Persist only when the user explicitly asks.
 
 Rules:
 
-- write only under `<project-root>/warehouse-catalog/data-domains/`
+- write only under `warehouse-catalog/domains/`
 - do not write under `catalog/`
 - do not create or populate `warehouse-ddl/`
 - do not claim files were written unless they exist on disk

@@ -21,7 +21,7 @@ function writeDomain(root, slug, patch = {}) {
     rationale: [],
     ...patch,
   };
-  const filePath = path.join(root, 'warehouse-catalog', 'data-domains', `${slug}.json`);
+  const filePath = path.join(root, 'warehouse-catalog', 'domains', `${slug}.json`);
   fs.mkdirSync(path.dirname(filePath), { recursive: true });
   fs.writeFileSync(filePath, JSON.stringify(value, null, 2) + '\n', 'utf8');
 }
@@ -102,7 +102,7 @@ test('check-data-domain-persistence rejects routine objects in allowed buckets',
 test('check-data-domain-persistence rejects unstable top-level field order', () => {
   const runRoot = fs.mkdtempSync(path.join(os.tmpdir(), 'domain-run-'));
   try {
-    const filePath = path.join(runRoot, 'warehouse-catalog', 'data-domains', 'sales.json');
+    const filePath = path.join(runRoot, 'warehouse-catalog', 'domains', 'sales.json');
     fs.mkdirSync(path.dirname(filePath), { recursive: true });
     fs.writeFileSync(
       filePath,
@@ -192,7 +192,7 @@ test('check-data-domain-persistence rejects unexpected extra domain files', () =
     });
 
     assert.equal(result.pass, false);
-    assert.match(result.reason, /unexpected data-domain files: finance\.json/i);
+    assert.match(result.reason, /unexpected domain files: finance\.json/i);
   } finally {
     fs.rmSync(runRoot, { recursive: true, force: true });
   }
