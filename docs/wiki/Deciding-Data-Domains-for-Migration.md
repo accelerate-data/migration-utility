@@ -32,7 +32,8 @@ and `catalog/`. The whole-warehouse domain catalog lives under
 
 ## Claude Code prompt
 
-In Claude Code, ask for the domain decision in plain language:
+In Claude Code, invoke the `classifying-data-domains` skill by asking for the
+domain decision in plain language:
 
 ```text
 Decide data domains for this warehouse and persist the result.
@@ -56,44 +57,60 @@ domain catalog.
 The response should include:
 
 - a summary of domains found
-- object counts by domain and warehouse role
-- setup-source candidates by domain
+- layer counts for source, staging, ODS, warehouse, and ETL-control objects
+- object counts by domain and table classification
 - upstream and downstream domain dependencies
-- cross-domain dependencies, especially views over another domain's tables
-- unresolved ownership questions that need a human decision
+- unresolved layer or domain questions that need a human decision
+- classification decisions that can be handled later during mart migration
 
-When you ask to persist the result, the project writes one canonical JSON file
-per domain:
+When you ask to persist the result, the project writes decision files:
 
 ```text
-warehouse-catalog/data-domains/<domain-slug>.json
+warehouse-catalog/domain-classification/
+  layer-decisions.json
+  domain-decisions.json
+  table-classification-decisions.json
+  date-dimension-decision.json
 ```
 
-Each table or view has exactly one primary business domain. Roles such as
-staging, fact, dimension, aggregate, and reference describe the warehouse object
-type; they are not business domains by themselves.
+Each decision stores candidates, the selected decision, and a decision reason.
+Unresolved decisions are represented with an empty decision and are surfaced in
+generated reports.
+
+Source, staging, and ETL-control objects do not receive domain decisions. ODS
+objects receive domain decisions. Silver and gold warehouse objects receive both
+domain decisions and table-classification decisions.
 
 Procedures and functions can be inspected for dependency evidence, but they are
 not domain-catalog objects.
 
 ## Ownership rules
 
-Direct joins and aggregate tables can indicate that objects belong together in a
-domain. Upstream or downstream lineage alone does not decide ownership.
+Domain grouping starts from fact tables. Direct joins can indicate that objects
+belong together in a domain. Upstream or downstream lineage alone does not
+decide ownership.
 
-A domain-specific view can belong to a different domain than its source table.
-For example, a Sales table can remain in the Sales domain while a Finance
-revenue view over that table belongs to Finance. In that case, record a
-cross-domain dependency from Finance to Sales.
+Aggregates inherit domain from the fact or dimension they aggregate.
+Minidimensions and bridge tables inherit domain from the dimension they support.
+Conformed dimensions belong to the subject domain when that subject is clear.
 
-If an object has ambiguous ownership, stop and ask for the business decision
-instead of guessing.
+A same-grain derived fact stays with the base fact's domain unless it adds
+domain-specific business semantics or enrichment. If ownership is unclear, leave
+the domain decision unresolved for human review.
+
+Date dimensions are resolved as a shared canonical date dimension and included
+as a required shared dimension for generated domain outputs. Date dimensions do
+not count toward domain-size warnings.
+
+Junk dimensions may be classified from DDL, but domain ownership usually remains
+unresolved because DDL does not show value-level ownership.
 
 ## Using the result
 
-Use the domain files to decide which subset of the warehouse to migrate first.
-For each chosen domain, review its setup-source candidates and then continue
-with the normal source setup, scoping, target setup, and mart migration flow.
+Use generated domain reports to decide which subset of the warehouse to migrate
+first. For each chosen domain, review unresolved placement decisions and then
+continue with the normal source setup, scoping, target setup, and mart migration
+flow.
 
 ```text
 warehouse-ddl/
@@ -101,25 +118,25 @@ warehouse-ddl/
         |
         v
 Decide data domains
-  Business ownership + warehouse roles
+  Layer + domain + table classification decisions
         |
         v
-warehouse-catalog/data-domains/
-  One JSON file per domain
+warehouse-catalog/domain-classification/
+  Decision files keyed by object FQN
         |
         v
 Choose migration domain
         |
         v
-Review setup-source candidates
-  Confirm source tables and seed tables
+Review generated domain report
+  Confirm unresolved layer/domain decisions
         |
         v
 setup-source -> scoping -> mart migration flow
 ```
 
-If ownership changes after review, update the canonical domain files directly.
-Do not keep separate manual include or exclude lists for domain ownership.
+If ownership changes after review, update the relevant decision entry and rerun
+domain evaluation so inherited assignments and reports are regenerated.
 
 ## Related pages
 
