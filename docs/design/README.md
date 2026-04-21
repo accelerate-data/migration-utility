@@ -32,6 +32,6 @@ If information is mainly operational or contributor-facing, put it in `docs/refe
 - [Replicate Source Tables](replicate-source-tables/README.md) — deterministic CLI boundary for copying capped source data into target-side source tables before user-run dbt execution
 - [dbt Generation Execution Policy](dbt-generation-execution-policy/README.md) — generate-model sub-agent orchestration, direct-parent empty materialization, and scoped dbt unit-test execution
 - [Migrate Mart Coordinator](migrate-mart-coordinator/README.md) — whole-scope mart plan and coordinator workflow with deterministic worktrees, stage PRs, and crash recovery
-- [Data Domain Catalog](data-domain-catalog/README.md) — whole-warehouse DDL and per-domain planning state before setup-source and migration workflows
+- [Data Domain Catalog](data-domain-catalog/README.md) — whole-warehouse layer, domain, table-classification, and date-dimension decision state before setup-source and migration workflows
 
 When adding one, use `docs/design/<topic>/README.md` and record only the durable decision and the reason it matters to agents.
