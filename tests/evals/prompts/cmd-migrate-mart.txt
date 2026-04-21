@@ -10,8 +10,8 @@ Harness overrides:
 - In this eval fixture, do not actually run git, gh, scripts/stage-* helpers, or cleanup commands.
 - Keep `${CLAUDE_PLUGIN_ROOT}` references as written.
 - Pass `--project-root {{run_path}}` to any CLI command that accepts `--project-root`.
-- If `{{run_path}}/{{plan_file}}` is missing, seed a minimal coordinator plan there before resuming so the plan has a first incomplete stage at `040`.
-- If the scenario guard override describes malformed plan metadata, stop with `PLAN_INVALID` instead of resuming.
+- If `{{run_path}}/{{plan_file}}` is missing, seed a minimal coordinator plan there before resuming so the plan has a first incomplete stage at `040` named `Profile Source Tables`.
+- If the scenario guard override describes malformed plan metadata, stop with `PLAN_INVALID` instead of resuming. Include the literal terms `PLAN_INVALID`, `Coordinator`, `Branch`, and `Base branch` in the final response.
 - Resume only the first incomplete stage in numeric order.
 - Do not mention or accept a start-stage argument.
 - Report the first incomplete stage you resumed and the next intended action in the final response.
