@@ -41,6 +41,7 @@
 **Operations**
 
 - [[Status Dashboard]]
+- [[Deciding Data Domains for Migration]]
 - [[Handling Diagnostic Errors and Warnings]]
 - [[Browsing the Catalog]]
 - [[Sandbox Operations]]
