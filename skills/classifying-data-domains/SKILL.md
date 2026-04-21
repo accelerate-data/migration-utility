@@ -36,9 +36,31 @@ This skill does not:
 - run `setup-source`, `/scope`, `/profile`, or migration commands
 - accept pasted DDL, ad hoc table lists, or ERD text as substitutes for `warehouse-ddl/`
 
+## Project Root
+
+Resolve all skill paths relative to the active warehouse-analysis project root.
+
+Use an explicitly provided project root or workspace path when the invocation includes one. Otherwise, use the current working directory.
+
+Read input from:
+
+```text
+<project-root>/warehouse-ddl/
+```
+
+When persistence is explicitly requested, write only to:
+
+```text
+<project-root>/warehouse-catalog/data-domains/<slug>.json
+```
+
+Do not read warehouse input from another repository or parent directory unless the user explicitly identifies it as the active project root. Do not write outside the active project root.
+
 ## Input Guard
 
-`warehouse-ddl/` is required. Check the filesystem for the directory before any analysis. Do not assume it is missing without checking the project root.
+`warehouse-ddl/` is required. Check the filesystem for the directory under the active project root before any analysis. Do not assume it is missing without checking the concrete path.
+
+Before reporting `warehouse-ddl/` missing, verify the concrete path under the active project root with a directory check and file listing. Use a directory listing or file listing command when available. A failed glob, a relative-path miss, or an attempt to read a directory as a file is not proof that `warehouse-ddl/` is missing.
 
 If `warehouse-ddl/` is missing:
 
@@ -66,6 +88,8 @@ If two or more primary owners are plausible, stop before persistence. A user ins
 When the user's request conflicts with this ambiguity rule, follow this skill. Do not classify, persist, or continue by guessing a primary owner.
 
 Proceed with low confidence only when evidence is weak and there is no competing plausible primary owner. Mark weak classifications with `confidence: "low"` and explain the missing evidence instead of inventing definitions.
+
+For `Unclassified` or unknown-domain results, describe the missing evidence without naming absent business domains. Do not list absent example domains; say `no visible business signal` or `no domain keywords` instead.
 
 ## Domain Analysis Flow
 
@@ -231,7 +255,7 @@ Persist only when the user explicitly asks.
 
 Rules:
 
-- write only under `warehouse-catalog/data-domains/`
+- write only under `<project-root>/warehouse-catalog/data-domains/`
 - do not write under `catalog/`
 - do not create or populate `warehouse-ddl/`
 - do not claim files were written unless they exist on disk
