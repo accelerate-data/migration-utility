@@ -183,13 +183,34 @@ class TestScaffoldProject:
 
         assert "CLAUDE.md (+managed sections)" in result.files_updated
         assert "CLAUDE.md" in result.written_paths
-        assert not any(f.startswith("CLAUDE.md (missing sections") for f in result.files_skipped)
+        assert not any(f.startswith("CLAUDE.md") for f in result.files_skipped)
 
         claude_md = (tmp_path / "CLAUDE.md").read_text(encoding="utf-8")
         assert "## Domain\n\nSome domain info." in claude_md
         assert "## Local Notes\n\nKeep this." in claude_md
         assert "## Completion Claims" in claude_md
         assert "completion-claim verification skill" in claude_md
+        assert claude_md.index("## Local Notes") < claude_md.index("## Stack")
+        assert claude_md.rstrip().endswith("If not a git repository, skip commit steps silently.")
+
+    def test_refreshes_stale_completion_claims_section(self, tmp_path: Path) -> None:
+        config = get_source_config("sql_server")
+        stale_claude_md = config.claude_md_fn().replace(
+            "Before stating that work is complete, successful, passing, PR-ready, merged, or stage-complete, run the completion-claim verification skill.",
+            "This local completion guidance is stale.",
+        )
+        (tmp_path / "CLAUDE.md").write_text(stale_claude_md, encoding="utf-8")
+
+        result = run_scaffold_project(tmp_path)
+
+        assert "CLAUDE.md (+managed sections)" in result.files_updated
+        assert "CLAUDE.md" in result.written_paths
+        assert "CLAUDE.md" not in result.files_skipped
+
+        claude_md = (tmp_path / "CLAUDE.md").read_text(encoding="utf-8")
+        assert "This local completion guidance is stale." not in claude_md
+        assert "Before stating that work is complete" in claude_md
+        assert claude_md.count("## Completion Claims") == 1
 
     def test_complete_claude_md_skipped_cleanly(self, tmp_path: Path) -> None:
         config = get_source_config("sql_server")

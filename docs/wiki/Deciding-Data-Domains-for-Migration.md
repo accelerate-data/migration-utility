@@ -32,8 +32,7 @@ and `catalog/`. The whole-warehouse domain catalog lives under
 
 ## Claude Code prompt
 
-In Claude Code, invoke the `classifying-data-domains` skill by asking for the
-domain decision in plain language:
+In Claude Code, ask for the domain decision in plain language:
 
 ```text
 Decide data domains for this warehouse and persist the result.

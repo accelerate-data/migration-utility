@@ -289,7 +289,7 @@ uv run --project "${CLAUDE_PLUGIN_ROOT}/packages/ad-migration-internal" init sca
 
 Parse the JSON output and report to the user which files were created, updated, or skipped.
 
-If `scaffold-project` reports `CLAUDE.md (+managed sections)` in `files_updated`, tell the user which managed agent guidance was appended.
+If `scaffold-project` reports `CLAUDE.md (+managed sections)` in `files_updated`, tell the user that managed agent guidance was refreshed in `CLAUDE.md`.
 
 Maintain a JSON object `$OVERRIDES` while gathering evidence. Add only non-secret machine-specific resolved overrides such as `MSSQL_DRIVER`.
 

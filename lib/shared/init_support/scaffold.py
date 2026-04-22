@@ -71,6 +71,7 @@ CLAUDE_MD_REQUIRED_SECTIONS = [
     "Maintenance",
     "Commit Discipline",
 ]
+CLAUDE_MD_REFRESHED_SECTIONS = ["Completion Claims"]
 
 ENVRC_DOTENV_LINE = "source_env_if_exists .env"
 
@@ -81,20 +82,49 @@ def is_executable_file(path_str: str) -> bool:
 
 
 def _extract_markdown_section(markdown: str, heading: str) -> str:
+    bounds = _find_markdown_section_bounds(markdown, heading)
+    if bounds is None:
+        raise ValueError(f"Template is missing required section: {heading}")
+
+    start, end = bounds
+    return markdown[start:end].strip()
+
+
+def _find_markdown_section_bounds(markdown: str, heading: str) -> tuple[int, int] | None:
     marker = f"## {heading}"
     start = markdown.find(marker)
     if start == -1:
-        raise ValueError(f"Template is missing required section: {heading}")
+        return None
 
     next_start = markdown.find("\n## ", start + len(marker))
     if next_start == -1:
-        return markdown[start:].strip()
-    return markdown[start:next_start].strip()
+        return start, len(markdown)
+    return start, next_start
 
 
 def _append_missing_claude_md_sections(content: str, template: str, missing: list[str]) -> str:
     sections = [_extract_markdown_section(template, section) for section in missing]
     return f"{content.rstrip()}\n\n" + "\n\n".join(sections) + "\n"
+
+
+def _refresh_claude_md_section(content: str, heading: str, replacement: str) -> str:
+    bounds = _find_markdown_section_bounds(content, heading)
+    if bounds is None:
+        return content
+
+    start, end = bounds
+    return f"{content[:start].rstrip()}\n\n{replacement}\n\n{content[end:].lstrip()}".rstrip() + "\n"
+
+
+def _claude_md_sections_to_refresh(content: str, template: str) -> list[str]:
+    stale: list[str] = []
+    for section in CLAUDE_MD_REFRESHED_SECTIONS:
+        bounds = _find_markdown_section_bounds(content, section)
+        if bounds is None:
+            continue
+        if content[bounds[0] : bounds[1]].strip() != _extract_markdown_section(template, section):
+            stale.append(section)
+    return stale
 
 
 def run_scaffold_project(project_root: Path, technology: str = "sql_server") -> ScaffoldProjectOutput:
@@ -114,17 +144,33 @@ def run_scaffold_project(project_root: Path, technology: str = "sql_server") -> 
         logger.info("event=scaffold_file file=CLAUDE.md status=created technology=%s", technology)
     else:
         content = claude_md_path.read_text(encoding="utf-8")
+        template = config.claude_md_fn()
         missing = [s for s in CLAUDE_MD_REQUIRED_SECTIONS if f"## {s}" not in content]
-        if missing:
+        stale = _claude_md_sections_to_refresh(content, template)
+        if missing or stale:
+            updated_content = content
+            for section in stale:
+                updated_content = _refresh_claude_md_section(
+                    updated_content,
+                    section,
+                    _extract_markdown_section(template, section),
+                )
+            if missing:
+                updated_content = _append_missing_claude_md_sections(
+                    updated_content,
+                    template,
+                    missing,
+                )
             claude_md_path.write_text(
-                _append_missing_claude_md_sections(content, config.claude_md_fn(), missing),
+                updated_content,
                 encoding="utf-8",
             )
             files_updated.append("CLAUDE.md (+managed sections)")
             written_paths.append("CLAUDE.md")
             logger.info(
-                "event=scaffold_file file=CLAUDE.md status=updated missing_sections=%s",
+                "event=scaffold_file file=CLAUDE.md status=updated missing_sections=%s refreshed_sections=%s",
                 missing,
+                stale,
             )
         else:
             files_skipped.append("CLAUDE.md")

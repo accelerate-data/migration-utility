@@ -26,6 +26,7 @@ def _frontmatter() -> dict[str, object]:
 def test_skill_is_self_triggering_for_completion_claim_intent() -> None:
     frontmatter = _frontmatter()
     description = str(frontmatter["description"])
+    text = _skill_text()
 
     assert frontmatter["name"] == "verifying-completion-claims"
     assert frontmatter["user-invocable"] is False
@@ -35,21 +36,34 @@ def test_skill_is_self_triggering_for_completion_claim_intent() -> None:
     assert "PR-ready" in description
     assert "stage-complete" in description
     assert "slash command" not in description.lower()
+    assert "This skill is self-contained" in text
+    assert "Use it because the next response would make a completion claim" in text
 
 
 def test_skill_requires_fresh_evidence_loop_before_claim_wording() -> None:
     text = _skill_text()
     normalized = _single_line(text)
+    evidence_loop = text.partition("## Evidence Loop")[2].partition("## Evidence Sources")[0]
 
-    assert "Identify the exact claim" in text
-    assert "Determine the minimum fresh evidence" in text
-    assert "Inspect that evidence directly" in text
-    assert "Compare the evidence to the intended wording" in text
+    assert "1. Identify the exact claim" in evidence_loop
+    assert "2. Determine the minimum fresh evidence" in evidence_loop
+    assert "3. Inspect that evidence directly" in evidence_loop
+    assert "4. Compare the evidence to the intended wording" in evidence_loop
+    assert "5. Return verified, downgraded, or blocked wording" in evidence_loop
     assert "verified" in text
     assert "downgraded" in text
     assert "blocked" in text
     assert "confidence" in normalized
     assert "expected side effects" in normalized
+
+
+def test_skill_output_contract_defines_claim_wording_semantics() -> None:
+    text = _skill_text()
+    output = text.partition("## Output")[2].partition("## Common Mistakes")[0]
+
+    assert "`verified`: the exact claim is supported and may be stated." in output
+    assert "`downgraded`: only a narrower claim is supported; provide replacement wording." in output
+    assert "`blocked`: no completion claim should be made; name the missing or contradictory evidence." in output
 
 
 def test_skill_does_not_trust_sub_agent_success_reports_alone() -> None:
