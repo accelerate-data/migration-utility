@@ -51,6 +51,10 @@ Move shared.opportunity_cases to the Operations domain and persist the updated
 domain catalog.
 ```
 
+Before reporting the domain decision as complete, Claude Code uses the
+`verifying-completion-claims` skill to check fresh evidence and choose accurate
+completion wording.
+
 ## Output
 
 The response should include:
