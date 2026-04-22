@@ -1,0 +1,14 @@
+Commands inspected:
+
+1. cd lib && uv run pytest ../tests/unit/skills/test_verifying_completion_claims_skill_contract.py -q
+   Exit code: 0
+   Output: 7 passed in 0.18s
+
+2. markdownlint skills/verifying-completion-claims/SKILL.md
+   Exit code: 0
+   Output: no issues
+
+Missing evidence:
+- Full unit suite was not run.
+- Promptfoo evals were not run.
+- git status was not checked.

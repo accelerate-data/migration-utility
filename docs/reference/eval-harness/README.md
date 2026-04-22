@@ -60,6 +60,7 @@ Common runs:
 | Test review behavior | `npm run eval:reviewing-tests` |
 | Model generation skill baseline behavior | `npm run eval:generating-model` |
 | Model review behavior | `npm run eval:reviewing-model` |
+| Completion-claim verification wording | `npm run eval:verifying-completion-claims` |
 | SQL refactoring behavior | `npm run eval:refactoring-sql` or `npm run eval:cmd-refactor` |
 | `/profile` command orchestration | `npm run eval:cmd-profile` |
 | `/generate-model` command orchestration | `npm run eval:cmd-generate-model` |

@@ -1,0 +1,11 @@
+Sub-agent report:
+
+"I reviewed the implementation. Everything looks complete, tests pass, and the branch is ready."
+
+Missing direct evidence:
+
+- No command output.
+- No exit code.
+- No artifact paths.
+- No git status.
+- No PR state.

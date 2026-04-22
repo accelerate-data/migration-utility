@@ -33,13 +33,13 @@ RUNNER = CliRunner()
 
 SCAFFOLD_GOLDEN_HASHES = {
     "sql_server": {
-        "CLAUDE.md": "c1941b6eb0c0a8c5db24b9537bf4bfbc128a759966433d8df83de225a58a0445",
+        "CLAUDE.md": "cacdea44c8f18ec41ae24a648722c13ee5b8d7e9610616f377073ad0fd8bb76c",
         "README.md": "33bf498002cb54876a2a544109c7ef6b98664673b73c62b99c3322445b6f4824",
         ".envrc": "05377c6d9606aea1451ca4b96d351252fdfe26e6d4ddc815e000af12e3c9f8ac",
         "repo-map.json": "e706817c0eb802839cc8d26d474e604ec63cd350cc0ba8f2f043e6e34ed098ef",
     },
     "oracle": {
-        "CLAUDE.md": "71a50084b866ea7fd242b8bf28cb4ae6cacb5ac1ad0894ed7c640fbe61756a76",
+        "CLAUDE.md": "d25a32650a94895fb3e60842cd6d24fe0a77460d659258e38e780d1a1e985bd1",
         "README.md": "76965ef2d1d770a804ee27e69b493003785fd9ecea26cf94e80fd4d4655da347",
         ".envrc": "8f730cba08e545abe16e01b66b8a3a18ae0e20fa15e2e1fae3fb3d3f86c7710d",
         "repo-map.json": "b4fc3898be790dfeffb7ecd90666e61e94139672e2b70a8caf609334ff17f619",

@@ -1,0 +1,57 @@
+# yaml-language-server: $schema=https://promptfoo.dev/config-schema.json
+description: "Verifying-completion-claims skill — generic completion-claim evidence gate"
+
+prompts:
+  - id: verifying-completion-claims
+    label: verifying-completion-claims
+    raw: file://../../prompts/skill-verifying-completion-claims.txt
+
+extensions:
+  - file://../../scripts/run-workspace-extension.js:extensionHook
+
+providers:
+  - file://../../providers/haiku-60.yaml
+
+defaultTest:
+  vars:
+    fixture_path: "tests/evals/fixtures/verifying-completion-claims/basic"
+  assert:
+    - type: javascript
+      value: file://../../assertions/check-completion-claim-guidance.js
+
+tests:
+  - description: "[smoke] verified when fresh command output proves the exact claim"
+    vars:
+      intended_claim: "The focused pytest verification passed."
+      evidence_file: "fresh-pytest-pass.txt"
+      expected_status: "verified"
+      expected_wording_terms: "pytest,passed"
+      expected_evidence_terms: "fresh-pytest-pass"
+      forbidden_terms: "downgraded,blocked"
+
+  - description: "downgraded when evidence proves only a narrower claim"
+    vars:
+      intended_claim: "All verification passed."
+      evidence_file: "partial-verification.txt"
+      expected_status: "downgraded"
+      expected_wording_terms: "skill,markdown"
+      expected_evidence_terms: "partial-verification"
+      forbidden_terms: "all verification passed,all checks passed,tests passed"
+
+  - description: "blocked when expected proof is missing or stale"
+    vars:
+      intended_claim: "The branch is PR-ready."
+      evidence_file: "stale-pr-ready.txt"
+      expected_status: "blocked"
+      expected_evidence_terms: "stale-pr-ready"
+      expected_reason_terms: "stale,missing"
+      forbidden_terms: "verified,downgraded"
+
+  - description: "blocked when only a sub-agent success report exists"
+    vars:
+      intended_claim: "The implementation is complete."
+      evidence_file: "subagent-only.txt"
+      expected_status: "blocked"
+      expected_evidence_terms: "subagent-only"
+      expected_reason_terms: "sub-agent,evidence"
+      forbidden_terms: "verified,downgraded"

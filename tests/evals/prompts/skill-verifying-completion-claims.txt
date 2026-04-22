@@ -1,0 +1,30 @@
+You are evaluating the completion-claim verification skill.
+
+Read the skill at `{{repo_root}}/skills/verifying-completion-claims/SKILL.md`.
+Apply it to the intended claim below.
+
+Intended claim:
+{{intended_claim}}
+
+Evidence location:
+`{{run_path}}/evidence/{{evidence_file}}`
+
+Inspect the evidence file directly before answering. Do not rely on the
+scenario description as proof.
+
+Use `downgraded` when the evidence supports a narrower completion claim than
+the intended claim. Use `blocked` only when there is no acceptable completion
+claim wording to return.
+
+Return only this JSON object:
+
+```json
+{
+  "status": "verified|downgraded|blocked",
+  "wording": "the exact wording the final response may use, or an empty string when blocked",
+  "evidence_checked": ["paths or facts inspected"],
+  "reason": "one concise sentence"
+}
+```
+
+Every `evidence_checked` item must include the evidence filename you inspected.

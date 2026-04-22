@@ -288,12 +288,36 @@ def test_eval_smoke_includes_migrate_mart_command_packages() -> None:
         assert snippet in smoke_script
 
 
+def test_verifying_completion_claims_eval_package_is_wired() -> None:
+    expected_paths = [
+        "tests/evals/prompts/skill-verifying-completion-claims.txt",
+        "tests/evals/packages/verifying-completion-claims/skill-verifying-completion-claims.yaml",
+        "tests/evals/assertions/check-completion-claim-guidance.js",
+        "tests/evals/fixtures/verifying-completion-claims/basic/manifest.json",
+    ]
+
+    for relative_path in expected_paths:
+        assert (REPO_ROOT / relative_path).exists(), relative_path
+
+    package_json = json.loads(
+        (REPO_ROOT / "tests/evals/package.json").read_text(encoding="utf-8")
+    )
+    scripts = package_json["scripts"]
+    package_path = (
+        "packages/verifying-completion-claims/skill-verifying-completion-claims.yaml"
+    )
+
+    assert scripts["eval:verifying-completion-claims"].endswith(package_path)
+    assert package_path in scripts["eval:smoke"]
+
+
 def test_repo_map_includes_migrate_mart_eval_commands() -> None:
     repo_map = json.loads((REPO_ROOT / "repo-map.json").read_text(encoding="utf-8"))
 
     expected_commands = {
         "eval_cmd_migrate_mart_plan": "cd tests/evals && npm run eval:cmd-migrate-mart-plan",
         "eval_cmd_migrate_mart": "cd tests/evals && npm run eval:cmd-migrate-mart",
+        "eval_verifying_completion_claims": "cd tests/evals && npm run eval:verifying-completion-claims",
     }
 
     for command_name, command_value in expected_commands.items():

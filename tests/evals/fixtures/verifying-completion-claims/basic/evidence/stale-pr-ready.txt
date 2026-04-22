@@ -1,0 +1,11 @@
+Observed evidence:
+
+- Focused tests passed on 2026-04-20T15:00:00Z.
+- markdownlint passed on 2026-04-20T15:03:00Z.
+
+Missing or stale evidence for a PR-ready claim:
+
+- No fresh test run after the latest commit.
+- No current git status output.
+- No current git diff output.
+- No pushed branch or PR state.

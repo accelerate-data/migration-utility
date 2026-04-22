@@ -149,10 +149,6 @@ Present results so the reader understands the output without mental overhead. Le
 
 Before stating that work is complete, successful, passing, PR-ready, merged, or stage-complete, run the completion-claim verification skill.
 
-Verify fresh evidence for the exact claim: command output, exit code, run artifact, catalog writeback, dbt result, comparison result, git state, PR state, or coordinator plan state.
-
-Do not repeat a sub-agent's success claim without inspecting the evidence it produced. If evidence is partial, stale, missing, or contradictory, report the actual state instead of using completion language.
-
 ## Commit Discipline
 
 Commit at logical checkpoints so work is never lost mid-session.
