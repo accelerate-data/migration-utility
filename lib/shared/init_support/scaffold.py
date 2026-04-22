@@ -94,8 +94,7 @@ def _extract_markdown_section(markdown: str, heading: str) -> str:
 
 def _append_missing_claude_md_sections(content: str, template: str, missing: list[str]) -> str:
     sections = [_extract_markdown_section(template, section) for section in missing]
-    separator = "\n\n" if content.endswith("\n") else "\n\n"
-    return f"{content.rstrip()}{separator}" + "\n\n".join(sections) + "\n"
+    return f"{content.rstrip()}\n\n" + "\n\n".join(sections) + "\n"
 
 
 def run_scaffold_project(project_root: Path, technology: str = "sql_server") -> ScaffoldProjectOutput:
