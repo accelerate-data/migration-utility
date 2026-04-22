@@ -13,9 +13,19 @@ function makeRunRoot(t) {
 }
 
 function writeReview(runRoot, table, review) {
-  const dir = path.join(runRoot, 'model-review-results');
-  fs.mkdirSync(dir, { recursive: true });
-  fs.writeFileSync(path.join(dir, `${table}.json`), JSON.stringify(review, null, 2));
+  const reviewDir = path.join(runRoot, 'model-review-results');
+  fs.mkdirSync(reviewDir, { recursive: true });
+  fs.writeFileSync(path.join(reviewDir, `${table}.json`), JSON.stringify(review, null, 2));
+}
+
+function context(runRoot, vars = {}) {
+  return {
+    vars: {
+      run_path: runRoot,
+      target_table: 'silver.dimcustomer',
+      ...vars,
+    },
+  };
 }
 
 test('check-model-review validates persisted review checks and feedback codes', (t) => {
@@ -27,29 +37,27 @@ test('check-model-review validates persisted review checks and feedback codes', 
       correctness: { passed: false, issues: ['missing surrogate key'] },
       test_integration: { passed: true },
     },
-    feedback_for_model_generator: [{
-      code: 'MODEL_CORRECTNESS',
-      severity: 'warning',
-      ack_required: true,
-      message: 'Add surrogate key handling.',
-    }],
+    feedback_for_model_generator: [
+      {
+        code: 'MODEL_CORRECTNESS',
+        severity: 'warning',
+        ack_required: true,
+        message: 'Add surrogate key handling.',
+      },
+    ],
   });
 
-  const result = checkModelReview('', {
-    vars: {
-      run_path: runRoot,
-      target_table: 'silver.dimcustomer',
-      expected_status: 'approved_with_warnings',
-      expect_standards_passed: 'true',
-      expect_correctness_passed: 'false',
-      expect_test_integration_passed: 'true',
-      expected_feedback_codes: 'MODEL_CORRECTNESS',
-      expected_feedback_terms: 'surrogate key',
-      expected_issue_terms: 'missing surrogate key',
-    },
-  });
+  const result = checkModelReview('', context(runRoot, {
+    expected_status: 'approved_with_warnings',
+    expect_standards_passed: 'true',
+    expect_correctness_passed: 'false',
+    expect_test_integration_passed: 'true',
+    expected_feedback_codes: 'MODEL_CORRECTNESS',
+    expected_feedback_terms: 'surrogate key',
+    expected_issue_terms: 'missing surrogate key',
+  }));
 
-  assert.equal(result.pass, true, result.reason);
+  assert.equal(result.pass, true);
 });
 
 test('check-model-review rejects feedback items that cannot be acknowledged correctly', (t) => {
@@ -57,20 +65,26 @@ test('check-model-review rejects feedback items that cannot be acknowledged corr
   writeReview(runRoot, 'silver.dimcustomer', {
     status: 'changes_requested',
     checks: {},
-    feedback_for_model_generator: [{
-      code: 'INFO_ONLY',
-      severity: 'info',
-      ack_required: true,
-    }],
+    feedback_for_model_generator: [
+      {
+        code: 'INFO_ONLY',
+        severity: 'info',
+        ack_required: true,
+      },
+    ],
   });
 
-  const result = checkModelReview('', {
-    vars: {
-      run_path: runRoot,
-      target_table: 'silver.dimcustomer',
-    },
-  });
+  const result = checkModelReview('', context(runRoot));
 
   assert.equal(result.pass, false);
   assert.match(result.reason, /severity='info' must have ack_required=false/);
+});
+
+test('check-model-review rejects missing review JSON', (t) => {
+  const runRoot = makeRunRoot(t);
+
+  const result = checkModelReview('no json here', context(runRoot));
+
+  assert.equal(result.pass, false);
+  assert.match(result.reason, /No review JSON found/);
 });

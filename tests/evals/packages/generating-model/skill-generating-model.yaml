@@ -20,7 +20,7 @@ tests:
       writer: "silver.usp_load_SelectIntoTarget"
       expected_model_path: "models/marts/selectintotarget.sql"
       expected_model_terms: "ref('stg_bronze__product')"
-      forbidden_model_terms: "materialized='table'"
+      forbidden_model_terms: "materialized='table',source('bronze'"
       expected_yaml_terms: "version: 2,description"
     assert:
       - type: javascript

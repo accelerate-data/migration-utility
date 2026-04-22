@@ -21,5 +21,6 @@ Harness overrides:
 - For eval fixtures, every non-staging model named in `Validation:` is a declared consumer and must reference the candidate's `stg_*` model after rewiring.
 - Process approved `Type: stg` candidates independently and continue after a candidate fails.
 - Do not apply `Type: int` or `Type: mart` candidates, and do not change their execution status.
+- For every staging candidate whose `Execution status:` becomes `applied` or `failed`, persist exactly one `Validation result:` bullet in that same candidate section of `{{run_path}}/{{plan_file}}`. A final-answer validation summary is not enough.
 
 The eval expects the final answer to summarize applied, failed, blocked, and skipped counts and include the `PR:`, `Branch:`, and `Worktree:` handoff block.

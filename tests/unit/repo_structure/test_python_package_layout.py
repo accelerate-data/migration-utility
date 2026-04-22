@@ -177,6 +177,7 @@ def test_maintainer_docs_use_the_internal_project_path() -> None:
         "skills/generating-tests/references/command-workflow-ref.md",
         "skills/reviewing-model/SKILL.md",
         "skills/reviewing-tests/SKILL.md",
+        "skills/verifying-completion-claims/SKILL.md",
         "skills/reviewing-tests/references/review-output-contract.md",
         "skills/reviewing-tests/references/table-vs-view-context.md",
         "skills/refactoring-sql/SKILL.md",
@@ -216,12 +217,11 @@ def test_migrate_mart_plan_uses_stage_specific_worktrees_and_handoff() -> None:
         "## Coordinator",
         "## Stage 010: Runtime Readiness",
         "- Status: `complete`",
-        "## Stage 020: Scope",
-        "- Status: `complete` or `skipped`",
+        "## Stage 020: Scope Validation",
+        "- Slash command: `n/a`",
+        "- Status: `complete`",
         "## Stage 030: Catalog Ownership Check",
         "- Status: `complete`",
-        "- Slash command: `/scope-tables <plan-file> 020 020-scope-<slug> feature/migrate-mart-<slug> <scope-targets>`",
-        "- Invocation: `/scope-tables <plan-file> 020 020-scope-<slug> feature/migrate-mart-<slug> <scope-targets>`",
         "- Branch: `feature/migrate-mart-<slug>/040-profile-<slug>`",
         "- Worktree name: `040-profile-<slug>`",
         "- Worktree path: `../worktrees/feature/migrate-mart-<slug>/040-profile-<slug>`",
@@ -256,8 +256,8 @@ def test_migrate_mart_command_handles_resume_and_final_pr_behavior() -> None:
         'After each merge, refresh coordinator worktree, rerun `uv run --project "${CLAUDE_PLUGIN_ROOT}/packages/ad-migration-internal" migrate-util batch-plan --project-root <worktree_path>`, update the Markdown plan, and commit the plan update.',
         "Launch exactly one subagent at a time.",
         "| 040 | recorded `/profile-tables ...` invocation |",
-        "| 050 | deterministic `ad-migration setup-target` stage subagent |",
-        "| 060 | deterministic `ad-migration setup-sandbox --yes` stage subagent |",
+        "| 050 | recorded `test -f dbt/dbt_project.yml && ad-migration doctor drivers --project-root <worktree-path> --json` invocation |",
+        '| 060 | recorded `uv run --project "${CLAUDE_PLUGIN_ROOT}/packages/ad-migration-internal" test-harness sandbox-status` invocation |',
         "| 070 | recorded `/generate-tests ...` invocation |",
         "| 080 | recorded `/refactor-query ...` invocation |",
         "| 090 | recorded `ad-migration replicate-source-tables --limit <plan-limit> --yes` invocation |",
@@ -288,12 +288,36 @@ def test_eval_smoke_includes_migrate_mart_command_packages() -> None:
         assert snippet in smoke_script
 
 
+def test_verifying_completion_claims_eval_package_is_wired() -> None:
+    expected_paths = [
+        "tests/evals/prompts/skill-verifying-completion-claims.txt",
+        "tests/evals/packages/verifying-completion-claims/skill-verifying-completion-claims.yaml",
+        "tests/evals/assertions/check-completion-claim-guidance.js",
+        "tests/evals/fixtures/verifying-completion-claims/basic/manifest.json",
+    ]
+
+    for relative_path in expected_paths:
+        assert (REPO_ROOT / relative_path).exists(), relative_path
+
+    package_json = json.loads(
+        (REPO_ROOT / "tests/evals/package.json").read_text(encoding="utf-8")
+    )
+    scripts = package_json["scripts"]
+    package_path = (
+        "packages/verifying-completion-claims/skill-verifying-completion-claims.yaml"
+    )
+
+    assert scripts["eval:verifying-completion-claims"].endswith(package_path)
+    assert package_path in scripts["eval:smoke"]
+
+
 def test_repo_map_includes_migrate_mart_eval_commands() -> None:
     repo_map = json.loads((REPO_ROOT / "repo-map.json").read_text(encoding="utf-8"))
 
     expected_commands = {
         "eval_cmd_migrate_mart_plan": "cd tests/evals && npm run eval:cmd-migrate-mart-plan",
         "eval_cmd_migrate_mart": "cd tests/evals && npm run eval:cmd-migrate-mart",
+        "eval_verifying_completion_claims": "cd tests/evals && npm run eval:verifying-completion-claims",
     }
 
     for command_name, command_value in expected_commands.items():

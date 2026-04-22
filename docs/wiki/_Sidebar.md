@@ -50,6 +50,7 @@
 **Reference**
 
 - [[Glossary]]
+- `verifying-completion-claims` skill
 - [[Profiling Signals]]
 - [[SQL Server Connection Variables]]
 - [[Oracle Connection Variables]]

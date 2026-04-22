@@ -9,7 +9,7 @@
 //   forbidden_extracted_terms?,  -- comma-separated terms that must NOT appear in extracted SQL
 //   expected_refactored_terms?,  -- comma-separated terms expected in refactored CTE SQL
 //   forbidden_refactored_terms?, -- comma-separated terms that must NOT appear in refactored SQL
-//   expected_status?,            -- comma-separated acceptable statuses (default: "partial")
+//   expected_status?,            -- comma-separated acceptable statuses (default: "ok")
 //   graceful_partial?            -- "true" if partial status is acceptable
 // }
 const fs = require('fs');
@@ -44,7 +44,7 @@ module.exports = (output, context) => {
   const forbiddenExtractedTerms = normalizeTerms(context.vars.forbidden_extracted_terms);
   const expectedRefactoredTerms = normalizeTerms(context.vars.expected_refactored_terms);
   const forbiddenRefactoredTerms = normalizeTerms(context.vars.forbidden_refactored_terms);
-  const expectedStatuses = normalizeTerms(context.vars.expected_status || 'partial');
+  const expectedStatuses = normalizeTerms(context.vars.expected_status || 'ok');
   const gracefulPartial = String(context.vars.graceful_partial || '').toLowerCase() === 'true';
 
   const repoRoot = path.resolve(__dirname, '..', '..', '..');
@@ -59,23 +59,8 @@ module.exports = (output, context) => {
   const tableCatalogPath = path.resolve(tableCatalogDir, `${objectFqn}.json`);
   const viewCatalogPath = path.resolve(viewCatalogDir, `${objectFqn}.json`);
 
-  // Helper: check if the LLM output text contains both SQL blocks as fallback
-  const outputStr = String(output || '').toLowerCase();
-  const outputHasExtracted = outputStr.includes('extracted') && outputStr.includes('select');
-  const outputHasRefactored = outputStr.includes('with') && outputStr.includes('select') && (outputStr.includes('final') || outputStr.includes('cte'));
-  const outputFallback = outputHasExtracted && outputHasRefactored;
-
   const primaryCatalogPath = table ? tableCatalogPath : viewCatalogPath;
   if (!fs.existsSync(primaryCatalogPath)) {
-    if (outputFallback) {
-      // Agent produced both SQLs in text but didn't persist to catalog (e.g. ran out of turns)
-      for (const term of expectedRefactoredTerms) {
-        if (!outputStr.includes(term)) {
-          return { pass: false, score: 0, reason: `Expected refactored term '${term}' not found in output text (catalog not written)` };
-        }
-      }
-      return { pass: true, score: 0.7, reason: 'Both SQL blocks found in output text (catalog not written — likely ran out of turns)' };
-    }
     return { pass: false, score: 0, reason: `Catalog file not found: ${primaryCatalogPath}` };
   }
 
@@ -110,9 +95,6 @@ module.exports = (output, context) => {
     }
   }
   if (!refactor) {
-    if (outputFallback) {
-      return { pass: true, score: 0.7, reason: 'Both SQL blocks found in output text (refactor section not written to catalog)' };
-    }
     return { pass: false, score: 0, reason: 'No refactor section in catalog' };
   }
 
@@ -135,10 +117,20 @@ module.exports = (output, context) => {
     if (typeof check.passed !== 'boolean') {
       return { pass: false, score: 0, reason: `semantic_review.checks.${checkName}.passed must be boolean` };
     }
+    if (!check.passed) {
+      return { pass: false, score: 0, reason: `semantic_review.checks.${checkName}.passed must be true` };
+    }
+    if (!String(check.summary || '').trim()) {
+      return { pass: false, score: 0, reason: `semantic_review.checks.${checkName}.summary must be non-empty` };
+    }
   }
 
   if (!refactor.compare_sql) {
     return { pass: false, score: 0, reason: 'No compare_sql summary in refactor catalog payload' };
+  }
+
+  if (refactor.compare_sql.required === false && refactor.semantic_review.passed !== true) {
+    return { pass: false, score: 0, reason: 'semantic_review.passed must be true when compare_sql is not required' };
   }
 
   // Status check

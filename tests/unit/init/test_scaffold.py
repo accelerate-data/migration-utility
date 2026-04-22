@@ -14,7 +14,10 @@ def test_scaffold_project_uses_source_config_templates(tmp_path: Path) -> None:
 
     assert "CLAUDE.md" in result.files_created
     assert "repo-map.json" in result.files_created
-    assert (tmp_path / "CLAUDE.md").read_text(encoding="utf-8") == config.claude_md_fn()
+    claude_md = (tmp_path / "CLAUDE.md").read_text(encoding="utf-8")
+    assert claude_md == config.claude_md_fn()
+    assert "## Completion Claims" in claude_md
+    assert "completion-claim verification skill" in claude_md
     assert json.loads((tmp_path / "repo-map.json").read_text(encoding="utf-8")) == config.repo_map_fn()
 
 

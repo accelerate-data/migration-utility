@@ -30,6 +30,7 @@ tests:
       writer: "silver.usp_load_InsertSelectTarget"
       expected_extracted_terms: "select"
       expected_refactored_terms: "with,final"
+      graceful_partial: "true"
 
   - description: "[vu-1119] catalog-error — refactor readiness guard stops"
     prompts: ["refactoring-sql"]

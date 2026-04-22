@@ -13,7 +13,7 @@
 //     - type: javascript
 //       value: file://../../assertions/check-dbt-refs.js
 //
-// Expects context.vars: { fixture_path, target_table }
+// Expects context.vars: { fixture_path, target_table, expect_no_generated_model? }
 const fs = require('fs');
 const path = require('path');
 const yaml = require('js-yaml');
@@ -58,6 +58,8 @@ function loadValidSources(dbtDir) {
 module.exports = (output, context) => {
   const fixturePath = resolveProjectPath(context);
   const targetTable = context.vars.target_table;
+  const expectNoGeneratedModel =
+    String(context.vars.expect_no_generated_model || '').toLowerCase() === 'true';
 
   if (!fixturePath || !targetTable) {
     return { pass: false, score: 0, reason: 'fixture_path and target_table must be set in test vars' };
@@ -67,7 +69,10 @@ module.exports = (output, context) => {
   const dbtDir = path.resolve(repoRoot, fixturePath, 'dbt');
 
   if (!fs.existsSync(dbtDir)) {
-    return { pass: true, score: 1, reason: 'No dbt directory — skipping ref check' };
+    if (expectNoGeneratedModel) {
+      return { pass: true, score: 1, reason: 'No dbt directory found, as expected' };
+    }
+    return { pass: false, score: 0, reason: `dbt directory not found: ${dbtDir}` };
   }
 
   const validSources = loadValidSources(dbtDir);
@@ -88,8 +93,18 @@ module.exports = (output, context) => {
   });
 
   if (!targetFile) {
-    // Graceful — model may not have been written yet (sweep skip scenario)
-    return { pass: true, score: 1, reason: `No model file found for '${tableName}' — skipping ref check` };
+    if (expectNoGeneratedModel) {
+      return { pass: true, score: 1, reason: `No model file found for '${tableName}', as expected` };
+    }
+    return { pass: false, score: 0, reason: `No model file found for '${tableName}'` };
+  }
+
+  if (expectNoGeneratedModel) {
+    return {
+      pass: false,
+      score: 0,
+      reason: `Expected no generated model for '${tableName}', but found ${path.relative(dbtDir, targetFile)}`,
+    };
   }
 
   const errors = [];

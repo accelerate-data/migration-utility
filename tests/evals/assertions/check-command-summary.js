@@ -39,7 +39,8 @@ function findItemResults(migrationsDir, tableFqn, runId = null) {
         !f.toLowerCase().startsWith(prefix) ||
         !f.endsWith('.json') ||
         f.startsWith('summary') ||
-        f.toLowerCase().endsWith('.review.json')
+        f.toLowerCase().endsWith('.review.json') ||
+        f.toLowerCase().includes('.unit-test-repair.')
       ) {
         return false;
       }

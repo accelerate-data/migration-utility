@@ -145,6 +145,10 @@ Before answering any LLM judgment step (classification, writer selection, statem
 
 Present results so the reader understands the output without mental overhead. Lead with the decision, then supporting evidence. At approval gates, the user should see the answer first and the reasoning second — not the other way around.
 
+## Completion Claims
+
+Before stating that work is complete, successful, passing, PR-ready, merged, or stage-complete, run the completion-claim verification skill.
+
 ## Commit Discipline
 
 Commit at logical checkpoints so work is never lost mid-session.

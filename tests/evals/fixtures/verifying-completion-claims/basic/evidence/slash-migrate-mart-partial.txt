@@ -1,0 +1,8 @@
+Command: /migrate-mart finance_mart --resume
+Finished: 2026-04-22T09:35:00Z
+Exit code: 0
+Output:
+dbt compile passed for 8 models
+dbt run was not executed
+SQL comparison was not executed
+No PR was created

@@ -74,6 +74,75 @@ test('detectCleanupViolations reports new untracked files outside approved artif
   ]);
 });
 
+test('detectCleanupViolations reports changed pre-existing tracked files outside approved artifact directories', () => {
+  const before = {
+    tracked: new Set(['tests/evals/fixtures/scenario/catalog.json']),
+    untracked: new Set(),
+    trackedHashes: new Map([
+      ['tests/evals/fixtures/scenario/catalog.json', 'before'],
+    ]),
+    untrackedHashes: new Map(),
+  };
+  const after = {
+    tracked: new Set(['tests/evals/fixtures/scenario/catalog.json']),
+    untracked: new Set(),
+    trackedHashes: new Map([
+      ['tests/evals/fixtures/scenario/catalog.json', 'after'],
+    ]),
+    untrackedHashes: new Map(),
+  };
+
+  const violations = detectCleanupViolations(before, after);
+
+  assert.deepEqual(violations, ['tests/evals/fixtures/scenario/catalog.json']);
+});
+
+test('detectCleanupViolations reports changed pre-existing untracked files outside approved artifact directories', () => {
+  const before = {
+    tracked: new Set(),
+    untracked: new Set(['tests/evals/manual-debug.json']),
+    trackedHashes: new Map(),
+    untrackedHashes: new Map([
+      ['tests/evals/manual-debug.json', 'before'],
+    ]),
+  };
+  const after = {
+    tracked: new Set(),
+    untracked: new Set(['tests/evals/manual-debug.json']),
+    trackedHashes: new Map(),
+    untrackedHashes: new Map([
+      ['tests/evals/manual-debug.json', 'after'],
+    ]),
+  };
+
+  const violations = detectCleanupViolations(before, after);
+
+  assert.deepEqual(violations, ['tests/evals/manual-debug.json']);
+});
+
+test('detectCleanupViolations ignores changed pre-existing files under approved eval artifact directories', () => {
+  const before = {
+    tracked: new Set(),
+    untracked: new Set(['tests/evals/output/runs/eval/debug/transcript.txt']),
+    trackedHashes: new Map(),
+    untrackedHashes: new Map([
+      ['tests/evals/output/runs/eval/debug/transcript.txt', 'before'],
+    ]),
+  };
+  const after = {
+    tracked: new Set(),
+    untracked: new Set(['tests/evals/output/runs/eval/debug/transcript.txt']),
+    trackedHashes: new Map(),
+    untrackedHashes: new Map([
+      ['tests/evals/output/runs/eval/debug/transcript.txt', 'after'],
+    ]),
+  };
+
+  const violations = detectCleanupViolations(before, after);
+
+  assert.deepEqual(violations, []);
+});
+
 test('allowed artifact prefixes stay limited to the dedicated eval output roots', () => {
   assert.deepEqual(ALLOWED_ARTIFACT_PREFIXES, [
     'tests/evals/.cache/',
@@ -321,6 +390,50 @@ test('main restores cleanup violations before returning a promptfoo failure', ()
     assert.equal(status, 1);
     assert.deepEqual(errors, ['violation']);
     assert.deepEqual(restored, ['tests/evals/fixtures/dirty.json']);
+  } finally {
+    console.error = originalError;
+  }
+});
+
+test('main does not restore pre-existing dirty files that changed during promptfoo', () => {
+  const errors = [];
+  const originalError = console.error;
+  const restored = [];
+  const snapshots = [
+    {
+      tracked: new Set(['tests/evals/fixtures/already-dirty.json']),
+      untracked: new Set(),
+      trackedHashes: new Map([['tests/evals/fixtures/already-dirty.json', 'before']]),
+      untrackedHashes: new Map(),
+    },
+    {
+      tracked: new Set(['tests/evals/fixtures/already-dirty.json']),
+      untracked: new Set(),
+      trackedHashes: new Map([['tests/evals/fixtures/already-dirty.json', 'after']]),
+      untrackedHashes: new Map(),
+    },
+  ];
+
+  console.error = (message) => {
+    errors.push(message);
+  };
+
+  try {
+    const status = main(
+      ['eval', '-c', 'a.yaml'],
+      {
+        collectGitSnapshot: () => snapshots.shift(),
+        formatViolationMessage: (paths) => `violations:${paths.join(',')}`,
+        restoreCleanupViolations: (paths) => {
+          restored.push(...paths);
+        },
+        runPromptfooInvocation: () => 0,
+      },
+    );
+
+    assert.equal(status, 1);
+    assert.deepEqual(errors, ['violations:tests/evals/fixtures/already-dirty.json']);
+    assert.deepEqual(restored, []);
   } finally {
     console.error = originalError;
   }

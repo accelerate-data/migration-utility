@@ -13,9 +13,19 @@ function makeRunRoot(t) {
 }
 
 function writeCatalog(runRoot, table, catalog) {
-  const dir = path.join(runRoot, 'catalog', 'tables');
-  fs.mkdirSync(dir, { recursive: true });
-  fs.writeFileSync(path.join(dir, `${table}.json`), JSON.stringify(catalog, null, 2));
+  const tableDir = path.join(runRoot, 'catalog', 'tables');
+  fs.mkdirSync(tableDir, { recursive: true });
+  fs.writeFileSync(path.join(tableDir, `${table}.json`), JSON.stringify(catalog, null, 2));
+}
+
+function context(runRoot, vars = {}) {
+  return {
+    vars: {
+      run_path: runRoot,
+      target_table: 'silver.dimcustomer',
+      ...vars,
+    },
+  };
 }
 
 test('check-table-profile validates persisted classification and expected profile fields', (t) => {
@@ -34,22 +44,28 @@ test('check-table-profile validates persisted classification and expected profil
     },
   });
 
-  const result = checkTableProfile('profile complete', {
-    vars: {
-      run_path: runRoot,
-      target_table: 'silver.dimcustomer',
-      expected_status: 'ok',
-      expected_kind: 'dimension',
-      expected_source: 'catalog',
-      expected_output_terms: 'profile complete',
-      expected_pii_columns: 'email',
-      expected_fk_type: 'natural_key',
-      expected_watermark_column: 'updated_at',
-      expected_warning_codes: 'PROFILE_LOW_CONFIDENCE',
-    },
-  });
+  const result = checkTableProfile('profile complete', context(runRoot, {
+    expected_status: 'ok',
+    expected_kind: 'dimension',
+    expected_source: 'catalog',
+    expected_output_terms: 'profile complete',
+    expected_pii_columns: 'email',
+    expected_fk_type: 'natural_key',
+    expected_watermark_column: 'updated_at',
+    expected_warning_codes: 'PROFILE_LOW_CONFIDENCE',
+  }));
 
-  assert.equal(result.pass, true, result.reason);
+  assert.equal(result.pass, true);
+});
+
+test('check-table-profile rejects missing profile sections', (t) => {
+  const runRoot = makeRunRoot(t);
+  writeCatalog(runRoot, 'silver.dimcustomer', {});
+
+  const result = checkTableProfile('', context(runRoot));
+
+  assert.equal(result.pass, false);
+  assert.match(result.reason, /No profile section/);
 });
 
 test('check-table-profile rejects missing classification source', (t) => {
@@ -63,12 +79,7 @@ test('check-table-profile rejects missing classification source', (t) => {
     },
   });
 
-  const result = checkTableProfile('', {
-    vars: {
-      run_path: runRoot,
-      target_table: 'silver.dimcustomer',
-    },
-  });
+  const result = checkTableProfile('', context(runRoot));
 
   assert.equal(result.pass, false);
   assert.match(result.reason, /missing classification\.source/);

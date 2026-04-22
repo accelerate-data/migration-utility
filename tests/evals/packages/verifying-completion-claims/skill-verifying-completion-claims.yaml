@@ -1,0 +1,97 @@
+# yaml-language-server: $schema=https://promptfoo.dev/config-schema.json
+description: "Verifying-completion-claims skill — generic completion-claim evidence gate"
+
+prompts:
+  - id: verifying-completion-claims
+    label: verifying-completion-claims
+    raw: file://../../prompts/skill-verifying-completion-claims.txt
+
+extensions:
+  - file://../../scripts/run-workspace-extension.js:extensionHook
+
+providers:
+  - file://../../providers/haiku-60.yaml
+
+defaultTest:
+  vars:
+    fixture_path: "tests/evals/fixtures/verifying-completion-claims/basic"
+  assert:
+    - type: javascript
+      value: file://../../assertions/check-completion-claim-guidance.js
+
+tests:
+  - description: "[smoke] verified when fresh command output proves the exact claim"
+    vars:
+      intended_claim: "The skill contract pytest file passed."
+      evidence_file: "fresh-pytest-pass.txt"
+      expected_status: "verified"
+      expected_wording_terms: "pytest,passed"
+      expected_evidence_terms: "fresh-pytest-pass"
+      forbidden_terms: "downgraded,blocked"
+
+  - description: "downgraded when evidence proves only a narrower claim"
+    vars:
+      intended_claim: "All verification passed."
+      evidence_file: "partial-verification.txt"
+      expected_status: "downgraded"
+      expected_wording_terms: "skill,lint"
+      expected_evidence_terms: "partial-verification"
+      forbidden_terms: "all verification passed,all checks passed"
+
+  - description: "blocked when expected proof is missing or stale"
+    vars:
+      intended_claim: "The branch is PR-ready."
+      evidence_file: "stale-pr-ready.txt"
+      expected_status: "blocked"
+      expected_evidence_terms: "stale-pr-ready"
+      expected_reason_terms: "missing"
+      forbidden_terms: "verified,downgraded"
+
+  - description: "blocked when only a sub-agent success report exists"
+    vars:
+      intended_claim: "The implementation is complete."
+      evidence_file: "subagent-only.txt"
+      expected_status: "blocked"
+      expected_evidence_terms: "subagent-only"
+      expected_reason_terms: "sub-agent,evidence"
+      forbidden_terms: "verified,downgraded"
+
+  - description: "slash command smoke: verified generate-tests completion without CLAUDE.md"
+    vars:
+      slash_command_context: "/generate-tests final response"
+      intended_claim: "The /generate-tests customer_orders --unit command passed."
+      evidence_file: "slash-generate-tests-pass.txt"
+      expected_status: "verified"
+      expected_wording_terms: "/generate-tests,passed"
+      expected_evidence_terms: "slash-generate-tests-pass"
+      forbidden_terms: "downgraded,blocked"
+
+  - description: "slash command smoke: downgraded migrate-mart completion without CLAUDE.md"
+    vars:
+      slash_command_context: "/migrate-mart final response"
+      intended_claim: "The /migrate-mart run is complete and all verification passed."
+      evidence_file: "slash-migrate-mart-partial.txt"
+      expected_status: "downgraded"
+      expected_wording_terms: "/migrate-mart,dbt,compile"
+      expected_evidence_terms: "slash-migrate-mart-partial"
+      forbidden_terms: "all verification passed,all checks passed"
+
+  - description: "slash command smoke: blocked stage-pr readiness without CLAUDE.md"
+    vars:
+      slash_command_context: "/stage-pr final response"
+      intended_claim: "The /stage-pr workflow is PR-ready."
+      evidence_file: "slash-stage-pr-stale.txt"
+      expected_status: "blocked"
+      expected_evidence_terms: "slash-stage-pr-stale"
+      expected_reason_terms: "missing,PR"
+      forbidden_terms: "pr-ready,ready,verified,downgraded"
+
+  - description: "slash command smoke: blocked status summary from sub-agent only without CLAUDE.md"
+    vars:
+      slash_command_context: "/status final response"
+      intended_claim: "The /status summary can report the migration as complete."
+      evidence_file: "slash-status-subagent-only.txt"
+      expected_status: "blocked"
+      expected_evidence_terms: "slash-status-subagent-only"
+      expected_reason_terms: "sub-agent,evidence"
+      forbidden_terms: "complete,verified,downgraded"

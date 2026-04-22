@@ -1,0 +1,5 @@
+Command: cd lib && uv run pytest ../tests/unit/skills/test_verifying_completion_claims_skill_contract.py -q
+Finished: 2026-04-22T09:10:00Z
+Exit code: 0
+Output:
+7 passed in 0.18s

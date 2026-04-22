@@ -2,4 +2,8 @@ You are working on a dbt migration project. Use canonical fixture input at {{fix
 
 Generate a dbt model for {{target_table}}. The writer is {{writer}}.
 
-Read the skill at `{{repo_root}}/skills/generating-model/SKILL.md`. Use `{{repo_root}}` wherever the skill references `${CLAUDE_PLUGIN_ROOT}`. Pass `--project-root {{run_path}}` to all CLI commands and `--writer {{writer}}` to `migrate context`. Set `DBT_PROJECT_PATH={{run_path}}/dbt` for dbt validation commands so compile/test run against the writable eval workspace rather than the canonical fixture. If a `model-sweep.*.json` file exists under `{{run_path}}/.migration-runs/`, use it as the sweep artifact for Step 1.5. Proceed autonomously through all steps — write the model without asking for approval.
+Read the skill at `{{repo_root}}/skills/generating-model/SKILL.md`. Use `{{repo_root}}` wherever the skill references `${CLAUDE_PLUGIN_ROOT}`. Pass `--project-root {{run_path}}` to all CLI commands and `--writer {{writer}}` to `migrate context`. Set `DBT_PROJECT_PATH={{run_path}}/dbt` for dbt validation commands so compile/test run against the writable eval workspace rather than the canonical fixture. If a `model-sweep.*.json` file exists under `{{run_path}}/.migration-runs/`, use it as the sweep artifact for Step 1.5.
+
+Before writing mart SQL, inspect `{{run_path}}/dbt/models/staging/` for existing staging wrappers that correspond to source relations used by the transformed SQL. When a matching wrapper exists, generated mart models must reference that wrapper with `ref(...)` and must not bypass it with direct bronze `source(...)` calls. After writing the model, reread the mart SQL and fix it before validation if it still reads directly from a bronze source that has a staging wrapper.
+
+Proceed autonomously through all steps — write the model without asking for approval.
