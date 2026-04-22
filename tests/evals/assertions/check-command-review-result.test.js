@@ -193,3 +193,22 @@ test('check-command-review-result accepts final verdict', () => {
     fs.rmSync(tmp, { recursive: true, force: true });
   }
 });
+
+test('check-command-review-result rejects missing review artifacts', () => {
+  const tmp = fs.mkdtempSync(path.join(os.tmpdir(), 'command-review-'));
+  const runPath = path.relative(repoRoot, tmp);
+
+  try {
+    const result = checkCommandReviewResult('', {
+      vars: {
+        run_path: runPath,
+        target_table: 'silver.DimCustomer',
+      },
+    });
+
+    assert.equal(result.pass, false);
+    assert.match(result.reason, /Missing review artifact/);
+  } finally {
+    fs.rmSync(tmp, { recursive: true, force: true });
+  }
+});
