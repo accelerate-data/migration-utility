@@ -1,7 +1,12 @@
 You are evaluating the completion-claim verification skill.
 
 Read the skill at `{{repo_root}}/skills/verifying-completion-claims/SKILL.md`.
-Apply it to the intended claim below.
+Do not read or rely on `CLAUDE.md`; this eval verifies that the skill can hold
+its own without seeded project guidance. Apply the skill to the intended claim
+below.
+
+Slash command context:
+{{slash_command_context}}
 
 Intended claim:
 {{intended_claim}}
@@ -15,6 +20,10 @@ scenario description as proof.
 Use `downgraded` when the evidence supports a narrower completion claim than
 the intended claim. Use `blocked` only when there is no acceptable completion
 claim wording to return.
+
+When slash command context is provided and a claim is verified or downgraded,
+the wording should name the command or the narrower command output that evidence
+actually supports.
 
 Return only this JSON object:
 

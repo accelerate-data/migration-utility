@@ -1,0 +1,11 @@
+Observed /stage-pr evidence:
+
+- No current command output is available.
+- No exit code is available.
+
+Missing evidence for PR readiness:
+
+- No fresh verification after the latest commit.
+- No current git status output.
+- No pushed branch.
+- No PR URL.

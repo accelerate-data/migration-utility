@@ -1,0 +1,12 @@
+/status summary source:
+
+Sub-agent report:
+"Migration work is complete and tests pass."
+
+Missing direct evidence:
+
+- No command output.
+- No exit code.
+- No dbt artifact path.
+- No SQL comparison result.
+- No git status.
