@@ -289,7 +289,7 @@ uv run --project "${CLAUDE_PLUGIN_ROOT}/packages/ad-migration-internal" init sca
 
 Parse the JSON output and report to the user which files were created, updated, or skipped.
 
-If `scaffold-project` reports missing CLAUDE.md sections (in `files_skipped`), tell the user which sections are missing and recommend adding them.
+If `scaffold-project` reports `CLAUDE.md (+managed sections)` in `files_updated`, tell the user which managed agent guidance was appended.
 
 Maintain a JSON object `$OVERRIDES` while gathering evidence. Add only non-secret machine-specific resolved overrides such as `MSSQL_DRIVER`.
 
@@ -407,6 +407,6 @@ Safe to re-run. Each step checks current state before acting:
 
 - Runtime selection re-evaluates `$ARGUMENTS` each time for the source role and re-prompts for target when needed.
 - Step 3 reads existing `init_handoff` from `manifest.json` and skips checks already recorded as passing for the same selected technology. Only items marked `false`, missing, or tied to a different selected technology are re-checked.
-- Step 5 uses the `init` CLI which is fully idempotent: existing CLAUDE.md is checked for missing sections (not overwritten), README.md and repo-map.json are skipped if present, .gitignore gets only missing entries appended, .envrc is skipped if present, .claude/rules/git-workflow.md is skipped if present, .githooks/pre-commit is skipped if present.
+- Step 5 uses the `init` CLI which is fully idempotent: existing CLAUDE.md keeps local content and receives missing managed sections, README.md and repo-map.json are skipped if present, .gitignore gets only missing entries appended, .envrc is skipped if present, .claude/rules/git-workflow.md is skipped if present, .githooks/pre-commit is skipped if present.
 - Step 6 partial manifest updates `runtime.source`, `runtime.sandbox`, and `runtime.target`, merges existing handoff passes with newly validated items, and updates the timestamp.
 - Step 7 only commits if there are staged changes.

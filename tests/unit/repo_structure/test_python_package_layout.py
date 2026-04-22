@@ -177,6 +177,7 @@ def test_maintainer_docs_use_the_internal_project_path() -> None:
         "skills/generating-tests/references/command-workflow-ref.md",
         "skills/reviewing-model/SKILL.md",
         "skills/reviewing-tests/SKILL.md",
+        "skills/verifying-completion-claims/SKILL.md",
         "skills/reviewing-tests/references/review-output-contract.md",
         "skills/reviewing-tests/references/table-vs-view-context.md",
         "skills/refactoring-sql/SKILL.md",

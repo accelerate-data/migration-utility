@@ -67,6 +67,7 @@ CLAUDE_MD_REQUIRED_SECTIONS = [
     "Guardrails",
     "Skill Reasoning",
     "Output Framing",
+    "Completion Claims",
     "Maintenance",
     "Commit Discipline",
 ]
@@ -77,6 +78,24 @@ ENVRC_DOTENV_LINE = "source_env_if_exists .env"
 def is_executable_file(path_str: str) -> bool:
     path = Path(path_str)
     return path.is_file() and os.access(path, os.X_OK)
+
+
+def _extract_markdown_section(markdown: str, heading: str) -> str:
+    marker = f"## {heading}"
+    start = markdown.find(marker)
+    if start == -1:
+        raise ValueError(f"Template is missing required section: {heading}")
+
+    next_start = markdown.find("\n## ", start + len(marker))
+    if next_start == -1:
+        return markdown[start:].strip()
+    return markdown[start:next_start].strip()
+
+
+def _append_missing_claude_md_sections(content: str, template: str, missing: list[str]) -> str:
+    sections = [_extract_markdown_section(template, section) for section in missing]
+    separator = "\n\n" if content.endswith("\n") else "\n\n"
+    return f"{content.rstrip()}{separator}" + "\n\n".join(sections) + "\n"
 
 
 def run_scaffold_project(project_root: Path, technology: str = "sql_server") -> ScaffoldProjectOutput:
@@ -98,9 +117,14 @@ def run_scaffold_project(project_root: Path, technology: str = "sql_server") -> 
         content = claude_md_path.read_text(encoding="utf-8")
         missing = [s for s in CLAUDE_MD_REQUIRED_SECTIONS if f"## {s}" not in content]
         if missing:
-            files_skipped.append(f"CLAUDE.md (missing sections: {', '.join(missing)})")
-            logger.warning(
-                "event=scaffold_file file=CLAUDE.md status=skipped missing_sections=%s",
+            claude_md_path.write_text(
+                _append_missing_claude_md_sections(content, config.claude_md_fn(), missing),
+                encoding="utf-8",
+            )
+            files_updated.append("CLAUDE.md (+managed sections)")
+            written_paths.append("CLAUDE.md")
+            logger.info(
+                "event=scaffold_file file=CLAUDE.md status=updated missing_sections=%s",
                 missing,
             )
         else:

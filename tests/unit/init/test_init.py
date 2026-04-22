@@ -33,13 +33,13 @@ RUNNER = CliRunner()
 
 SCAFFOLD_GOLDEN_HASHES = {
     "sql_server": {
-        "CLAUDE.md": "54388313acccc4f0b06c588010b3a336a8746faad78299fb874fb787df366f8d",
+        "CLAUDE.md": "c1941b6eb0c0a8c5db24b9537bf4bfbc128a759966433d8df83de225a58a0445",
         "README.md": "33bf498002cb54876a2a544109c7ef6b98664673b73c62b99c3322445b6f4824",
         ".envrc": "05377c6d9606aea1451ca4b96d351252fdfe26e6d4ddc815e000af12e3c9f8ac",
         "repo-map.json": "e706817c0eb802839cc8d26d474e604ec63cd350cc0ba8f2f043e6e34ed098ef",
     },
     "oracle": {
-        "CLAUDE.md": "881fcfa23518c3089059bd459e73ca2e6c3fc4efb833eb12ccefe04c385ee8b1",
+        "CLAUDE.md": "71a50084b866ea7fd242b8bf28cb4ae6cacb5ac1ad0894ed7c640fbe61756a76",
         "README.md": "76965ef2d1d770a804ee27e69b493003785fd9ecea26cf94e80fd4d4655da347",
         ".envrc": "8f730cba08e545abe16e01b66b8a3a18ae0e20fa15e2e1fae3fb3d3f86c7710d",
         "repo-map.json": "b4fc3898be790dfeffb7ecd90666e61e94139672e2b70a8caf609334ff17f619",
@@ -170,12 +170,26 @@ class TestScaffoldProject:
         assert "export MSSQL_HOST=localhost" in envrc
         assert "source_env_if_exists .env" in envrc
 
-    def test_reports_missing_claude_md_sections(self, tmp_path: Path) -> None:
-        (tmp_path / "CLAUDE.md").write_text("# Project\n\n## Domain\n\nSome domain info.\n")
+    def test_appends_missing_claude_md_sections_and_preserves_local_content(
+        self,
+        tmp_path: Path,
+    ) -> None:
+        (tmp_path / "CLAUDE.md").write_text(
+            "# Project\n\n## Domain\n\nSome domain info.\n\n## Local Notes\n\nKeep this.\n",
+            encoding="utf-8",
+        )
+
         result = run_scaffold_project(tmp_path)
-        skipped = [f for f in result.files_skipped if f.startswith("CLAUDE.md")]
-        assert len(skipped) == 1
-        assert "missing sections" in skipped[0]
+
+        assert "CLAUDE.md (+managed sections)" in result.files_updated
+        assert "CLAUDE.md" in result.written_paths
+        assert not any(f.startswith("CLAUDE.md (missing sections") for f in result.files_skipped)
+
+        claude_md = (tmp_path / "CLAUDE.md").read_text(encoding="utf-8")
+        assert "## Domain\n\nSome domain info." in claude_md
+        assert "## Local Notes\n\nKeep this." in claude_md
+        assert "## Completion Claims" in claude_md
+        assert "completion-claim verification skill" in claude_md
 
     def test_complete_claude_md_skipped_cleanly(self, tmp_path: Path) -> None:
         config = get_source_config("sql_server")
