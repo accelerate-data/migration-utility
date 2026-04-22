@@ -1,4 +1,5 @@
 const { execFileSync, spawnSync } = require('node:child_process');
+const crypto = require('node:crypto');
 const fs = require('node:fs');
 const path = require('node:path');
 
@@ -34,14 +35,40 @@ function runGitLines(args) {
     .filter(Boolean);
 }
 
+function hashRepoFile(filePath) {
+  const absolutePath = path.join(REPO_ROOT, filePath);
+  if (!fs.existsSync(absolutePath)) {
+    return 'missing';
+  }
+
+  const stat = fs.statSync(absolutePath);
+  if (!stat.isFile()) {
+    return `non-file:${stat.mode}`;
+  }
+
+  return crypto
+    .createHash('sha256')
+    .update(fs.readFileSync(absolutePath))
+    .digest('hex');
+}
+
+function hashPaths(paths) {
+  return new Map([...paths].map((filePath) => [filePath, hashRepoFile(filePath)]));
+}
+
 function collectGitSnapshot() {
+  const tracked = new Set(
+    runGitLines(['diff', '--name-only', 'HEAD', '--', 'tests/evals']),
+  );
+  const untracked = new Set(
+    runGitLines(['ls-files', '--others', '--exclude-standard', '--', 'tests/evals']),
+  );
+
   return {
-    tracked: new Set(
-      runGitLines(['diff', '--name-only', 'HEAD', '--', 'tests/evals']),
-    ),
-    untracked: new Set(
-      runGitLines(['ls-files', '--others', '--exclude-standard', '--', 'tests/evals']),
-    ),
+    tracked,
+    untracked,
+    trackedHashes: hashPaths(tracked),
+    untrackedHashes: hashPaths(untracked),
   };
 }
 
@@ -53,11 +80,33 @@ function collectNewPaths(beforeSet, afterSet) {
   return [...afterSet].filter((filePath) => !beforeSet.has(filePath));
 }
 
+function collectChangedPreexistingPaths(beforeSet, afterSet, beforeHashes, afterHashes) {
+  if (!beforeHashes || !afterHashes) {
+    return [];
+  }
+
+  return [...afterSet].filter((filePath) => (
+    beforeSet.has(filePath) && beforeHashes.get(filePath) !== afterHashes.get(filePath)
+  ));
+}
+
 function detectCleanupViolations(before, after) {
   const newTracked = collectNewPaths(before.tracked, after.tracked);
   const newUntracked = collectNewPaths(before.untracked, after.untracked);
+  const changedTracked = collectChangedPreexistingPaths(
+    before.tracked,
+    after.tracked,
+    before.trackedHashes,
+    after.trackedHashes,
+  );
+  const changedUntracked = collectChangedPreexistingPaths(
+    before.untracked,
+    after.untracked,
+    before.untrackedHashes,
+    after.untrackedHashes,
+  );
 
-  return [...newTracked, ...newUntracked]
+  return [...newTracked, ...newUntracked, ...changedTracked, ...changedUntracked]
     .filter((filePath) => !isAllowedArtifactPath(filePath))
     .sort();
 }
@@ -182,7 +231,8 @@ function main(
     const violations = detectViolations(before, after);
 
     if (violations.length > 0) {
-      restoreViolations(violations);
+      const preexistingPaths = new Set([...before.tracked, ...before.untracked]);
+      restoreViolations(violations.filter((filePath) => !preexistingPaths.has(filePath)));
       console.error(formatViolations(violations));
       return 1;
     }
@@ -204,6 +254,7 @@ module.exports = {
   collectGitSnapshot,
   detectCleanupViolations,
   formatViolationMessage,
+  hashPaths,
   isAllowedArtifactPath,
   main,
   runPromptfooInvocation,

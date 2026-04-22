@@ -109,8 +109,13 @@ Ownership:
 | `/refactor-mart` | dependency-blocked candidate statuses and reasons |
 | apply skill | dbt edits, candidate-scoped validation, non-dependency input blocks |
 
-After each candidate is processed, reread that candidate section. If its`Execution status:` is `applied` or `failed`, it must contain exactly one`Validation result:` bullet. If its `Execution status:` is `blocked`, it must contain exactly one `Blocked reason:` bullet. Fix the selected candidate section
-before moving to the next candidate.
+After each candidate is processed, reread that candidate section before moving on.
+The selected candidate section is incomplete until its status detail bullet is persisted in the plan:
+
+- If `Execution status:` is `applied` or `failed`, the same candidate section must contain exactly one `Validation result:` bullet. The bullet must name the validation command or models and state the pass/fail outcome.
+- If `Execution status:` is `blocked`, the same candidate section must contain exactly one `Blocked reason:` bullet.
+
+Do not rely on the final answer as the status detail. If the apply skill updated `Execution status:` without the matching detail bullet, edit the selected candidate section yourself before processing the next candidate or reporting completion.
 
 ## Summary
 

@@ -27,10 +27,10 @@
     "eval:refactoring-sql": "./scripts/promptfoo.sh eval --no-cache -c packages/refactoring-sql/skill-refactoring-sql.yaml",
     "eval:generating-tests": "./scripts/promptfoo.sh eval --no-cache -c packages/generating-tests/skill-generating-tests.yaml",
     "eval:cmd-refactor": "./scripts/promptfoo.sh eval --no-cache -c packages/cmd-refactor/cmd-refactor.yaml",
-    "test": "node --test assertions/*.test.js scripts/*.test.js",
-    "test:assertions": "node --test assertions/*.test.js",
+    "test": "node --test scripts/*.test.js assertions/*.test.js providers/*.test.js",
     "test:workspace-extension": "node --test scripts/run-workspace-extension.test.js",
     "test:cleanliness-guard": "node --test scripts/run-promptfoo-with-guard.test.js",
+    "test:assertions": "node --test assertions/*.test.js",
     "eval:oracle-live": "./scripts/promptfoo.sh eval --no-cache -c oracle-live/promptfooconfig.yaml",
     "eval:mssql-live": "./scripts/promptfoo.sh eval --no-cache -c mssql-live/promptfooconfig.yaml",
     "view": "./scripts/promptfoo.sh view"

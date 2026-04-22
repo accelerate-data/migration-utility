@@ -6,10 +6,8 @@ const test = require('node:test');
 
 const checkDbtRefs = require('./check-dbt-refs');
 
-function makeRunRoot(t) {
-  const root = fs.mkdtempSync(path.join(os.tmpdir(), 'check-dbt-refs-'));
-  t.after(() => fs.rmSync(root, { force: true, recursive: true }));
-  return root;
+function makeRunPath() {
+  return fs.mkdtempSync(path.join(os.tmpdir(), 'check-dbt-refs-'));
 }
 
 function writeFile(filePath, content) {
@@ -17,66 +15,123 @@ function writeFile(filePath, content) {
   fs.writeFileSync(filePath, content, 'utf8');
 }
 
-test('check-dbt-refs skips when the command has not generated a dbt directory', (t) => {
-  const runRoot = makeRunRoot(t);
+test('check-dbt-refs fails when dbt directory is missing by default', () => {
+  const runPath = makeRunPath();
+  try {
+    const result = checkDbtRefs('', {
+      vars: {
+        run_path: runPath,
+        target_table: 'silver.DimProduct',
+      },
+    });
 
-  const result = checkDbtRefs('', {
-    vars: {
-      run_path: runRoot,
-      target_table: 'silver.DimProduct',
-    },
-  });
-
-  assert.equal(result.pass, true, result.reason);
-  assert.match(result.reason, /No dbt directory/);
+    assert.equal(result.pass, false);
+    assert.match(result.reason, /dbt directory not found/);
+  } finally {
+    fs.rmSync(runPath, { recursive: true, force: true });
+  }
 });
 
-test('check-dbt-refs validates source calls for generated models', (t) => {
-  const runRoot = makeRunRoot(t);
-  writeFile(
-    path.join(runRoot, 'dbt', 'models', 'marts', 'dimproduct.sql'),
-    "select * from {{ source('bronze', 'product') }}\n",
-  );
-  writeFile(
-    path.join(runRoot, 'dbt', 'models', 'staging', '_staging__sources.yml'),
-    [
-      'version: 2',
-      'sources:',
-      '  - name: bronze',
-      '    tables:',
-      '      - name: product',
-      '',
-    ].join('\n'),
-  );
+test('check-dbt-refs fails when target model is missing by default', () => {
+  const runPath = makeRunPath();
+  try {
+    fs.mkdirSync(path.join(runPath, 'dbt', 'models', 'marts'), { recursive: true });
 
-  const result = checkDbtRefs('', {
-    vars: {
-      run_path: runRoot,
-      target_table: 'silver.DimProduct',
-    },
-  });
+    const result = checkDbtRefs('', {
+      vars: {
+        run_path: runPath,
+        target_table: 'silver.DimProduct',
+      },
+    });
 
-  assert.equal(result.pass, true, result.reason);
+    assert.equal(result.pass, false);
+    assert.match(result.reason, /No model file found for 'dimproduct'/);
+  } finally {
+    fs.rmSync(runPath, { recursive: true, force: true });
+  }
 });
 
-test('check-dbt-refs rejects generated models with undeclared source calls', (t) => {
-  const runRoot = makeRunRoot(t);
-  writeFile(
-    path.join(runRoot, 'dbt', 'models', 'marts', 'dimproduct.sql'),
-    "select * from {{ source('bronze', 'product') }}\n",
-  );
-  writeFile(
-    path.join(runRoot, 'dbt', 'models', 'staging', '_staging__sources.yml'),
-    'version: 2\nsources: []\n',
-  );
+test('check-dbt-refs allows missing model when explicitly expected', () => {
+  const runPath = makeRunPath();
+  try {
+    fs.mkdirSync(path.join(runPath, 'dbt', 'models', 'marts'), { recursive: true });
 
-  const result = checkDbtRefs('', {
-    vars: {
-      run_path: runRoot,
-      target_table: 'silver.DimProduct',
-    },
-  });
+    const result = checkDbtRefs('', {
+      vars: {
+        run_path: runPath,
+        target_table: 'bronze.Product',
+        expect_no_generated_model: 'true',
+      },
+    });
 
-  assert.equal(result.pass, false);
-  assert.match(result.reason, /not in _staging__sources.yml/);
+    assert.equal(result.pass, true, result.reason);
+  } finally {
+    fs.rmSync(runPath, { recursive: true, force: true });
+  }
+});
+
+test('check-dbt-refs fails when a model is generated despite skip expectation', () => {
+  const runPath = makeRunPath();
+  try {
+    writeFile(
+      path.join(runPath, 'dbt', 'models', 'marts', 'product.sql'),
+      "select * from {{ source('bronze', 'product') }}\n",
+    );
+    writeFile(
+      path.join(runPath, 'dbt', 'models', 'staging', '_staging__sources.yml'),
+      [
+        'version: 2',
+        'sources:',
+        '  - name: bronze',
+        '    tables:',
+        '      - name: product',
+        '',
+      ].join('\n'),
+    );
+
+    const result = checkDbtRefs('', {
+      vars: {
+        run_path: runPath,
+        target_table: 'bronze.Product',
+        expect_no_generated_model: 'true',
+      },
+    });
+
+    assert.equal(result.pass, false);
+    assert.match(result.reason, /Expected no generated model/);
+  } finally {
+    fs.rmSync(runPath, { recursive: true, force: true });
+  }
+});
+
+test('check-dbt-refs validates source calls for generated models', () => {
+  const runPath = makeRunPath();
+  try {
+    writeFile(
+      path.join(runPath, 'dbt', 'models', 'marts', 'dimproduct.sql'),
+      "select * from {{ source('bronze', 'product') }}\n",
+    );
+    writeFile(
+      path.join(runPath, 'dbt', 'models', 'staging', '_staging__sources.yml'),
+      [
+        'version: 2',
+        'sources:',
+        '  - name: bronze',
+        '    tables:',
+        '      - name: product',
+        '',
+      ].join('\n'),
+    );
+
+    const result = checkDbtRefs('', {
+      vars: {
+        run_path: runPath,
+        target_table: 'silver.DimProduct',
+      },
+    });
+
+    assert.equal(result.pass, true, result.reason);
+  } finally {
+    fs.rmSync(runPath, { recursive: true, force: true });
+  }
 });

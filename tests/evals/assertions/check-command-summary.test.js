@@ -155,3 +155,40 @@ test('check-command-summary accepts completed artifact with complete result as o
     fs.rmSync(tmp, { recursive: true, force: true });
   }
 });
+
+test('check-command-summary ignores unit-test repair artifacts when reading item status', () => {
+  const tmp = fs.mkdtempSync(path.join(os.tmpdir(), 'cmd-summary-'));
+  const runPath = path.relative(repoRoot, tmp);
+  const migrationsDir = path.join(tmp, '.migration-runs');
+  fs.mkdirSync(migrationsDir, { recursive: true });
+
+  const runId = '1234-abcd';
+  fs.writeFileSync(
+    path.join(migrationsDir, `summary.${runId}.json`),
+    JSON.stringify({ total: 1, ok: 1, error: 0, run_id: runId }),
+  );
+  fs.writeFileSync(
+    path.join(migrationsDir, `silver.insertselecttarget.${runId}.json`),
+    JSON.stringify({ status: 'ok', output: { model_name: 'insertselecttarget' } }),
+  );
+  fs.writeFileSync(
+    path.join(migrationsDir, `silver.insertselecttarget.unit-test-repair.${runId}.json`),
+    JSON.stringify({
+      dbt_test_passed: false,
+      note: 'repair artifact should not be treated as the item result',
+    }),
+  );
+
+  try {
+    const result = checkCommandSummary('', {
+      vars: {
+        run_path: runPath,
+        expected_item_statuses: '{"silver.InsertSelectTarget": "ok"}',
+      },
+    });
+
+    assert.equal(result.pass, true, result.reason);
+  } finally {
+    fs.rmSync(tmp, { recursive: true, force: true });
+  }
+});
