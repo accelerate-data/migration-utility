@@ -32,6 +32,18 @@ It does not replace stage guards, readiness checks, review skills, dbt validatio
 
 Sub-agent reports are not sufficient evidence by themselves. The parent agent must inspect the produced artifact, diff, command output, PR state, or coordinator plan state before repeating a success claim.
 
+## Skill Contract
+
+The overseer is implemented as a non-user-invocable skill named `verifying-completion-claims`.
+
+Its description must make claim intent the trigger: use it automatically before any success, completion, passing, PR-ready, merged, or stage-complete statement.
+
+The skill does not require slash-command integration. Agents invoke it because seeded migration project `CLAUDE.md` makes completion-claim verification mandatory.
+
+The skill accepts free-form context instead of a command-specific schema. The agent supplies the intended claim, the work just performed, and any known run ID, object list, plan file, branch, PR, or validation command.
+
+The skill returns claim wording guidance, not migration state. It tells the agent which claims are supported, which must be downgraded, and which are blocked until more evidence is gathered.
+
 ## Evidence Model
 
 Before a completion claim, the overseer asks the agent to identify:
@@ -43,6 +55,28 @@ Before a completion claim, the overseer asks the agent to identify:
 - whether the evidence supports the exact wording.
 
 Common evidence includes run artifacts, summary files, catalog writeback, validated review JSON, dbt output, SQL comparison output, git state, PR state, and coordinator plan state.
+
+## Skill Workflow
+
+`verifying-completion-claims` follows a fixed evidence loop:
+
+1. Identify the exact completion claim the agent intends to make.
+2. Determine the minimum fresh evidence that would prove that claim.
+3. Inspect that evidence directly.
+4. Compare the evidence to the intended wording.
+5. Return verified, downgraded, or blocked wording.
+
+If the evidence is not already available, the skill instructs the agent what to inspect or run before making the claim. It must not infer success from confidence, elapsed workflow steps, expected side effects, or sub-agent summaries.
+
+## Skill Output
+
+The skill output should be concise and conversation-facing:
+
+- `verified`: the exact claim is supported and may be stated;
+- `downgraded`: only a narrower claim is supported, with replacement wording;
+- `blocked`: no completion claim should be made, with the missing or contradictory evidence named.
+
+The skill may include an evidence list when that helps the final user response stay precise.
 
 ## Outcomes
 
