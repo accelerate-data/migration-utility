@@ -137,4 +137,3 @@ domain evaluation so inherited assignments and reports are regenerated.
 - [[Quickstart]]
 - [[Scoping]]
 - [[Whole-Mart Migration]]
-- `verifying-completion-claims` skill
