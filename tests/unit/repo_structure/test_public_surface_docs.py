@@ -120,3 +120,12 @@ def test_ci_runs_version_consistency_checker() -> None:
 
     assert "version-consistency-audit:" in workflow
     assert "scripts/check_version_consistency.py" in workflow
+
+
+def test_ci_runs_plugin_manifest_validator() -> None:
+    workflow = (REPO_ROOT / ".github" / "workflows" / "ci.yml").read_text(
+        encoding="utf-8"
+    )
+
+    assert "plugin-manifest-audit:" in workflow
+    assert "scripts/validate_plugin_manifests.py" in workflow

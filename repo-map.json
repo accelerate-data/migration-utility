@@ -60,8 +60,8 @@
   "applications": [
     {
       "name": "ad-migration plugin",
-      "type": "Claude Code plugin",
-      "description": "DDL analysis and migration pipeline. Single unified plugin with commands and skills. Loaded via: claude --plugin-dir ."
+      "type": "Claude Code and Codex plugin",
+      "description": "DDL analysis and migration pipeline. Claude loads commands and skills via claude --plugin-dir .; Codex loads root skills/ and the local DDL MCP server through .codex-plugin/plugin.json."
     }
   ],
   "entrypoints": {
@@ -71,9 +71,9 @@
     "ad_migration_cli": "packages/ad-migration-cli/src/ad_migration_cli/main.py"
   },
   "modules": {
-    "plugin_manifest": {
-      "path": ".claude-plugin/plugin.json",
-      "description": "Plugin manifest for the unified ad-migration plugin."
+    "plugin_manifests": {
+      "path": ".claude-plugin/plugin.json and .codex-plugin/plugin.json",
+      "description": "Plugin manifests for the unified ad-migration plugin. Claude and Codex versions must match each other and the release-facing Python packages."
     },
     "sandbox_backends": {
       "path": "lib/shared/sandbox/",
@@ -101,7 +101,7 @@
     },
     "migration_commands": {
       "path": "commands/",
-      "description": "Stage-specific commands (LLM-driven only): scope-tables.md, profile-tables.md, generate-model.md, generate-tests.md, refactor-query.md, refactor-mart-plan.md, refactor-mart.md, status.md. Whole-mart orchestration commands: migrate-mart-plan.md writes the resumable migration plan and migrate-mart.md executes it. Deterministic setup and state-mutation commands have moved to the ad-migration CLI (lib/shared/cli/)."
+      "description": "Claude-only stage-specific slash commands (LLM-driven only): scope-tables.md, profile-tables.md, generate-model.md, generate-tests.md, refactor-query.md, refactor-mart-plan.md, refactor-mart.md, status.md. Whole-mart orchestration commands: migrate-mart-plan.md writes the resumable migration plan and migrate-mart.md executes it. Deterministic setup and state-mutation commands have moved to the ad-migration CLI (lib/shared/cli/). Codex command-surface rationale is documented in docs/reference/codex-plugin-surface/README.md."
     },
     "tests_migration": {
       "path": "tests/unit/",
@@ -121,7 +121,7 @@
     },
     "scripts": {
       "path": "scripts/",
-      "description": "Repository scripts. worktree.sh is the maintainer development helper. stage-worktree.sh, stage-pr.sh, stage-pr-merge.sh, and stage-cleanup.sh are deterministic plugin runtime helpers used from customer projects. contributor-setup.sh is the contributor readiness helper; check_design_index.py, check_public_surface_docs.py, and check_version_consistency.py audit repository metadata drift; publish-sqlserver-image.sh and demo-warehouse/ support SQL Server fixtures and demos."
+      "description": "Repository scripts. worktree.sh is the maintainer development helper. stage-worktree.sh, stage-pr.sh, stage-pr-merge.sh, and stage-cleanup.sh are deterministic plugin runtime helpers used from customer projects. contributor-setup.sh is the contributor readiness helper; validate_plugin_manifests.py validates Claude/Codex manifest contracts; check_design_index.py, check_public_surface_docs.py, and check_version_consistency.py audit repository metadata drift; publish-sqlserver-image.sh and demo-warehouse/ support SQL Server fixtures and demos."
     },
     "docker_sqlserver": {
       "path": "docker/sqlserver/",
@@ -138,9 +138,10 @@
   },
   "key_directories": {
     ".claude-plugin/": "Claude Code plugin manifest at the repository root",
-    "commands/": "Claude Code command specs at the repository root",
-    "skills/": "Claude Code skills at the repository root",
-    "scripts/": "Repository scripts. worktree.sh is the maintainer development helper; stage-worktree.sh, stage-pr.sh, stage-pr-merge.sh, and stage-cleanup.sh are deterministic plugin runtime helpers used from customer projects; check_version_consistency.py audits package and plugin version drift.",
+    ".codex-plugin/": "Codex plugin manifest at the repository root; supports root skills/ and .mcp.json discovery.",
+    "commands/": "Claude Code command specs at the repository root; intentionally Claude-only for Codex.",
+    "skills/": "Claude Code and Codex skills at the repository root",
+    "scripts/": "Repository scripts. worktree.sh is the maintainer development helper; stage-worktree.sh, stage-pr.sh, stage-pr-merge.sh, and stage-cleanup.sh are deterministic plugin runtime helpers used from customer projects; validate_plugin_manifests.py validates Claude/Codex plugin manifest contracts; check_version_consistency.py audits package and plugin version drift.",
     "lib/": "Python DDL analysis library (uv project, sqlglot-based)",
     "packages/": "Packaging wrappers for the public ad-migration CLI and internal plugin entrypoints.",
     "lib/shared/schemas/": "JSON Schema files for catalog, agent I/O, discover CLI output, and shared definitions",
@@ -216,7 +217,9 @@
     "contributor_setup_fix": "./scripts/contributor-setup.sh",
     "contributor_setup_show": "./scripts/contributor-setup.sh show",
     "check_design_index": "python scripts/check_design_index.py",
+    "validate_plugin_manifests": "python scripts/validate_plugin_manifests.py",
     "check_public_surface_docs": "python scripts/check_public_surface_docs.py --base <base_sha> --head <head_sha>",
+    "check_version_consistency": "python scripts/check_version_consistency.py",
     "profile_view_context": "cd packages/ad-migration-internal && uv run profile view-context --view <view_fqn>",
     "setup_ddl_write_partial_manifest": "cd packages/ad-migration-internal && uv run setup-ddl write-partial-manifest --project-root . --technology <technology> --target-technology <technology> --prereqs-json <json>",
     "lint_md": "markdownlint <file>",

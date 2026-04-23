@@ -141,13 +141,17 @@ claude --plugin-dir .
 
 This assumes the relevant MCP prerequisites are already installed and on `PATH`.
 
+Codex marketplace installation reads `.codex-plugin/plugin.json`. Codex supports the root `skills/` surface and the root `.mcp.json` DDL MCP server; root `commands/` remain Claude-only. See [docs/reference/codex-plugin-surface/README.md](docs/reference/codex-plugin-surface/README.md).
+
 ---
 
 ## Repository Structure
 
 ```text
 .claude/              Agent rules, skills, and memory
+.codex-plugin/        Codex plugin manifest
 agents/               Claude agent definitions
+commands/             Claude-only slash command specs
 lib/                  Python library (uv project)
   shared/             DDL analysis modules and JSON schemas
 mcp/

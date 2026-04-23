@@ -20,6 +20,7 @@ REPO_ROOT = _find_repo_root()
 def test_root_plugin_layout_matches_the_desired_structure() -> None:
     """The repository should expose the plugin layout at the repo root."""
     assert (REPO_ROOT / ".claude-plugin" / "plugin.json").is_file()
+    assert (REPO_ROOT / ".codex-plugin" / "plugin.json").is_file()
     assert (REPO_ROOT / "commands").is_dir()
     assert (REPO_ROOT / "skills").is_dir()
     assert not (REPO_ROOT / "skills" / "git-checkpoints").exists()

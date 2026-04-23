@@ -21,4 +21,4 @@ def test_version_flag_falls_back_for_local_module_execution() -> None:
     result = runner.invoke(app, ["--version"])
 
     assert result.exit_code == 0, result.output
-    assert result.stdout.strip() == "0.1.2"
+    assert result.stdout.strip() == "0.1.3"
