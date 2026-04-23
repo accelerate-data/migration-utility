@@ -128,13 +128,13 @@ def test_packaging_contract_matches_the_split_distribution_layout(tmp_path: Path
     assert "scripts" not in shared["project"]
 
     assert public["project"]["name"] == "ad-migration-cli"
-    assert public["project"]["dependencies"] == ["ad-migration-shared[export,oracle,sql-server]==0.1.2"]
+    assert public["project"]["dependencies"] == ["ad-migration-shared[export,oracle,sql-server]==0.1.3"]
     assert public["project"]["scripts"] == {
         "ad-migration": "ad_migration_cli.main:app",
     }
 
     assert internal["project"]["name"] == "ad-migration-internal"
-    assert internal["project"]["dependencies"] == ["ad-migration-shared[export,oracle,sql-server]==0.1.2"]
+    assert internal["project"]["dependencies"] == ["ad-migration-shared[export,oracle,sql-server]==0.1.3"]
     assert "ad-migration" not in internal["project"].get("scripts", {})
     assert internal["project"]["scripts"] == {
         "catalog-enrich": "ad_migration_internal.entrypoints:catalog_enrich_app",
@@ -157,12 +157,12 @@ def test_packaging_contract_matches_the_split_distribution_layout(tmp_path: Path
     public_members = _wheel_members(public_wheel)
     assert "ad_migration_cli/__init__.py" in public_members
     assert "ad_migration_cli/main.py" in public_members
-    assert "ad_migration_cli-0.1.2.dist-info/entry_points.txt" in public_members
+    assert "ad_migration_cli-0.1.3.dist-info/entry_points.txt" in public_members
 
     internal_members = _wheel_members(internal_wheel)
     assert "ad_migration_internal/__init__.py" in internal_members
     assert "ad_migration_internal/entrypoints.py" in internal_members
-    assert "ad_migration_internal-0.1.2.dist-info/entry_points.txt" in internal_members
+    assert "ad_migration_internal-0.1.3.dist-info/entry_points.txt" in internal_members
 
     venv_dir = _install_wheels(tmp_path, shared_wheel, public_wheel, internal_wheel)
     site_packages = _venv_site_packages(venv_dir)
@@ -172,7 +172,7 @@ def test_packaging_contract_matches_the_split_distribution_layout(tmp_path: Path
     assert installed_paths["ad_migration_internal.entrypoints"].is_relative_to(site_packages)
 
     version, discover_help = _run_installed_smoke(venv_dir)
-    assert version == "0.1.2"
+    assert version == "0.1.3"
     assert "Usage:" in discover_help
 
     doctor_help = subprocess.run(

@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Check release-facing package versions match the plugin manifest."""
+"""Check release-facing package versions match the plugin manifests."""
 
 from __future__ import annotations
 
@@ -23,8 +23,8 @@ def _read_pyproject(path: str) -> dict:
     return tomllib.loads((REPO_ROOT / path).read_text(encoding="utf-8"))
 
 
-def _read_plugin_manifest() -> dict:
-    return json.loads((REPO_ROOT / ".claude-plugin" / "plugin.json").read_text())
+def _read_plugin_manifest(path: str) -> dict:
+    return json.loads((REPO_ROOT / path / "plugin.json").read_text())
 
 
 def _dependency_pin(pyproject: dict, package: str) -> str | None:
@@ -36,13 +36,18 @@ def _dependency_pin(pyproject: dict, package: str) -> str | None:
 
 
 def check_version_consistency() -> list[str]:
-    plugin = _read_plugin_manifest()
+    claude_plugin = _read_plugin_manifest(".claude-plugin")
+    codex_plugin = _read_plugin_manifest(".codex-plugin")
     public_cli = _read_pyproject("packages/ad-migration-cli/pyproject.toml")
     internal_cli = _read_pyproject("packages/ad-migration-internal/pyproject.toml")
 
-    plugin_version = plugin["version"]
+    plugin_version = claude_plugin["version"]
     package_versions = {
         path: _read_pyproject(path)["project"]["version"] for path in PYPROJECT_PATHS
+    }
+    plugin_versions = {
+        ".claude-plugin/plugin.json": claude_plugin["version"],
+        ".codex-plugin/plugin.json": codex_plugin["version"],
     }
     dependency_pins = {
         "packages/ad-migration-cli/pyproject.toml dependency": _dependency_pin(
@@ -54,6 +59,10 @@ def check_version_consistency() -> list[str]:
     }
 
     errors: list[str] = []
+    for label, version in plugin_versions.items():
+        if version != plugin_version:
+            errors.append(f"{label} has version {version}, expected {plugin_version}")
+
     for label, version in package_versions.items():
         if version != plugin_version:
             errors.append(f"{label} has version {version}, expected {plugin_version}")
@@ -72,7 +81,7 @@ def main() -> int:
             print(f"::error::{error}", file=sys.stderr)
         return 1
 
-    version = _read_plugin_manifest()["version"]
+    version = _read_plugin_manifest(".claude-plugin")["version"]
     print(f"Version consistency audit passed for {version}.")
     return 0
 

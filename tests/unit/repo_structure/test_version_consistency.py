@@ -64,26 +64,67 @@ def test_version_consistency_checker_uses_plugin_version_as_source_of_truth(
             return {"project": {"version": "0.1.0"}}
         raise AssertionError(path)
 
-    monkeypatch.setattr(checker, "_read_plugin_manifest", lambda: {"version": "0.1.2"})
+    def fake_plugin_manifest(path: str) -> dict:
+        return {"version": "0.1.3"}
+
+    monkeypatch.setattr(checker, "_read_plugin_manifest", fake_plugin_manifest)
     monkeypatch.setattr(checker, "_read_pyproject", fake_pyproject)
 
     errors = checker.check_version_consistency()
 
-    assert "lib/pyproject.toml has version 0.1.0, expected 0.1.2" in errors
+    assert "lib/pyproject.toml has version 0.1.0, expected 0.1.3" in errors
     assert (
-        "packages/ad-migration-cli/pyproject.toml has version 0.1.0, expected 0.1.2"
+        "packages/ad-migration-cli/pyproject.toml has version 0.1.0, expected 0.1.3"
         in errors
     )
     assert (
-        "packages/ad-migration-internal/pyproject.toml has version 0.1.0, expected 0.1.2"
+        "packages/ad-migration-internal/pyproject.toml has version 0.1.0, expected 0.1.3"
         in errors
     )
-    assert "mcp/ddl/pyproject.toml has version 0.1.0, expected 0.1.2" in errors
+    assert "mcp/ddl/pyproject.toml has version 0.1.0, expected 0.1.3" in errors
     assert (
-        "packages/ad-migration-cli/pyproject.toml dependency pins 0.1.0, expected 0.1.2"
+        "packages/ad-migration-cli/pyproject.toml dependency pins 0.1.0, expected 0.1.3"
         in errors
     )
     assert (
-        "packages/ad-migration-internal/pyproject.toml dependency pins 0.1.0, expected 0.1.2"
+        "packages/ad-migration-internal/pyproject.toml dependency pins 0.1.0, expected 0.1.3"
         in errors
     )
+
+
+def test_version_consistency_checker_rejects_codex_plugin_drift(monkeypatch) -> None:
+    checker = _load_checker()
+
+    def fake_pyproject(path: str) -> dict:
+        if path in {
+            "lib/pyproject.toml",
+            "mcp/ddl/pyproject.toml",
+        }:
+            return {"project": {"version": "0.1.3"}}
+        if path in {
+            "packages/ad-migration-cli/pyproject.toml",
+            "packages/ad-migration-internal/pyproject.toml",
+        }:
+            return {
+                "project": {
+                    "version": "0.1.3",
+                    "dependencies": [
+                        "ad-migration-shared[export,oracle,sql-server]==0.1.3"
+                    ],
+                }
+            }
+        raise AssertionError(path)
+
+    def fake_plugin_manifest(path: str) -> dict:
+        if path == ".claude-plugin":
+            return {"version": "0.1.3"}
+        if path == ".codex-plugin":
+            return {"version": "0.1.2"}
+        raise AssertionError(path)
+
+    monkeypatch.setattr(checker, "_read_pyproject", fake_pyproject)
+    monkeypatch.setattr(checker, "_read_plugin_manifest", fake_plugin_manifest)
+
+    errors = checker.check_version_consistency()
+
+    assert ".codex-plugin/plugin.json has version 0.1.2, expected 0.1.3" in errors

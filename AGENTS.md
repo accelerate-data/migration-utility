@@ -20,6 +20,7 @@ Adapter files must not duplicate canonical policy unless they are adding agent-s
 | Layer | Technology |
 |---|---|
 | Agent runtime | Claude Code CLI (`claude --plugin-dir . --agent <name>`) |
+| Codex plugin runtime | `.codex-plugin/plugin.json` exposes root `skills/` and the local DDL MCP server |
 | MCP server | genai-toolbox (HTTP mode on GH Actions, stdio locally) |
 | MCP server (Oracle) | SQLcl `-mcp` (stdio, local only) |
 | Runtime | GitHub Actions (headless execution) |
@@ -119,6 +120,12 @@ Update stale entries in the same commit that introduced the structural change.
 ## MCP Servers
 
 Only the `ddl` MCP server is bundled. It reads pre-extracted local `.sql` files and is used by skills for DDL analysis. No live-DB MCP servers are included — add your own if needed.
+
+## Plugin Manifests
+
+Claude and Codex plugin versions must move together with the release-facing Python package versions. Update `.claude-plugin/plugin.json`, `.codex-plugin/plugin.json`, the package `pyproject.toml` files, and their `uv.lock` files in the same change, then run `python scripts/validate_plugin_manifests.py` and `python scripts/check_version_consistency.py`.
+
+Codex supports root `skills/` and `.mcp.json` in this repository. Root `commands/` remain Claude-only until a Codex command-runtime contract exists; the durable surface decision lives in `docs/reference/codex-plugin-surface/README.md`.
 
 ## Logging
 

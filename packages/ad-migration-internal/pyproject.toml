@@ -1,9 +1,9 @@
 [project]
 name = "ad-migration-internal"
-version = "0.1.2"
+version = "0.1.3"
 requires-python = ">=3.11"
 dependencies = [
-    "ad-migration-shared[export,oracle,sql-server]==0.1.2",
+    "ad-migration-shared[export,oracle,sql-server]==0.1.3",
 ]
 
 [tool.uv.sources]

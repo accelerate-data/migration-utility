@@ -58,6 +58,8 @@ jobs:
           HEAD_SHA="${{ github.event.pull_request.head.sha }}"
 
           STRUCTURAL_DIRS=(
+            ".claude-plugin/"
+            ".codex-plugin/"
             ".github/workflows/"
             "skills/"
             "commands/"
@@ -114,6 +116,20 @@ jobs:
 
       - name: Check package and plugin versions
         run: python scripts/check_version_consistency.py
+
+  plugin-manifest-audit:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v6
+
+      - name: Set up Python
+        uses: actions/setup-python@v6
+        with:
+          python-version: '3.11'
+
+      - name: Validate Claude and Codex plugin manifests
+        run: python scripts/validate_plugin_manifests.py
 
   public-surface-docs-audit:
     if: github.event_name == 'pull_request'
