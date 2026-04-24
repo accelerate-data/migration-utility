@@ -10,6 +10,7 @@ function loadEvalTierConfig(configPath = CONFIG_PATH) {
   const parsed = parse(fs.readFileSync(configPath, 'utf8'));
   const runtime = parsed.runtime || {};
   const tiers = parsed.tiers || {};
+  const configDir = path.dirname(configPath);
 
   validateRuntime(runtime);
 
@@ -24,14 +25,11 @@ function loadEvalTierConfig(configPath = CONFIG_PATH) {
       providerId: runtime.provider_id,
       model: runtime.model,
       baseUrl: runtime.base_url,
-      workingDir: runtime.working_dir,
-      tools: runtime.tools || {},
+      workingDir: path.resolve(configDir, runtime.working_dir),
+      tools: normalizeTools(runtime.tools),
     },
     tiers: Object.fromEntries(
-      Object.entries(tiers).map(([tierName, tier]) => [
-        tierName,
-        { tierName, maxTurns: tier.max_turns },
-      ]),
+      Object.entries(tiers).map(([tierName, tier]) => [tierName, { maxTurns: tier.max_turns }]),
     ),
   };
 }
@@ -51,6 +49,32 @@ function validateRuntime(runtime) {
       throw new Error(`Missing required eval runtime field: ${field}`);
     }
   }
+
+  validateRuntimeTools(runtime.tools);
+}
+
+function validateRuntimeTools(tools) {
+  if (!isPlainObject(tools)) {
+    throw new Error('Missing required eval runtime field: tools');
+  }
+
+  for (const [toolName, enabled] of Object.entries(tools)) {
+    if (typeof enabled !== 'boolean') {
+      throw new Error(`Invalid eval runtime tools field: ${toolName}`);
+    }
+  }
+}
+
+function normalizeTools(tools) {
+  return { ...tools };
+}
+
+function isPlainObject(value) {
+  if (value === null || typeof value !== 'object' || Array.isArray(value)) {
+    return false;
+  }
+
+  return Object.getPrototypeOf(value) === Object.prototype;
 }
 
 module.exports = {
