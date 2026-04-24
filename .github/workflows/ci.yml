@@ -59,7 +59,7 @@ jobs:
 
       - name: Shared library unit tests with coverage
         working-directory: lib
-        run: uv run --with pytest-cov pytest --cov=shared --cov-report=term-missing --cov-fail-under=70
+        run: uv run --with pytest-cov --with pyodbc --with oracledb pytest --cov=shared --cov-report=term-missing --cov-fail-under=70
 
       - name: DDL MCP unit tests
         working-directory: mcp/ddl
