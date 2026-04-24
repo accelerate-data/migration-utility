@@ -43,6 +43,28 @@ jobs:
             --select F401,F841 \
             --statistics
 
+  unit-tests:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v6
+
+      - name: Set up Python
+        uses: actions/setup-python@v6
+        with:
+          python-version: '3.11'
+
+      - name: Set up uv
+        uses: astral-sh/setup-uv@v7
+
+      - name: Shared library unit tests with coverage
+        working-directory: lib
+        run: uv run --with pytest-cov pytest --cov=shared --cov-report=term-missing --cov-fail-under=70
+
+      - name: DDL MCP unit tests
+        working-directory: mcp/ddl
+        run: uv run pytest
+
   repo-map-audit:
     if: github.event_name == 'pull_request'
     runs-on: ubuntu-latest

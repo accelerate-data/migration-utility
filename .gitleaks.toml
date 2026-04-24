@@ -1,0 +1,17 @@
+title = "migration-utility gitleaks config"
+
+[extend]
+useDefault = true
+
+[[rules]]
+id = "anthropic-api-key"
+description = "Anthropic API key"
+regex = '''sk-ant-[A-Za-z0-9_-]+'''
+secretGroup = 0
+
+[[rules]]
+id = "mcp-sa-password"
+description = "SA_PASSWORD committed in MCP configuration"
+regex = '''"SA_PASSWORD"\s*:\s*"[^"]+"'''
+path = '''(^|/)\.mcp\.json$'''
+secretGroup = 0

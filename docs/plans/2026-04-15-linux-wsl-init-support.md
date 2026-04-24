@@ -40,6 +40,7 @@
 ### Task 1: Add Shared Platform Classification For Init Decisions
 
 **Files:**
+
 - Modify: `lib/shared/init.py`
 - Test: `tests/unit/init/test_init.py`
 
@@ -125,6 +126,7 @@ git commit -m "feat: classify init host platforms"
 ### Task 2: Make FreeTDS Detection And Repair Package-Manager-Neutral
 
 **Files:**
+
 - Modify: `lib/shared/freetds.py`
 - Modify: `lib/shared/cli/setup_source_cmd.py`
 - Test: `tests/unit/freetds/test_freetds.py`
@@ -227,6 +229,7 @@ git commit -m "feat: support linux sql server prereq detection"
 ### Task 3: Make Init And Runtime Guidance Platform-Aware
 
 **Files:**
+
 - Modify: `commands/init-ad-migration.md`
 - Modify: `lib/shared/db_connect.py`
 - Modify: `lib/shared/cli/error_handler.py`
@@ -301,6 +304,7 @@ git commit -m "feat: make init guidance platform aware"
 ### Task 4: Align Operator Docs And Scaffolded Expectations With The New Platform Matrix
 
 **Files:**
+
 - Modify: `docs/wiki/Installation-and-Prerequisites.md`
 - Modify: `docs/wiki/Command-Reference.md`
 - Modify: `docs/wiki/Quickstart.md`

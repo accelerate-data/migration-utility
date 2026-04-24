@@ -17,6 +17,7 @@ script_dir="$(cd "$(dirname "$0")" && pwd)"
 repo_root="$(cd "$script_dir/.." && pwd)"
 worktree_base="${WORKTREE_BASE_DIR:-$repo_root/../worktrees}"
 worktree_path="$worktree_base/$branch"
+bootstrap_helper="$repo_root/scripts/bootstrap_repo_local_env.py"
 
 retry_command() {
   printf '%s %s' "$0" "$branch"
@@ -118,29 +119,36 @@ sync_python_environment() {
     return
   fi
 
-  echo "uv: syncing dev dependencies in $lib_dir"
-  (
-    cd "$lib_dir" &&
-      uv sync --extra dev
-  ) || json_error \
-    "WORKTREE_UV_SYNC_FAILED" \
-    "uv_sync" \
-    "uv sync failed while creating the worktree environment." \
-    "true" \
-    "$(retry_command)" \
-    "Run '$repair_command' to repair the environment, then rerun the worktree command."
-
-  (
-    cd "$lib_dir" &&
-      uv run python -c 'import pyodbc, oracledb, dbt.adapters.oracle, dbt.adapters.sqlserver'
-  ) || json_error \
-    "WORKTREE_DEPENDENCY_VERIFICATION_FAILED" \
-    "uv_verify_dependencies" \
-    "The worktree environment does not import pyodbc, oracledb, dbt.adapters.oracle, and dbt.adapters.sqlserver." \
-    "true" \
-    "$(retry_command)" \
-    "Run '$repair_command' to reinstall the integration dependencies, then rerun the worktree command."
-
+  echo "uv: ensuring dev dependencies in $lib_dir"
+  local status=0
+  python3 "$bootstrap_helper" --repo-root "$worktree_path" --quiet ensure lib || status=$?
+  if [[ $status -ne 0 ]]; then
+    if [[ $status -eq 10 ]]; then
+      json_error \
+        "WORKTREE_UV_SYNC_FAILED" \
+        "uv_sync" \
+        "uv sync failed while creating the worktree environment." \
+        "true" \
+        "$(retry_command)" \
+        "Run '$repair_command' to repair the environment, then rerun the worktree command."
+    fi
+    if [[ $status -eq 11 ]]; then
+      json_error \
+        "WORKTREE_DEPENDENCY_VERIFICATION_FAILED" \
+        "uv_verify_dependencies" \
+        "The worktree environment does not import pyodbc, oracledb, dbt.adapters.oracle, and dbt.adapters.sqlserver." \
+        "true" \
+        "$(retry_command)" \
+        "Run '$repair_command' to reinstall the integration dependencies, then rerun the worktree command."
+    fi
+    json_error \
+      "WORKTREE_UV_SYNC_FAILED" \
+      "uv_sync" \
+      "uv dependency bootstrap failed while creating the worktree environment." \
+      "true" \
+      "$(retry_command)" \
+      "Run '$repair_command' to repair the environment, then rerun the worktree command."
+  fi
   echo "uv: verified worktree Python deps (pyodbc, oracledb, dbt adapters)"
 }
 
@@ -167,11 +175,8 @@ bootstrap_eval_dependencies() {
     npm_command_str="npm ci --no-audit --no-fund"
   fi
 
-  echo "npm: bootstrapping eval dependencies in $evals_dir with $npm_command_str"
-  (
-    cd "$evals_dir" &&
-      npm "${npm_command[@]}"
-  ) || json_error \
+  echo "npm: ensuring dependencies in $evals_dir with $npm_command_str"
+  python3 "$bootstrap_helper" --repo-root "$worktree_path" --quiet ensure tests_evals || json_error \
     "WORKTREE_NPM_INSTALL_FAILED" \
     "npm_install" \
     "npm dependency bootstrap failed for worktree eval dependencies." \

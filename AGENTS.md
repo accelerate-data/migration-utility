@@ -80,7 +80,7 @@ Use these canonical locations for repository documentation:
 
 - Design docs: `docs/design/`
 - Functional specs: `docs/functional/`
-- Implementation plans: `docs/plan/`
+- Implementation plans: `docs/plans/`
 - Reference docs: `docs/reference/`
 - End-user docs: `docs/wiki/`
 

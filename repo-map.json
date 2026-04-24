@@ -40,7 +40,7 @@
         ".github/workflows/release-cli.yml",
         ".github/workflows/sync-wiki.yml"
       ],
-      "notes": "ci.yml: Python unused-import/local lint, repo-map audit on PRs, docs/design index audit, package/plugin version consistency audit, and public-surface docs/wiki audit; Markdown-only changes are not ignored. release-cli.yml: tagged GitHub release for ad-migration-shared and ad-migration-cli artifacts plus Homebrew tap formula update."
+      "notes": "ci.yml: Python unused-import/local lint, shared-library unit tests with 70% coverage gate, DDL MCP unit tests, repo-map audit on PRs, docs/design index audit, package/plugin version consistency audit, and public-surface docs/wiki audit; Markdown-only changes are not ignored. release-cli.yml: tagged GitHub release for ad-migration-shared and ad-migration-cli artifacts plus Homebrew tap formula update."
     }
   ],
   "test_frameworks": [
@@ -121,7 +121,7 @@
     },
     "scripts": {
       "path": "scripts/",
-      "description": "Repository scripts. worktree.sh is the maintainer development helper. stage-worktree.sh, stage-pr.sh, stage-pr-merge.sh, and stage-cleanup.sh are deterministic plugin runtime helpers used from customer projects. contributor-setup.sh is the contributor readiness helper; validate_plugin_manifests.py validates Claude/Codex manifest contracts; check_design_index.py, check_public_surface_docs.py, and check_version_consistency.py audit repository metadata drift; publish-sqlserver-image.sh and demo-warehouse/ support SQL Server fixtures and demos."
+      "description": "Repository scripts. worktree.sh is the maintainer development helper. bootstrap_repo_local_env.py fingerprints repo-local manifests/lockfiles and refreshes the lib, mcp/ddl, and tests/evals dependency environments only when stale. stage-worktree.sh, stage-pr.sh, stage-pr-merge.sh, and stage-cleanup.sh are deterministic plugin runtime helpers used from customer projects. contributor-setup.sh is the contributor readiness helper; validate_plugin_manifests.py validates Claude/Codex manifest contracts; check_design_index.py, check_public_surface_docs.py, and check_version_consistency.py audit repository metadata drift; publish-sqlserver-image.sh and demo-warehouse/ support SQL Server fixtures and demos."
     },
     "docker_sqlserver": {
       "path": "docker/sqlserver/",
@@ -129,7 +129,7 @@
     },
     "docs": {
       "path": "docs/",
-      "description": "Documentation. Canonical locations: docs/design/ for design docs, docs/functional/ for functional specs, docs/plan/ for implementation plans, docs/reference/ for reference docs, and docs/wiki/ for end-user docs. docs/design/README.md defines the keep criteria for durable agent-facing design notes. docs/AGENTS.md defines index maintenance rules for design and functional docs."
+      "description": "Documentation. Canonical locations: docs/design/ for design docs, docs/functional/ for functional specs, docs/plans/ for implementation plans, docs/reference/ for reference docs, and docs/wiki/ for end-user docs. docs/design/README.md defines the keep criteria for durable agent-facing design notes. docs/AGENTS.md defines index maintenance rules for documentation directories with multiple child folders."
     },
     "test_fixtures": {
       "path": "scripts/demo-warehouse/",
@@ -154,7 +154,7 @@
     "scripts/demo-warehouse/": "Cross-dialect Kimball DW fixture: schema DDL, baseline seed data, and delta scenarios for SQL Server, Oracle, PostgreSQL",
     "docs/design/": "Design docs. Durable agent-facing design notes only; keep criteria are documented in docs/design/README.md",
     "docs/functional/": "Functional specs. Keep docs/functional/README.md updated when adding files or removing folders under this tree.",
-    "docs/plan/": "Implementation plans written from approved designs before execution begins.",
+    "docs/plans/": "Implementation plans written from approved designs before execution begins.",
     "docs/reference/": "Reference docs for operators and contributors.",
     "docs/wiki/": "End-user docs.",
     ".claude/rules/": "Shared agent rules such as coding-conventions, git-workflow, logging-policy, and codex-execution-policy",

@@ -16,6 +16,11 @@ worktree.sh <branch-name>
 
 Creates or attaches a maintainer development worktree for this repository.
 
+`bootstrap_repo_local_env.py` is the shared repo-local dependency helper used by
+maintainer bootstrap flows. It fingerprints `lib`, `mcp/ddl`, and `tests/evals`
+manifests/lockfiles and only reruns `uv`/`npm` when a local environment is missing
+or stale.
+
 ## Stage Worktree Helper
 
 ```bash

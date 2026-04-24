@@ -35,5 +35,6 @@ If information is mainly operational or contributor-facing, put it in `docs/refe
 - [Migrate Mart Coordinator](migrate-mart-coordinator/README.md) — whole-scope mart plan and coordinator workflow with deterministic worktrees, stage PRs, and crash recovery
 - [Data Domain Catalog](data-domain-catalog/README.md) — whole-warehouse layer, domain, table-classification, and date-dimension decision state before setup-source and migration workflows
 - [Completion Claim Overseer](completion-claim-overseer/README.md) — claim-intent verification policy seeded into migration project CLAUDE.md and owned by init-ad-migration
+- [Rationalize Analyze Data Domains References](rationalize-analyze-data-domains-references-design/README.md) — classifying-data-domains reference files are grouped into explicit load-condition clusters
 
 When adding one, use `docs/design/<topic>/README.md` and record only the durable decision and the reason it matters to agents.

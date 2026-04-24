@@ -2,10 +2,11 @@
 
 ## Index Maintenance
 
-`docs/design/` and `docs/functional/` must each keep a `README.md` index.
+Documentation directories expected to contain multiple child folders must keep a `README.md` index.
+`docs/design/`, `docs/functional/`, and `docs/reference/` are indexed documentation directories.
 
-When adding a file or removing a folder under either indexed documentation tree, update the nearest
+When adding a file or removing a folder under an indexed documentation tree, update the nearest
 relevant index in the same change.
 
-`docs/plan/`, `docs/reference/`, and `docs/wiki/` do not require folder indexes unless a maintainer
-explicitly asks for one.
+`docs/plans/` and `docs/wiki/` do not require folder indexes unless they are expected to contain
+multiple child folders or a maintainer explicitly asks for one.

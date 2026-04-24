@@ -159,7 +159,10 @@ mcp/
   mssql/              genai-toolbox config for live SQL Server queries
 docs/
   design/             Architecture and design decision records
+  functional/         Functional specifications
+  plans/              Implementation plans
   reference/          Setup guides and reference docs
+  wiki/               End-user documentation synced to the GitHub wiki
 ```
 
 See `repo-map.json` for the full structure, entrypoints, and command reference.
@@ -179,6 +182,7 @@ cd lib && uv run pytest -m integration             # requires Docker SQL Server
 ### Lint
 
 ```bash
+uvx ruff check lib/shared packages/ad-migration-cli/src packages/ad-migration-internal/src mcp/ddl scripts tests --select F401,F841
 markdownlint <file>    # all .md files must pass before committing
 ```
 
