@@ -27,6 +27,7 @@ If information is mainly operational or contributor-facing, put it in `docs/refe
 - [Selected Writer DDL Slice](selected-writer-ddl-slice/README.md) — LLM-facing contexts expose only target-specific SQL for sliced multi-table writers
 - [Readiness Error Guard](readiness-error-guard/README.md) — object-scoped readiness fails on unresolved catalog errors while allowing warnings
 - [Preserve-Catalog Reset](preserve-catalog-reset/README.md) — reset mode that clears generated target/dbt state while preserving extraction, scope, and profile work
+- [Promptfoo OpenCode Evals](promptfoo-opencode-evals/README.md) — suite-owned OpenCode runtime, named eval tiers, package-level tier selection, and resolved Promptfoo configs
 - [Target-Normalized Catalog Types](target-normalized-catalog-types/README.md) — target-aware catalog type field used by target DDL, source/staging YAML, and dbt contracts
 - [Setup-Target Staging Contracts](setup-target-staging-contracts/README.md) — setup-target creates contracted staging wrappers, full-shape passthrough unit tests, and validates the staging layer
 - [Replicate Source Tables](replicate-source-tables/README.md) — deterministic CLI boundary for copying capped source data into target-side source tables before user-run dbt execution
