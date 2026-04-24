@@ -5,7 +5,9 @@ const {
   ALLOWED_ARTIFACT_PREFIXES,
   detectCleanupViolations,
   main,
+  materializeInvocation,
   restoreCleanupViolations,
+  runPromptfooInvocation,
   splitPromptfooInvocations,
 } = require('./run-promptfoo-with-guard');
 
@@ -216,6 +218,55 @@ test('splitPromptfooInvocations rejects a dangling -c flag', () => {
     () => splitPromptfooInvocations(['eval', '-c']),
     /Missing config path after -c/,
   );
+});
+
+test('materializeInvocation resolves package configs only into tests/evals/.tmp', () => {
+  const materialized = materializeInvocation(
+    ['eval', '-c', 'packages/listing-objects/skill-listing-objects.yaml', '-c', 'oracle-live/promptfooconfig.yaml'],
+    {
+      writeResolvedConfig: (configPath) => `.tmp/resolved-configs/${configPath}`,
+    },
+  );
+
+  assert.deepEqual(materialized, [
+    'eval',
+    '-c',
+    '.tmp/resolved-configs/packages/listing-objects/skill-listing-objects.yaml',
+    '-c',
+    'oracle-live/promptfooconfig.yaml',
+  ]);
+});
+
+test('runPromptfooInvocation never passes unresolved package configs to promptfoo', () => {
+  const spawns = [];
+  const status = runPromptfooInvocation(
+    ['eval', '-c', 'packages/listing-objects/skill-listing-objects.yaml'],
+    {
+      materializeInvocation: () => ['eval', '-c', '.tmp/resolved-configs/packages/listing-objects/skill-listing-objects.yaml'],
+      spawnSync: (command, args) => {
+        spawns.push([command, args]);
+        return { status: 0 };
+      },
+    },
+  );
+
+  assert.equal(status, 0);
+  assert.deepEqual(spawns, [[
+    process.execPath,
+    [
+      require('node:path').join(
+        require('node:path').resolve(__dirname, '..'),
+        'node_modules',
+        'promptfoo',
+        'dist',
+        'src',
+        'entrypoint.js',
+      ),
+      'eval',
+      '-c',
+      '.tmp/resolved-configs/packages/listing-objects/skill-listing-objects.yaml',
+    ],
+  ]]);
 });
 
 test('main runs split promptfoo invocations sequentially and returns success when clean', () => {
@@ -479,6 +530,46 @@ test('main checks cleanup violations after each split invocation', () => {
     assert.deepEqual(invocations, [['eval', '-c', 'a.yaml']]);
     assert.deepEqual(errors, ['violations:tests/evals/fixtures/dirty.json']);
     assert.deepEqual(restored, ['tests/evals/fixtures/dirty.json']);
+  } finally {
+    console.error = originalError;
+  }
+});
+
+test('main still fails for dirty paths outside allowed roots after config materialization', () => {
+  const errors = [];
+  const originalError = console.error;
+  const restored = [];
+  const invocations = [];
+  const snapshots = [
+    { tracked: new Set(), untracked: new Set() },
+    { tracked: new Set(['tests/evals/packages/listing-objects/skill-listing-objects.yaml']), untracked: new Set() },
+  ];
+
+  console.error = (message) => {
+    errors.push(message);
+  };
+
+  try {
+    const status = main(
+      ['eval', '-c', 'packages/listing-objects/skill-listing-objects.yaml'],
+      {
+        collectGitSnapshot: () => snapshots.shift(),
+        detectCleanupViolations: () => ['tests/evals/packages/listing-objects/skill-listing-objects.yaml'],
+        formatViolationMessage: (paths) => `violations:${paths.join(',')}`,
+        restoreCleanupViolations: (paths) => {
+          restored.push(...paths);
+        },
+        runPromptfooInvocation: (argv) => {
+          invocations.push(argv);
+          return 0;
+        },
+      },
+    );
+
+    assert.equal(status, 1);
+    assert.deepEqual(invocations, [['eval', '-c', 'packages/listing-objects/skill-listing-objects.yaml']]);
+    assert.deepEqual(errors, ['violations:tests/evals/packages/listing-objects/skill-listing-objects.yaml']);
+    assert.deepEqual(restored, ['tests/evals/packages/listing-objects/skill-listing-objects.yaml']);
   } finally {
     console.error = originalError;
   }
