@@ -177,6 +177,80 @@ max_turns = 200
       () => loadEvalTierConfig(missingToolPath),
       /Missing required eval runtime tools field: list/,
     );
+
+    const extraTierPath = path.join(tempRoot, 'extra-tier.toml');
+    fs.writeFileSync(extraTierPath, `
+[runtime]
+provider_id = "opencode:sdk"
+model = "qwen-3.6"
+base_url = "http://127.0.0.1:4096"
+working_dir = "../.."
+
+[runtime.tools]
+read = true
+write = true
+edit = true
+bash = true
+grep = true
+glob = true
+list = true
+
+[tiers.light]
+max_turns = 60
+
+[tiers.standard]
+max_turns = 100
+
+[tiers.high]
+max_turns = 120
+
+[tiers.x_high]
+max_turns = 200
+
+[tiers.overflow]
+max_turns = "many"
+`.trimStart(), 'utf8');
+
+    assert.throws(
+      () => loadEvalTierConfig(extraTierPath),
+      /Invalid eval tier field: overflow/,
+    );
+
+    const extraToolPath = path.join(tempRoot, 'extra-tool.toml');
+    fs.writeFileSync(extraToolPath, `
+[runtime]
+provider_id = "opencode:sdk"
+model = "qwen-3.6"
+base_url = "http://127.0.0.1:4096"
+working_dir = "../.."
+
+[runtime.tools]
+read = true
+write = true
+edit = true
+bash = true
+grep = true
+glob = true
+list = true
+execute = true
+
+[tiers.light]
+max_turns = 60
+
+[tiers.standard]
+max_turns = 100
+
+[tiers.high]
+max_turns = 120
+
+[tiers.x_high]
+max_turns = 200
+`.trimStart(), 'utf8');
+
+    assert.throws(
+      () => loadEvalTierConfig(extraToolPath),
+      /Unexpected eval runtime tools field: execute/,
+    );
   } finally {
     fs.rmSync(tempRoot, { recursive: true, force: true });
   }

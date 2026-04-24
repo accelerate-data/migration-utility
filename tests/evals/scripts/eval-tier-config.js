@@ -21,6 +21,12 @@ function loadEvalTierConfig(configPath = CONFIG_PATH) {
     }
   }
 
+  for (const [tierName, tier] of Object.entries(tiers)) {
+    if (typeof tier.max_turns !== 'number') {
+      throw new Error(`Invalid eval tier field: ${tierName}`);
+    }
+  }
+
   return {
     runtime: {
       providerId: runtime.provider_id,
@@ -69,6 +75,9 @@ function validateRuntimeTools(tools) {
   }
 
   for (const [toolName, enabled] of Object.entries(tools)) {
+    if (!REQUIRED_RUNTIME_TOOLS.includes(toolName)) {
+      throw new Error(`Unexpected eval runtime tools field: ${toolName}`);
+    }
     if (typeof enabled !== 'boolean') {
       throw new Error(`Invalid eval runtime tools field: ${toolName}`);
     }
