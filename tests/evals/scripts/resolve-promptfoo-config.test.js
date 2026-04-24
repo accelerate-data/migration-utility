@@ -16,12 +16,11 @@ test('resolveConfigFile materializes an opencode provider from metadata.eval_tie
   assert.equal(resolved.providers[0].config.max_turns, 60);
 });
 
-test('resolveConfigFile can infer the eval tier from a live config provider fixture', () => {
-  const resolved = resolveConfigFile('oracle-live/promptfooconfig.yaml');
-
-  assert.equal(resolved.providers[0].id, 'opencode:sdk');
-  assert.equal(resolved.providers[0].config.model, 'qwen-3.6');
-  assert.equal(resolved.providers[0].config.max_turns, 120);
+test('resolveConfigFile rejects configs missing metadata.eval_tier', () => {
+  assert.throws(
+    () => resolveConfigFile('oracle-live/promptfooconfig.yaml'),
+    /oracle-live\/promptfooconfig\.yaml is missing metadata\.eval_tier/,
+  );
 });
 
 test('writeResolvedConfig writes suite-owned resolved configs only under .tmp', () => {

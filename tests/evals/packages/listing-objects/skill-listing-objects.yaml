@@ -1,6 +1,9 @@
 # yaml-language-server: $schema=https://promptfoo.dev/config-schema.json
 description: "Listing-objects skill — read-only catalog browsing via list/show/refs"
 
+metadata:
+  eval_tier: light
+
 prompts:
   - id: listing-objects
     label: listing-objects
@@ -8,9 +11,6 @@ prompts:
 
 extensions:
   - file://../../scripts/run-workspace-extension.js:extensionHook
-
-providers:
-  - file://../../providers/haiku-60.yaml
 
 defaultTest:
   assert:

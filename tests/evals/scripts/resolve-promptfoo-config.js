@@ -28,43 +28,9 @@ function resolveProviderBlock(evalTier) {
   };
 }
 
-function resolveConfigEvalTier(parsed, relativePath) {
-  return parsed?.metadata?.eval_tier || inferEvalTierFromProviders(parsed, relativePath);
-}
-
-function inferEvalTierFromProviders(parsed, relativePath) {
-  const providerEntry = Array.isArray(parsed?.providers) ? parsed.providers[0] : null;
-  const maxTurns = readProviderMaxTurns(providerEntry, relativePath);
-  if (!Number.isInteger(maxTurns)) {
-    return null;
-  }
-
-  const suiteConfig = loadEvalTierConfig();
-  return Object.entries(suiteConfig.tiers).find(([, tier]) => tier.maxTurns === maxTurns)?.[0] || null;
-}
-
-function readProviderMaxTurns(providerEntry, relativePath) {
-  if (!providerEntry) {
-    return null;
-  }
-
-  if (typeof providerEntry === 'string' && providerEntry.startsWith('file://')) {
-    const configDirectory = path.dirname(path.join(EVAL_ROOT, relativePath));
-    const providerPath = path.resolve(configDirectory, providerEntry.slice('file://'.length));
-    const providerConfig = yaml.load(fs.readFileSync(providerPath, 'utf8'));
-    return providerConfig?.config?.max_turns ?? null;
-  }
-
-  if (typeof providerEntry === 'object') {
-    return providerEntry?.config?.max_turns ?? null;
-  }
-
-  return null;
-}
-
 function resolveConfigFile(relativePath) {
   const parsed = readYaml(relativePath);
-  const evalTier = resolveConfigEvalTier(parsed, relativePath);
+  const evalTier = parsed?.metadata?.eval_tier;
   if (!evalTier) {
     throw new Error(`${relativePath} is missing metadata.eval_tier`);
   }
