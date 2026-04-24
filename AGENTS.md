@@ -74,14 +74,26 @@ When a change depends on local infrastructure (for example SQL Server-backed ign
 
 **Worktree venv for integration tests:** Worktrees get a fresh `.venv` on first run. For integration tests (pyodbc, oracledb), sync with the `dev` extra: `cd lib && rm -rf .venv && uv sync --extra dev`.
 
-## Design Docs
+## Documentation Locations
 
-Design notes live in `docs/design/`. Each topic gets its own subdirectory with a `README.md`
+Use these canonical locations for repository documentation:
+
+- Design docs: `docs/design/`
+- Functional specs: `docs/functional/`
+- Implementation plans: `docs/plan/`
+- Reference docs: `docs/reference/`
+- End-user docs: `docs/wiki/`
+
+Design topics get their own subdirectory with a `README.md`
 (e.g. `docs/design/orchestrator-design/README.md`). The index at `docs/design/README.md` must be
-updated when adding a new subdirectory.
+updated when adding a new design subdirectory.
 
-If a generic agent workflow or skill asks you to write a spec or design doc somewhere else, use
-`docs/design/<topic>/README.md` in this repo instead and update the design index.
+Functional spec topics get their own subdirectory with a `README.md`. The index at
+`docs/functional/README.md` must be updated when adding a new functional spec subdirectory.
+
+If a generic agent workflow or skill asks you to write a document somewhere else, use the matching
+canonical location in this repo instead. Update an index only for documentation types that require
+one: design docs and functional specs.
 
 Write design docs concisely — state the decision and the reason, not the reasoning process. One
 sentence beats a paragraph. Avoid restating what the code already makes obvious.

@@ -129,7 +129,7 @@
     },
     "docs": {
       "path": "docs/",
-      "description": "Documentation. docs/design/README.md defines the keep criteria for durable agent-facing design notes. docs/reference/ contains operator and contributor docs."
+      "description": "Documentation. Canonical locations: docs/design/ for design docs, docs/functional/ for functional specs, docs/plan/ for implementation plans, docs/reference/ for reference docs, and docs/wiki/ for end-user docs. docs/design/README.md defines the keep criteria for durable agent-facing design notes. docs/AGENTS.md defines index maintenance rules for design and functional docs."
     },
     "test_fixtures": {
       "path": "scripts/demo-warehouse/",
@@ -152,8 +152,11 @@
     "mcp/ddl/tests/": "DDL MCP pytest suite split into tests/unit/ plus shared top-level backend coverage under tests/integration/<technology>/ddl_mcp/ executed from the ddl-mcp project env.",
     "mcp/ddl/ddl_mcp_support/": "Standalone support slice for the DDL MCP package: local env/path helpers, name normalization, and focused loader/parser modules copied from the shared runtime split to keep parser fixes portable while preserving the MCP dependency boundary.",
     "scripts/demo-warehouse/": "Cross-dialect Kimball DW fixture: schema DDL, baseline seed data, and delta scenarios for SQL Server, Oracle, PostgreSQL",
-    "docs/design/": "Durable agent-facing design notes only; keep criteria are documented in docs/design/README.md",
-    "docs/superpowers/plans/": "Implementation plans written from approved designs before execution begins.",
+    "docs/design/": "Design docs. Durable agent-facing design notes only; keep criteria are documented in docs/design/README.md",
+    "docs/functional/": "Functional specs. Keep docs/functional/README.md updated when adding files or removing folders under this tree.",
+    "docs/plan/": "Implementation plans written from approved designs before execution begins.",
+    "docs/reference/": "Reference docs for operators and contributors.",
+    "docs/wiki/": "End-user docs.",
     ".claude/rules/": "Shared agent rules such as coding-conventions, git-workflow, logging-policy, and codex-execution-policy",
     ".claude/skills/": "Workflow playbooks for repo-local Claude Code skills"
   },
