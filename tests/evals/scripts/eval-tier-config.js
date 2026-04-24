@@ -11,6 +11,8 @@ function loadEvalTierConfig(configPath = CONFIG_PATH) {
   const runtime = parsed.runtime || {};
   const tiers = parsed.tiers || {};
 
+  validateRuntime(runtime);
+
   for (const tier of REQUIRED_TIERS) {
     if (!tiers[tier] || typeof tiers[tier].max_turns !== 'number') {
       throw new Error(`Missing required eval tier: ${tier}`);
@@ -25,7 +27,12 @@ function loadEvalTierConfig(configPath = CONFIG_PATH) {
       workingDir: runtime.working_dir,
       tools: runtime.tools || {},
     },
-    tiers,
+    tiers: Object.fromEntries(
+      Object.entries(tiers).map(([tierName, tier]) => [
+        tierName,
+        { tierName, maxTurns: tier.max_turns },
+      ]),
+    ),
   };
 }
 
@@ -35,7 +42,15 @@ function resolveEvalTier(config, tierName) {
     throw new Error(`Unknown eval tier: ${tierName}`);
   }
 
-  return { tierName, maxTurns: tier.max_turns };
+  return tier;
+}
+
+function validateRuntime(runtime) {
+  for (const field of ['provider_id', 'model', 'base_url', 'working_dir']) {
+    if (typeof runtime[field] !== 'string') {
+      throw new Error(`Missing required eval runtime field: ${field}`);
+    }
+  }
 }
 
 module.exports = {
