@@ -1,8 +1,9 @@
 [runtime]
-provider_id = "opencode:sdk"
-model = "qwen-3.6"
-base_url = "http://127.0.0.1:4096"
-working_dir = "../.."
+provider_id = "file://scripts/opencode-cli-provider.js"
+model_provider_id = "opencode"
+model = "qwen3.6-plus"
+working_dir = ".."
+empty_output_retries = 1
 
 [runtime.tools]
 read = true

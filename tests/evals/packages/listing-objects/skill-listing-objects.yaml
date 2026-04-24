@@ -40,7 +40,7 @@ tests:
     vars:
       fixture_path: "tests/evals/fixtures/analyzing-table/merge"
       request_text: "refs silver.DimProduct"
-      expected_terms: "writers,silver.usp_load_dimproduct"
+      expected_terms: "writer,silver.usp_load_dimproduct"
 
   - description: "show-view — surfaces referenced base table"
     vars:
@@ -58,4 +58,4 @@ tests:
     vars:
       fixture_path: "tests/evals/fixtures/analyzing-table/merge"
       request_text: "refs silver.usp_load_dimproduct"
-      expected_terms: "procedure,command only works,views, and functions"
+      expected_terms: "procedure,refs only works,views, and functions"

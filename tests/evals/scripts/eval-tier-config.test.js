@@ -13,10 +13,11 @@ const {
 test('loadEvalTierConfig returns required suite tiers', () => {
   const config = loadEvalTierConfig();
 
-  assert.equal(config.runtime.providerId, 'opencode:sdk');
-  assert.equal(config.runtime.model, 'qwen-3.6');
-  assert.equal(config.runtime.baseUrl, 'http://127.0.0.1:4096');
-  assert.equal(config.runtime.workingDir, path.resolve(path.dirname(CONFIG_PATH), '../..'));
+  assert.equal(config.runtime.providerId, 'file://scripts/opencode-cli-provider.js');
+  assert.equal(config.runtime.modelProviderId, 'opencode');
+  assert.equal(config.runtime.model, 'qwen3.6-plus');
+  assert.equal(config.runtime.workingDir, path.resolve(path.dirname(CONFIG_PATH), '..'));
+  assert.equal(config.runtime.emptyOutputRetries, 1);
   assert.deepEqual(config.runtime.tools, {
     read: true,
     write: true,
@@ -55,9 +56,9 @@ test('loadEvalTierConfig rejects missing runtime and tier fields', () => {
     const missingRuntimePath = path.join(tempRoot, 'missing-runtime.toml');
     fs.writeFileSync(missingRuntimePath, `
 [runtime]
-provider_id = "opencode:sdk"
-model = "qwen-3.6"
-base_url = "http://127.0.0.1:4096"
+provider_id = "file://scripts/opencode-cli-provider.js"
+model = "qwen3.6-plus"
+working_dir = ".."
 
 [tiers.light]
 max_turns = 60
@@ -74,15 +75,15 @@ max_turns = 200
 
     assert.throws(
       () => loadEvalTierConfig(missingRuntimePath),
-      /Missing required eval runtime field: working_dir/,
+      /Missing required eval runtime field: model_provider_id/,
     );
 
     const missingTierPath = path.join(tempRoot, 'missing-tier.toml');
     fs.writeFileSync(missingTierPath, `
 [runtime]
-provider_id = "opencode:sdk"
-model = "qwen-3.6"
-base_url = "http://127.0.0.1:4096"
+provider_id = "file://scripts/opencode-cli-provider.js"
+model_provider_id = "opencode"
+model = "qwen3.6-plus"
 working_dir = "../.."
 
 [runtime.tools]
@@ -112,9 +113,9 @@ max_turns = 120
     const malformedToolsPath = path.join(tempRoot, 'malformed-tools.toml');
     fs.writeFileSync(malformedToolsPath, `
 [runtime]
-provider_id = "opencode:sdk"
-model = "qwen-3.6"
-base_url = "http://127.0.0.1:4096"
+provider_id = "file://scripts/opencode-cli-provider.js"
+model_provider_id = "opencode"
+model = "qwen3.6-plus"
 working_dir = "../.."
 
 [runtime.tools]
@@ -147,9 +148,9 @@ max_turns = 200
     const missingToolPath = path.join(tempRoot, 'missing-tool.toml');
     fs.writeFileSync(missingToolPath, `
 [runtime]
-provider_id = "opencode:sdk"
-model = "qwen-3.6"
-base_url = "http://127.0.0.1:4096"
+provider_id = "file://scripts/opencode-cli-provider.js"
+model_provider_id = "opencode"
+model = "qwen3.6-plus"
 working_dir = "../.."
 
 [runtime.tools]
@@ -181,9 +182,9 @@ max_turns = 200
     const extraTierPath = path.join(tempRoot, 'extra-tier.toml');
     fs.writeFileSync(extraTierPath, `
 [runtime]
-provider_id = "opencode:sdk"
-model = "qwen-3.6"
-base_url = "http://127.0.0.1:4096"
+provider_id = "file://scripts/opencode-cli-provider.js"
+model_provider_id = "opencode"
+model = "qwen3.6-plus"
 working_dir = "../.."
 
 [runtime.tools]
@@ -219,9 +220,9 @@ max_turns = "many"
     const negativeTurnsPath = path.join(tempRoot, 'negative-turns.toml');
     fs.writeFileSync(negativeTurnsPath, `
 [runtime]
-provider_id = "opencode:sdk"
-model = "qwen-3.6"
-base_url = "http://127.0.0.1:4096"
+provider_id = "file://scripts/opencode-cli-provider.js"
+model_provider_id = "opencode"
+model = "qwen3.6-plus"
 working_dir = "../.."
 
 [runtime.tools]
@@ -254,9 +255,9 @@ max_turns = 200
     const fractionalTurnsPath = path.join(tempRoot, 'fractional-turns.toml');
     fs.writeFileSync(fractionalTurnsPath, `
 [runtime]
-provider_id = "opencode:sdk"
-model = "qwen-3.6"
-base_url = "http://127.0.0.1:4096"
+provider_id = "file://scripts/opencode-cli-provider.js"
+model_provider_id = "opencode"
+model = "qwen3.6-plus"
 working_dir = "../.."
 
 [runtime.tools]
@@ -289,9 +290,9 @@ max_turns = 200
     const extraToolPath = path.join(tempRoot, 'extra-tool.toml');
     fs.writeFileSync(extraToolPath, `
 [runtime]
-provider_id = "opencode:sdk"
-model = "qwen-3.6"
-base_url = "http://127.0.0.1:4096"
+provider_id = "file://scripts/opencode-cli-provider.js"
+model_provider_id = "opencode"
+model = "qwen3.6-plus"
 working_dir = "../.."
 
 [runtime.tools]
@@ -320,6 +321,42 @@ max_turns = 200
     assert.throws(
       () => loadEvalTierConfig(extraToolPath),
       /Unexpected eval runtime tools field: execute/,
+    );
+
+    const negativeRetriesPath = path.join(tempRoot, 'negative-retries.toml');
+    fs.writeFileSync(negativeRetriesPath, `
+[runtime]
+provider_id = "file://scripts/opencode-cli-provider.js"
+model_provider_id = "opencode"
+model = "qwen3.6-plus"
+working_dir = "../.."
+empty_output_retries = -1
+
+[runtime.tools]
+read = true
+write = true
+edit = true
+bash = true
+grep = true
+glob = true
+list = true
+
+[tiers.light]
+max_turns = 60
+
+[tiers.standard]
+max_turns = 100
+
+[tiers.high]
+max_turns = 120
+
+[tiers.x_high]
+max_turns = 200
+`.trimStart(), 'utf8');
+
+    assert.throws(
+      () => loadEvalTierConfig(negativeRetriesPath),
+      /Invalid eval runtime field: empty_output_retries/,
     );
   } finally {
     fs.rmSync(tempRoot, { recursive: true, force: true });

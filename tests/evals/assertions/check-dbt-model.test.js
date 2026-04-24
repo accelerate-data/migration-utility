@@ -6,11 +6,8 @@ const test = require('node:test');
 
 const checkDbtModel = require('./check-dbt-model');
 
-const repoRoot = path.resolve(__dirname, '..', '..', '..');
-
 function makeRunPath() {
-  const runsRoot = path.join(repoRoot, 'tests', 'evals', 'output', 'runs');
-  fs.mkdirSync(runsRoot, { recursive: true });
+  const runsRoot = fs.mkdtempSync(path.join(os.tmpdir(), 'unit-check-dbt-model-root-'));
   return fs.mkdtempSync(path.join(runsRoot, 'unit-check-dbt-model-'));
 }
 
@@ -27,7 +24,7 @@ test('check-dbt-model accepts alternate expected model paths', () => {
 
     const result = checkDbtModel('', {
       vars: {
-        run_path: path.relative(repoRoot, runPath),
+        run_path: runPath,
         target_table: 'silver.FactSales',
         expected_model_path: 'models/marts/factsales.sql,models/marts/fact_sales.sql',
         expected_model_terms: "ref('stg_bronze__salesorder')",

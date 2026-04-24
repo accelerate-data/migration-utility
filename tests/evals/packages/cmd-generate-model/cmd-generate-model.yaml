@@ -1,6 +1,9 @@
 # yaml-language-server: $schema=https://promptfoo.dev/config-schema.json
 description: "generate-model command — multi-table generation + review loop orchestration"
 
+metadata:
+  eval_tier: x_high
+
 prompts:
   - id: cmd-generate-model
     label: cmd-generate-model
@@ -8,9 +11,6 @@ prompts:
 
 extensions:
   - file://../../scripts/run-workspace-extension.js:extensionHook
-
-providers:
-  - file://../../providers/sonnet-120.yaml
 
 defaultTest:
   assert:
@@ -55,7 +55,6 @@ tests:
 
   # ── happy path: 2 tables, both generate dbt models ──────────
   - description: "[smoke] happy-path — InsertSelectTarget + UpdateJoinTarget both generate models"
-    provider: file://../../providers/sonnet-200.yaml
     vars:
       fixture_path: "tests/evals/fixtures/cmd-generate-model/happy-path"
       target_tables: "silver.InsertSelectTarget silver.UpdateJoinTarget"
@@ -227,7 +226,6 @@ tests:
   # refactored CTE SQL in the pre-committed catalog. Pre-committed scoping, profile,
   # and refactor sections allow all guards to pass.
   - description: "oracle — generate-model — CHANNEL_SALES_SUMMARY generates CTE dbt model"
-    provider: file://../../providers/sonnet-120.yaml
     vars:
       fixture_path: "tests/evals/fixtures/oracle-regression"
       target_tables: "sh.CHANNEL_SALES_SUMMARY"

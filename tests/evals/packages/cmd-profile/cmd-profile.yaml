@@ -1,6 +1,9 @@
 # yaml-language-server: $schema=https://promptfoo.dev/config-schema.json
 description: "profile command — multi-table parallel profiling orchestration"
 
+metadata:
+  eval_tier: high
+
 prompts:
   - id: cmd-profile
     label: cmd-profile
@@ -8,9 +11,6 @@ prompts:
 
 extensions:
   - file://../../scripts/run-workspace-extension.js:extensionHook
-
-providers:
-  - file://../../providers/haiku-60.yaml
 
 defaultTest:
   assert:
@@ -61,7 +61,6 @@ tests:
   # Verifies that the profile command produces a valid profile for an Oracle target
   # table. Pre-committed scoping section allows the guard to pass without running scope.
   - description: "oracle — profile — CHANNEL_SALES_SUMMARY profiles as fact_aggregate"
-    provider: file://../../providers/sonnet-120.yaml
     vars:
       fixture_path: "tests/evals/fixtures/oracle-regression"
       target_tables: "sh.CHANNEL_SALES_SUMMARY"

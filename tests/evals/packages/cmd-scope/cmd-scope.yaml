@@ -1,6 +1,9 @@
 # yaml-language-server: $schema=https://promptfoo.dev/config-schema.json
 description: "scope command — multi-table parallel writer discovery orchestration"
 
+metadata:
+  eval_tier: high
+
 prompts:
   - id: cmd-scope
     label: cmd-scope
@@ -8,9 +11,6 @@ prompts:
 
 extensions:
   - file://../../scripts/run-workspace-extension.js:extensionHook
-
-providers:
-  - file://../../providers/haiku-60.yaml
 
 defaultTest:
   assert:
@@ -73,7 +73,6 @@ tests:
   # Verifies that the scope command resolves the writer for SH.CHANNEL_SALES_SUMMARY
   # using Oracle catalog conventions (uppercase identifiers, oracle dialect).
   - description: "oracle — scope — CHANNEL_SALES_SUMMARY resolves to SUMMARIZE_CHANNEL_SALES"
-    provider: file://../../providers/sonnet-120.yaml
     vars:
       fixture_path: "tests/evals/fixtures/oracle-regression"
       target_tables: "sh.CHANNEL_SALES_SUMMARY"

@@ -30,9 +30,10 @@ function loadEvalTierConfig(configPath = CONFIG_PATH) {
   return {
     runtime: {
       providerId: runtime.provider_id,
+      modelProviderId: runtime.model_provider_id,
       model: runtime.model,
-      baseUrl: runtime.base_url,
       workingDir: path.resolve(configDir, runtime.working_dir),
+      emptyOutputRetries: normalizeEmptyOutputRetries(runtime.empty_output_retries),
       tools: normalizeTools(runtime.tools),
     },
     tiers: Object.fromEntries(
@@ -51,13 +52,14 @@ function resolveEvalTier(config, tierName) {
 }
 
 function validateRuntime(runtime) {
-  for (const field of ['provider_id', 'model', 'base_url', 'working_dir']) {
+  for (const field of ['provider_id', 'model_provider_id', 'model', 'working_dir']) {
     if (typeof runtime[field] !== 'string') {
       throw new Error(`Missing required eval runtime field: ${field}`);
     }
   }
 
   validateRuntimeTools(runtime.tools);
+  normalizeEmptyOutputRetries(runtime.empty_output_retries);
 }
 
 function validateRuntimeTools(tools) {
@@ -86,6 +88,18 @@ function validateRuntimeTools(tools) {
 
 function normalizeTools(tools) {
   return { ...tools };
+}
+
+function normalizeEmptyOutputRetries(value) {
+  if (value === undefined) {
+    return 0;
+  }
+
+  if (!Number.isInteger(value) || value < 0) {
+    throw new Error('Invalid eval runtime field: empty_output_retries');
+  }
+
+  return value;
 }
 
 function isPlainObject(value) {

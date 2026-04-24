@@ -14,8 +14,8 @@ The move to OpenCode with Qwen 3.6 is primarily a cost decision. Because the cut
 
 - `tests/evals/config/eval-tiers.toml` is the source of truth for eval tiers and shared OpenCode runtime settings.
 - Tier names are stable policy names: `light`, `standard`, `high`, `x_high`.
-- Tier definitions own `model` and `max_turns`.
-- Shared OpenCode runtime settings own provider id, base URL, working directory, and tool permissions.
+- Tier definitions own `max_turns`.
+- Shared OpenCode runtime settings own provider id, model provider id, model, working directory, empty-output retry policy, and tool permissions.
 
 ### Package-owned configuration
 
@@ -41,8 +41,10 @@ The move to OpenCode with Qwen 3.6 is primarily a cost decision. Because the cut
 
 ### OpenCode execution
 
-- The suite runtime ensures an OpenCode server is reachable before Promptfoo starts.
-- Resolved providers use `opencode:sdk`.
+- Resolved providers use the suite local provider `file://scripts/opencode-cli-provider.js`.
+- The provider invokes `opencode run --model opencode/qwen3.6-plus --agent build` for each Promptfoo test case.
+- The suite does not start or manage `opencode serve`.
+- Evals use OpenCode CLI execution only.
 - The initial model policy is Qwen 3.6 for all four tiers; the tier registry still owns the mapping so future model changes stay suite-local.
 
 ### Cleanliness and artifacts
@@ -55,7 +57,8 @@ The move to OpenCode with Qwen 3.6 is primarily a cost decision. Because the cut
 
 - Suite tests validate that the tier registry defines all required tiers.
 - Suite tests validate that every package declares a valid `metadata.eval_tier`.
-- Suite tests validate that resolved configs contain `opencode:sdk`, Qwen 3.6, the tier-selected `max_turns`, and the required tool permissions.
+- Suite tests validate that resolved configs contain the local OpenCode provider, Qwen 3.6, the tier-selected `max_turns`, and the required tool permissions.
+- Provider tests validate OpenCode/Qwen invocation, empty-output retry behavior, and retry-count validation.
 - Existing cleanliness-guard tests remain the authority for repo-dirtiness enforcement.
 
 ## Extraction posture

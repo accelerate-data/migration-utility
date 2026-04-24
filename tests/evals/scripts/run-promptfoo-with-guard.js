@@ -201,7 +201,7 @@ function materializeInvocation(argv, { writeResolvedConfig: writeResolved = writ
 
       next.push('-c');
       next.push(
-        configPath.startsWith('packages/')
+        shouldMaterializeConfig(configPath)
           ? writeResolved(configPath)
           : configPath,
       );
@@ -215,6 +215,22 @@ function materializeInvocation(argv, { writeResolvedConfig: writeResolved = writ
   return next;
 }
 
+function applyDefaultEvalConcurrency(argv) {
+  if (argv[0] !== 'eval' || argv.includes('--max-concurrency')) {
+    return argv;
+  }
+
+  return ['eval', '--max-concurrency', '1', ...argv.slice(1)];
+}
+
+function shouldMaterializeConfig(configPath) {
+  if (!configPath || configPath.startsWith('.tmp/resolved-configs/')) {
+    return false;
+  }
+
+  return configPath.endsWith('.yaml') || configPath.endsWith('.yml');
+}
+
 function runPromptfooInvocation(
   argv,
   {
@@ -222,7 +238,7 @@ function runPromptfooInvocation(
     spawnSync: spawn = spawnSync,
   } = {},
 ) {
-  const materializedArgv = materialize(argv);
+  const materializedArgv = applyDefaultEvalConcurrency(materialize(argv));
   const result = spawn(
     process.execPath,
     [PROMPTFOO_ENTRYPOINT, ...materializedArgv],
@@ -295,6 +311,8 @@ module.exports = {
   main,
   materializeInvocation,
   runPromptfooInvocation,
+  applyDefaultEvalConcurrency,
   restoreCleanupViolations,
+  shouldMaterializeConfig,
   splitPromptfooInvocations,
 };

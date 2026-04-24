@@ -1,6 +1,9 @@
 # yaml-language-server: $schema=https://promptfoo.dev/config-schema.json
 description: "Reviewing-tests skill — branch coverage and fixture quality gate"
 
+metadata:
+  eval_tier: light
+
 prompts:
   - id: reviewing-tests
     label: reviewing-tests
@@ -11,9 +14,6 @@ prompts:
 
 extensions:
   - file://../../scripts/run-workspace-extension.js:extensionHook
-
-providers:
-  - file://../../providers/haiku-60.yaml
 
 defaultTest:
   vars:

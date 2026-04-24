@@ -17,16 +17,29 @@ function resolveProviderBlock(evalTier) {
   const resolvedTier = resolveEvalTier(suiteConfig, evalTier);
 
   return {
-    id: suiteConfig.runtime.providerId,
+    id: resolveProviderId(suiteConfig.runtime.providerId),
     config: {
+      provider_id: suiteConfig.runtime.modelProviderId,
       model: suiteConfig.runtime.model,
-      baseUrl: suiteConfig.runtime.baseUrl,
-      apiKey: 'promptfoo-local-baseurl-placeholder',
       working_dir: suiteConfig.runtime.workingDir,
+      empty_output_retries: suiteConfig.runtime.emptyOutputRetries,
       max_turns: resolvedTier.maxTurns,
       tools: suiteConfig.runtime.tools,
     },
   };
+}
+
+function resolveProviderId(providerId) {
+  if (!providerId.startsWith('file://')) {
+    return providerId;
+  }
+
+  const providerPath = providerId.slice('file://'.length);
+  if (path.isAbsolute(providerPath)) {
+    return providerId;
+  }
+
+  return `file://${path.join(EVAL_ROOT, providerPath)}`;
 }
 
 function resolveConfigFile(relativePath) {
@@ -37,8 +50,11 @@ function resolveConfigFile(relativePath) {
     throw new Error(`${normalizedPath} is missing metadata.eval_tier`);
   }
 
+  const sourceConfigDir = path.dirname(path.join(EVAL_ROOT, normalizedPath));
+  const targetConfigDir = path.dirname(path.join(TMP_ROOT, normalizedPath));
+
   return {
-    ...parsed,
+    ...rewriteRelativeFileUrls(parsed, sourceConfigDir, targetConfigDir),
     providers: [resolveProviderBlock(evalTier)],
   };
 }
@@ -98,8 +114,47 @@ function ensureWithinRoot(candidatePath, root, errorMessage) {
   }
 }
 
+function rewriteRelativeFileUrls(value, sourceConfigDir, targetConfigDir) {
+  if (Array.isArray(value)) {
+    return value.map((item) => rewriteRelativeFileUrls(item, sourceConfigDir, targetConfigDir));
+  }
+
+  if (value && typeof value === 'object') {
+    return Object.fromEntries(
+      Object.entries(value).map(([key, entryValue]) => [
+        key,
+        rewriteRelativeFileUrls(entryValue, sourceConfigDir, targetConfigDir),
+      ]),
+    );
+  }
+
+  if (typeof value !== 'string' || !value.startsWith('file://')) {
+    return value;
+  }
+
+  const match = /^file:\/\/([^:]+)(:.*)?$/.exec(value);
+  if (!match) {
+    return value;
+  }
+
+  const [, fileTarget, suffix = ''] = match;
+  if (path.isAbsolute(fileTarget)) {
+    return value;
+  }
+
+  const absoluteTarget = path.resolve(sourceConfigDir, fileTarget);
+  ensureWithinRoot(
+    absoluteTarget,
+    EVAL_ROOT,
+    `Refusing to rewrite file reference outside eval root: ${value}`,
+  );
+  const rewrittenTarget = path.relative(targetConfigDir, absoluteTarget).split(path.sep).join('/');
+  return `file://${rewrittenTarget}${suffix}`;
+}
+
 module.exports = {
   TMP_ROOT,
   resolveConfigFile,
+  resolveProviderId,
   writeResolvedConfig,
 };

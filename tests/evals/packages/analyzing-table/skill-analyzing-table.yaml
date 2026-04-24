@@ -1,6 +1,9 @@
 # yaml-language-server: $schema=https://promptfoo.dev/config-schema.json
 description: "Scoping-table skill — writer discovery, procedure analysis, and scope resolution for tables"
 
+metadata:
+  eval_tier: light
+
 prompts:
   - id: analyzing-table
     label: analyzing-table
@@ -12,9 +15,6 @@ prompts:
 extensions:
   - file://../../scripts/run-workspace-extension.js:extensionHook
 
-providers:
-  - file://../../providers/haiku-60.yaml
-
 defaultTest:
   assert:
     - type: javascript
@@ -23,8 +23,42 @@ defaultTest:
       value: file://../../assertions/check-procedure-catalog.js
 
 tests:
+  # ── readiness guard coverage ────────────────────────────────
+  - description: "[smoke] ready-pass — merge fixture proceeds past scope readiness"
+    prompts: ["analyzing-table"]
+    vars:
+      fixture_path: "tests/evals/fixtures/analyzing-table/merge"
+      target_table: "silver.DimProduct"
+      target_procedure: "silver.usp_load_DimProduct"
+      expected_status: "resolved"
+      expected_writer: "dimproduct"
+
+  - description: "guard-fail — missing catalog stops on scope readiness"
+    prompts: ["analyzing-table"]
+    vars:
+      fixture_path: "tests/evals/fixtures/analyzing-table/merge"
+      target_table: "silver.MissingTarget"
+      expected_output_terms: "object_not_found"
+    assert:
+      - type: javascript
+        value: file://../../assertions/check-output-terms.js
+
+  - description: "[vu-1119] catalog-error — scope readiness guard stops"
+    prompts: ["analyzing-table"]
+    vars:
+      fixture_path: "tests/evals/fixtures/analyzing-table/merge"
+      target_table: "silver.DimProduct"
+      catalog_error_object: "silver.DimProduct"
+      catalog_error_code: "TYPE_MAPPING_UNSUPPORTED"
+      catalog_error_message: "Unsupported type in eval fixture."
+      expected_final_output_terms: "CATALOG_ERRORS_UNRESOLVED"
+      unchanged_catalog_object: "silver.DimProduct"
+    assert:
+      - type: javascript
+        value: file://../../assertions/check-guard-stop.js
+
   # ── truncate-insert: DimCustomer multi-writer resolution ────
-  - description: "[smoke] truncate-insert — DimCustomer multi-writer resolution"
+  - description: "truncate-insert — DimCustomer multi-writer resolution"
     prompts: ["analyzing-table"]
     vars:
       fixture_path: "tests/evals/fixtures/analyzing-table/truncate-insert"

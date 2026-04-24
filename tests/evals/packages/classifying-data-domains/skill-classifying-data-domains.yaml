@@ -1,6 +1,9 @@
 # yaml-language-server: $schema=https://promptfoo.dev/config-schema.json
 description: "Classifying-data-domains skill — whole-warehouse domain analysis contract"
 
+metadata:
+  eval_tier: light
+
 prompts:
   - id: classifying-data-domains
     label: classifying-data-domains
@@ -8,9 +11,6 @@ prompts:
 
 extensions:
   - file://../../scripts/run-workspace-extension.js:extensionHook
-
-providers:
-  - file://../../providers/haiku-60.yaml
 
 tests:
   - description: "[smoke] missing-warehouse-ddl guard stops without writes"

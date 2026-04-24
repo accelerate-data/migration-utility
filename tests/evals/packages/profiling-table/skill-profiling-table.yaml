@@ -1,6 +1,9 @@
 # yaml-language-server: $schema=https://promptfoo.dev/config-schema.json
 description: "Profile skill — LLM profiling of tables for migration"
 
+metadata:
+  eval_tier: light
+
 prompts:
   - id: profiling-table
     label: profiling-table
@@ -11,9 +14,6 @@ prompts:
 
 extensions:
   - file://../../scripts/run-workspace-extension.js:extensionHook
-
-providers:
-  - file://../../providers/haiku-60.yaml
 
 defaultTest:
   assert:

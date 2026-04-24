@@ -1,6 +1,9 @@
 # yaml-language-server: $schema=https://promptfoo.dev/config-schema.json
 description: "status command — migration progress dashboard with per-table stage readiness"
 
+metadata:
+  eval_tier: light
+
 prompts:
   - id: cmd-status
     label: cmd-status
@@ -8,9 +11,6 @@ prompts:
 
 extensions:
   - file://../../scripts/run-workspace-extension.js:extensionHook
-
-providers:
-  - file://../../providers/haiku-60.yaml
 
 defaultTest:
   assert:

@@ -1,6 +1,9 @@
 # yaml-language-server: $schema=https://promptfoo.dev/config-schema.json
 description: "Generating-model skill — baseline dbt artifact generation"
 
+metadata:
+  eval_tier: standard
+
 prompts:
   - id: generating-model
     label: generating-model
@@ -8,9 +11,6 @@ prompts:
 
 extensions:
   - file://../../scripts/run-workspace-extension.js:extensionHook
-
-providers:
-  - file://../../providers/haiku-100.yaml
 
 tests:
   - description: "[smoke] select-into — SelectIntoTarget writes single model artifact"

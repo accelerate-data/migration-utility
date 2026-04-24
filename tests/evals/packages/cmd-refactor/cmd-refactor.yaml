@@ -1,6 +1,9 @@
 # yaml-language-server: $schema=https://promptfoo.dev/config-schema.json
 description: "refactor command — multi-table CTE restructuring orchestration"
 
+metadata:
+  eval_tier: high
+
 prompts:
   - id: cmd-refactor
     label: cmd-refactor
@@ -8,9 +11,6 @@ prompts:
 
 extensions:
   - file://../../scripts/run-workspace-extension.js:extensionHook
-
-providers:
-  - file://../../providers/haiku-100.yaml
 
 defaultTest:
   assert:
@@ -54,7 +54,6 @@ tests:
   # import/logical/final CTE form. Pre-committed scoping and profile sections allow
   # guards to pass.
   - description: "oracle — refactor — CHANNEL_SALES_SUMMARY CTE restructured with final"
-    provider: file://../../providers/sonnet-120.yaml
     vars:
       fixture_path: "tests/evals/fixtures/oracle-regression"
       target_tables: "sh.CHANNEL_SALES_SUMMARY"
