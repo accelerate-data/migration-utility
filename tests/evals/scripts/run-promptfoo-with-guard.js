@@ -216,11 +216,14 @@ function materializeInvocation(argv, { writeResolvedConfig: writeResolved = writ
 }
 
 function applyDefaultEvalConcurrency(argv) {
-  if (argv[0] !== 'eval' || argv.includes('--max-concurrency')) {
+  const hasConcurrency = argv.some(
+    (token) => token === '--max-concurrency' || token.startsWith('--max-concurrency='),
+  );
+  if (argv[0] !== 'eval' || hasConcurrency) {
     return argv;
   }
 
-  return ['eval', '--max-concurrency', '1', ...argv.slice(1)];
+  return ['eval', '--max-concurrency', '4', ...argv.slice(1)];
 }
 
 function shouldMaterializeConfig(configPath) {

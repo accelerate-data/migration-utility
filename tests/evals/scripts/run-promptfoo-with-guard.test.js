@@ -246,15 +246,20 @@ test('shouldMaterializeConfig skips already resolved configs and non-yaml args',
   assert.equal(shouldMaterializeConfig('--no-cache'), false);
 });
 
-test('applyDefaultEvalConcurrency serializes eval runs unless caller overrides concurrency', () => {
+test('applyDefaultEvalConcurrency runs four eval cases unless caller overrides concurrency', () => {
   assert.deepEqual(
     applyDefaultEvalConcurrency(['eval', '--no-cache', '-c', 'packages/foo.yaml']),
-    ['eval', '--max-concurrency', '1', '--no-cache', '-c', 'packages/foo.yaml'],
+    ['eval', '--max-concurrency', '4', '--no-cache', '-c', 'packages/foo.yaml'],
   );
 
   assert.deepEqual(
     applyDefaultEvalConcurrency(['eval', '--max-concurrency', '2', '-c', 'packages/foo.yaml']),
     ['eval', '--max-concurrency', '2', '-c', 'packages/foo.yaml'],
+  );
+
+  assert.deepEqual(
+    applyDefaultEvalConcurrency(['eval', '--max-concurrency=3', '-c', 'packages/foo.yaml']),
+    ['eval', '--max-concurrency=3', '-c', 'packages/foo.yaml'],
   );
 
   assert.deepEqual(
@@ -290,7 +295,7 @@ test('runPromptfooInvocation never passes unresolved package configs to promptfo
       ),
       'eval',
       '--max-concurrency',
-      '1',
+      '4',
       '-c',
       '.tmp/resolved-configs/packages/listing-objects/skill-listing-objects.yaml',
     ],

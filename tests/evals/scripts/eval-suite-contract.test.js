@@ -13,10 +13,20 @@ const LIVE_CONFIGS = [
   'mssql-live/promptfooconfig.yaml',
 ];
 const ALLOWED_TIERS = new Set(['light', 'standard', 'high', 'x_high']);
+const EXPECTED_AGENT_STEPS = {
+  eval_light: 60,
+  eval_standard: 100,
+  eval_high: 120,
+  eval_x_high: 200,
+};
 const FORBIDDEN_REFERENCES = [
   'file://../../providers/',
   'file://../providers/',
   'anthropic:claude-agent-sdk',
+  'max_turns',
+  'runtime.tools',
+  'model_provider_id',
+  'working_dir',
 ];
 
 function collectPackageConfigs(rootDir) {
@@ -117,4 +127,31 @@ test('suite OpenCode config disables provider timeouts for long-running evals', 
 
   assert.equal(config.provider?.opencode?.options?.timeout, false);
   assert.equal('chunkTimeout' in config.provider.opencode.options, false);
+});
+
+test('suite OpenCode config defines primary eval agents with enforceable fields', () => {
+  const config = readJson(OPENCODE_CONFIG);
+
+  for (const [agentName, steps] of Object.entries(EXPECTED_AGENT_STEPS)) {
+    const agent = config.agent?.[agentName];
+    assert.ok(agent, `missing OpenCode eval agent: ${agentName}`);
+    assert.equal(agent.description.length > 0, true);
+    assert.equal(agent.mode, 'primary');
+    assert.equal(agent.model, 'opencode/qwen3.6-plus');
+    if (agent.temperature !== undefined) {
+      assert.equal(agent.temperature, 0.1);
+    }
+    assert.equal(agent.steps, steps);
+    assert.deepEqual(agent.permission, {
+      read: 'allow',
+      write: 'allow',
+      edit: 'allow',
+      bash: 'allow',
+      grep: 'allow',
+      glob: 'allow',
+      list: 'allow',
+      webfetch: 'deny',
+    });
+    assert.equal('tools' in agent, false, `${agentName} must use permission, not tools`);
+  }
 });

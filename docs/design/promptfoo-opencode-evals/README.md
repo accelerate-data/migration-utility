@@ -50,6 +50,7 @@ The move to OpenCode with Qwen 3.6 is primarily a cost decision. Because the cut
 - The suite does not start or manage `opencode serve`.
 - Evals use OpenCode CLI execution only.
 - The initial model policy is Qwen 3.6 for all agents; model changes remain suite-local in `opencode.json`.
+- Promptfoo evals default to `--max-concurrency 4`; callers can override concurrency explicitly.
 
 The command template is:
 
@@ -71,7 +72,7 @@ The suite TOML shape is:
 [runtime]
 provider_id = "file://scripts/opencode-cli-provider.js"
 opencode_config = "opencode.json"
-project_dir = ".."
+project_dir = "../.."
 format = "default"
 log_level = "ERROR"
 print_logs = false

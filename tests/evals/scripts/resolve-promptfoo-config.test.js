@@ -16,10 +16,17 @@ test('resolveConfigFile materializes an opencode provider from metadata.eval_tie
     resolved.providers[0].id,
     `file://${path.join(path.dirname(TMP_ROOT), '..', 'scripts', 'opencode-cli-provider.js')}`,
   );
-  assert.equal(resolved.providers[0].config.provider_id, 'opencode');
-  assert.equal(resolved.providers[0].config.model, 'qwen3.6-plus');
+  assert.equal(resolved.providers[0].config.agent, 'eval_light');
+  assert.equal(resolved.providers[0].config.format, 'default');
+  assert.equal(resolved.providers[0].config.log_level, 'ERROR');
+  assert.equal(resolved.providers[0].config.print_logs, false);
   assert.equal(resolved.providers[0].config.empty_output_retries, 1);
-  assert.equal(resolved.providers[0].config.max_turns, 60);
+  assert.match(resolved.providers[0].config.opencode_config, /tests\/evals\/opencode\.json$/);
+  assert.equal(resolved.providers[0].config.project_dir, path.resolve(__dirname, '..', '..', '..'));
+  assert.equal('max_turns' in resolved.providers[0].config, false);
+  assert.equal('model' in resolved.providers[0].config, false);
+  assert.equal('provider_id' in resolved.providers[0].config, false);
+  assert.equal('tools' in resolved.providers[0].config, false);
   assert.equal(
     resolved.prompts[0].raw,
     'file://../../../../prompts/skill-listing-objects.txt',

@@ -19,12 +19,13 @@ function resolveProviderBlock(evalTier) {
   return {
     id: resolveProviderId(suiteConfig.runtime.providerId),
     config: {
-      provider_id: suiteConfig.runtime.modelProviderId,
-      model: suiteConfig.runtime.model,
-      working_dir: suiteConfig.runtime.workingDir,
+      agent: resolvedTier.agent,
+      opencode_config: suiteConfig.runtime.opencodeConfig,
+      project_dir: suiteConfig.runtime.projectDir,
+      format: suiteConfig.runtime.format,
+      log_level: suiteConfig.runtime.logLevel,
+      print_logs: suiteConfig.runtime.printLogs,
       empty_output_retries: suiteConfig.runtime.emptyOutputRetries,
-      max_turns: resolvedTier.maxTurns,
-      tools: suiteConfig.runtime.tools,
     },
   };
 }
