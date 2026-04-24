@@ -3,6 +3,8 @@ const crypto = require('node:crypto');
 const fs = require('node:fs');
 const path = require('node:path');
 
+const { writeResolvedConfig } = require('./resolve-promptfoo-config');
+
 const REPO_ROOT = path.resolve(__dirname, '..', '..', '..');
 const EVAL_ROOT = path.join(REPO_ROOT, 'tests', 'evals');
 const PROMPTFOO_ENTRYPOINT = path.join(
@@ -186,10 +188,63 @@ function splitPromptfooInvocations(argv) {
   return configArgs.map((configPath) => [...sharedArgs, '-c', configPath]);
 }
 
-function runPromptfooInvocation(argv) {
-  const result = spawnSync(
+function materializeInvocation(argv, { writeResolvedConfig: writeResolved = writeResolvedConfig } = {}) {
+  const next = [];
+
+  for (let index = 0; index < argv.length; index += 1) {
+    const token = argv[index];
+    if (token === '-c') {
+      const configPath = argv[index + 1];
+      if (!configPath) {
+        throw new Error('Missing config path after -c');
+      }
+
+      next.push('-c');
+      next.push(
+        shouldMaterializeConfig(configPath)
+          ? writeResolved(configPath)
+          : configPath,
+      );
+      index += 1;
+      continue;
+    }
+
+    next.push(token);
+  }
+
+  return next;
+}
+
+function applyDefaultEvalConcurrency(argv) {
+  const hasConcurrency = argv.some(
+    (token) => token === '--max-concurrency' || token.startsWith('--max-concurrency='),
+  );
+  if (argv[0] !== 'eval' || hasConcurrency) {
+    return argv;
+  }
+
+  return ['eval', '--max-concurrency', '4', ...argv.slice(1)];
+}
+
+function shouldMaterializeConfig(configPath) {
+  if (!configPath || configPath.startsWith('.tmp/resolved-configs/')) {
+    return false;
+  }
+
+  return configPath.endsWith('.yaml') || configPath.endsWith('.yml');
+}
+
+function runPromptfooInvocation(
+  argv,
+  {
+    materializeInvocation: materialize = materializeInvocation,
+    spawnSync: spawn = spawnSync,
+  } = {},
+) {
+  const materializedArgv = applyDefaultEvalConcurrency(materialize(argv));
+  const result = spawn(
     process.execPath,
-    [PROMPTFOO_ENTRYPOINT, ...argv],
+    [PROMPTFOO_ENTRYPOINT, ...materializedArgv],
     {
       cwd: EVAL_ROOT,
       env: process.env,
@@ -257,7 +312,10 @@ module.exports = {
   hashPaths,
   isAllowedArtifactPath,
   main,
+  materializeInvocation,
   runPromptfooInvocation,
+  applyDefaultEvalConcurrency,
   restoreCleanupViolations,
+  shouldMaterializeConfig,
   splitPromptfooInvocations,
 };

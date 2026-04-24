@@ -1,6 +1,9 @@
 # yaml-language-server: $schema=https://promptfoo.dev/config-schema.json
 description: "oracle live — setup-ddl extract + scope + profile against Docker Oracle"
 
+metadata:
+  eval_tier: high
+
 prompts:
   - id: cmd-live-pipeline
     label: cmd-live-pipeline
@@ -8,9 +11,6 @@ prompts:
 
 extensions:
   - file://../scripts/run-workspace-extension.js:extensionHook
-
-providers:
-  - file://../providers/sonnet-120.yaml
 
 defaultTest:
   vars:

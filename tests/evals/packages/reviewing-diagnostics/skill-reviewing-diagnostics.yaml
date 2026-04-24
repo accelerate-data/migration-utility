@@ -1,6 +1,9 @@
 # yaml-language-server: $schema=https://promptfoo.dev/config-schema.json
 description: "Reviewing-diagnostics skill — table-centric catalog diagnostic review"
 
+metadata:
+  eval_tier: light
+
 prompts:
   - id: reviewing-diagnostics
     label: reviewing-diagnostics
@@ -8,9 +11,6 @@ prompts:
 
 extensions:
   - file://../../scripts/run-workspace-extension.js:extensionHook
-
-providers:
-  - file://../../providers/haiku-60.yaml
 
 defaultTest:
   assert:

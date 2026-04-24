@@ -1,6 +1,9 @@
 # yaml-language-server: $schema=https://promptfoo.dev/config-schema.json
 description: "Reviewing-model skill — dbt standards, correctness, and test integration"
 
+metadata:
+  eval_tier: light
+
 prompts:
   - id: reviewing-model
     label: reviewing-model
@@ -8,9 +11,6 @@ prompts:
 
 extensions:
   - file://../../scripts/run-workspace-extension.js:extensionHook
-
-providers:
-  - file://../../providers/haiku-60.yaml
 
 defaultTest:
   assert:

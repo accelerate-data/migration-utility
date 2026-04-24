@@ -1,6 +1,9 @@
 # yaml-language-server: $schema=https://promptfoo.dev/config-schema.json
 description: "Applying-staging-candidate skill -- candidate-scoped staging execution"
 
+metadata:
+  eval_tier: high
+
 prompts:
   - id: applying-staging-candidate
     label: applying-staging-candidate
@@ -8,9 +11,6 @@ prompts:
 
 extensions:
   - file://../../scripts/run-workspace-extension.js:extensionHook
-
-providers:
-  - file://../../providers/haiku-120.yaml
 
 defaultTest:
   assert:

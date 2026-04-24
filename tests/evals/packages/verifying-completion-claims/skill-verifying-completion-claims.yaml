@@ -1,6 +1,9 @@
 # yaml-language-server: $schema=https://promptfoo.dev/config-schema.json
 description: "Verifying-completion-claims skill — generic completion-claim evidence gate"
 
+metadata:
+  eval_tier: light
+
 prompts:
   - id: verifying-completion-claims
     label: verifying-completion-claims
@@ -8,9 +11,6 @@ prompts:
 
 extensions:
   - file://../../scripts/run-workspace-extension.js:extensionHook
-
-providers:
-  - file://../../providers/haiku-60.yaml
 
 defaultTest:
   vars:

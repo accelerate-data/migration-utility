@@ -1,6 +1,9 @@
 # yaml-language-server: $schema=https://promptfoo.dev/config-schema.json
 description: "Generating-tests skill — GREEN application coverage for branch enumeration, fixture synthesis, merge-safe updates, and view/mv handling"
 
+metadata:
+  eval_tier: standard
+
 prompts:
   - id: generating-tests
     label: generating-tests
@@ -11,9 +14,6 @@ prompts:
 
 extensions:
   - file://../../scripts/run-workspace-extension.js:extensionHook
-
-providers:
-  - file://../../providers/haiku-100.yaml
 
 defaultTest:
   assert:

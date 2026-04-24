@@ -1,6 +1,9 @@
 # yaml-language-server: $schema=https://promptfoo.dev/config-schema.json
 description: "Planning-refactor-mart skill -- markdown candidate plan generation"
 
+metadata:
+  eval_tier: high
+
 prompts:
   - id: planning-refactor-mart
     label: planning-refactor-mart
@@ -8,9 +11,6 @@ prompts:
 
 extensions:
   - file://../../scripts/run-workspace-extension.js:extensionHook
-
-providers:
-  - file://../../providers/haiku-120.yaml
 
 defaultTest:
   assert:

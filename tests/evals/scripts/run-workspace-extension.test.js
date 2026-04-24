@@ -6,7 +6,9 @@ const test = require('node:test');
 
 const REPO_ROOT = path.resolve(__dirname, '..', '..', '..');
 const ROOT_GITIGNORE = path.join(REPO_ROOT, '.gitignore');
+const EVAL_OPENCODE_JSON = path.join(REPO_ROOT, 'tests', 'evals', 'opencode.json');
 const EVAL_PACKAGE_JSON = path.join(REPO_ROOT, 'tests', 'evals', 'package.json');
+const EVAL_PROMPTFOO_SH = path.join(REPO_ROOT, 'tests', 'evals', 'scripts', 'promptfoo.sh');
 const EVAL_PACKAGES_DIR = path.join(REPO_ROOT, 'tests', 'evals', 'packages');
 const EXTENSION_MODULE_PATH = require.resolve('./run-workspace-extension');
 const LIVE_PACKAGE_CONFIGS = [
@@ -117,11 +119,14 @@ test('workspace extension entrypoint is wired into eval scripts and ignores run 
 
 test('smoke eval script exists and live suites remain standalone', () => {
   const packageJson = readJson(EVAL_PACKAGE_JSON);
+  const opencodeConfig = readJson(EVAL_OPENCODE_JSON);
+  const promptfooWrapper = readText(EVAL_PROMPTFOO_SH);
   const scripts = packageJson.scripts;
 
   assert.equal(Boolean(scripts['eval:smoke']), true);
   assert.equal(Boolean(scripts['eval:skills']), false);
   assert.equal(Boolean(scripts['eval:commands']), false);
+  assert.equal(Boolean(scripts['eval:analyzing-table-readiness']), false);
 
   assert.equal(
     hasWhitespaceSeparatedTokens(scripts['eval:smoke'], ['./scripts/promptfoo.sh', 'eval', '--no-cache']),
@@ -131,6 +136,13 @@ test('smoke eval script exists and live suites remain standalone', () => {
     scripts['eval:smoke'].includes("--filter-pattern '^\\[smoke\\]'"),
     true,
   );
+  assert.equal(promptfooWrapper.includes('PROMPTFOO_EVAL_TIMEOUT_MS'), true);
+  assert.equal(promptfooWrapper.includes('PROMPTFOO_SCHEDULER_QUEUE_TIMEOUT_MS'), true);
+  assert.equal(promptfooWrapper.includes(['PROMPTFOO', 'MANAGE', 'OPENCODE'].join('_')), false);
+  assert.equal(promptfooWrapper.includes('opencode serve'), false);
+  assert.equal(promptfooWrapper.includes('PROMPTFOO_OPENCODE_BASE_URL'), false);
+  assert.equal(opencodeConfig.provider.opencode.options.timeout, false);
+  assert.equal('chunkTimeout' in opencodeConfig.provider.opencode.options, false);
   assert.deepEqual(extractEvalConfigs(scripts['eval:smoke']), readEvalPackageConfigs());
   assert.equal(Boolean(scripts['eval:full']), false);
   assert.equal(Boolean(scripts['eval:oracle-regression']), false);

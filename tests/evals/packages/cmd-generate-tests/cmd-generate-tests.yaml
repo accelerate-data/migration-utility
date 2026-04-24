@@ -1,6 +1,9 @@
 # yaml-language-server: $schema=https://promptfoo.dev/config-schema.json
 description: "generate-tests command — multi-table test generation + review loop (no sandbox)"
 
+metadata:
+  eval_tier: high
+
 prompts:
   - id: cmd-generate-tests
     label: cmd-generate-tests
@@ -8,9 +11,6 @@ prompts:
 
 extensions:
   - file://../../scripts/run-workspace-extension.js:extensionHook
-
-providers:
-  - file://../../providers/haiku-100.yaml
 
 defaultTest:
   assert:
@@ -108,7 +108,6 @@ tests:
   # procedure body covering all 5 patterns: INSERT+CTE, MERGE, IF/ELSIF, EXCEPTION.
   # Pre-committed scoping and profile sections allow guards to pass.
   - description: "oracle — generate-tests — SUMMARIZE_CHANNEL_SALES enumerates PL/SQL branches"
-    provider: file://../../providers/sonnet-120.yaml
     vars:
       fixture_path: "tests/evals/fixtures/oracle-regression"
       target_tables: "sh.CHANNEL_SALES_SUMMARY"

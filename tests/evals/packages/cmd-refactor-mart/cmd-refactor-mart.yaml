@@ -1,6 +1,9 @@
 # yaml-language-server: $schema=https://promptfoo.dev/config-schema.json
 description: "refactor-mart command -- staging wave execution"
 
+metadata:
+  eval_tier: high
+
 prompts:
   - id: cmd-refactor-mart-stg
     label: cmd-refactor-mart-stg
@@ -11,9 +14,6 @@ prompts:
 
 extensions:
   - file://../../scripts/run-workspace-extension.js:extensionHook
-
-providers:
-  - file://../../providers/haiku-120.yaml
 
 tests:
   - description: "[smoke] stg happy path -- approved staging candidate rewires multiple consumers"

@@ -10,12 +10,11 @@
     "eval:reviewing-model": "./scripts/promptfoo.sh eval --no-cache -c packages/reviewing-model/skill-reviewing-model.yaml",
     "eval:generating-model": "./scripts/promptfoo.sh eval --no-cache -c packages/generating-model/skill-generating-model.yaml",
     "eval:analyzing-table": "./scripts/promptfoo.sh eval --no-cache -c packages/analyzing-table/skill-analyzing-table.yaml",
-    "eval:analyzing-table-readiness": "./scripts/promptfoo.sh eval --no-cache -c packages/analyzing-table/skill-analyzing-table-readiness.yaml",
     "eval:planning-refactor-mart": "./scripts/promptfoo.sh eval --no-cache -c packages/planning-refactor-mart/skill-planning-refactor-mart.yaml",
     "eval:classifying-data-domains": "./scripts/promptfoo.sh eval --no-cache -c packages/classifying-data-domains/skill-classifying-data-domains.yaml",
     "eval:verifying-completion-claims": "./scripts/promptfoo.sh eval --no-cache -c packages/verifying-completion-claims/skill-verifying-completion-claims.yaml",
     "eval:applying-staging-candidate": "./scripts/promptfoo.sh eval --no-cache -c packages/applying-staging-candidate/skill-applying-staging-candidate.yaml",
-    "eval:smoke": "./scripts/promptfoo.sh eval --no-cache --max-concurrency 1 --filter-pattern '^\\[smoke\\]' -c packages/analyzing-table/skill-analyzing-table-readiness.yaml -c packages/analyzing-table/skill-analyzing-table.yaml -c packages/applying-staging-candidate/skill-applying-staging-candidate.yaml -c packages/classifying-data-domains/skill-classifying-data-domains.yaml -c packages/cmd-generate-model/cmd-generate-model.yaml -c packages/cmd-generate-tests/cmd-generate-tests.yaml -c packages/cmd-migrate-mart-plan/cmd-migrate-mart-plan.yaml -c packages/cmd-migrate-mart/cmd-migrate-mart.yaml -c packages/cmd-profile/cmd-profile.yaml -c packages/cmd-refactor-mart/cmd-refactor-mart.yaml -c packages/cmd-refactor/cmd-refactor.yaml -c packages/cmd-scope/cmd-scope.yaml -c packages/cmd-status/cmd-status.yaml -c packages/generating-model/skill-generating-model.yaml -c packages/generating-tests/skill-generating-tests.yaml -c packages/listing-objects/skill-listing-objects.yaml -c packages/planning-refactor-mart/skill-planning-refactor-mart.yaml -c packages/profiling-table/skill-profiling-table.yaml -c packages/refactoring-sql/skill-refactoring-sql.yaml -c packages/reviewing-diagnostics/skill-reviewing-diagnostics.yaml -c packages/reviewing-model/skill-reviewing-model.yaml -c packages/reviewing-tests/skill-reviewing-tests.yaml -c packages/verifying-completion-claims/skill-verifying-completion-claims.yaml",
+    "eval:smoke": "./scripts/promptfoo.sh eval --no-cache --filter-pattern '^\\[smoke\\]' -c packages/analyzing-table/skill-analyzing-table.yaml -c packages/applying-staging-candidate/skill-applying-staging-candidate.yaml -c packages/classifying-data-domains/skill-classifying-data-domains.yaml -c packages/cmd-generate-model/cmd-generate-model.yaml -c packages/cmd-generate-tests/cmd-generate-tests.yaml -c packages/cmd-migrate-mart-plan/cmd-migrate-mart-plan.yaml -c packages/cmd-migrate-mart/cmd-migrate-mart.yaml -c packages/cmd-profile/cmd-profile.yaml -c packages/cmd-refactor-mart/cmd-refactor-mart.yaml -c packages/cmd-refactor/cmd-refactor.yaml -c packages/cmd-scope/cmd-scope.yaml -c packages/cmd-status/cmd-status.yaml -c packages/generating-model/skill-generating-model.yaml -c packages/generating-tests/skill-generating-tests.yaml -c packages/listing-objects/skill-listing-objects.yaml -c packages/planning-refactor-mart/skill-planning-refactor-mart.yaml -c packages/profiling-table/skill-profiling-table.yaml -c packages/refactoring-sql/skill-refactoring-sql.yaml -c packages/reviewing-diagnostics/skill-reviewing-diagnostics.yaml -c packages/reviewing-model/skill-reviewing-model.yaml -c packages/reviewing-tests/skill-reviewing-tests.yaml -c packages/verifying-completion-claims/skill-verifying-completion-claims.yaml",
     "eval:cmd-scope": "./scripts/promptfoo.sh eval --no-cache -c packages/cmd-scope/cmd-scope.yaml",
     "eval:cmd-profile": "./scripts/promptfoo.sh eval --no-cache -c packages/cmd-profile/cmd-profile.yaml",
     "eval:cmd-generate-model": "./scripts/promptfoo.sh eval --no-cache -c packages/cmd-generate-model/cmd-generate-model.yaml",
@@ -27,7 +26,7 @@
     "eval:refactoring-sql": "./scripts/promptfoo.sh eval --no-cache -c packages/refactoring-sql/skill-refactoring-sql.yaml",
     "eval:generating-tests": "./scripts/promptfoo.sh eval --no-cache -c packages/generating-tests/skill-generating-tests.yaml",
     "eval:cmd-refactor": "./scripts/promptfoo.sh eval --no-cache -c packages/cmd-refactor/cmd-refactor.yaml",
-    "test": "node --test scripts/*.test.js assertions/*.test.js providers/*.test.js",
+    "test": "node --test scripts/*.test.js assertions/*.test.js",
     "test:workspace-extension": "node --test scripts/run-workspace-extension.test.js",
     "test:cleanliness-guard": "node --test scripts/run-promptfoo-with-guard.test.js",
     "test:assertions": "node --test assertions/*.test.js",
@@ -36,9 +35,9 @@
     "view": "./scripts/promptfoo.sh view"
   },
   "dependencies": {
-    "@anthropic-ai/claude-agent-sdk": "^0.2.94",
     "@anthropic-ai/claude-code": "^2.1.92",
-    "promptfoo": "0.121.5"
+    "promptfoo": "0.121.7",
+    "smol-toml": "^1.6.1"
   },
   "overrides": {
     "@anthropic-ai/sdk": ">=0.81.0"

@@ -1,6 +1,9 @@
 # yaml-language-server: $schema=https://promptfoo.dev/config-schema.json
 description: "Refactoring-sql skill — CTE restructuring with equivalence audit"
 
+metadata:
+  eval_tier: high
+
 prompts:
   - id: refactoring-sql
     label: refactoring-sql
@@ -11,9 +14,6 @@ prompts:
 
 extensions:
   - file://../../scripts/run-workspace-extension.js:extensionHook
-
-providers:
-  - file://../../providers/haiku-120.yaml
 
 defaultTest:
   assert:
