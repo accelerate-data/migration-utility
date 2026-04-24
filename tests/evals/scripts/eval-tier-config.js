@@ -22,7 +22,7 @@ function loadEvalTierConfig(configPath = CONFIG_PATH) {
   }
 
   for (const [tierName, tier] of Object.entries(tiers)) {
-    if (typeof tier.max_turns !== 'number') {
+    if (!Number.isInteger(tier.max_turns) || tier.max_turns <= 0) {
       throw new Error(`Invalid eval tier field: ${tierName}`);
     }
   }

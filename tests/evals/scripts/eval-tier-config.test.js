@@ -216,6 +216,76 @@ max_turns = "many"
       /Invalid eval tier field: overflow/,
     );
 
+    const negativeTurnsPath = path.join(tempRoot, 'negative-turns.toml');
+    fs.writeFileSync(negativeTurnsPath, `
+[runtime]
+provider_id = "opencode:sdk"
+model = "qwen-3.6"
+base_url = "http://127.0.0.1:4096"
+working_dir = "../.."
+
+[runtime.tools]
+read = true
+write = true
+edit = true
+bash = true
+grep = true
+glob = true
+list = true
+
+[tiers.light]
+max_turns = -1
+
+[tiers.standard]
+max_turns = 100
+
+[tiers.high]
+max_turns = 120
+
+[tiers.x_high]
+max_turns = 200
+`.trimStart(), 'utf8');
+
+    assert.throws(
+      () => loadEvalTierConfig(negativeTurnsPath),
+      /Invalid eval tier field: light/,
+    );
+
+    const fractionalTurnsPath = path.join(tempRoot, 'fractional-turns.toml');
+    fs.writeFileSync(fractionalTurnsPath, `
+[runtime]
+provider_id = "opencode:sdk"
+model = "qwen-3.6"
+base_url = "http://127.0.0.1:4096"
+working_dir = "../.."
+
+[runtime.tools]
+read = true
+write = true
+edit = true
+bash = true
+grep = true
+glob = true
+list = true
+
+[tiers.light]
+max_turns = 60.5
+
+[tiers.standard]
+max_turns = 100
+
+[tiers.high]
+max_turns = 120
+
+[tiers.x_high]
+max_turns = 200
+`.trimStart(), 'utf8');
+
+    assert.throws(
+      () => loadEvalTierConfig(fractionalTurnsPath),
+      /Invalid eval tier field: light/,
+    );
+
     const extraToolPath = path.join(tempRoot, 'extra-tool.toml');
     fs.writeFileSync(extraToolPath, `
 [runtime]
