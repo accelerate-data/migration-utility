@@ -6,7 +6,7 @@ The `tests/evals/` suite runs Promptfoo through OpenCode only. Package configs s
 
 ## Why
 
-The eval suite needs one place to change model and turn-budget policy without rewriting package YAMLs, and one place to enforce repo cleanup rules, artifact locations, and OpenCode lifecycle behavior.
+The move to OpenCode with Qwen 3.6 is primarily a cost decision. Because the cutover requires touching every eval package and rerunning the suite, the same change also reorganizes the suite boundary: centralize runtime policy, re-evaluate package layout, and remove evals that do not justify their maintenance cost.
 
 ## Boundaries
 
@@ -22,6 +22,13 @@ The eval suite needs one place to change model and turn-budget policy without re
 - Each package YAML declares `metadata.eval_tier`.
 - Packages own prompts, tests, assertions, and suite-specific test variables.
 - Packages do not hardcode model ids, turn budgets, or provider-specific runtime settings.
+
+## Suite maintenance posture
+
+- The OpenCode cutover is also the suite reorganization point because all packages must be reviewed and rerun anyway.
+- During the migration, packages may be renamed, merged, or regrouped when that improves suite clarity.
+- Evals that no longer provide meaningful coverage, catch real regressions, or justify their runtime cost should be removed instead of carried forward unchanged.
+- The suite keeps only packages with a clear contract and ongoing signal value.
 
 ## Runtime contract
 
