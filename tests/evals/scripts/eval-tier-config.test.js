@@ -143,6 +143,40 @@ max_turns = 200
       () => loadEvalTierConfig(malformedToolsPath),
       /Invalid eval runtime tools field: read/,
     );
+
+    const missingToolPath = path.join(tempRoot, 'missing-tool.toml');
+    fs.writeFileSync(missingToolPath, `
+[runtime]
+provider_id = "opencode:sdk"
+model = "qwen-3.6"
+base_url = "http://127.0.0.1:4096"
+working_dir = "../.."
+
+[runtime.tools]
+read = true
+write = true
+edit = true
+bash = true
+grep = true
+glob = true
+
+[tiers.light]
+max_turns = 60
+
+[tiers.standard]
+max_turns = 100
+
+[tiers.high]
+max_turns = 120
+
+[tiers.x_high]
+max_turns = 200
+`.trimStart(), 'utf8');
+
+    assert.throws(
+      () => loadEvalTierConfig(missingToolPath),
+      /Missing required eval runtime tools field: list/,
+    );
   } finally {
     fs.rmSync(tempRoot, { recursive: true, force: true });
   }

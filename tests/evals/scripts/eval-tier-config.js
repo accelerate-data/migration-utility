@@ -5,6 +5,7 @@ const { parse } = require('smol-toml');
 const EVAL_ROOT = path.resolve(__dirname, '..');
 const CONFIG_PATH = path.join(EVAL_ROOT, 'config', 'eval-tiers.toml');
 const REQUIRED_TIERS = ['light', 'standard', 'high', 'x_high'];
+const REQUIRED_RUNTIME_TOOLS = ['read', 'write', 'edit', 'bash', 'grep', 'glob', 'list'];
 
 function loadEvalTierConfig(configPath = CONFIG_PATH) {
   const parsed = parse(fs.readFileSync(configPath, 'utf8'));
@@ -58,6 +59,15 @@ function validateRuntimeTools(tools) {
     throw new Error('Missing required eval runtime field: tools');
   }
 
+  for (const toolName of REQUIRED_RUNTIME_TOOLS) {
+    if (!Object.prototype.hasOwnProperty.call(tools, toolName)) {
+      throw new Error(`Missing required eval runtime tools field: ${toolName}`);
+    }
+    if (typeof tools[toolName] !== 'boolean') {
+      throw new Error(`Invalid eval runtime tools field: ${toolName}`);
+    }
+  }
+
   for (const [toolName, enabled] of Object.entries(tools)) {
     if (typeof enabled !== 'boolean') {
       throw new Error(`Invalid eval runtime tools field: ${toolName}`);
@@ -80,6 +90,7 @@ function isPlainObject(value) {
 module.exports = {
   CONFIG_PATH,
   REQUIRED_TIERS,
+  REQUIRED_RUNTIME_TOOLS,
   loadEvalTierConfig,
   resolveEvalTier,
 };
