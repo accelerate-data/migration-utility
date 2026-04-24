@@ -8,7 +8,8 @@ const EVAL_ROOT = path.resolve(__dirname, '..');
 const TMP_ROOT = path.join(EVAL_ROOT, '.tmp', 'resolved-configs');
 
 function readYaml(relativePath) {
-  return yaml.load(fs.readFileSync(path.join(EVAL_ROOT, relativePath), 'utf8'));
+  const normalizedPath = normalizeConfigPath(relativePath);
+  return yaml.load(fs.readFileSync(path.join(EVAL_ROOT, normalizedPath), 'utf8'));
 }
 
 function resolveProviderBlock(evalTier) {
@@ -29,10 +30,11 @@ function resolveProviderBlock(evalTier) {
 }
 
 function resolveConfigFile(relativePath) {
-  const parsed = readYaml(relativePath);
+  const normalizedPath = normalizeConfigPath(relativePath);
+  const parsed = readYaml(normalizedPath);
   const evalTier = parsed?.metadata?.eval_tier;
   if (!evalTier) {
-    throw new Error(`${relativePath} is missing metadata.eval_tier`);
+    throw new Error(`${normalizedPath} is missing metadata.eval_tier`);
   }
 
   return {
@@ -48,12 +50,52 @@ function writeResolvedConfig(
     outputRoot = TMP_ROOT,
   } = {},
 ) {
-  fsImpl.mkdirSync(outputRoot, { recursive: true });
-  const resolved = resolveConfigFile(relativePath);
-  const outputPath = path.join(outputRoot, relativePath);
+  const normalizedPath = normalizeConfigPath(relativePath);
+  const normalizedOutputRoot = normalizeOutputRoot(outputRoot);
+
+  fsImpl.mkdirSync(normalizedOutputRoot, { recursive: true });
+  const resolved = resolveConfigFile(normalizedPath);
+  const outputPath = resolveWithinRoot(
+    normalizedOutputRoot,
+    normalizedPath,
+    `Refusing to write resolved config outside output root: ${normalizedPath}`,
+  );
   fsImpl.mkdirSync(path.dirname(outputPath), { recursive: true });
   fsImpl.writeFileSync(outputPath, yaml.dump(resolved), 'utf8');
   return path.relative(EVAL_ROOT, outputPath);
+}
+
+function normalizeConfigPath(relativePath) {
+  const resolvedPath = resolveWithinRoot(
+    EVAL_ROOT,
+    relativePath,
+    `Refusing to access config outside eval root: ${relativePath}`,
+  );
+  return path.relative(EVAL_ROOT, resolvedPath);
+}
+
+function normalizeOutputRoot(outputRoot) {
+  const resolvedRoot = path.resolve(outputRoot);
+  ensureWithinRoot(
+    resolvedRoot,
+    TMP_ROOT,
+    `Refusing to write resolved configs outside ${path.relative(EVAL_ROOT, TMP_ROOT)}`,
+  );
+  return resolvedRoot;
+}
+
+function resolveWithinRoot(root, candidatePath, errorMessage) {
+  const resolvedPath = path.resolve(root, candidatePath);
+  ensureWithinRoot(resolvedPath, root, errorMessage);
+  return resolvedPath;
+}
+
+function ensureWithinRoot(candidatePath, root, errorMessage) {
+  const normalizedRoot = path.resolve(root);
+  const rootWithSeparator = `${normalizedRoot}${path.sep}`;
+  if (candidatePath !== normalizedRoot && !candidatePath.startsWith(rootWithSeparator)) {
+    throw new Error(errorMessage);
+  }
 }
 
 module.exports = {

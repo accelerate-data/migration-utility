@@ -23,6 +23,13 @@ test('resolveConfigFile rejects configs missing metadata.eval_tier', () => {
   );
 });
 
+test('resolveConfigFile rejects traversal outside the eval root', () => {
+  assert.throws(
+    () => resolveConfigFile('packages/../../foo.yaml'),
+    /Refusing to access config outside eval root: packages\/\.\.\/\.\.\/foo\.yaml/,
+  );
+});
+
 test('writeResolvedConfig writes suite-owned resolved configs only under .tmp', () => {
   const calls = [];
   const relativePath = writeResolvedConfig(
@@ -50,4 +57,24 @@ test('writeResolvedConfig writes suite-owned resolved configs only under .tmp', 
   assert.equal(calls[2][1], path.join(TMP_ROOT, 'packages', 'listing-objects', 'skill-listing-objects.yaml'));
   assert.match(calls[2][2], /opencode:sdk/);
   assert.equal(calls[2][3], 'utf8');
+});
+
+test('writeResolvedConfig rejects traversal outside the resolved-config output root', () => {
+  assert.throws(
+    () => writeResolvedConfig(
+      'packages/listing-objects/skill-listing-objects.yaml',
+      {
+        fsImpl: {
+          mkdirSync: () => {
+            throw new Error('should not mkdir');
+          },
+          writeFileSync: () => {
+            throw new Error('should not write');
+          },
+        },
+        outputRoot: path.join(TMP_ROOT, '..'),
+      },
+    ),
+    /Refusing to write resolved configs outside \.tmp\/resolved-configs/,
+  );
 });
