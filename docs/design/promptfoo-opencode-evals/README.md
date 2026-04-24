@@ -2,7 +2,7 @@
 
 ## Decision
 
-The `tests/evals/` suite runs Promptfoo through OpenCode only. Package configs select named eval tiers, while suite-owned runtime and cleanliness guards resolve those selections into concrete Promptfoo provider configs at execution time.
+The `tests/evals/` suite runs Promptfoo through `opencode run` only. Package configs select named eval tiers, suite TOML maps those tiers to OpenCode agents, and suite OpenCode config defines the agents that enforce model, turn, and permission policy.
 
 ## Why
 
@@ -12,16 +12,18 @@ The move to OpenCode with Qwen 3.6 is primarily a cost decision. Because the cut
 
 ### Suite-owned configuration
 
-- `tests/evals/config/eval-tiers.toml` is the source of truth for eval tiers and shared OpenCode runtime settings.
+- `tests/evals/config/eval-tiers.toml` is the source of truth for eval tiers and shared OpenCode runtime settings that the harness consumes directly.
+- `tests/evals/opencode.json` is the source of truth for OpenCode-enforced agent behavior.
 - Tier names are stable policy names: `light`, `standard`, `high`, `x_high`.
-- Tier definitions own `max_turns`.
-- Shared OpenCode runtime settings own provider id, model provider id, model, working directory, empty-output retry policy, and tool permissions.
+- Tier definitions select OpenCode agent names; they do not duplicate the agent's enforced settings.
+- Shared runtime settings own the Promptfoo provider path, OpenCode config path, project directory, output format, log settings, and empty-output retry policy.
+- OpenCode agents own `model`, `steps`, `permission`, and optional model tuning because those are the settings OpenCode enforces.
 
 ### Package-owned configuration
 
 - Each package YAML declares `metadata.eval_tier`.
 - Packages own prompts, tests, assertions, and suite-specific test variables.
-- Packages do not hardcode model ids, turn budgets, or provider-specific runtime settings.
+- Packages do not hardcode model ids, OpenCode agents, turn budgets, permissions, or provider-specific runtime settings.
 
 ## Suite maintenance posture
 
@@ -42,10 +44,89 @@ The move to OpenCode with Qwen 3.6 is primarily a cost decision. Because the cut
 ### OpenCode execution
 
 - Resolved providers use the suite local provider `file://scripts/opencode-cli-provider.js`.
-- The provider invokes `opencode run --model opencode/qwen3.6-plus --agent build` for each Promptfoo test case.
+- The provider invokes `opencode run` for each Promptfoo test case with arguments rendered from `eval-tiers.toml`.
+- The provider sets `OPENCODE_CONFIG` to the resolved suite OpenCode config path instead of relying on process-directory config discovery.
+- The provider passes `--dir` so the OpenCode project workspace is explicit.
 - The suite does not start or manage `opencode serve`.
 - Evals use OpenCode CLI execution only.
-- The initial model policy is Qwen 3.6 for all four tiers; the tier registry still owns the mapping so future model changes stay suite-local.
+- The initial model policy is Qwen 3.6 for all agents; model changes remain suite-local in `opencode.json`.
+
+The command template is:
+
+```sh
+OPENCODE_CONFIG=<runtime.opencode_config> \
+opencode run \
+  --agent <tiers[metadata.eval_tier].agent> \
+  --dir <runtime.project_dir> \
+  --format <runtime.format> \
+  --log-level <runtime.log_level> \
+  "<rendered prompt>"
+```
+
+`--print-logs` is included only when `runtime.print_logs` is true.
+
+The suite TOML shape is:
+
+```toml
+[runtime]
+provider_id = "file://scripts/opencode-cli-provider.js"
+opencode_config = "opencode.json"
+project_dir = ".."
+format = "default"
+log_level = "ERROR"
+print_logs = false
+empty_output_retries = 1
+
+[tiers.light]
+agent = "eval_light"
+
+[tiers.standard]
+agent = "eval_standard"
+
+[tiers.high]
+agent = "eval_high"
+
+[tiers.x_high]
+agent = "eval_x_high"
+```
+
+The suite OpenCode config defines the selected agents:
+
+```json
+{
+  "$schema": "https://opencode.ai/config.json",
+  "provider": {
+    "opencode": {
+      "options": {
+        "timeout": false
+      }
+    }
+  },
+  "agent": {
+    "eval_light": {
+      "description": "Promptfoo eval agent for light-cost scenarios.",
+      "mode": "primary",
+      "model": "opencode/qwen3.6-plus",
+      "temperature": 0.1,
+      "steps": 60,
+      "permission": {
+        "read": "allow",
+        "write": "allow",
+        "edit": "allow",
+        "bash": "allow",
+        "grep": "allow",
+        "glob": "allow",
+        "list": "allow",
+        "webfetch": "deny"
+      }
+    }
+  }
+}
+```
+
+Each tier agent must be a primary agent so `opencode run --agent <name>` can execute it directly.
+Eval agents are kept inline in `tests/evals/opencode.json` while they remain short policy definitions.
+If an eval agent needs a substantial custom prompt, move that agent to `.opencode/agents/<agent>.md` and keep the TOML tier mapping unchanged.
 
 ### Cleanliness and artifacts
 
@@ -57,8 +138,10 @@ The move to OpenCode with Qwen 3.6 is primarily a cost decision. Because the cut
 
 - Suite tests validate that the tier registry defines all required tiers.
 - Suite tests validate that every package declares a valid `metadata.eval_tier`.
-- Suite tests validate that resolved configs contain the local OpenCode provider, Qwen 3.6, the tier-selected `max_turns`, and the required tool permissions.
-- Provider tests validate OpenCode/Qwen invocation, empty-output retry behavior, and retry-count validation.
+- Suite tests validate that each TOML tier points to an agent defined in `opencode.json`.
+- Suite tests validate that tier agents define `model`, `steps`, and `permission`.
+- Suite tests validate that resolved configs contain the local OpenCode provider and tier-selected agent.
+- Provider tests validate OpenCode invocation arguments, `OPENCODE_CONFIG`, `--dir`, logging flags, empty-output retry behavior, and retry-count validation.
 - Existing cleanliness-guard tests remain the authority for repo-dirtiness enforcement.
 
 ## Extraction posture
